@@ -1,5 +1,8 @@
 import 'react-native-gesture-handler';
 
+import { configureStarfishPlatform } from '@/lib/starfish/platform';
+import { SessionProvider } from '@/lib/session-context';
+
 import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -10,6 +13,9 @@ import { StatusBar } from 'expo-status-bar';
 
 import { colors } from '@/theme';
 import { useAppFonts } from '@/lib/use-app-fonts';
+
+// Install platform crypto (no-op on web; quick-crypto polyfill on native).
+configureStarfishPlatform();
 
 // Keep the native splash up until our fonts are ready (must run at module top).
 void SplashScreen.preventAutoHideAsync();
@@ -30,12 +36,14 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: palette.canvas },
-          }}
-        />
+        <SessionProvider>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: palette.canvas },
+            }}
+          />
+        </SessionProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

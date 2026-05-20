@@ -34,6 +34,13 @@
             "imageWidth": 76
           }
         }
+      ],
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "OctoChat uses the camera to scan device-pairing QR codes."
+        }
       ]
     ],
     "experiments": {

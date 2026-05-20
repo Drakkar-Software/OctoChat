@@ -1,29 +1,31 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
-import { getMessages, getRoom, getThreadForMessage, getUser } from '@/lib/placeholder-data';
+import { useSession } from '@/lib/session-context';
+import { useRoom } from '@/lib/use-room';
 import { useTheme } from '@/lib/use-theme';
 import { AppBar } from '@/components/ui/AppBar';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { Txt } from '@/components/ui/Txt';
 import { Composer } from '@/components/chat/Composer';
-import { DateDivider, UnreadDivider } from '@/components/chat/Dividers';
-import { MessageGroup } from '@/components/chat/MessageGroup';
+import { RoomConversation } from '@/components/chat/RoomConversation';
 
 export default function RoomScreen() {
   const { colors } = useTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const room = getRoom(id);
-  const messages = getMessages(room.id);
-  const title = room.kind === 'dm' ? room.name : `#${room.name}`;
+  const params = useLocalSearchParams<{ id: string; name?: string; kind?: string }>();
+  const id = params.id;
+  const name = params.name ?? id;
+  const kind = params.kind ?? 'channel';
+  const { session } = useSession();
+  const { store, opening, openError, send, toggleReaction } = useRoom(id);
+  const title = kind === 'dm' ? name : `#${name}`;
 
-  const openThread = (messageId: string) => {
-    const thread = getThreadForMessage(messageId);
-    if (thread) router.push({ pathname: '/thread/[id]', params: { id: thread.id } });
-  };
+  const openThread = (msgId: string) =>
+    router.push({ pathname: '/thread/[id]', params: { id: msgId, roomId: id, roomName: name } });
 
   return (
     <StackScreen
@@ -37,27 +39,40 @@ export default function RoomScreen() {
             <>
               <Icon name="lock" size={10} color={colors.accent} />
               <Txt variant="caption" tone="inkMuted">
-                e2ee · {room.kind === 'dm' ? 'direct' : '14'}
+                e2ee · synced
               </Txt>
             </>
           }
           right={
             <>
               <IconButton name="search" accessibilityLabel="Search in room" />
-              <IconButton name="dots" accessibilityLabel="Room options" />
+              <IconButton
+                name="people"
+                accessibilityLabel="Members"
+                onPress={() => router.push({ pathname: '/members/[id]', params: { id, name } })}
+              />
             </>
           }
         />
       }
-      footer={<Composer placeholder={`Message ${title}`} />}
+      footer={<Composer placeholder={`Message ${title}`} onSend={(t) => send(t)} />}
     >
-      <DateDivider date="Today" />
-      {messages.map((m) => (
-        <View key={m.id}>
-          {m.unreadBefore ? <UnreadDivider /> : null}
-          <MessageGroup message={m} author={getUser(m.authorId)} onOpenThread={() => openThread(m.id)} />
-        </View>
-      ))}
+      {!session ? (
+        <EmptyState iconName="lock" title="Sign in first" subtitle="Create an identity to open encrypted rooms." />
+      ) : opening ? (
+        <EmptyState iconName="globe" title="Opening room…" subtitle="Fetching keys and decrypting messages." />
+      ) : openError ? (
+        <EmptyState iconName="alert" title="Couldn't open room" subtitle={openError} />
+      ) : store ? (
+        <RoomConversation
+          store={store}
+          currentUserId={session.userId}
+          onToggleReaction={toggleReaction}
+          onOpenThread={openThread}
+        />
+      ) : (
+        <EmptyState iconName="globe" title="Connecting…" />
+      )}
     </StackScreen>
   );
 }

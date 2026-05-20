@@ -12,6 +12,7 @@
     "web": "pnpm --filter @octochat/mobile web",
     "android": "pnpm --filter @octochat/mobile android",
     "ios": "pnpm --filter @octochat/mobile ios",
+    "dev:server": "pnpm --filter @octochat/server dev",
     "typecheck": "pnpm -r --if-present run typecheck",
     "lint": "pnpm -r --if-present run lint"
   }

@@ -3,22 +3,26 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
-import { getParentMessage, getRoom, getThread, getUser } from '@/lib/placeholder-data';
+import { useSession } from '@/lib/session-context';
+import { useRoom } from '@/lib/use-room';
 import { useTheme } from '@/lib/use-theme';
 import { AppBar } from '@/components/ui/AppBar';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { Txt } from '@/components/ui/Txt';
 import { Composer } from '@/components/chat/Composer';
-import { MessageGroup } from '@/components/chat/MessageGroup';
+import { ThreadConversation } from '@/components/chat/ThreadConversation';
 
 export default function ThreadScreen() {
   const { colors } = useTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const thread = getThread(id);
-  const room = getRoom(thread.roomId);
-  const parent = getParentMessage(thread);
+  const params = useLocalSearchParams<{ id: string; roomId: string; roomName?: string }>();
+  const parentId = params.id;
+  const roomId = params.roomId;
+  const roomName = params.roomName ?? roomId;
+  const { session } = useSession();
+  const { store, opening, openError, send, toggleReaction } = useRoom(roomId);
   const [alsoSend, setAlsoSend] = useState(false);
 
   const footer = (
@@ -38,10 +42,10 @@ export default function ThreadScreen() {
           {alsoSend ? <Icon name="check" size={11} color={colors.onAccent} /> : null}
         </View>
         <Txt variant="footnote" tone="inkMuted">
-          Also send to #{room.name}
+          Also send to #{roomName}
         </Txt>
       </Pressable>
-      <Composer placeholder="Reply in thread…" />
+      <Composer placeholder="Reply in thread…" onSend={(t) => send(t, parentId)} />
     </View>
   );
 
@@ -49,45 +53,31 @@ export default function ThreadScreen() {
     <StackScreen
       scroll
       contentStyle={styles.content}
-      header={
-        <AppBar
-          title="Thread"
-          subtitle={`#${room.name} · ${thread.replies.length} replies`}
-          onBack={() => router.back()}
-          right={<IconButton name="dots" accessibilityLabel="Thread options" />}
-        />
-      }
+      header={<AppBar title="Thread" subtitle={`#${roomName}`} onBack={() => router.back()} right={<IconButton name="dots" accessibilityLabel="Thread options" />} />}
       footer={footer}
     >
-      <MessageGroup message={parent} author={getUser(parent.authorId)} highlighted />
-      <View style={styles.replyLabel}>
-        <Txt variant="micro" weight="bold" mono uppercase tone="inkMuted">
-          {thread.replies.length} replies
-        </Txt>
-      </View>
-      {thread.replies.map((r) => (
-        <MessageGroup key={r.id} message={r} author={getUser(r.authorId)} />
-      ))}
+      {!session ? (
+        <EmptyState iconName="lock" title="Sign in first" />
+      ) : opening ? (
+        <EmptyState iconName="globe" title="Opening thread…" />
+      ) : openError ? (
+        <EmptyState iconName="alert" title="Couldn't open thread" subtitle={openError} />
+      ) : store ? (
+        <ThreadConversation
+          store={store}
+          parentId={parentId}
+          currentUserId={session.userId}
+          onToggleReaction={toggleReaction}
+        />
+      ) : (
+        <EmptyState iconName="globe" title="Connecting…" />
+      )}
     </StackScreen>
   );
 }
 
 const styles = StyleSheet.create({
   content: { paddingTop: spacing.sm, paddingBottom: spacing.md },
-  alsoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-  },
-  box: {
-    width: 18,
-    height: 18,
-    borderRadius: radii.xs,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  replyLabel: { paddingHorizontal: spacing.screenX, paddingVertical: spacing.sm },
+  alsoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.sm },
+  box: { width: 18, height: 18, borderRadius: radii.xs, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
 });

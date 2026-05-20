@@ -43,6 +43,16 @@ export interface Reaction {
   mine?: boolean;
 }
 
+/** Append-only reaction event stored in the room doc; aggregated for display. */
+export interface ReactionEvent {
+  id: string;
+  msgId: string;
+  emoji: string;
+  userId: string;
+  kind: 'add' | 'remove';
+  ts: number;
+}
+
 export type Attachment =
   | { kind: 'image'; label: string; ratio: number }
   | { kind: 'video'; label: string; duration: string }

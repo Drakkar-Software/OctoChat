@@ -1,0 +1,26 @@
+{
+  "name": "@octochat/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local Starfish sync server for OctoChat development.",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@drakkar.software/starfish-server": "link:../../../../Drakkar-Software/satellite/packages/ts/server",
+    "@drakkar.software/starfish-identities": "link:../../../../Drakkar-Software/satellite/packages/ts/identities",
+    "@drakkar.software/starfish-sharing": "link:../../../../Drakkar-Software/satellite/packages/ts/sharing",
+    "@drakkar.software/starfish-protocol": "link:../../../../Drakkar-Software/satellite/packages/ts/protocol",
+    "@hono/node-server": "^1.13.0",
+    "hono": "^4.12.7"
+  },
+  "devDependencies": {
+    "@octochat/tsconfig": "workspace:*",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "~5.9.2"
+  }
+}

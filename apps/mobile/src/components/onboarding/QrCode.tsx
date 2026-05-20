@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
+import QRCode from 'react-native-qrcode-svg';
 
 import { radii } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
@@ -8,7 +9,7 @@ import { Octopus } from '@/components/brand/Octopus';
 
 const N = 23;
 
-/** Deterministic faux-QR matrix with corner finder patterns + cleared center. */
+/** Deterministic faux-QR matrix used only when no real `value` is provided. */
 function makeMatrix(seed: number): boolean[][] {
   let s = seed;
   const rand = () => {
@@ -37,25 +38,33 @@ function makeMatrix(seed: number): boolean[][] {
   return grid;
 }
 
-/** Scannable-looking QR placeholder with the octopus mark at its center. */
-export function QrCode({ size = 200 }: { size?: number }) {
+/**
+ * QR with the octopus mark at its center. When `value` is given it renders a
+ * REAL scannable code (react-native-qrcode-svg); otherwise a decorative matrix.
+ */
+export function QrCode({ size = 200, value }: { size?: number; value?: string }) {
   const { colors } = useTheme();
   const grid = useMemo(() => makeMatrix(1337), []);
   const m = size / N;
+  const logo = size * 0.22;
 
   return (
     <View style={[styles.wrap, { width: size, height: size, backgroundColor: colors.paper, borderColor: colors.accent }]}>
-      <Svg width={size} height={size}>
-        {grid.flatMap((row, r) =>
-          row.map((on, c) =>
-            on ? (
-              <Rect key={`${r}-${c}`} x={c * m} y={r * m} width={m + 0.4} height={m + 0.4} rx={m * 0.2} fill={colors.ink} />
-            ) : null,
-          ),
-        )}
-      </Svg>
-      <View style={[styles.logo, { width: m * 5.4, height: m * 5.4, backgroundColor: colors.paper, borderRadius: radii.md }]}>
-        <Octopus size={m * 4} />
+      {value ? (
+        <QRCode value={value} size={size - 22} color={colors.ink} backgroundColor={colors.paper} ecl="M" />
+      ) : (
+        <Svg width={size} height={size}>
+          {grid.flatMap((row, r) =>
+            row.map((on, c) =>
+              on ? (
+                <Rect key={`${r}-${c}`} x={c * m} y={r * m} width={m + 0.4} height={m + 0.4} rx={m * 0.2} fill={colors.ink} />
+              ) : null,
+            ),
+          )}
+        </Svg>
+      )}
+      <View style={[styles.logo, { width: logo, height: logo, backgroundColor: colors.paper, borderRadius: radii.md }]}>
+        <Octopus size={logo * 0.74} />
       </View>
     </View>
   );

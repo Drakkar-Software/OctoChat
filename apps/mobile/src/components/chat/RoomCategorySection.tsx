@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import type { Room } from '@/lib/types';
-import type { RoomCategory } from '@/lib/placeholder-data';
+import type { RoomCategory } from '@/lib/use-rooms';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';

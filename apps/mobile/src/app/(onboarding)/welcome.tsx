@@ -43,7 +43,7 @@ export default function Welcome() {
           variant="secondary"
           size="lg"
           full
-          onPress={() => router.replace('/(tabs)/rooms')}
+          onPress={() => router.push('/(onboarding)/recover')}
         />
         <Button
           label="Scan QR from existing device"
@@ -51,7 +51,7 @@ export default function Welcome() {
           size="md"
           full
           iconName="qr"
-          onPress={() => router.replace('/(tabs)/rooms')}
+          onPress={() => router.push('/pair')}
         />
       </View>
 

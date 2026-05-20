@@ -14,12 +14,14 @@ interface MessageGroupProps {
   message: Message;
   author: User;
   onOpenThread?: () => void;
+  /** Toggle a reaction emoji on this message. */
+  onToggleReaction?: (emoji: string) => void;
   /** Emphasize as the highlighted parent in a thread view. */
   highlighted?: boolean;
 }
 
 /** A single authored message block: avatar, header, body, media, reactions, thread. */
-export function MessageGroup({ message, author, onOpenThread, highlighted }: MessageGroupProps) {
+export function MessageGroup({ message, author, onOpenThread, onToggleReaction, highlighted }: MessageGroupProps) {
   const { colors } = useTheme();
   const tinted = message.mention || highlighted;
   return (
@@ -43,8 +45,14 @@ export function MessageGroup({ message, author, onOpenThread, highlighted }: Mes
           </Txt>
         ) : null}
         {message.attachment ? <Attachment data={message.attachment} /> : null}
-        {message.reactions ? <ReactionBar reactions={message.reactions} /> : null}
-        {message.threadCount && onOpenThread ? (
+        {message.reactions?.length || onToggleReaction ? (
+          <ReactionBar
+            reactions={message.reactions ?? []}
+            onToggle={onToggleReaction}
+            onAdd={() => onToggleReaction?.('🐙')}
+          />
+        ) : null}
+        {onOpenThread ? (
           <Pressable
             accessibilityRole="button"
             onPress={onOpenThread}
@@ -52,7 +60,7 @@ export function MessageGroup({ message, author, onOpenThread, highlighted }: Mes
           >
             <Icon name="thread" size={13} color={colors.accent} />
             <Txt variant="footnote" weight="semibold" tone="accent">
-              {message.threadCount} replies
+              {message.threadCount ? `${message.threadCount} replies` : 'Reply in thread'}
             </Txt>
             <Icon name="chev" size={13} color={colors.inkMuted} />
           </Pressable>

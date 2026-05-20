@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { FINGERPRINT } from '@/lib/placeholder-data';
+import { startDevicePairing } from '@/lib/starfish/pairing';
+import { useSession } from '@/lib/session-context';
 import { successFeedback } from '@/lib/haptics';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
@@ -18,18 +19,45 @@ import { QrCode } from '@/components/onboarding/QrCode';
 
 const PIN_LENGTH = 6;
 
-/** Step 1: confirm device PIN → Step 2: present a full-screen QR to scan. */
+function copy(text: string) {
+  try {
+    (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => void } } }).navigator?.clipboard?.writeText?.(text);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Step 1: confirm device PIN → Step 2: a real, PIN-sealed pairing QR to scan. */
 export default function AddDeviceScreen() {
+  const { session } = useSession();
+  const fingerprint = session?.fingerprint ?? '— · — · —';
   const [pin, setPin] = useState('');
   const [stage, setStage] = useState<'pin' | 'qr'>('pin');
+  const [payload, setPayload] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (pin.length === PIN_LENGTH) {
-      successFeedback();
-      const t = setTimeout(() => setStage('qr'), 260);
-      return () => clearTimeout(t);
-    }
-  }, [pin]);
+    if (pin.length !== PIN_LENGTH || !session) return;
+    let cancelled = false;
+    successFeedback();
+    (async () => {
+      try {
+        const qr = await startDevicePairing(session, pin);
+        if (!cancelled) {
+          setPayload(qr);
+          setStage('qr');
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(String((e as Error)?.message ?? e));
+          setPin('');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pin, session]);
 
   const close = () => router.replace('/(tabs)/rooms');
 
@@ -47,7 +75,7 @@ export default function AddDeviceScreen() {
         }
       >
         <Callout tone="accent" iconName="shield">
-          Confirm with your device PIN. The QR code will be valid for 2 minutes.
+          Confirm with your device PIN. It encrypts the pairing code so it&apos;s useless without the PIN.
         </Callout>
 
         <View style={styles.pinBlock}>
@@ -56,6 +84,12 @@ export default function AddDeviceScreen() {
           </Txt>
           <PinDots length={PIN_LENGTH} filled={pin.length} />
         </View>
+
+        {error ? (
+          <Callout tone="danger" iconName="alert">
+            {error}
+          </Callout>
+        ) : null}
 
         <PinPad
           onDigit={(d) => setPin((p) => (p.length < PIN_LENGTH ? p + d : p))}
@@ -74,6 +108,7 @@ export default function AddDeviceScreen() {
           subtitle="Step 2 of 2"
           onBack={() => {
             setPin('');
+            setPayload(null);
             setStage('pin');
           }}
           right={<IconButton name="x" onPress={close} accessibilityLabel="Cancel" />}
@@ -90,20 +125,24 @@ export default function AddDeviceScreen() {
         <Txt variant="callout" weight="bold" tone="ink">
           Scan QR from existing device
         </Txt>{' '}
-        and point its camera here.
+        and scan this — then enter the same PIN.
       </Txt>
 
-      <QrCode size={240} />
+      {payload ? <QrCode size={240} value={payload} /> : null}
 
       <View style={styles.statusRow}>
         <Pill tone="accent" label="WAITING FOR SCAN…" mono />
-        <Txt variant="micro" mono tone="inkMuted">
-          EXPIRES IN 1:54
-        </Txt>
+        {Platform.OS === 'web' && payload ? (
+          <Pressable onPress={() => copy(payload)} accessibilityRole="button">
+            <Txt variant="micro" mono tone="accent">
+              COPY CODE
+            </Txt>
+          </Pressable>
+        ) : null}
       </View>
 
       <Callout tone="info" iconName="key">
-        Fingerprint {FINGERPRINT} — verify it matches on both devices.
+        Fingerprint {fingerprint} — verify it matches on both devices.
       </Callout>
     </StackScreen>
   );

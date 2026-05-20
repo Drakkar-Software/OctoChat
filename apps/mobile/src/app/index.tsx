@@ -1,6 +1,10 @@
 import { Redirect } from 'expo-router';
 
-/** Entry point — start the demo at the onboarding welcome screen. */
+import { useSession } from '@/lib/session-context';
+
+/** Entry: go to the app if an identity is restored, else onboarding. */
 export default function Index() {
-  return <Redirect href="/(onboarding)/welcome" />;
+  const { session, status } = useSession();
+  if (status === 'loading') return null;
+  return <Redirect href={session ? '/(tabs)/rooms' : '/(onboarding)/welcome'} />;
 }

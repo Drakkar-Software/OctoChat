@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { router } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { SEED_WORDS } from '@/lib/placeholder-data';
+import { generateSeedWords } from '@/lib/starfish/identity';
+import { useSession } from '@/lib/session-context';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
@@ -13,7 +14,34 @@ import { Txt } from '@/components/ui/Txt';
 import { SeedGrid } from '@/components/onboarding/SeedGrid';
 
 export default function SeedScreen() {
+  const { signIn } = useSession();
+  const words = useMemo(() => generateSeedWords(), []);
   const [revealed, setRevealed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const copy = () => {
+    try {
+      (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => void } } }).navigator?.clipboard?.writeText?.(
+        words.join(' '),
+      );
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const confirm = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await signIn(words);
+      router.replace('/(tabs)/rooms');
+    } catch (e) {
+      setError(String((e as Error)?.message ?? e));
+      setBusy(false);
+    }
+  };
 
   return (
     <StackScreen
@@ -22,21 +50,20 @@ export default function SeedScreen() {
       header={
         <AppBar
           title="Backup seed"
-          subtitle="Step 2 of 3"
+          subtitle="Step 2 of 2"
           onBack={() => router.back()}
-          right={
-            <IconButton name="x" onPress={() => router.replace('/(tabs)/rooms')} accessibilityLabel="Skip" />
-          }
+          right={<IconButton name="x" onPress={() => router.back()} accessibilityLabel="Cancel" />}
         />
       }
       footer={
         <View style={styles.footer}>
           <Button
-            label="I've written it down  →"
+            label={busy ? 'Creating identity…' : "I've written it down  →"}
             variant="primary"
             size="lg"
             full
-            onPress={() => router.push('/(onboarding)/add-device')}
+            disabled={busy}
+            onPress={confirm}
           />
         </View>
       }
@@ -49,7 +76,7 @@ export default function SeedScreen() {
         way to recover your account.
       </Txt>
 
-      <SeedGrid words={SEED_WORDS} concealed={!revealed} />
+      <SeedGrid words={words} concealed={!revealed} />
 
       <View style={styles.actions}>
         <Button
@@ -59,13 +86,20 @@ export default function SeedScreen() {
           iconName={revealed ? 'eye-off' : 'eye'}
           onPress={() => setRevealed((v) => !v)}
         />
-        <Button label="Copy" variant="ghost" size="sm" iconName="copy" />
-        <Button label="Save to keychain" variant="ghost" size="sm" iconName="key" />
+        {Platform.OS === 'web' ? (
+          <Button label="Copy" variant="ghost" size="sm" iconName="copy" onPress={copy} />
+        ) : null}
       </View>
 
-      <Callout tone="danger" iconName="alert" title="No screenshots.">
-        Anyone with these 12 words can read your messages forever.
-      </Callout>
+      {error ? (
+        <Callout tone="danger" iconName="alert" title="Couldn't create identity">
+          {error}
+        </Callout>
+      ) : (
+        <Callout tone="danger" iconName="alert" title="No screenshots.">
+          Anyone with these 12 words can read your messages forever.
+        </Callout>
+      )}
     </StackScreen>
   );
 }

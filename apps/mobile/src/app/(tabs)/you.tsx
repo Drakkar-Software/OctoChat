@@ -1,29 +1,37 @@
 import { router } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing, verificationColor } from '@/theme';
-import { PROFILE } from '@/lib/placeholder-data';
+import { useProfile } from '@/lib/use-profile';
+import { useSession } from '@/lib/session-context';
 import { useTheme } from '@/lib/use-theme';
 import { AppBar } from '@/components/ui/AppBar';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Divider } from '@/components/ui/Divider';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Icon } from '@/components/ui/Icon';
-import { Pill } from '@/components/ui/Pill';
 import { Row } from '@/components/ui/Row';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { Txt } from '@/components/ui/Txt';
 
-const ABOUT_FIELDS: { label: string; value: string; mono?: boolean }[] = [
-  { label: 'Display name', value: PROFILE.user.name },
-  { label: 'Pseudo', value: PROFILE.user.handle, mono: true },
-  { label: 'Pronouns', value: PROFILE.pronouns },
-  { label: 'Description', value: PROFILE.description },
-];
-
 export default function YouScreen() {
   const { colors } = useTheme();
+  const { lock } = useSession();
+  const { profile, save, saving } = useProfile();
+  const verified = verificationColor(colors, 'verified');
+
+  if (!profile) {
+    return (
+      <StackScreen inTabs header={<AppBar title="Profile" />}>
+        <EmptyState iconName="lock" title="Sign in first" subtitle="Create an identity to view your profile." />
+      </StackScreen>
+    );
+  }
+
+  const initials = profile.name.slice(0, 2).toUpperCase();
+  const check = <Icon name="check-circle" size={16} color={verified} />;
 
   return (
     <StackScreen
@@ -34,57 +42,56 @@ export default function YouScreen() {
         <AppBar
           title="Profile"
           right={
-            <Txt variant="subhead" weight="semibold" tone="accent">
-              Save
-            </Txt>
+            <Pressable accessibilityRole="button" onPress={() => save(profile.name)}>
+              <Txt variant="subhead" weight="semibold" tone="accent">
+                {saving ? 'Saving…' : 'Save'}
+              </Txt>
+            </Pressable>
           }
         />
       }
     >
       <View style={styles.identity}>
-        <View>
-          <Avatar label={PROFILE.user.initials} size={68} presence={PROFILE.user.presence} />
-          <View style={[styles.camera, { backgroundColor: colors.accent, borderColor: colors.paper }]}>
-            <Icon name="camera" size={12} color={colors.onAccent} />
-          </View>
-        </View>
+        <Avatar label={initials} size={68} presence="online" />
         <View style={styles.identityText}>
           <Txt variant="heading" weight="bold">
-            {PROFILE.user.name}
+            {profile.name}
           </Txt>
           <Txt variant="footnote" mono tone="inkMuted">
-            {PROFILE.user.handle}
+            {profile.handle}
           </Txt>
-          <Pill tone="accent" label={PROFILE.status} style={styles.statusPill} />
         </View>
       </View>
 
       <Card title="ABOUT">
-        {ABOUT_FIELDS.map((f) => (
-          <View key={f.label} style={styles.field}>
-            <Txt variant="micro" weight="semibold" mono uppercase tone="inkMuted">
-              {f.label}
-            </Txt>
-            <Txt variant="callout" mono={f.mono}>
-              {f.value}
-            </Txt>
-          </View>
-        ))}
+        <View style={styles.field}>
+          <Txt variant="micro" weight="semibold" mono uppercase tone="inkMuted">
+            Display name
+          </Txt>
+          <Txt variant="callout">{profile.name}</Txt>
+        </View>
+        <View style={styles.field}>
+          <Txt variant="micro" weight="semibold" mono uppercase tone="inkMuted">
+            User ID
+          </Txt>
+          <Txt variant="callout" mono>
+            {profile.userId}
+          </Txt>
+        </View>
       </Card>
 
       <Card title="SECURITY">
-        {PROFILE.security.map((item, i) => (
-          <View key={item.id}>
-            {i > 0 ? <Divider style={styles.divider} /> : null}
-            <Row
-              iconName={item.icon}
-              title={item.title}
-              detail={item.detail}
-              detailMono={item.mono}
-              right={<Icon name="check-circle" size={16} color={verificationColor(colors, item.level)} />}
-            />
-          </View>
-        ))}
+        <Row iconName="shield" title="Recovery seed" detail="12-word phrase · backed up" right={check} />
+        <Divider style={styles.divider} />
+        <Row
+          iconName="devices"
+          title="Devices"
+          detail="1 active · add another"
+          right={check}
+          onPress={() => router.push('/(onboarding)/add-device')}
+        />
+        <Divider style={styles.divider} />
+        <Row iconName="key" title="Identity fingerprint" detail={profile.fingerprint} detailMono right={check} />
       </Card>
 
       <Button
@@ -92,7 +99,10 @@ export default function YouScreen() {
         variant="ghost"
         size="md"
         iconName="logout"
-        onPress={() => router.replace('/(onboarding)/welcome')}
+        onPress={async () => {
+          await lock();
+          router.replace('/(onboarding)/welcome');
+        }}
       />
     </StackScreen>
   );
@@ -101,19 +111,7 @@ export default function YouScreen() {
 const styles = StyleSheet.create({
   content: { padding: spacing.screenX, gap: spacing.lg, paddingBottom: 96 },
   identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
-  camera: {
-    position: 'absolute',
-    right: -2,
-    bottom: -2,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   identityText: { flex: 1, gap: 2 },
-  statusPill: { marginTop: 4 },
   field: { gap: 3 },
   divider: { marginVertical: spacing.xs },
 });
