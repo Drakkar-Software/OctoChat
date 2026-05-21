@@ -18,21 +18,24 @@ export interface CrossRoomMessage {
 
 export async function loadAllMessages(session: Session, spaceId: string): Promise<CrossRoomMessage[]> {
   const { rooms } = await readRooms(session.accountClient, spaceId);
+  // Keyring + access are space-wide, not per-room: a joined space uses its member
+  // cap (keyed by spaceId) with the cap's issuer as the trusted keyring adder; an
+  // owned space uses the account's chat client and our own key. Resolve one
+  // encryptor for the space and decrypt every channel's per-room doc with it.
+  const memberCap = getMemberCap(spaceId);
+  let client = session.chatClient;
+  let trustedAdders = [session.keys.edPub];
+  if (memberCap) {
+    const cap = JSON.parse(memberCap) as { iss?: string };
+    client = makeClient(cap, session.keys.edPriv);
+    if (cap.iss) trustedAdders = [cap.iss];
+  }
+  const enc = await buildEncryptor(client, session.keys, spaceId, trustedAdders);
+  if (!enc) return [];
+
   const out: CrossRoomMessage[] = [];
   for (const room of rooms) {
     try {
-      // Joined rooms use the member cap + its issuer as trusted adder; our own
-      // rooms use the account's chat client + our own key.
-      const memberCap = getMemberCap(room.id);
-      let client = session.chatClient;
-      let trustedAdders = [session.keys.edPub];
-      if (memberCap) {
-        const cap = JSON.parse(memberCap) as { iss?: string };
-        client = makeClient(cap, session.keys.edPriv);
-        if (cap.iss) trustedAdders = [cap.iss];
-      }
-      const enc = await buildEncryptor(client, session.keys, room.id, trustedAdders);
-      if (!enc) continue;
       const res = await client.pull(roomPull(room.id)).catch(() => null);
       const data = res?.data as Record<string, unknown> | undefined;
       if (!data || !data._encrypted) continue;
