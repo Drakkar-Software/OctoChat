@@ -1,15 +1,17 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
 import type { Message, User } from '@/lib/types';
 import type { AttachmentRef } from '@/lib/starfish/attachments';
 import { plural } from '@/lib/format';
+import { useRowHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 
 import { AttachmentView } from './AttachmentView';
+import { MessageActions } from './MessageActions';
 import { ReactionBar } from './ReactionBar';
 
 interface MessageGroupProps {
@@ -34,9 +36,19 @@ export function MessageGroup({
   highlighted,
 }: MessageGroupProps) {
   const { colors } = useTheme();
+  const { hovered, hoverProps } = useRowHover();
   const tinted = message.mention || highlighted;
+  // Quick actions (react / reply) live in a floating toolbar shown on hover
+  // (web) / always on native. It overlays the row, so revealing it never shifts
+  // surrounding content. Existing reactions and the reply count stay inline as
+  // content — those always show, since they signal a thread/reaction exists.
+  const showActions = Platform.OS !== 'web' || hovered;
+  const mine = new Set((message.reactions ?? []).filter((r) => r.mine).map((r) => r.emoji));
   return (
-    <View style={[styles.row, tinted && { backgroundColor: colors.accentBg }]}>
+    <View
+      {...hoverProps}
+      style={[styles.row, tinted ? { backgroundColor: colors.accentBg } : hovered ? { backgroundColor: colors.hover } : null]}
+    >
       {message.mention || highlighted ? (
         <View style={[styles.mentionBar, { backgroundColor: colors.accent }]} />
       ) : null}
@@ -58,10 +70,10 @@ export function MessageGroup({
         {message.attachmentRef ? (
           <AttachmentView attachment={message.attachmentRef} onLoad={onLoadAttachment} />
         ) : null}
-        {message.reactions?.length || onToggleReaction ? (
-          <ReactionBar reactions={message.reactions ?? []} onToggle={onToggleReaction} />
+        {message.reactions?.length ? (
+          <ReactionBar reactions={message.reactions} onToggle={onToggleReaction} />
         ) : null}
-        {onOpenThread ? (
+        {onOpenThread && message.threadCount ? (
           <Pressable
             accessibilityRole="button"
             onPress={onOpenThread}
@@ -69,12 +81,15 @@ export function MessageGroup({
           >
             <Icon name="thread" size={13} color={colors.accent} />
             <Txt variant="footnote" weight="semibold" tone="accent">
-              {message.threadCount ? plural(message.threadCount, 'reply', 'replies') : 'Reply in thread'}
+              {plural(message.threadCount, 'reply', 'replies')}
             </Txt>
             <Icon name="chev" size={13} color={colors.inkMuted} />
           </Pressable>
         ) : null}
       </View>
+      {onToggleReaction || onOpenThread ? (
+        <MessageActions visible={showActions} onReact={onToggleReaction} onReply={onOpenThread} mine={mine} />
+      ) : null}
     </View>
   );
 }

@@ -1,13 +1,10 @@
-import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii } from '@/theme';
 import type { Reaction } from '@/lib/types';
 import { tapFeedback } from '@/lib/haptics';
-import { QUICK_REACTIONS } from '@/lib/reactions';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
-import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 
 function ReactionChip({ emoji, count, mine, onPress }: Reaction & { onPress?: () => void }) {
@@ -34,24 +31,13 @@ function ReactionChip({ emoji, count, mine, onPress }: Reaction & { onPress?: ()
   );
 }
 
-/** Row of emoji reactions; tap a chip to toggle, tap + to pick from the palette. */
-export function ReactionBar({
-  reactions,
-  onToggle,
-}: {
-  reactions: Reaction[];
-  onToggle?: (emoji: string) => void;
-}) {
-  const { colors } = useTheme();
-  const [picking, setPicking] = useState(false);
-  const mine = new Set(reactions.filter((r) => r.mine).map((r) => r.emoji));
-
-  const pick = (emoji: string) => {
-    tapFeedback();
-    onToggle?.(emoji);
-    setPicking(false);
-  };
-
+/**
+ * Inline row of a message's existing reactions; tap a chip to toggle yours.
+ * Adding a *new* reaction lives in the message's hover toolbar (see
+ * {@link MessageActions}), so this renders nothing when there are no reactions.
+ */
+export function ReactionBar({ reactions, onToggle }: { reactions: Reaction[]; onToggle?: (emoji: string) => void }) {
+  if (reactions.length === 0) return null;
   return (
     <View style={styles.row}>
       {reactions.map((r) => (
@@ -64,47 +50,6 @@ export function ReactionBar({
           }}
         />
       ))}
-      {picking ? (
-        <>
-          {QUICK_REACTIONS.map((emoji) => (
-            <Pressable
-              key={emoji}
-              accessibilityRole="button"
-              accessibilityLabel={`React with ${emoji}`}
-              onPress={() => pick(emoji)}
-              style={[
-                styles.add,
-                {
-                  borderColor: mine.has(emoji) ? colors.accentBorder : colors.lineFaint,
-                  backgroundColor: mine.has(emoji) ? colors.accentBg : colors.surface,
-                },
-              ]}
-            >
-              <Txt variant="footnote">{emoji}</Txt>
-            </Pressable>
-          ))}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Close reaction picker"
-            onPress={() => setPicking(false)}
-            style={[styles.add, { borderColor: colors.lineFaint, backgroundColor: colors.surface }]}
-          >
-            <Icon name="x" size={12} color={colors.inkMuted} />
-          </Pressable>
-        </>
-      ) : (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Add reaction"
-          onPress={() => {
-            tapFeedback();
-            setPicking(true);
-          }}
-          style={[styles.add, { borderColor: colors.lineFaint, backgroundColor: colors.surface }]}
-        >
-          <Icon name="smile" size={13} color={colors.inkMuted} />
-        </Pressable>
-      )}
     </View>
   );
 }
@@ -119,13 +64,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: radii.pill,
     borderWidth: 1,
-  },
-  add: {
-    width: 30,
-    height: 24,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
