@@ -52,6 +52,7 @@ export function DesktopNav() {
         onSelect={selectSpace}
         onAdd={() => router.push('/join')}
         meLabel={meLabel}
+        meAvatar={profile?.avatar}
         onOpenProfile={() => router.push('/(tabs)/you')}
       />
       {space ? (

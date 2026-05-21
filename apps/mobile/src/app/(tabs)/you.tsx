@@ -20,7 +20,8 @@ import { Txt } from '@/components/ui/Txt';
 export default function YouScreen() {
   const { colors } = useTheme();
   const { lock } = useSession();
-  const { profile, draft, setDraft, dirty, save, saving } = useProfile();
+  const { profile, draft, setDraft, dirty, save, saving, avatarDraft, pickAvatar, removeAvatar, avatarError } =
+    useProfile();
   const verified = verificationColor(colors, 'verified');
 
   if (!profile) {
@@ -59,7 +60,17 @@ export default function YouScreen() {
       }
     >
       <View style={styles.identity}>
-        <Avatar label={initials} size={68} presence="online" />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Change profile photo"
+          onPress={pickAvatar}
+          style={styles.avatarWrap}
+        >
+          <Avatar label={initials} image={avatarDraft} size={68} />
+          <View style={[styles.cameraBadge, { backgroundColor: colors.accent, borderColor: colors.paper }]}>
+            <Icon name="camera" size={12} color={colors.onAccent} />
+          </View>
+        </Pressable>
         <View style={styles.identityText}>
           <Txt variant="heading" weight="bold">
             {profile.name}
@@ -67,6 +78,25 @@ export default function YouScreen() {
           <Txt variant="footnote" mono tone="inkMuted">
             {profile.handle}
           </Txt>
+          <View style={styles.avatarActions}>
+            <Pressable accessibilityRole="button" onPress={pickAvatar} hitSlop={6}>
+              <Txt variant="footnote" weight="semibold" tone="accent">
+                {avatarDraft ? 'Change photo' : 'Upload photo'}
+              </Txt>
+            </Pressable>
+            {avatarDraft ? (
+              <Pressable accessibilityRole="button" onPress={removeAvatar} hitSlop={6}>
+                <Txt variant="footnote" weight="semibold" tone="danger">
+                  Remove
+                </Txt>
+              </Pressable>
+            ) : null}
+          </View>
+          {avatarError ? (
+            <Txt variant="micro" tone="danger">
+              {avatarError}
+            </Txt>
+          ) : null}
         </View>
       </View>
 
@@ -129,7 +159,20 @@ export default function YouScreen() {
 const styles = StyleSheet.create({
   content: { padding: spacing.screenX, gap: spacing.lg, paddingBottom: 96 },
   identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
+  avatarWrap: { position: 'relative' },
+  cameraBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   identityText: { flex: 1, gap: 2 },
+  avatarActions: { flexDirection: 'row', gap: spacing.md, marginTop: 2 },
   field: { gap: 3 },
   divider: { marginVertical: spacing.xs },
 });

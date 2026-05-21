@@ -57,13 +57,15 @@ export const config: SyncConfig = {
       allowedMimeTypes: ["application/octet-stream"],
     },
     // Public-readable profile; only the self-signed root device may write.
+    // 64 KB holds the pseudo plus a downscaled avatar inlined as a JPEG data URI
+    // (~160-192 px square); see uploadAvatar/avatar-image in apps/mobile.
     {
       name: "profile",
       storagePath: "user/{identity}/profile",
       readRoles: ["public"],
       writeRoles: ["device:root"],
       encryption: "none",
-      maxBodyBytes: 8_192,
+      maxBodyBytes: 65_536,
       allowedMimeTypes: JSON_ONLY,
     },
     // Per-identity device directory.

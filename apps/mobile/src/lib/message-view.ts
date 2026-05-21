@@ -19,9 +19,10 @@ export function displayName(userId: string, currentUserId: string, pseudo?: stri
   return pseudo?.trim() || userId.slice(0, 8);
 }
 
-export function authorFor(authorId: string, currentUserId: string, pseudo?: string): User {
+export function authorFor(authorId: string, currentUserId: string, pseudo?: string, avatar?: string): User {
   // Prefer the profile pseudo; fall back to the hex prefix until one resolves.
-  // `initials` follows the resolved name for everyone (incl. me) so avatars stay consistent.
+  // `initials` follows the resolved name for everyone (incl. me) so the monogram
+  // stays consistent when no avatar is set.
   const named = pseudo?.trim();
   const display = named || authorId.slice(0, 8);
   return {
@@ -29,6 +30,7 @@ export function authorFor(authorId: string, currentUserId: string, pseudo?: stri
     name: displayName(authorId, currentUserId, pseudo),
     handle: named ? `@${named}` : `@${authorId.slice(0, 6)}`,
     initials: display.slice(0, 2).toUpperCase(),
+    avatar,
   };
 }
 

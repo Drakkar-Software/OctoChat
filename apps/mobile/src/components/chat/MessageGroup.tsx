@@ -55,7 +55,7 @@ export function MessageGroup({
       {message.mention || highlighted ? (
         <View style={[styles.mentionBar, { backgroundColor: colors.accent }]} />
       ) : null}
-      <Avatar label={author.initials} size={36} presence={author.presence} />
+      <Avatar label={author.initials} image={author.avatar} size={36} presence={author.presence} />
       <View style={styles.body}>
         <View style={styles.head}>
           <Txt variant="callout" weight="bold">

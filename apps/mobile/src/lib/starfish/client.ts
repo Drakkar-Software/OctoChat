@@ -115,23 +115,54 @@ export async function ensureRoomInitialized(
   await client.push(roomPush(roomId), sealed as Record<string, unknown>, res?.hash ?? null);
 }
 
-/** Read any user's public profile pseudo. */
-export async function readPseudo(userId: string): Promise<string | null> {
+/** A user's public profile: display pseudo + optional inline avatar (data URI). */
+export interface PublicProfile {
+  pseudo: string | null;
+  avatar: string | null;
+}
+
+/** Read any user's public profile — pseudo and the inlined avatar data URI. */
+export async function readProfile(userId: string): Promise<PublicProfile> {
   try {
     const r = await fetch(`${SYNC_BASE}/pull/user/${userId}/profile`);
-    if (!r.ok) return null;
+    if (!r.ok) return { pseudo: null, avatar: null };
     const body = await r.json();
-    const pseudo = body?.data?.pseudo;
-    return typeof pseudo === 'string' ? pseudo : null;
+    const data = body?.data as { pseudo?: unknown; avatar?: unknown } | undefined;
+    return {
+      pseudo: typeof data?.pseudo === 'string' ? data.pseudo : null,
+      avatar: typeof data?.avatar === 'string' ? data.avatar : null,
+    };
   } catch {
-    return null;
+    return { pseudo: null, avatar: null };
   }
 }
 
-/** Write the caller's own profile pseudo (needs a cap with write on `profile`). */
-export async function writePseudo(client: StarfishClient, userId: string, pseudo: string): Promise<void> {
+/** Read any user's public profile pseudo. */
+export async function readPseudo(userId: string): Promise<string | null> {
+  return (await readProfile(userId)).pseudo;
+}
+
+/**
+ * Merge a patch into the caller's own profile doc (needs a cap with write on
+ * `profile`). Pulls the current doc first so writing one field never drops the
+ * others — saving a pseudo keeps the avatar and vice versa. `avatar: null`
+ * explicitly removes the avatar.
+ */
+export async function writeProfile(
+  client: StarfishClient,
+  userId: string,
+  patch: { pseudo?: string; avatar?: string | null },
+): Promise<void> {
   const current = await client.pull(`/pull/user/${userId}/profile`).catch(() => null);
-  await client.push(`/push/user/${userId}/profile`, { v: 1, pseudo }, current?.hash ?? null);
+  const base = (current?.data as Record<string, unknown> | undefined) ?? {};
+  const next: Record<string, unknown> = { ...base, ...patch, v: 1 };
+  if (next.avatar == null) delete next.avatar; // null/undefined ⇒ remove the key
+  await client.push(`/push/user/${userId}/profile`, next, current?.hash ?? null);
+}
+
+/** Write the caller's own profile pseudo, preserving any other profile fields. */
+export async function writePseudo(client: StarfishClient, userId: string, pseudo: string): Promise<void> {
+  await writeProfile(client, userId, { pseudo });
 }
 
 /**
@@ -141,9 +172,8 @@ export async function writePseudo(client: StarfishClient, userId: string, pseudo
  * clobbering an edit back to the bootstrap default.
  */
 export async function ensurePseudo(client: StarfishClient, userId: string, fallback: string): Promise<string> {
-  const current = await client.pull(`/pull/user/${userId}/profile`).catch(() => null);
-  const existing = (current?.data as { pseudo?: unknown } | undefined)?.pseudo;
-  if (typeof existing === 'string' && existing.trim()) return existing;
-  await client.push(`/push/user/${userId}/profile`, { v: 1, pseudo: fallback }, current?.hash ?? null);
+  const existing = (await readProfile(userId)).pseudo;
+  if (existing && existing.trim()) return existing;
+  await writeProfile(client, userId, { pseudo: fallback });
   return fallback;
 }

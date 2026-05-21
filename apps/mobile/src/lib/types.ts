@@ -11,6 +11,8 @@ export interface User {
   handle: string;
   initials: string;
   presence?: PresenceStatus;
+  /** Uploaded avatar as a data URI; absent → render the monogram initials. */
+  avatar?: string;
 }
 
 export interface Space {

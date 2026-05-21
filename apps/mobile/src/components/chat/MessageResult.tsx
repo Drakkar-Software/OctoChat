@@ -4,7 +4,7 @@ import { radii, spacing } from '@/theme';
 import { authorFor, hhmm, type StoredMsg } from '@/lib/message-view';
 import type { Room } from '@/lib/types';
 import { useHover } from '@/lib/use-hover';
-import { usePseudos } from '@/lib/use-pseudos';
+import { useAvatars, usePseudos } from '@/lib/use-pseudos';
 import { useTheme } from '@/lib/use-theme';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
@@ -25,7 +25,8 @@ export function MessageResult({
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
   const pseudo = usePseudos([msg.authorId]);
-  const author = authorFor(msg.authorId, currentUserId, pseudo(msg.authorId));
+  const avatar = useAvatars([msg.authorId]);
+  const author = authorFor(msg.authorId, currentUserId, pseudo(msg.authorId), avatar(msg.authorId));
   return (
     <Pressable
       accessibilityRole="button"
@@ -40,7 +41,7 @@ export function MessageResult({
         },
       ]}
     >
-      <Avatar label={author.initials} size={32} />
+      <Avatar label={author.initials} image={author.avatar} size={32} />
       <View style={styles.body}>
         <View style={styles.head}>
           <Icon name={room.kind === 'private' ? 'lock' : 'hash'} size={11} color={colors.inkMuted} />

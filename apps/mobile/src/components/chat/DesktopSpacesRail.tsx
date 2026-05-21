@@ -17,6 +17,8 @@ interface DesktopSpacesRailProps {
   onAdd?: () => void;
   /** Bottom avatar / gear → the current identity's profile. */
   meLabel: string;
+  /** The current identity's uploaded avatar (data URI), if any. */
+  meAvatar?: string;
   onOpenProfile?: () => void;
 }
 
@@ -71,6 +73,7 @@ export function DesktopSpacesRail({
   onSelect,
   onAdd,
   meLabel,
+  meAvatar,
   onOpenProfile,
 }: DesktopSpacesRailProps) {
   const { colors } = useTheme();
@@ -97,7 +100,7 @@ export function DesktopSpacesRail({
       </Pressable>
       <View style={styles.spacer} />
       <Pressable accessibilityRole="button" accessibilityLabel="Your profile" onPress={onOpenProfile} style={styles.foot}>
-        <Avatar label={meLabel} size={32} />
+        <Avatar label={meLabel} image={meAvatar} size={32} />
       </Pressable>
     </View>
   );
