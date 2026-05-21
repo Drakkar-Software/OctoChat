@@ -3,33 +3,54 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { fonts, radii, spacing, type as typeScale } from '@/theme';
 import { tapFeedback } from '@/lib/haptics';
+import { QUICK_REACTIONS } from '@/lib/reactions';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
+import { Txt } from '@/components/ui/Txt';
 
 interface ComposerProps {
   placeholder: string;
   onSend?: (text: string) => void;
 }
 
-/** Message input bar — attach/media/emoji actions + mic→send toggle. */
+/** Message input bar — emoji insert + send. Send is disabled until there's text. */
 export function Composer({ placeholder, onSend }: ComposerProps) {
   const { colors } = useTheme();
   const [text, setText] = useState('');
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const hasText = text.trim().length > 0;
 
   const submit = () => {
-    if (hasText) {
-      onSend?.(text.trim());
-      setText('');
-    }
+    if (!hasText) return;
     tapFeedback();
+    onSend?.(text.trim());
+    setText('');
+  };
+
+  const insertEmoji = (emoji: string) => {
+    tapFeedback();
+    setText((t) => t + emoji);
   };
 
   return (
     <View style={[styles.wrap, { backgroundColor: colors.paper, borderTopColor: colors.lineSoft }]}>
+      {emojiOpen ? (
+        <View style={[styles.palette, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
+          {QUICK_REACTIONS.map((emoji) => (
+            <Pressable
+              key={emoji}
+              accessibilityRole="button"
+              accessibilityLabel={`Insert ${emoji}`}
+              onPress={() => insertEmoji(emoji)}
+              style={styles.paletteItem}
+            >
+              <Txt variant="subhead">{emoji}</Txt>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
       <View style={[styles.bar, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
-        <IconButton name="plus" size={18} color={colors.inkSoft} accessibilityLabel="Add attachment" />
         <TextInput
           value={text}
           onChangeText={setText}
@@ -37,16 +58,27 @@ export function Composer({ placeholder, onSend }: ComposerProps) {
           placeholderTextColor={colors.inkMuted}
           style={[styles.input, { color: colors.ink }]}
           multiline
+          numberOfLines={1}
         />
-        <IconButton name="image" size={18} color={colors.inkSoft} accessibilityLabel="Add image" />
-        <IconButton name="smile" size={18} color={colors.inkSoft} accessibilityLabel="Add emoji" />
+        <IconButton
+          name="smile"
+          size={18}
+          color={emojiOpen ? colors.accent : colors.inkSoft}
+          accessibilityLabel="Insert emoji"
+          onPress={() => {
+            tapFeedback();
+            setEmojiOpen((v) => !v);
+          }}
+        />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={hasText ? 'Send' : 'Record voice message'}
+          accessibilityState={{ disabled: !hasText }}
+          accessibilityLabel="Send"
+          disabled={!hasText}
           onPress={submit}
-          style={[styles.send, { backgroundColor: colors.accent }]}
+          style={[styles.send, { backgroundColor: hasText ? colors.accent : colors.fill }]}
         >
-          <Icon name={hasText ? 'send' : 'mic'} size={15} color={colors.onAccent} />
+          <Icon name="send" size={15} color={hasText ? colors.onAccent : colors.inkMuted} />
         </Pressable>
       </View>
     </View>
@@ -59,6 +91,23 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.lg,
     borderTopWidth: 1,
+  },
+  palette: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    alignSelf: 'flex-start',
+    marginBottom: spacing.sm,
+    padding: spacing.xs,
+    borderRadius: radii.md,
+    borderWidth: 1,
+  },
+  paletteItem: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.sm,
   },
   bar: {
     flexDirection: 'row',
@@ -74,9 +123,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fonts.body,
     fontSize: typeScale.body.fontSize,
-    paddingVertical: 4,
     maxHeight: 96,
+    paddingTop: 0,
+    paddingBottom: 0,
     includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   send: {
     width: 34,
