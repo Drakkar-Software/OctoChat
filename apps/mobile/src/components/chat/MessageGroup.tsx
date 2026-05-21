@@ -20,6 +20,8 @@ interface MessageGroupProps {
   onOpenThread?: () => void;
   /** Toggle a reaction emoji on this message. */
   onToggleReaction?: (emoji: string) => void;
+  /** Resolve a reactor's user id to a display name (for the reaction tooltip). */
+  nameFor?: (userId: string) => string;
   /** Fetch + decrypt an attachment's bytes (bound to the room by the hook). */
   onLoadAttachment?: (ref: AttachmentRef) => Promise<Uint8Array | null>;
   /** Emphasize as the highlighted parent in a thread view. */
@@ -33,6 +35,7 @@ export function MessageGroup({
   onOpenThread,
   onToggleReaction,
   onLoadAttachment,
+  nameFor,
   highlighted,
 }: MessageGroupProps) {
   const { colors } = useTheme();
@@ -71,7 +74,7 @@ export function MessageGroup({
           <AttachmentView attachment={message.attachmentRef} onLoad={onLoadAttachment} />
         ) : null}
         {message.reactions?.length ? (
-          <ReactionBar reactions={message.reactions} onToggle={onToggleReaction} />
+          <ReactionBar reactions={message.reactions} onToggle={onToggleReaction} nameFor={nameFor} />
         ) : null}
         {onOpenThread && message.threadCount ? (
           <Pressable

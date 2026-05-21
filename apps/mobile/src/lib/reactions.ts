@@ -15,7 +15,7 @@ export function aggregateReactions(events: ReactionEvent[], msgId: string, me: s
   }
   const out: Reaction[] = [];
   for (const [emoji, users] of byEmoji) {
-    if (users.size > 0) out.push({ emoji, count: users.size, mine: users.has(me) });
+    if (users.size > 0) out.push({ emoji, count: users.size, mine: users.has(me), userIds: [...users] });
   }
   return out;
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { readPseudo, writePseudo } from './starfish/client';
 import { useSession } from './session-context';
+import { primePseudo } from './use-pseudos';
 
 export interface ProfileView {
   name: string;
@@ -79,6 +80,7 @@ export function useProfile() {
     setSaving(true);
     try {
       await writePseudo(session.accountClient, session.userId, next);
+      primePseudo(session.userId, next);
       setName(next);
       setDraftState(next);
       edited.current = false;

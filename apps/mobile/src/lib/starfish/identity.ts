@@ -8,7 +8,7 @@ import { wordlist } from '@scure/bip39/wordlists/english.js';
 import { bootstrapRootIdentity, mintDeviceCap } from '@drakkar.software/starfish-identities';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import { makeClient, writePseudo, type DeviceKeys } from './client';
+import { makeClient, ensurePseudo, type DeviceKeys } from './client';
 import { accountScope, ownerScope } from './paths';
 
 export interface Session {
@@ -42,13 +42,16 @@ export async function deriveSession(seedWords: string[], name?: string): Promise
   const passphrase = seedWords.join(' ').trim();
   const creds = await bootstrapRootIdentity(passphrase);
   const keys = creds.device as DeviceKeys;
-  const displayName = name && name.trim() ? name.trim() : `octo-${creds.userId.slice(0, 6)}`;
+  const fallback = name && name.trim() ? name.trim() : `octo-${creds.userId.slice(0, 6)}`;
   const sub = { edPubHex: keys.edPub, kemPubHex: keys.kemPub };
   const chatCap = await mintDeviceCap(keys.edPriv, keys.edPub, sub, ownerScope());
   const accountCap = await mintDeviceCap(keys.edPriv, keys.edPub, sub, accountScope(creds.userId));
   const chatClient = makeClient(chatCap, keys.edPriv);
   const accountClient = makeClient(accountCap, keys.edPriv);
-  await writePseudo(accountClient, creds.userId, displayName).catch(() => {});
+  // Adopt the stored pseudo if the profile already exists; only seed `fallback`
+  // for a brand-new identity. Never overwrite — a blind write here would revert
+  // an edit made on another device back to the bootstrap default on every open.
+  const displayName = await ensurePseudo(accountClient, creds.userId, fallback).catch(() => fallback);
   return {
     userId: creds.userId,
     name: displayName,

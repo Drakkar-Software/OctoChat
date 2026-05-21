@@ -2,10 +2,11 @@ import { StyleSheet, View } from 'react-native';
 import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 
 import { spacing } from '@/theme';
-import { authorFor, toDisplayMessage, type StoredMsg } from '@/lib/message-view';
+import { authorFor, displayName, toDisplayMessage, type StoredMsg } from '@/lib/message-view';
 import { plural } from '@/lib/format';
 import type { AttachmentRef } from '@/lib/starfish/attachments';
 import type { ReactionEvent } from '@/lib/types';
+import { usePseudos } from '@/lib/use-pseudos';
 import { Txt } from '@/components/ui/Txt';
 
 import { MessageGroup } from './MessageGroup';
@@ -28,13 +29,17 @@ export function ThreadConversation({
   const reactions = (useStarfishData(store, (d) => d.reactions as ReactionEvent[] | undefined) ?? []) as ReactionEvent[];
   const parent = messages.find((m) => m.id === parentId);
   const replies = messages.filter((m) => m.parentId === parentId);
+  // Resolve names for authors AND reactors, so the "who reacted" tooltip can name them.
+  const pseudo = usePseudos([...new Set([...messages.map((m) => m.authorId), ...reactions.map((r) => r.userId)])]);
+  const nameFor = (userId: string) => displayName(userId, currentUserId, pseudo(userId));
 
   return (
     <View>
       {parent ? (
         <MessageGroup
           message={toDisplayMessage(parent, reactions, currentUserId)}
-          author={authorFor(parent.authorId, currentUserId)}
+          author={authorFor(parent.authorId, currentUserId, pseudo(parent.authorId))}
+          nameFor={nameFor}
           onToggleReaction={(emoji) => onToggleReaction(parent.id, emoji)}
           onLoadAttachment={onLoadAttachment}
           highlighted
@@ -49,7 +54,8 @@ export function ThreadConversation({
         <MessageGroup
           key={r.id}
           message={toDisplayMessage(r, reactions, currentUserId)}
-          author={authorFor(r.authorId, currentUserId)}
+          author={authorFor(r.authorId, currentUserId, pseudo(r.authorId))}
+          nameFor={nameFor}
           onToggleReaction={(emoji) => onToggleReaction(r.id, emoji)}
           onLoadAttachment={onLoadAttachment}
         />

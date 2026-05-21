@@ -1,10 +1,11 @@
 import { View } from 'react-native';
 import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 
-import { authorFor, toDisplayMessage, type StoredMsg } from '@/lib/message-view';
+import { authorFor, displayName, toDisplayMessage, type StoredMsg } from '@/lib/message-view';
 import { replyCount } from '@/lib/reactions';
 import type { AttachmentRef } from '@/lib/starfish/attachments';
 import type { ReactionEvent } from '@/lib/types';
+import { usePseudos } from '@/lib/use-pseudos';
 
 import { DateDivider } from './Dividers';
 import { MessageGroup } from './MessageGroup';
@@ -26,6 +27,9 @@ export function RoomConversation({
   const messages = (useStarfishData(store, (d) => d.messages as StoredMsg[] | undefined) ?? []) as StoredMsg[];
   const reactions = (useStarfishData(store, (d) => d.reactions as ReactionEvent[] | undefined) ?? []) as ReactionEvent[];
   const top = messages.filter((m) => !m.parentId);
+  // Resolve names for authors AND reactors, so the "who reacted" tooltip can name them.
+  const pseudo = usePseudos([...new Set([...messages.map((m) => m.authorId), ...reactions.map((r) => r.userId)])]);
+  const nameFor = (userId: string) => displayName(userId, currentUserId, pseudo(userId));
 
   return (
     <View>
@@ -36,7 +40,8 @@ export function RoomConversation({
           <MessageGroup
             key={m.id}
             message={toDisplayMessage(m, reactions, currentUserId, rc || undefined)}
-            author={authorFor(m.authorId, currentUserId)}
+            author={authorFor(m.authorId, currentUserId, pseudo(m.authorId))}
+            nameFor={nameFor}
             onToggleReaction={(emoji) => onToggleReaction(m.id, emoji)}
             onOpenThread={() => onOpenThread(m.id)}
             onLoadAttachment={onLoadAttachment}

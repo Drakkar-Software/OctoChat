@@ -133,3 +133,17 @@ export async function writePseudo(client: StarfishClient, userId: string, pseudo
   const current = await client.pull(`/pull/user/${userId}/profile`).catch(() => null);
   await client.push(`/push/user/${userId}/profile`, { v: 1, pseudo }, current?.hash ?? null);
 }
+
+/**
+ * Seed the caller's profile pseudo only if none exists yet, returning the
+ * authoritative server value. Used on every session derivation so reopening an
+ * identity — here or on another device — adopts the stored pseudo instead of
+ * clobbering an edit back to the bootstrap default.
+ */
+export async function ensurePseudo(client: StarfishClient, userId: string, fallback: string): Promise<string> {
+  const current = await client.pull(`/pull/user/${userId}/profile`).catch(() => null);
+  const existing = (current?.data as { pseudo?: unknown } | undefined)?.pseudo;
+  if (typeof existing === 'string' && existing.trim()) return existing;
+  await client.push(`/push/user/${userId}/profile`, { v: 1, pseudo: fallback }, current?.hash ?? null);
+  return fallback;
+}

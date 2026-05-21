@@ -4,6 +4,7 @@ import { radii, spacing } from '@/theme';
 import { authorFor, hhmm, type StoredMsg } from '@/lib/message-view';
 import type { Room } from '@/lib/types';
 import { useHover } from '@/lib/use-hover';
+import { usePseudos } from '@/lib/use-pseudos';
 import { useTheme } from '@/lib/use-theme';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
@@ -23,7 +24,8 @@ export function MessageResult({
 }) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
-  const author = authorFor(msg.authorId, currentUserId);
+  const pseudo = usePseudos([msg.authorId]);
+  const author = authorFor(msg.authorId, currentUserId, pseudo(msg.authorId));
   return (
     <Pressable
       accessibilityRole="button"

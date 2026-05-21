@@ -12,13 +12,23 @@ export interface StoredMsg {
   attachment?: AttachmentRef;
 }
 
-export function authorFor(authorId: string, currentUserId: string): User {
-  const me = authorId === currentUserId;
+/** A user's display label: "You" for the viewer, else the resolved pseudo, else
+ *  the hex id prefix until a pseudo arrives. Used for authors and reactors. */
+export function displayName(userId: string, currentUserId: string, pseudo?: string): string {
+  if (userId === currentUserId) return 'You';
+  return pseudo?.trim() || userId.slice(0, 8);
+}
+
+export function authorFor(authorId: string, currentUserId: string, pseudo?: string): User {
+  // Prefer the profile pseudo; fall back to the hex prefix until one resolves.
+  // `initials` follows the resolved name for everyone (incl. me) so avatars stay consistent.
+  const named = pseudo?.trim();
+  const display = named || authorId.slice(0, 8);
   return {
     id: authorId,
-    name: me ? 'You' : authorId.slice(0, 8),
-    handle: `@${authorId.slice(0, 6)}`,
-    initials: authorId.slice(0, 2).toUpperCase(),
+    name: displayName(authorId, currentUserId, pseudo),
+    handle: named ? `@${named}` : `@${authorId.slice(0, 6)}`,
+    initials: display.slice(0, 2).toUpperCase(),
   };
 }
 

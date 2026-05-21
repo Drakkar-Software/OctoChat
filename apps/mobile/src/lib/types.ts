@@ -42,6 +42,9 @@ export interface Reaction {
   emoji: string;
   count: number;
   mine?: boolean;
+  /** Ids of the users currently reacting with this emoji (for the "who reacted"
+   *  tooltip). Raw ids — names are resolved at render so they stay viewer-aware. */
+  userIds: string[];
 }
 
 /** Append-only reaction event stored in the room doc; aggregated for display. */
