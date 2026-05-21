@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "subscriptions": [
+    {
+      "name": "octochat-chat",
+      "topics": ["octochat.chat.changed"],
+      "destinationTopic": "octochat-chat"
+    }
+  ]
+}

@@ -18,6 +18,7 @@ import {
   type ByteSealer,
 } from './starfish/attachments';
 import { getMemberCap } from './starfish/member-caps';
+import { subscribeRoomChanges } from './events';
 import { roomPull, roomPush, spaceIdFromRoomId } from './starfish/paths';
 import type { ReactionEvent } from './types';
 import { useSession } from './session-context';
@@ -98,23 +99,38 @@ export function useRoom(roomId: string) {
 
   const store = useSyncInit(config);
 
-  // Surface repeated sync failures instead of swallowing them: the poll sets a
-  // banner on a failed pull and clears it on the next success.
+  // A pull that surfaces repeated sync failures as a banner, cleared on success.
   const [syncError, setSyncError] = useState<string | null>(null);
+  const pull = useCallback(() => {
+    if (!store) return;
+    void store.getState().pull().then(
+      () => setSyncError((prev) => (prev === null ? prev : null)),
+      () => setSyncError('Reconnecting… messages may be out of date.'),
+    );
+  }, [store]);
+
+  // Live updates come from the SSE stream: an initial pull on open, then a pull
+  // whenever an event lands for THIS room. No polling while the stream is up.
+  const [sseUp, setSseUp] = useState(false);
   useEffect(() => {
     if (!store) {
       setSyncError(null);
       return;
     }
-    const tick = () =>
-      void store.getState().pull().then(
-        () => setSyncError((prev) => (prev === null ? prev : null)),
-        () => setSyncError('Reconnecting… messages may be out of date.'),
-      );
-    tick();
-    const id = setInterval(tick, 4000);
+    pull();
+    const unsub = subscribeRoomChanges((e) => {
+      if (e.roomId === roomId) pull();
+    }, setSseUp);
+    return unsub;
+  }, [store, roomId, pull]);
+
+  // Fallback: poll only while the SSE stream is unreachable/disconnected, so a
+  // client without the gateway still receives new messages.
+  useEffect(() => {
+    if (!store || sseUp) return;
+    const id = setInterval(pull, 4000);
     return () => clearInterval(id);
-  }, [store]);
+  }, [store, sseUp, pull]);
 
   const send = useCallback(
     (text: string, parentId?: string, attachment?: AttachmentRef) => {

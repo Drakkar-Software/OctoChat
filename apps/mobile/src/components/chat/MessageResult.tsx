@@ -10,19 +10,16 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 
-/** A message preview row used in Search results and the Activity feed. When
- *  `unread` is set the row carries an accent rail + wash to read as a new item. */
+/** A message preview row used in Search results and the Activity feed. */
 export function MessageResult({
   room,
   msg,
   currentUserId,
-  unread = false,
   onPress,
 }: {
   room: Room;
   msg: StoredMsg;
   currentUserId: string;
-  unread?: boolean;
   onPress: () => void;
 }) {
   const { colors } = useTheme();
@@ -38,13 +35,12 @@ export function MessageResult({
       style={[
         styles.row,
         {
-          borderColor: hovered ? colors.accentBorder : unread ? colors.accentBorder : colors.lineFaint,
-          borderTopColor: hovered ? colors.accentBorder : unread ? colors.accentBorder : colors.hairlineHi,
-          backgroundColor: unread ? colors.accentSoft : hovered ? colors.paperAlt : colors.paper,
+          borderColor: hovered ? colors.accentBorder : colors.lineFaint,
+          borderTopColor: hovered ? colors.accentBorder : colors.hairlineHi,
+          backgroundColor: hovered ? colors.paperAlt : colors.paper,
         },
       ]}
     >
-      {unread ? <View style={[styles.rail, { backgroundColor: colors.accent }]} /> : null}
       <Avatar label={author.initials} image={author.avatar} size={32} />
       <View style={styles.body}>
         <View style={styles.head}>
@@ -75,15 +71,6 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radii.lg,
     borderWidth: 1,
-  },
-  rail: {
-    position: 'absolute',
-    left: 0,
-    top: spacing.sm,
-    bottom: spacing.sm,
-    width: 3,
-    borderTopRightRadius: radii.xs,
-    borderBottomRightRadius: radii.xs,
   },
   body: { flex: 1, gap: 2 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 4 },

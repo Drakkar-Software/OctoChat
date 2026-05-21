@@ -10,8 +10,10 @@ import {
 import { FilesystemObjectStore } from "@drakkar.software/starfish-server/node";
 import { identitiesServerPlugin } from "@drakkar.software/starfish-identities";
 import { sharingServerPlugin } from "@drakkar.software/starfish-sharing";
+import { createQueuingServerPlugin } from "@drakkar.software/starfish-queuing";
 
 import { config } from "./config.js";
+import { createNatsQueue } from "./queue.js";
 import { createFileRevocationStore } from "./revocation-store.js";
 import { makeSpaceRoleEnricher } from "./space-role.js";
 
@@ -49,6 +51,16 @@ const roleResolver = createCapCertRoleResolver({
   maxBodyBytes: 11_534_336,
 });
 
+// Publish a change-event to NATS after each successful push to the `chat`
+// collection (params {spaceId,roomId} only — content stays E2E-encrypted).
+// Whistlers consumes NATS and re-serves these as SSE. See
+// `apps/server/docs/notifications-sse.md`.
+const { queue, nc } = await createNatsQueue();
+const queuing = createQueuingServerPlugin({
+  queue,
+  collections: { chat: { topic: "octochat.chat.changed", includeParams: true } },
+});
+
 const syncRouter = createSyncRouter({
   store,
   config,
@@ -56,6 +68,7 @@ const syncRouter = createSyncRouter({
   // Grants `space:owner` / `space:member` from each space's owner+roster record
   // (space-role.ts), gating the space keyring and room registry.
   roleEnricher: makeSpaceRoleEnricher(store),
+  plugins: [queuing],
 });
 
 await saveConfig(store, config);
@@ -88,7 +101,13 @@ app.use("*", async (c, next) => {
 // runtime-compatible with ours, so cast across the nominal type-identity gap.
 app.route("/", syncRouter as unknown as Hono);
 
-createGracefulShutdown();
+// Runs the queuing plugin's shutdown hook, then drains the NATS connection.
+createGracefulShutdown({
+  plugins: [queuing],
+  onShutdown: async () => {
+    await nc?.drain();
+  },
+});
 
 serve({ fetch: app.fetch, port: PORT, hostname: "0.0.0.0" }, (info) => {
   console.log(`OctoChat Starfish server listening on http://0.0.0.0:${info.port} (data: ${DATA_DIR})`);

@@ -3,15 +3,22 @@
  * secondary to web; if it proves flaky in real device testing, swap in
  * `react-native-sse`. Contract + parsing live in `events.shared.ts`.
  */
-import { SYNC_BASE } from './starfish/config';
+import { EVENTS_URL } from './starfish/config';
 import { parseRoomChange, type RoomChange } from './events.shared';
 
 export type { RoomChange } from './events.shared';
 
 const RECONNECT_MS = 3000;
 
-/** Subscribe to room-change events from `${SYNC_BASE}/events`. Returns unsubscribe. */
-export function subscribeRoomChanges(onChange: (e: RoomChange) => void): () => void {
+/**
+ * Subscribe to room-change events from the Whistlers SSE endpoint (`EVENTS_URL`).
+ * `onStatus(connected)` reports stream health so callers can fall back to
+ * polling while disconnected. Returns an unsubscribe fn.
+ */
+export function subscribeRoomChanges(
+  onChange: (e: RoomChange) => void,
+  onStatus?: (connected: boolean) => void,
+): () => void {
   const controller = new AbortController();
   let closed = false;
 
@@ -26,12 +33,13 @@ export function subscribeRoomChanges(onChange: (e: RoomChange) => void): () => v
   void (async () => {
     while (!closed) {
       try {
-        const res = await fetch(`${SYNC_BASE}/events`, {
+        const res = await fetch(EVENTS_URL, {
           headers: { Accept: 'text/event-stream' },
           signal: controller.signal,
         });
         const body = res.body as ReadableStream<Uint8Array> | null;
         if (!body) throw new Error('no stream body');
+        if (!closed) onStatus?.(true);
         const reader = body.getReader();
         const decoder = new TextDecoder();
         let buf = '';
@@ -48,7 +56,10 @@ export function subscribeRoomChanges(onChange: (e: RoomChange) => void): () => v
       } catch {
         if (closed) return;
       }
-      if (!closed) await new Promise((r) => setTimeout(r, RECONNECT_MS));
+      if (!closed) {
+        onStatus?.(false);
+        await new Promise((r) => setTimeout(r, RECONNECT_MS));
+      }
     }
   })();
 

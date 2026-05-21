@@ -27,15 +27,11 @@ export default function RoomScreen() {
   const { store, opening, openError, syncError, send, toggleReaction, uploadAttachment, loadAttachment } = useRoom(id);
   const title = kind === 'dm' ? name : `#${name}`;
 
-  // Clear this room's unread on open and again whenever new messages arrive
-  // while it's the open room (the store ticks on every synced change).
+  // Clear this room's unread on open. While it's the active room the unread
+  // provider already ignores its SSE events, so no live re-marking is needed.
   useEffect(() => {
-    if (!session || !store) return;
-    const mark = () => markRoomRead(id);
-    mark();
-    const unsub = (store as { subscribe?: (cb: () => void) => () => void }).subscribe?.(mark);
-    return () => unsub?.();
-  }, [session, store, id, markRoomRead]);
+    if (session) markRoomRead(id);
+  }, [session, id, markRoomRead]);
 
   const openThread = (msgId: string) =>
     router.push({ pathname: '/thread/[id]', params: { id: msgId, roomId: id, roomName: name } });
