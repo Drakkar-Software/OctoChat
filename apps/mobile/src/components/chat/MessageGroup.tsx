@@ -2,13 +2,14 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
 import type { Message, User } from '@/lib/types';
+import type { AttachmentRef } from '@/lib/starfish/attachments';
 import { plural } from '@/lib/format';
 import { useTheme } from '@/lib/use-theme';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 
-import { Attachment } from './Attachment';
+import { AttachmentView } from './AttachmentView';
 import { ReactionBar } from './ReactionBar';
 
 interface MessageGroupProps {
@@ -17,12 +18,21 @@ interface MessageGroupProps {
   onOpenThread?: () => void;
   /** Toggle a reaction emoji on this message. */
   onToggleReaction?: (emoji: string) => void;
+  /** Fetch + decrypt an attachment's bytes (bound to the room by the hook). */
+  onLoadAttachment?: (ref: AttachmentRef) => Promise<Uint8Array | null>;
   /** Emphasize as the highlighted parent in a thread view. */
   highlighted?: boolean;
 }
 
 /** A single authored message block: avatar, header, body, media, reactions, thread. */
-export function MessageGroup({ message, author, onOpenThread, onToggleReaction, highlighted }: MessageGroupProps) {
+export function MessageGroup({
+  message,
+  author,
+  onOpenThread,
+  onToggleReaction,
+  onLoadAttachment,
+  highlighted,
+}: MessageGroupProps) {
   const { colors } = useTheme();
   const tinted = message.mention || highlighted;
   return (
@@ -45,7 +55,9 @@ export function MessageGroup({ message, author, onOpenThread, onToggleReaction, 
             {message.text}
           </Txt>
         ) : null}
-        {message.attachment ? <Attachment data={message.attachment} /> : null}
+        {message.attachmentRef ? (
+          <AttachmentView attachment={message.attachmentRef} onLoad={onLoadAttachment} />
+        ) : null}
         {message.reactions?.length || onToggleReaction ? (
           <ReactionBar reactions={message.reactions ?? []} onToggle={onToggleReaction} />
         ) : null}

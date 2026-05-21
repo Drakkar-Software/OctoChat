@@ -4,6 +4,7 @@ import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 import { spacing } from '@/theme';
 import { authorFor, toDisplayMessage, type StoredMsg } from '@/lib/message-view';
 import { plural } from '@/lib/format';
+import type { AttachmentRef } from '@/lib/starfish/attachments';
 import type { ReactionEvent } from '@/lib/types';
 import { Txt } from '@/components/ui/Txt';
 
@@ -15,11 +16,13 @@ export function ThreadConversation({
   parentId,
   currentUserId,
   onToggleReaction,
+  onLoadAttachment,
 }: {
   store: Parameters<typeof useStarfishData>[0];
   parentId: string;
   currentUserId: string;
   onToggleReaction: (msgId: string, emoji: string) => void;
+  onLoadAttachment?: (ref: AttachmentRef) => Promise<Uint8Array | null>;
 }) {
   const messages = (useStarfishData(store, (d) => d.messages as StoredMsg[] | undefined) ?? []) as StoredMsg[];
   const reactions = (useStarfishData(store, (d) => d.reactions as ReactionEvent[] | undefined) ?? []) as ReactionEvent[];
@@ -33,6 +36,7 @@ export function ThreadConversation({
           message={toDisplayMessage(parent, reactions, currentUserId)}
           author={authorFor(parent.authorId, currentUserId)}
           onToggleReaction={(emoji) => onToggleReaction(parent.id, emoji)}
+          onLoadAttachment={onLoadAttachment}
           highlighted
         />
       ) : null}
@@ -47,6 +51,7 @@ export function ThreadConversation({
           message={toDisplayMessage(r, reactions, currentUserId)}
           author={authorFor(r.authorId, currentUserId)}
           onToggleReaction={(emoji) => onToggleReaction(r.id, emoji)}
+          onLoadAttachment={onLoadAttachment}
         />
       ))}
     </View>

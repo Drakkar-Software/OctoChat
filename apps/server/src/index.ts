@@ -13,6 +13,7 @@ import { sharingServerPlugin } from "@drakkar.software/starfish-sharing";
 
 import { config } from "./config.js";
 import { createFileRevocationStore } from "./revocation-store.js";
+import { makeOwnerRoleEnricher } from "./owner-role.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const DATA_DIR = process.env.STARFISH_DATA_DIR ?? "./data";
@@ -46,6 +47,9 @@ const syncRouter = createSyncRouter({
   store,
   config,
   roleResolver,
+  // Grants `chat:owner` only to a room's owner, gating keyring + roster writes
+  // (see owner-role.ts) so a writer member can't tamper with them.
+  roleEnricher: makeOwnerRoleEnricher(store),
 });
 
 await saveConfig(store, config);

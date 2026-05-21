@@ -24,7 +24,7 @@ export default function RoomScreen() {
   const name = params.name ?? id;
   const kind = (params.kind ?? 'channel') as RoomKind;
   const { session } = useSession();
-  const { store, opening, openError, syncError, send, toggleReaction } = useRoom(id);
+  const { store, opening, openError, syncError, send, toggleReaction, uploadAttachment, loadAttachment } = useRoom(id);
   const title = kind === 'dm' ? name : `#${name}`;
 
   const openThread = (msgId: string) =>
@@ -57,7 +57,15 @@ export default function RoomScreen() {
         />
       }
       desktopHeader={<DesktopChatTopbar name={name} kind={kind} onSearch={openSearch} onMembers={openMembers} />}
-      footer={<Composer placeholder={`Message ${title}`} onSend={(t) => send(t)} />}
+      footer={
+        <Composer
+          placeholder={`Message ${title}`}
+          onSend={async (t, file) => {
+            const ref = file ? await uploadAttachment(file.bytes, file.name, file.mime) : null;
+            send(t, undefined, ref ?? undefined);
+          }}
+        />
+      }
     >
       {!session ? (
         <EmptyState iconName="lock" title="Sign in first" subtitle="Create an identity to open encrypted rooms." />
@@ -77,6 +85,7 @@ export default function RoomScreen() {
             currentUserId={session.userId}
             onToggleReaction={toggleReaction}
             onOpenThread={openThread}
+            onLoadAttachment={loadAttachment}
           />
         </>
       ) : (

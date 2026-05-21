@@ -1,4 +1,5 @@
 import { aggregateReactions } from './reactions';
+import type { AttachmentRef } from './starfish/attachments';
 import type { Message, ReactionEvent, User } from './types';
 
 /** Shape of a message as stored (encrypted) in a room document. */
@@ -8,6 +9,7 @@ export interface StoredMsg {
   text?: string;
   ts: number;
   parentId?: string;
+  attachment?: AttachmentRef;
 }
 
 export function authorFor(authorId: string, currentUserId: string): User {
@@ -38,6 +40,7 @@ export function toDisplayMessage(
     authorId: m.authorId,
     time: hhmm(m.ts),
     text: m.text,
+    attachmentRef: m.attachment,
     reactions: aggregateReactions(reactions, m.id, currentUserId),
     threadCount,
   };

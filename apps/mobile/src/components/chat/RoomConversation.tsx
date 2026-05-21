@@ -3,6 +3,7 @@ import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 
 import { authorFor, toDisplayMessage, type StoredMsg } from '@/lib/message-view';
 import { replyCount } from '@/lib/reactions';
+import type { AttachmentRef } from '@/lib/starfish/attachments';
 import type { ReactionEvent } from '@/lib/types';
 
 import { DateDivider } from './Dividers';
@@ -14,11 +15,13 @@ export function RoomConversation({
   currentUserId,
   onToggleReaction,
   onOpenThread,
+  onLoadAttachment,
 }: {
   store: Parameters<typeof useStarfishData>[0];
   currentUserId: string;
   onToggleReaction: (msgId: string, emoji: string) => void;
   onOpenThread: (msgId: string) => void;
+  onLoadAttachment?: (ref: AttachmentRef) => Promise<Uint8Array | null>;
 }) {
   const messages = (useStarfishData(store, (d) => d.messages as StoredMsg[] | undefined) ?? []) as StoredMsg[];
   const reactions = (useStarfishData(store, (d) => d.reactions as ReactionEvent[] | undefined) ?? []) as ReactionEvent[];
@@ -36,6 +39,7 @@ export function RoomConversation({
             author={authorFor(m.authorId, currentUserId)}
             onToggleReaction={(emoji) => onToggleReaction(m.id, emoji)}
             onOpenThread={() => onOpenThread(m.id)}
+            onLoadAttachment={onLoadAttachment}
           />
         );
       })}

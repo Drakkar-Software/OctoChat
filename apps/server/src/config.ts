@@ -27,21 +27,38 @@ export const config: SyncConfig = {
     },
     // Plaintext multi-recipient keyring for a room (kept on its own top-level
     // path so a member cap can read it without tripping the _keyring deny).
+    // WRITE is OWNER-ONLY via `chat:owner` (synthesized by makeOwnerRoleEnricher
+    // for the keyring's genesis adder) — a writer member must not be able to
+    // rotate/replace/wipe the keyring. Reads stay open to any chat member.
     {
       name: "chatkeyring",
       storagePath: "chatkeyring/rooms/{roomId}/_keyring",
       readRoles: ["cap:read:chat"],
-      writeRoles: ["cap:write:chat"],
+      writeRoles: ["chat:owner"],
       encryption: "none",
       maxBodyBytes: 65_536,
       allowedMimeTypes: JSON_ONLY,
     },
-    // Signed member-cap directory for a room.
+    // Encrypted file attachments for a room. Bytes are sealed client-side with
+    // the room's keyring CEK (sealBytes), so the collection itself is "none" —
+    // the server only ever holds opaque ciphertext (application/octet-stream).
+    // Authorized by the same chat cap (gated by the attachments path scope).
+    {
+      name: "attachments",
+      storagePath: "attachments/rooms/{roomId}/{blobId}",
+      readRoles: ["cap:read:chat"],
+      writeRoles: ["cap:write:chat"],
+      encryption: "none",
+      maxBodyBytes: 11_534_336, // ~11 MB: ~10 MB plaintext + IV/tag/epoch overhead.
+      allowedMimeTypes: ["application/octet-stream"],
+    },
+    // Signed member-cap directory for a room. WRITE is OWNER-ONLY (same
+    // `chat:owner` enricher) so the roster can't be tampered by a member.
     {
       name: "chatmembers",
       storagePath: "chatmembers/rooms/{roomId}/_members",
       readRoles: ["cap:read:chat"],
-      writeRoles: ["cap:write:chat"],
+      writeRoles: ["chat:owner"],
       encryption: "none",
       maxBodyBytes: 131_072,
       allowedMimeTypes: JSON_ONLY,

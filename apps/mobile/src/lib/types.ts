@@ -1,6 +1,7 @@
 /** Domain model for OctoChat. Frontend-only — these describe placeholder data. */
 
 import type { PresenceStatus, VerificationLevel } from '@/theme';
+import type { AttachmentRef } from './starfish/attachments';
 
 export type ID = string;
 
@@ -66,6 +67,8 @@ export interface Message {
   time: string;
   text?: string;
   attachment?: Attachment;
+  /** Real (encrypted) attachment reference rendered via AttachmentView. */
+  attachmentRef?: AttachmentRef;
   reactions?: Reaction[];
   /** Number of replies if this message anchors a thread. */
   threadCount?: number;

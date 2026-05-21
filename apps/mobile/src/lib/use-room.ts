@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createUnionMerge } from '@drakkar.software/starfish-client';
-import type { Encryptor } from '@drakkar.software/starfish-client';
+import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 import { useSyncInit } from '@drakkar.software/starfish-client/zustand';
 
 import { SYNC_BASE } from './starfish/config';
@@ -12,6 +12,12 @@ import {
   openEncryptor,
   ownerEnsureKeyring,
 } from './starfish/client';
+import {
+  loadAttachment as loadAttachmentDoc,
+  uploadAttachment as uploadAttachmentDoc,
+  type AttachmentRef,
+  type ByteSealer,
+} from './starfish/attachments';
 import { getMemberCap } from './starfish/member-caps';
 import { roomPull, roomPush } from './starfish/paths';
 import type { ReactionEvent } from './types';
@@ -28,32 +34,37 @@ function randomId(): string {
 export function useRoom(roomId: string) {
   const { session } = useSession();
   const [encryptor, setEncryptor] = useState<Encryptor | null>(null);
+  const [client, setClient] = useState<StarfishClient | null>(null);
   const [opening, setOpening] = useState(true);
   const [openError, setOpenError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setEncryptor(null);
+    setClient(null);
     setOpenError(null);
     setOpening(true);
     if (!session) return;
     const memberCap = getMemberCap(roomId);
     (async () => {
       try {
-        let enc: Encryptor | null;
+        let enc: Encryptor;
+        let roomClient: StarfishClient;
         if (memberCap) {
           // Joined room: open as a keyring recipient, don't try to create it.
           // The room owner (the cap's issuer) is the trusted keyring adder.
           const cap = JSON.parse(memberCap) as { iss?: string };
-          const client = makeClient(cap, session.keys.edPriv);
-          enc = await openEncryptor(client, session.keys, roomId, cap.iss ? [cap.iss] : []);
+          roomClient = makeClient(cap, session.keys.edPriv);
+          enc = await openEncryptor(roomClient, session.keys, roomId, cap.iss ? [cap.iss] : []);
         } else {
+          roomClient = session.chatClient;
           enc = await ownerEnsureKeyring(session.chatClient, session.keys, roomId);
           await ensureRoomInitialized(session.chatClient, enc, roomId);
           await ensureMembersInitialized(session.chatClient, roomId).catch(() => {});
         }
         if (!cancelled) {
           setEncryptor(enc);
+          setClient(roomClient);
           setOpening(false);
         }
       } catch (e) {
@@ -105,17 +116,39 @@ export function useRoom(roomId: string) {
   }, [store]);
 
   const send = useCallback(
-    (text: string, parentId?: string) => {
+    (text: string, parentId?: string, attachment?: AttachmentRef) => {
       const t = text.trim();
-      if (!store || !t || !session) return;
+      if (!store || !session || (!t && !attachment)) return;
       store.getState().set((d: Record<string, unknown>) => {
         const msgs = (d.messages as unknown[]) ?? [];
-        const msg: Record<string, unknown> = { id: randomId(), authorId: session.userId, text: t, ts: Date.now() };
+        const msg: Record<string, unknown> = { id: randomId(), authorId: session.userId, ts: Date.now() };
+        if (t) msg.text = t;
         if (parentId) msg.parentId = parentId;
+        if (attachment) msg.attachment = attachment;
         return { ...d, messages: [...msgs, msg] };
       });
     },
     [store, session],
+  );
+
+  /** Seal + upload a file to the room's blob collection, returning its ref. */
+  const uploadAttachment = useCallback(
+    async (bytes: Uint8Array, name: string, mime: string): Promise<AttachmentRef | null> => {
+      if (!client || !encryptor) return null;
+      // The room encryptor is a keyring encryptor at runtime — it has the byte
+      // seal/open methods even though it's typed as the narrower protocol Encryptor.
+      return uploadAttachmentDoc(client, encryptor as unknown as ByteSealer, roomId, bytes, name, mime);
+    },
+    [client, encryptor, roomId],
+  );
+
+  /** Fetch + decrypt an attachment's bytes for rendering/download. */
+  const loadAttachment = useCallback(
+    async (ref: AttachmentRef): Promise<Uint8Array | null> => {
+      if (!client || !encryptor) return null;
+      return loadAttachmentDoc(client, encryptor as unknown as ByteSealer, roomId, ref);
+    },
+    [client, encryptor, roomId],
   );
 
   const toggleReaction = useCallback(
@@ -134,5 +167,5 @@ export function useRoom(roomId: string) {
     [store, session],
   );
 
-  return { store, opening, openError, syncError, send, toggleReaction };
+  return { store, opening, openError, syncError, send, toggleReaction, uploadAttachment, loadAttachment };
 }

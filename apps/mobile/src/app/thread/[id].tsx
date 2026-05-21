@@ -22,7 +22,7 @@ export default function ThreadScreen() {
   const roomId = params.roomId;
   const roomName = params.roomName ?? roomId;
   const { session } = useSession();
-  const { store, opening, openError, send, toggleReaction } = useRoom(roomId);
+  const { store, opening, openError, send, toggleReaction, uploadAttachment, loadAttachment } = useRoom(roomId);
   const [alsoSend, setAlsoSend] = useState(false);
 
   const footer = (
@@ -45,7 +45,13 @@ export default function ThreadScreen() {
           Also send to #{roomName}
         </Txt>
       </Pressable>
-      <Composer placeholder="Reply in thread…" onSend={(t) => send(t, parentId)} />
+      <Composer
+        placeholder="Reply in thread…"
+        onSend={async (t, file) => {
+          const ref = file ? await uploadAttachment(file.bytes, file.name, file.mime) : null;
+          send(t, parentId, ref ?? undefined);
+        }}
+      />
     </View>
   );
 
@@ -68,6 +74,7 @@ export default function ThreadScreen() {
           parentId={parentId}
           currentUserId={session.userId}
           onToggleReaction={toggleReaction}
+          onLoadAttachment={loadAttachment}
         />
       ) : (
         <EmptyState iconName="globe" title="Connecting…" />
