@@ -100,6 +100,7 @@ export async function inviteMember(
     keyringName(roomId),
     { subKem: req.kemPub, userId: req.userId, label: req.userId.slice(0, 8) },
     { edPriv: session.keys.edPriv, edPub: session.keys.edPub, kemPriv: session.keys.kemPriv },
+    { trustedAdders: [session.keys.edPub] },
   );
   await reSealRoomAtCurrentEpoch(session.chatClient, session.keys, roomId);
   return JSON.stringify(cap);
@@ -139,25 +140,28 @@ async function revokeCap(
 export async function revokeMember(session: Session, roomId: string, member: MemberRow): Promise<void> {
   await revokeCap(session.keys, session.userId, { sub: member.sub, nonce: member.nonce, exp: member.exp });
   if (member.subKem) {
-    await removeRecipient(session.chatClient, keyringName(roomId), [member.subKem], {
-      edPriv: session.keys.edPriv,
-      edPub: session.keys.edPub,
-      kemPriv: session.keys.kemPriv,
-    }).catch(() => {});
+    await removeRecipient(
+      session.chatClient,
+      keyringName(roomId),
+      [member.subKem],
+      { edPriv: session.keys.edPriv, edPub: session.keys.edPub, kemPriv: session.keys.kemPriv },
+      { trustedAdders: [session.keys.edPub] },
+    );
   }
   if (member.nonce) await removeMemberEntry(session.chatClient, membersName(roomId), member.nonce).catch(() => {});
 }
 
 /** Invitee: accept a member cap → store it + confirm keyring access. Returns roomId. */
 export async function acceptInvite(session: Session, capJson: string): Promise<string> {
-  const cap = JSON.parse(capJson) as { sub?: string; scope?: { paths?: string[] } };
+  const cap = JSON.parse(capJson) as { sub?: string; iss?: string; scope?: { paths?: string[] } };
   if (cap.sub && cap.sub !== session.keys.edPub) {
     throw new Error('This invite was issued for a different identity.');
   }
+  if (!cap.iss) throw new Error('This invite is missing its issuer.');
   const roomId = roomIdFromCap(cap);
   if (!roomId) throw new Error('This invite is not scoped to a room.');
-  const client = makeClient(capJson ? JSON.parse(capJson) : null, session.keys.edPriv);
-  const enc = await buildEncryptor(client, session.keys, roomId);
+  const client = makeClient(cap, session.keys.edPriv);
+  const enc = await buildEncryptor(client, session.keys, roomId, [cap.iss]);
   if (!enc) throw new Error("Accepted, but you're not in the room keyring yet — ask the owner to re-invite.");
   saveMemberCap(roomId, capJson);
   return roomId;

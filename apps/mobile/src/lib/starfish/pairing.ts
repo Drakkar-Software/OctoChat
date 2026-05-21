@@ -19,7 +19,7 @@ import {
 import { SYNC_BASE } from './config';
 import type { Session } from './identity';
 import { fingerprintFromUserId } from './identity';
-import { ownerScope } from './paths';
+import { bytesToHex, ownerScope } from './paths';
 
 export const PAIR_PREFIX = 'octochat-pair:';
 
@@ -28,7 +28,11 @@ function anonClient(): StarfishClient {
 }
 
 function randomNonce(): string {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  // CSPRNG: the nonce is the only locator for the public `_pairing/<nonce>` slot,
+  // so it must be unguessable. (The blob is also PIN-sealed.) Hex keeps it URL-safe.
+  const b = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(b);
+  return bytesToHex(b);
 }
 
 /** Existing device: provision + PIN-seal a new device, publish to rendezvous, return the QR payload. */

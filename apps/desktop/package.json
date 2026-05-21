@@ -1,0 +1,28 @@
+{
+  "name": "@octochat/desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "OctoChat desktop shell — renders the Expo web build inside Electron.",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "build:main": "tsup",
+    "dev": "concurrently -k -n expo,electron -c blue,magenta \"pnpm dev:web\" \"pnpm dev:electron\"",
+    "dev:web": "pnpm --filter @octochat/mobile web",
+    "dev:electron": "wait-on tcp:8081 && cross-env NODE_ENV=development tsup --watch --onSuccess \"electron .\"",
+    "export": "pnpm --filter @octochat/mobile export:web",
+    "package": "pnpm export && pnpm build:main && electron-builder",
+    "package:dir": "pnpm export && pnpm build:main && electron-builder --dir",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@octochat/tsconfig": "workspace:*",
+    "@types/node": "^22.10.0",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8",
+    "tsup": "^8.3.5",
+    "typescript": "~5.9.2",
+    "wait-on": "^8.0.1"
+  }
+}

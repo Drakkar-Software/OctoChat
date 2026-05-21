@@ -13,6 +13,8 @@
     "android": "pnpm --filter @octochat/mobile android",
     "ios": "pnpm --filter @octochat/mobile ios",
     "dev:server": "pnpm --filter @octochat/server dev",
+    "desktop": "pnpm --filter @octochat/desktop dev",
+    "desktop:package": "pnpm --filter @octochat/desktop package",
     "typecheck": "pnpm -r --if-present run typecheck",
     "lint": "pnpm -r --if-present run lint"
   }

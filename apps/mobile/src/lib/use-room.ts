@@ -43,8 +43,10 @@ export function useRoom(roomId: string) {
         let enc: Encryptor | null;
         if (memberCap) {
           // Joined room: open as a keyring recipient, don't try to create it.
-          const client = makeClient(JSON.parse(memberCap), session.keys.edPriv);
-          enc = await buildEncryptor(client, session.keys, roomId);
+          // The room owner (the cap's issuer) is the trusted keyring adder.
+          const cap = JSON.parse(memberCap) as { iss?: string };
+          const client = makeClient(cap, session.keys.edPriv);
+          enc = await buildEncryptor(client, session.keys, roomId, cap.iss ? [cap.iss] : []);
           if (!enc) throw new Error("You're not a recipient of this room's keyring yet.");
         } else {
           enc = await ownerEnsureKeyring(session.chatClient, session.keys, roomId);

@@ -112,7 +112,7 @@ export async function reSealRoomAtCurrentEpoch(
   roomId: string,
 ): Promise<void> {
   try {
-    const ownerEnc = await buildEncryptor(client, keys, roomId);
+    const ownerEnc = await buildEncryptor(client, keys, roomId, [keys.edPub]);
     const res = await client.pull(roomPull(roomId)).catch(() => null);
     const data = res?.data as Record<string, unknown> | undefined;
     if (ownerEnc && data && data._encrypted) {

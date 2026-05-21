@@ -1,0 +1,5 @@
+# tsup output (compiled main + preload)
+dist-electron/
+
+# electron-builder output (packaged apps + installers)
+release/

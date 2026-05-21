@@ -24,7 +24,7 @@ export function DesktopNav() {
   const params = useGlobalSearchParams<{ id?: string; roomId?: string }>();
   const { profile } = useProfile();
   const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
-  const { categories, loading: roomsLoading } = useRooms(activeId);
+  const { categories, loading: roomsLoading, createRoom } = useRooms(activeId);
 
   const space = spaces.find((s) => s.id === activeId) ?? spaces[0];
   const activeRoomId =
@@ -61,6 +61,7 @@ export function DesktopNav() {
           onOpenRoom={openRoom}
           onJumpTo={() => router.push('/(tabs)/search')}
           onOpenSpaceMenu={() => router.push('/join')}
+          onCreateRoom={(category, name) => createRoom(name, category)}
           loading={roomsLoading}
         />
       ) : (

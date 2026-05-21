@@ -95,7 +95,6 @@ export function DesktopSpacesRail({
       <View style={styles.spacer} />
       <Pressable accessibilityRole="button" accessibilityLabel="Your profile" onPress={onOpenProfile} style={styles.foot}>
         <Avatar label={meLabel} size={32} />
-        <Icon name="gear" size={16} color={colors.inkMuted} />
       </Pressable>
     </View>
   );

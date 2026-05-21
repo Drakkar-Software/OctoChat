@@ -16,7 +16,7 @@ export default function RoomsScreen() {
   const { session } = useSession();
   const inShell = useInShell();
   const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
-  const { categories, loading: roomsLoading } = useRooms(activeId);
+  const { categories, loading: roomsLoading, createRoom } = useRooms(activeId);
   const space = spaces.find((s) => s.id === activeId) ?? spaces[0];
 
   const openRoom = (room: Room) =>
@@ -60,7 +60,14 @@ export default function RoomsScreen() {
       ) : categories.length === 0 ? (
         <EmptyState iconName="hash" title="No rooms yet" subtitle="Create a channel to get started." />
       ) : (
-        categories.map((cat) => <RoomCategorySection key={cat.name} category={cat} onOpenRoom={openRoom} />)
+        categories.map((cat) => (
+          <RoomCategorySection
+            key={cat.name}
+            category={cat}
+            onOpenRoom={openRoom}
+            onCreateRoom={(category, name) => createRoom(name, category)}
+          />
+        ))
       )}
     </StackScreen>
   );

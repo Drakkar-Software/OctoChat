@@ -14,7 +14,7 @@ import { sharingServerPlugin } from "@drakkar.software/starfish-sharing";
 
 import { config } from "./config.js";
 
-const PORT = Number(process.env.PORT ?? 3000);
+const PORT = Number(process.env.PORT ?? 8787);
 const DATA_DIR = process.env.STARFISH_DATA_DIR ?? "./data";
 
 const store = new FilesystemObjectStore({ baseDir: DATA_DIR });

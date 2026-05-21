@@ -62,9 +62,17 @@ export default function MembersScreen() {
   };
 
   const revoke = async (m: MemberRow) => {
-    if (!session) return;
-    await revokeMember(session, roomId, m);
-    await refresh();
+    if (!session || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await revokeMember(session, roomId, m);
+      await refresh();
+    } catch (e) {
+      setError(String((e as Error)?.message ?? e));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

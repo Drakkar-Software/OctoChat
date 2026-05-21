@@ -18,6 +18,8 @@ interface DesktopRoomSidebarProps {
   onJumpTo?: () => void;
   /** Open the space switcher / join surface (the header acts as a menu). */
   onOpenSpaceMenu?: () => void;
+  /** Create a channel in a category. */
+  onCreateRoom?: (category: string, name: string) => void;
   loading?: boolean;
 }
 
@@ -34,6 +36,7 @@ export function DesktopRoomSidebar({
   onOpenRoom,
   onJumpTo,
   onOpenSpaceMenu,
+  onCreateRoom,
   loading = false,
 }: DesktopRoomSidebarProps) {
   const { colors } = useTheme();
@@ -87,7 +90,13 @@ export function DesktopRoomSidebar({
           </Txt>
         ) : (
           categories.map((cat) => (
-            <RoomCategorySection key={cat.name} category={cat} activeRoomId={activeRoomId} onOpenRoom={onOpenRoom} />
+            <RoomCategorySection
+              key={cat.name}
+              category={cat}
+              activeRoomId={activeRoomId}
+              onOpenRoom={onOpenRoom}
+              onCreateRoom={onCreateRoom}
+            />
           ))
         )}
       </ScrollView>
