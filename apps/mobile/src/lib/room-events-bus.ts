@@ -1,29 +1,42 @@
 /**
- * Module-level singleton that bridges the global SSE subscription
- * (UnreadProvider) to per-room consumers (use-room). Avoids a second SSE
- * connection per open room — the global connection already covers all the
- * user's spaces, so use-room just listens here instead of opening its own.
+ * Single dispatch point for room-change events from the global SSE connection.
+ *
+ * When an event arrives, UnreadProvider calls dispatchRoomChange(roomId):
+ *   - if use-room has registered a pull for that roomId → call it (the user is
+ *     actively viewing the room) and return true — caller skips unread bump.
+ *   - otherwise return false → caller bumps unread.
+ *
+ * use-room registers/unregisters its pull via registerPull. SSE health is
+ * broadcast via emitSseStatus so use-room can gate its fallback polling.
  */
 
-type RoomChangeListener = (roomId: string) => void;
+type PullFn = () => void;
 type StatusListener = (up: boolean) => void;
 
-const changeListeners = new Set<RoomChangeListener>();
+const pullRegistry = new Map<string, PullFn>();
 const statusListeners = new Set<StatusListener>();
 let sseUp = false;
 
-export function emitRoomChange(roomId: string): void {
-  for (const l of changeListeners) l(roomId);
+/** Register a pull function for roomId. Returns an unsubscribe fn. */
+export function registerPull(roomId: string, fn: PullFn): () => void {
+  pullRegistry.set(roomId, fn);
+  return () => { if (pullRegistry.get(roomId) === fn) pullRegistry.delete(roomId); };
+}
+
+/**
+ * Dispatch a room-change event. If a pull is registered for roomId, calls it
+ * (the user is viewing that room) and returns true. Returns false otherwise.
+ */
+export function dispatchRoomChange(roomId: string): boolean {
+  const pull = pullRegistry.get(roomId);
+  if (!pull) return false;
+  pull();
+  return true;
 }
 
 export function emitSseStatus(up: boolean): void {
   sseUp = up;
   for (const l of statusListeners) l(up);
-}
-
-export function onRoomChange(cb: RoomChangeListener): () => void {
-  changeListeners.add(cb);
-  return () => changeListeners.delete(cb);
 }
 
 /** Subscribe to SSE health changes. Fires immediately with the current state. */

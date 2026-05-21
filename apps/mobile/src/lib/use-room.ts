@@ -11,7 +11,7 @@ import {
   openEncryptor,
   ownerEnsureKeyring,
 } from './starfish/client';
-import { onRoomChange, onSseStatus } from './room-events-bus';
+import { registerPull, onSseStatus } from './room-events-bus';
 import {
   loadAttachment as loadAttachmentDoc,
   uploadAttachment as uploadAttachmentDoc,
@@ -116,9 +116,9 @@ export function useRoom(roomId: string) {
   useEffect(() => {
     if (!store) { setSyncError(null); return; }
     pull();
-    const unsubChange = onRoomChange((id) => { if (id === roomId) pull(); });
+    const unsubPull = registerPull(roomId, pull);
     const unsubStatus = onSseStatus(setSseUp);
-    return () => { unsubChange(); unsubStatus(); };
+    return () => { unsubPull(); unsubStatus(); };
   }, [store, roomId, pull]);
 
   // Fallback: poll only while the SSE stream is unreachable/disconnected, so a

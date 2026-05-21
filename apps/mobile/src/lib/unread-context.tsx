@@ -19,7 +19,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { useGlobalSearchParams, usePathname } from 'expo-router';
+import { usePathname } from 'expo-router';
 
 import { subscribeRoomChanges } from './events';
 import { ensureNotifyPermission, notifyNewMessage } from './notify';
@@ -28,7 +28,7 @@ import { kvGet, kvSet } from './starfish/kv';
 import { spaceIdFromRoomId } from './starfish/paths';
 import { readSpaces } from './starfish/registry';
 import { buildAuthHeaders } from './starfish/client';
-import { emitRoomChange, emitSseStatus } from './room-events-bus';
+import { dispatchRoomChange, emitSseStatus } from './room-events-bus';
 
 interface UnreadValue {
   /** Unread count per room id (absent = caught up). */
@@ -60,17 +60,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   // not on every navigation that produces a new spaceIds array reference.
   const spacesKey = useMemo(() => [...spaceIds].sort().join(','), [spaceIds]);
 
-  // Track the room currently being viewed so its events are never counted.
   const pathname = usePathname();
-  const params = useGlobalSearchParams<{ id?: string; roomId?: string }>();
-  const activeRoomIdRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    activeRoomIdRef.current = pathname.startsWith('/room/')
-      ? params.id
-      : pathname.startsWith('/thread')
-        ? params.roomId
-        : undefined;
-  }, [pathname, params.id, params.roomId]);
 
   // Load the user's space ids from the registry. Re-read on navigation so a
   // join/create propagates to the subscription without a full reload. Matches
@@ -113,9 +103,8 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       ensureNotifyPermission();
       unsub = subscribeRoomChanges(
         (e) => {
-          // Broadcast to use-room consumers so they can pull without a second SSE connection.
-          emitRoomChange(e.roomId);
-          if (e.roomId === activeRoomIdRef.current) return; // viewing it → already read
+          // Active room view: pull fresh messages there, skip the unread bump.
+          if (dispatchRoomChange(e.roomId)) return;
           const m = mapRef.current;
           const next = { ...m, [e.roomId]: (m[e.roomId] ?? 0) + 1 };
           mapRef.current = next;
