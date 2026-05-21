@@ -16,7 +16,6 @@ type ReactionChipProps = Reaction & {
 function ReactionChip({ emoji, count, mine, userIds, nameFor, onPress }: ReactionChipProps) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
-  const names = hovered ? userIds.map((id) => nameFor?.(id) ?? id.slice(0, 8)) : [];
 
   return (
     <Pressable
@@ -35,9 +34,10 @@ function ReactionChip({ emoji, count, mine, userIds, nameFor, onPress }: Reactio
       <Txt variant="micro" weight="semibold" mono color={mine ? colors.accentInk : colors.inkSoft}>
         {count}
       </Txt>
-      {hovered && names.length ? (
+      {hovered && userIds.length ? (
         <View
-          // Below the chip: more room than above and clear of the topbar.
+          // Below the chip: more room than above and clear of the topbar. One name
+          // per line (each nowrap) so the bubble grows past the narrow chip width.
           pointerEvents="none"
           style={[
             styles.tooltip,
@@ -45,9 +45,11 @@ function ReactionChip({ emoji, count, mine, userIds, nameFor, onPress }: Reactio
             shadows.sm,
           ]}
         >
-          <Txt variant="micro" weight="medium" tone="ink" numberOfLines={6}>
-            {names.join(', ')}
-          </Txt>
+          {userIds.map((id) => (
+            <Txt key={id} variant="micro" weight="medium" tone="ink" numberOfLines={1}>
+              {nameFor?.(id) ?? id.slice(0, 8)}
+            </Txt>
+          ))}
         </View>
       ) : null}
     </Pressable>
@@ -103,6 +105,7 @@ const styles = StyleSheet.create({
     left: 0,
     marginTop: 6,
     maxWidth: 240,
+    gap: 2,
     paddingVertical: 5,
     paddingHorizontal: 8,
     borderRadius: radii.sm,
