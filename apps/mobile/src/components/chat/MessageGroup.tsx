@@ -47,11 +47,7 @@ export function MessageGroup({ message, author, onOpenThread, onToggleReaction, 
         ) : null}
         {message.attachment ? <Attachment data={message.attachment} /> : null}
         {message.reactions?.length || onToggleReaction ? (
-          <ReactionBar
-            reactions={message.reactions ?? []}
-            onToggle={onToggleReaction}
-            onAdd={() => onToggleReaction?.('🐙')}
-          />
+          <ReactionBar reactions={message.reactions ?? []} onToggle={onToggleReaction} />
         ) : null}
         {onOpenThread ? (
           <Pressable

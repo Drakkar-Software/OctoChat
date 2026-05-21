@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii } from '@/theme';
 import type { Reaction } from '@/lib/types';
 import { tapFeedback } from '@/lib/haptics';
+import { QUICK_REACTIONS } from '@/lib/reactions';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
@@ -29,17 +31,24 @@ function ReactionChip({ emoji, count, mine, onPress }: Reaction & { onPress?: ()
   );
 }
 
-/** Row of emoji reactions; tap a chip to toggle, tap + to add a quick reaction. */
+/** Row of emoji reactions; tap a chip to toggle, tap + to pick from the palette. */
 export function ReactionBar({
   reactions,
   onToggle,
-  onAdd,
 }: {
   reactions: Reaction[];
   onToggle?: (emoji: string) => void;
-  onAdd?: () => void;
 }) {
   const { colors } = useTheme();
+  const [picking, setPicking] = useState(false);
+  const mine = new Set(reactions.filter((r) => r.mine).map((r) => r.emoji));
+
+  const pick = (emoji: string) => {
+    tapFeedback();
+    onToggle?.(emoji);
+    setPicking(false);
+  };
+
   return (
     <View style={styles.row}>
       {reactions.map((r) => (
@@ -52,17 +61,47 @@ export function ReactionBar({
           }}
         />
       ))}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Add reaction"
-        onPress={() => {
-          tapFeedback();
-          onAdd?.();
-        }}
-        style={[styles.add, { borderColor: colors.lineFaint, backgroundColor: colors.surface }]}
-      >
-        <Icon name="smile" size={13} color={colors.inkMuted} />
-      </Pressable>
+      {picking ? (
+        <>
+          {QUICK_REACTIONS.map((emoji) => (
+            <Pressable
+              key={emoji}
+              accessibilityRole="button"
+              accessibilityLabel={`React with ${emoji}`}
+              onPress={() => pick(emoji)}
+              style={[
+                styles.add,
+                {
+                  borderColor: mine.has(emoji) ? colors.accentBorder : colors.lineFaint,
+                  backgroundColor: mine.has(emoji) ? colors.accentBg : colors.surface,
+                },
+              ]}
+            >
+              <Txt variant="footnote">{emoji}</Txt>
+            </Pressable>
+          ))}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close reaction picker"
+            onPress={() => setPicking(false)}
+            style={[styles.add, { borderColor: colors.lineFaint, backgroundColor: colors.surface }]}
+          >
+            <Icon name="x" size={12} color={colors.inkMuted} />
+          </Pressable>
+        </>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add reaction"
+          onPress={() => {
+            tapFeedback();
+            setPicking(true);
+          }}
+          style={[styles.add, { borderColor: colors.lineFaint, backgroundColor: colors.surface }]}
+        >
+          <Icon name="smile" size={13} color={colors.inkMuted} />
+        </Pressable>
+      )}
     </View>
   );
 }

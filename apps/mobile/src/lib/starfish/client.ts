@@ -29,17 +29,30 @@ export function makeClient(cap: unknown, devEdPrivHex: string): StarfishClient {
   return new StarfishClient({ baseUrl: SYNC_BASE, capProvider: capProviderFor(cap, devEdPrivHex) });
 }
 
-/** Build a decryptor from a room's keyring, or null if absent / not a recipient. */
+/**
+ * Build a decryptor from a room's keyring, or null if absent / not a recipient.
+ *
+ * `trustedAdders` is the fail-closed provenance pin the SDK now requires (the
+ * keyring's per-entry `addedSig` is self-attesting, so a hostile server could
+ * substitute a wrapped CEK). Pass the Ed25519 pubkey(s) of whoever may grant
+ * keyring access: the room owner — `keys.edPub` for our own rooms, the member
+ * cap's `iss` for a joined room.
+ */
 export async function buildEncryptor(
   client: StarfishClient,
   keys: DeviceKeys,
   roomId: string,
+  trustedAdders: string[],
 ): Promise<Encryptor | null> {
   try {
     const res = await client.pull(keyringPull(roomId));
     const keyring = res?.data as unknown as Keyring | undefined;
     if (!keyring || !keyring.epochs) return null;
-    const enc = await createKeyringEncryptor(keyring, { kemPubHex: keys.kemPub, kemPrivHex: keys.kemPriv });
+    const enc = await createKeyringEncryptor(
+      keyring,
+      { kemPubHex: keys.kemPub, kemPrivHex: keys.kemPriv },
+      { trustedAdders },
+    );
     return enc as unknown as Encryptor;
   } catch {
     return null;
@@ -61,7 +74,11 @@ export async function ownerEnsureKeyring(
     keyring = created.keyring;
     await client.push(keyringPush(roomId), keyring as unknown as Record<string, unknown>, krRes?.hash ?? null);
   }
-  const enc = await createKeyringEncryptor(keyring, { kemPubHex: keys.kemPub, kemPrivHex: keys.kemPriv });
+  const enc = await createKeyringEncryptor(
+    keyring,
+    { kemPubHex: keys.kemPub, kemPrivHex: keys.kemPriv },
+    { trustedAdders: [keys.edPub] },
+  );
   return enc as unknown as Encryptor;
 }
 
