@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
 import type { Space } from '@/lib/types';
+import { plural } from '@/lib/format';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
@@ -45,7 +46,7 @@ export function SpaceHeader({
           <View style={styles.meta}>
             <Icon name="lock" size={10} color={colors.accent} />
             <Txt variant="micro" tone="inkMuted">
-              {space.members} members · e2ee
+              {plural(space.members, 'member')} · e2ee
             </Txt>
           </View>
         </View>

@@ -301,6 +301,14 @@ export const layout = {
   maxContentWidth: 720,
   tabBarHeight: 64,
   headerMinHeight: 52,
+  /** At/above this viewport width (web) the app switches to the desktop shell. */
+  breakpointDesktop: 900,
+  /** Vertical spaces rail at the left edge of the desktop shell. */
+  railWidth: 64,
+  /** Categorized room sidebar between the rail and the main pane. */
+  sidebarWidth: 240,
+  /** Top toolbar above the main pane on desktop. */
+  desktopTopbarHeight: 52,
 } as const;
 
 // ── Semantic helpers ───────────────────────────────────────────────────────

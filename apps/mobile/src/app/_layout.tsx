@@ -13,6 +13,7 @@ import { StatusBar } from 'expo-status-bar';
 
 import { colors } from '@/theme';
 import { useAppFonts } from '@/lib/use-app-fonts';
+import { AppFrame } from '@/components/ui/AppFrame';
 
 // Install platform crypto (no-op on web; quick-crypto polyfill on native).
 configureStarfishPlatform();
@@ -37,12 +38,14 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
         <SessionProvider>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: palette.canvas },
-            }}
-          />
+          <AppFrame>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: palette.canvas },
+              }}
+            />
+          </AppFrame>
         </SessionProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

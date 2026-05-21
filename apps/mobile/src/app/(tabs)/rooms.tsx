@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
+import { useInShell } from '@/lib/use-responsive';
 import { useSession } from '@/lib/session-context';
 import { useRooms } from '@/lib/use-rooms';
 import { useSpaces } from '@/lib/use-spaces';
@@ -13,12 +14,26 @@ import { SpaceHeader } from '@/components/chat/SpaceHeader';
 
 export default function RoomsScreen() {
   const { session } = useSession();
+  const inShell = useInShell();
   const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
   const { categories, loading: roomsLoading } = useRooms(activeId);
   const space = spaces.find((s) => s.id === activeId) ?? spaces[0];
 
   const openRoom = (room: Room) =>
     router.push({ pathname: '/room/[id]', params: { id: room.id, name: room.name, kind: room.kind } });
+
+  // On desktop the sidebar IS the room list, so this pane is the resting state.
+  if (inShell) {
+    return (
+      <StackScreen inTabs>
+        <EmptyState
+          iconName="hash"
+          title="Select a room"
+          subtitle="Choose a channel or DM from the sidebar to start chatting."
+        />
+      </StackScreen>
+    );
+  }
 
   return (
     <StackScreen

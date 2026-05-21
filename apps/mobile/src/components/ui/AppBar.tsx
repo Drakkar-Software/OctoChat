@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { layout, spacing } from '@/theme';
+import { useInShell } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
 
 import { IconButton } from './IconButton';
@@ -25,6 +26,7 @@ interface AppBarProps {
  */
 export function AppBar({ title, subtitle, onBack, left, right }: AppBarProps) {
   const { colors } = useTheme();
+  const inShell = useInShell();
   const leftNode =
     left ??
     (onBack ? (
@@ -32,9 +34,14 @@ export function AppBar({ title, subtitle, onBack, left, right }: AppBarProps) {
     ) : null);
 
   return (
-    <View style={[styles.bar, { backgroundColor: colors.paper, borderBottomColor: colors.lineSoft }]}>
-      <View style={styles.side}>{leftNode}</View>
-      <View style={styles.center}>
+    <View style={[styles.bar, inShell && styles.barShell, { backgroundColor: colors.paper, borderBottomColor: colors.lineSoft }]}>
+      {/* On desktop the title hugs the start; on mobile both sides flex to center it. */}
+      {leftNode ? (
+        <View style={inShell ? styles.sideShell : styles.side}>{leftNode}</View>
+      ) : !inShell ? (
+        <View style={styles.side} />
+      ) : null}
+      <View style={[styles.center, inShell && styles.centerShell]}>
         <Txt variant="heading" weight="semibold" numberOfLines={1}>
           {title}
         </Txt>
@@ -48,7 +55,7 @@ export function AppBar({ title, subtitle, onBack, left, right }: AppBarProps) {
           )
         ) : null}
       </View>
-      <View style={[styles.side, styles.right]}>{right}</View>
+      <View style={[inShell ? styles.sideShell : styles.side, styles.right]}>{right}</View>
     </View>
   );
 }
@@ -62,8 +69,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
   },
+  barShell: { minHeight: layout.desktopTopbarHeight, paddingHorizontal: spacing.lg, paddingVertical: 0, gap: spacing.md },
   side: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.lg, minWidth: 32 },
+  sideShell: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   center: { flexShrink: 1, alignItems: 'center', paddingHorizontal: 6, gap: 2 },
+  centerShell: { flex: 1, minWidth: 0, alignItems: 'flex-start', paddingHorizontal: 0 },
   right: { justifyContent: 'flex-end' },
   subRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
 });

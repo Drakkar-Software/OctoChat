@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 
 import { fonts } from '@/theme';
+import { useResponsive } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
 import { Icon, type IconName } from '@/components/ui/Icon';
 
@@ -10,13 +11,17 @@ const tabIcon =
 
 export default function TabsLayout() {
   const { colors } = useTheme();
+  const { isWide } = useResponsive();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.inkMuted,
-        tabBarStyle: { backgroundColor: colors.paper, borderTopColor: colors.lineSoft },
+        // On wide screens the desktop sidebar replaces the bottom tab bar.
+        tabBarStyle: isWide
+          ? { display: 'none' }
+          : { backgroundColor: colors.paper, borderTopColor: colors.lineSoft },
         tabBarLabelStyle: { fontFamily: fonts.bodyMedium, fontSize: 10 },
       }}
     >

@@ -5,6 +5,7 @@ import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
 import { useRoom } from '@/lib/use-room';
 import { useTheme } from '@/lib/use-theme';
+import type { RoomKind } from '@/lib/types';
 import { AppBar } from '@/components/ui/AppBar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Icon } from '@/components/ui/Icon';
@@ -12,6 +13,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { Txt } from '@/components/ui/Txt';
 import { Composer } from '@/components/chat/Composer';
+import { DesktopChatTopbar } from '@/components/chat/DesktopChatTopbar';
 import { RoomConversation } from '@/components/chat/RoomConversation';
 
 export default function RoomScreen() {
@@ -19,13 +21,15 @@ export default function RoomScreen() {
   const params = useLocalSearchParams<{ id: string; name?: string; kind?: string }>();
   const id = params.id;
   const name = params.name ?? id;
-  const kind = params.kind ?? 'channel';
+  const kind = (params.kind ?? 'channel') as RoomKind;
   const { session } = useSession();
   const { store, opening, openError, send, toggleReaction } = useRoom(id);
   const title = kind === 'dm' ? name : `#${name}`;
 
   const openThread = (msgId: string) =>
     router.push({ pathname: '/thread/[id]', params: { id: msgId, roomId: id, roomName: name } });
+  const openMembers = () => router.push({ pathname: '/members/[id]', params: { id, name } });
+  const openSearch = () => router.push('/(tabs)/search');
 
   return (
     <StackScreen
@@ -45,16 +49,13 @@ export default function RoomScreen() {
           }
           right={
             <>
-              <IconButton name="search" accessibilityLabel="Search in room" />
-              <IconButton
-                name="people"
-                accessibilityLabel="Members"
-                onPress={() => router.push({ pathname: '/members/[id]', params: { id, name } })}
-              />
+              <IconButton name="search" accessibilityLabel="Search in room" onPress={openSearch} />
+              <IconButton name="people" accessibilityLabel="Members" onPress={openMembers} />
             </>
           }
         />
       }
+      desktopHeader={<DesktopChatTopbar name={name} kind={kind} onSearch={openSearch} onMembers={openMembers} />}
       footer={<Composer placeholder={`Message ${title}`} onSend={(t) => send(t)} />}
     >
       {!session ? (

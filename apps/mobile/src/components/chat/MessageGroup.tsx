@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
 import type { Message, User } from '@/lib/types';
+import { plural } from '@/lib/format';
 import { useTheme } from '@/lib/use-theme';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
@@ -60,7 +61,7 @@ export function MessageGroup({ message, author, onOpenThread, onToggleReaction, 
           >
             <Icon name="thread" size={13} color={colors.accent} />
             <Txt variant="footnote" weight="semibold" tone="accent">
-              {message.threadCount ? `${message.threadCount} replies` : 'Reply in thread'}
+              {message.threadCount ? plural(message.threadCount, 'reply', 'replies') : 'Reply in thread'}
             </Txt>
             <Icon name="chev" size={13} color={colors.inkMuted} />
           </Pressable>

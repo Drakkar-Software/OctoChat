@@ -3,6 +3,7 @@ import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 
 import { spacing } from '@/theme';
 import { authorFor, toDisplayMessage, type StoredMsg } from '@/lib/message-view';
+import { plural } from '@/lib/format';
 import type { ReactionEvent } from '@/lib/types';
 import { Txt } from '@/components/ui/Txt';
 
@@ -37,7 +38,7 @@ export function ThreadConversation({
       ) : null}
       <View style={styles.label}>
         <Txt variant="micro" weight="bold" mono uppercase tone="inkMuted">
-          {replies.length} replies
+          {plural(replies.length, 'reply', 'replies')}
         </Txt>
       </View>
       {replies.map((r) => (
