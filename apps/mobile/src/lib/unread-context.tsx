@@ -22,6 +22,7 @@ import {
 import { useGlobalSearchParams, usePathname } from 'expo-router';
 
 import { subscribeRoomChanges } from './events';
+import { ensureNotifyPermission, notifyNewMessage } from './notify';
 import { useSession } from './session-context';
 import { kvGet, kvSet } from './starfish/kv';
 import { spaceIdFromRoomId } from './starfish/paths';
@@ -84,6 +85,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       }
       mapRef.current = initial;
       setUnreadByRoom(initial);
+      ensureNotifyPermission();
       unsub = subscribeRoomChanges((e) => {
         if (e.roomId === activeRoomIdRef.current) return; // viewing it → already read
         const m = mapRef.current;
@@ -91,6 +93,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
         mapRef.current = next;
         setUnreadByRoom(next);
         void kvSet(persistKey(userId), JSON.stringify(next));
+        notifyNewMessage(); // web-only browser notification (no-op when focused / native)
       });
     })();
     return () => {
