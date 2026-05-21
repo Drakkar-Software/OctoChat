@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { radii, spacing } from '@/theme';
 import { authorFor, hhmm, type StoredMsg } from '@/lib/message-view';
 import type { Room } from '@/lib/types';
+import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
@@ -21,12 +22,21 @@ export function MessageResult({
   onPress: () => void;
 }) {
   const { colors } = useTheme();
+  const { hovered, hoverProps } = useHover();
   const author = authorFor(msg.authorId, currentUserId);
   return (
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={[styles.row, { borderColor: colors.lineFaint, backgroundColor: colors.paper }]}
+      {...hoverProps}
+      style={[
+        styles.row,
+        {
+          borderColor: hovered ? colors.accentBorder : colors.lineFaint,
+          borderTopColor: hovered ? colors.accentBorder : colors.hairlineHi,
+          backgroundColor: hovered ? colors.paperAlt : colors.paper,
+        },
+      ]}
     >
       <Avatar label={author.initials} size={32} />
       <View style={styles.body}>

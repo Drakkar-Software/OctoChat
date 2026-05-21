@@ -1,9 +1,11 @@
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { fonts, motion, radii, shadows, spacing, type as typeScale } from '@/theme';
+import { fonts, glowShadow, motion, radii, shadows, spacing, type as typeScale } from '@/theme';
 import { tapFeedback } from '@/lib/haptics';
+import { useHover } from '@/lib/use-hover';
 import { useTheme, type Palette } from '@/lib/use-theme';
 
 import { Icon, type IconName } from './Icon';
@@ -35,7 +37,7 @@ const SIZES = {
 function variantColors(c: Palette, variant: ButtonVariant) {
   switch (variant) {
     case 'primary':
-      return { bg: c.accent, border: c.accent, fg: c.onAccent };
+      return { bg: 'transparent', border: 'transparent', fg: c.onAccent };
     case 'secondary':
       return { bg: c.paper, border: c.lineSoft, fg: c.ink };
     case 'ghost':
@@ -45,7 +47,8 @@ function variantColors(c: Palette, variant: ButtonVariant) {
   }
 }
 
-/** Generic pressable button — 4 variants × 3 sizes, with press spring + haptics. */
+/** Generic pressable button — 4 variants × 3 sizes, with press spring, web
+ *  hover and (primary) a marine gradient + bioluminescent glow. */
 export function Button({
   label,
   onPress,
@@ -59,14 +62,19 @@ export function Button({
   const { colors } = useTheme();
   const v = variantColors(colors, variant);
   const s = SIZES[size];
+  const { hovered, hoverProps } = useHover();
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  const isPrimary = variant === 'primary';
+  const hoverWash = !hovered ? null : isPrimary ? colors.brightWash : colors.hover;
 
   return (
     <AnimatedPressable
       accessibilityRole="button"
       disabled={disabled}
       onPress={onPress}
+      {...hoverProps}
       onPressIn={() => {
         scale.value = withTiming(0.97, { duration: motion.fast });
         tapFeedback();
@@ -87,11 +95,18 @@ export function Button({
           alignSelf: full ? 'stretch' : 'flex-start',
           width: full ? '100%' : undefined,
         },
-        variant === 'primary' ? shadows.sm : null,
+        isPrimary ? glowShadow(colors.glow, hovered ? 0.34 : 0.18, hovered ? 12 : 9) : variant === 'secondary' && hovered ? shadows.sm : null,
         animStyle,
         style,
       ]}
     >
+      {isPrimary ? (
+        <LinearGradient
+          colors={[colors.accentGradTop, colors.accentGradBottom]}
+          style={[StyleSheet.absoluteFill, styles.fill]}
+        />
+      ) : null}
+      {hoverWash ? <View style={[StyleSheet.absoluteFill, styles.fill, { backgroundColor: hoverWash }]} /> : null}
       {iconName ? <Icon name={iconName} size={s.fontSize + 2} color={v.fg} /> : null}
       <Text style={[styles.label, { color: v.fg, fontSize: s.fontSize }]} numberOfLines={1}>
         {label}
@@ -108,6 +123,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radii.lg,
   },
+  fill: { borderRadius: radii.lg },
   label: {
     fontFamily: fonts.bodySemibold,
     letterSpacing: 0.1,

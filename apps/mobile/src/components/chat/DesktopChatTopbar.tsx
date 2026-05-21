@@ -40,7 +40,6 @@ export function DesktopChatTopbar({ name, kind = 'channel', topic, members, onSe
       ) : (
         <View style={styles.spacer} />
       )}
-      <Pill tone="accent" iconName="lock" label="E2EE" style={styles.pill} />
       {members != null ? <Pill iconName="people" label={String(members)} mono style={styles.pill} /> : null}
       <IconButton name="search" size={16} onPress={onSearch} accessibilityLabel="Search in room" />
       <IconButton name="people" size={16} onPress={onMembers} accessibilityLabel="View members" />

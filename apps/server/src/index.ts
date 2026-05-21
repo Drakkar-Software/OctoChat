@@ -13,7 +13,7 @@ import { sharingServerPlugin } from "@drakkar.software/starfish-sharing";
 
 import { config } from "./config.js";
 import { createFileRevocationStore } from "./revocation-store.js";
-import { makeOwnerRoleEnricher } from "./owner-role.js";
+import { makeSpaceRoleEnricher } from "./space-role.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const DATA_DIR = process.env.STARFISH_DATA_DIR ?? "./data";
@@ -41,15 +41,21 @@ const roleResolver = createCapCertRoleResolver({
   revocationStore: createFileRevocationStore(`${DATA_DIR}/_revocations.json`),
   allowAnonymous: true, // public-read collections (profile, pairing)
   plugins: [identitiesServerPlugin, sharingServerPlugin],
+  // The resolver buffers the body to verify the request signature and checks
+  // it against this global ceiling BEFORE the per-collection limit runs (it
+  // defaults to 64 KB). Raise it to the largest collection cap (attachments,
+  // ~11 MB) so blob uploads aren't 413'd here; per-collection `maxBodyBytes`
+  // still enforces each collection's own tighter limit downstream.
+  maxBodyBytes: 11_534_336,
 });
 
 const syncRouter = createSyncRouter({
   store,
   config,
   roleResolver,
-  // Grants `chat:owner` only to a room's owner, gating keyring + roster writes
-  // (see owner-role.ts) so a writer member can't tamper with them.
-  roleEnricher: makeOwnerRoleEnricher(store),
+  // Grants `space:owner` / `space:member` from each space's owner+roster record
+  // (space-role.ts), gating the space keyring and room registry.
+  roleEnricher: makeSpaceRoleEnricher(store),
 });
 
 await saveConfig(store, config);

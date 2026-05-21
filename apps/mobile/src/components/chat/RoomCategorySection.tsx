@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { fonts, radii, spacing, type as typeScale } from '@/theme';
+import { spacing } from '@/theme';
 import type { Room } from '@/lib/types';
 import type { RoomCategory } from '@/lib/use-rooms';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
+import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
 import { ChannelRow } from './ChannelRow';
@@ -70,24 +71,21 @@ export function RoomCategorySection({ category, activeRoomId, onOpenRoom, onCrea
         : null}
 
       {!collapsed && adding ? (
-        <View style={[styles.addRow, { backgroundColor: colors.paper, borderColor: colors.lineSoft }]}>
-          <Icon name="hash" size={15} color={colors.inkMuted} />
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            onSubmitEditing={submit}
-            onBlur={() => {
-              if (!name.trim()) setAdding(false);
-            }}
-            placeholder="new-channel"
-            placeholderTextColor={colors.inkMuted}
-            autoFocus
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="done"
-            style={[styles.input, { color: colors.ink }]}
-          />
-        </View>
+        <TextField
+          leadingIcon="hash"
+          value={name}
+          onChangeText={setName}
+          onSubmitEditing={submit}
+          onBlur={() => {
+            if (!name.trim()) setAdding(false);
+          }}
+          placeholder="new-channel"
+          autoFocus
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="done"
+          containerStyle={[styles.addField, { backgroundColor: colors.paper }]}
+        />
       ) : null}
     </View>
   );
@@ -97,21 +95,5 @@ const styles = StyleSheet.create({
   section: { marginBottom: spacing.sm },
   header: { flexDirection: 'row', alignItems: 'center', paddingRight: spacing.xs },
   toggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: spacing.md },
-  addRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginHorizontal: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 7,
-    borderRadius: radii.md,
-    borderWidth: 1,
-  },
-  input: {
-    flex: 1,
-    fontFamily: fonts.body,
-    fontSize: typeScale.subhead.fontSize,
-    padding: 0,
-    includeFontPadding: false,
-  },
+  addField: { marginHorizontal: spacing.xs, marginTop: spacing.xs },
 });

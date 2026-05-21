@@ -60,7 +60,7 @@ export function DesktopNav() {
           activeRoomId={activeRoomId}
           onOpenRoom={openRoom}
           onJumpTo={() => router.push('/(tabs)/search')}
-          onOpenSpaceMenu={() => router.push('/join')}
+          onOpenSpaceMenu={() => router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
           onCreateRoom={(category, name) => createRoom(name, category)}
           loading={roomsLoading}
         />

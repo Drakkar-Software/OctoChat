@@ -21,3 +21,11 @@ export async function kvSet(key: string, value: string): Promise<void> {
     /* ignore */
   }
 }
+
+export async function kvRemove(key: string): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}

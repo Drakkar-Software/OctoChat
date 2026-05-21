@@ -16,10 +16,15 @@ export function SeedGrid({ words, concealed = false }: SeedGridProps) {
   return (
     <View style={[styles.grid, { backgroundColor: colors.paperAlt, borderColor: colors.accentBorder }]}>
       {words.map((word, i) => (
-        <View key={word} style={[styles.cell, { backgroundColor: colors.paper, borderColor: colors.lineFaint }]}>
-          <Txt variant="micro" mono tone="inkMuted" style={styles.index}>
-            {String(i + 1).padStart(2, '0')}
-          </Txt>
+        <View
+          key={word}
+          style={[styles.cell, { backgroundColor: colors.paper, borderColor: colors.lineFaint, borderTopColor: colors.hairlineHi }]}
+        >
+          <View style={[styles.index, { backgroundColor: colors.accentBg }]}>
+            <Txt variant="micro" mono weight="semibold" color={colors.accentInk}>
+              {String(i + 1).padStart(2, '0')}
+            </Txt>
+          </View>
           <Txt variant="footnote" mono weight="medium">
             {concealed ? '••••••' : word}
           </Txt>
@@ -42,13 +47,20 @@ const styles = StyleSheet.create({
   cell: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 7,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radii.xs,
+    gap: spacing.sm,
+    paddingVertical: 6,
+    paddingLeft: 6,
+    paddingRight: spacing.sm,
+    borderRadius: radii.sm,
     borderWidth: 1,
     flexBasis: '47%',
     flexGrow: 1,
   },
-  index: { width: 16 },
+  index: {
+    minWidth: 22,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: radii.xs,
+    alignItems: 'center',
+  },
 });

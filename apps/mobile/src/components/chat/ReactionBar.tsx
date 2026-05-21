@@ -5,21 +5,24 @@ import { radii } from '@/theme';
 import type { Reaction } from '@/lib/types';
 import { tapFeedback } from '@/lib/haptics';
 import { QUICK_REACTIONS } from '@/lib/reactions';
+import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 
 function ReactionChip({ emoji, count, mine, onPress }: Reaction & { onPress?: () => void }) {
   const { colors } = useTheme();
+  const { hovered, hoverProps } = useHover();
   return (
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
+      {...hoverProps}
       style={[
         styles.chip,
         {
           backgroundColor: mine ? colors.accentBg : colors.fill,
-          borderColor: mine ? colors.accentBorder : colors.lineFaint,
+          borderColor: mine ? colors.accentBorder : hovered ? colors.accentBorder : colors.lineFaint,
         },
       ]}
     >

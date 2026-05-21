@@ -6,7 +6,6 @@ import { useSyncInit } from '@drakkar.software/starfish-client/zustand';
 import { SYNC_BASE } from './starfish/config';
 import {
   capProviderFor,
-  ensureMembersInitialized,
   ensureRoomInitialized,
   makeClient,
   openEncryptor,
@@ -19,7 +18,7 @@ import {
   type ByteSealer,
 } from './starfish/attachments';
 import { getMemberCap } from './starfish/member-caps';
-import { roomPull, roomPush } from './starfish/paths';
+import { roomPull, roomPush, spaceIdFromRoomId } from './starfish/paths';
 import type { ReactionEvent } from './types';
 import { useSession } from './session-context';
 
@@ -45,22 +44,24 @@ export function useRoom(roomId: string) {
     setOpenError(null);
     setOpening(true);
     if (!session) return;
-    const memberCap = getMemberCap(roomId);
+    // The keyring is space-wide; the room doc stays per-room. A joined space's
+    // cap is stored by spaceId, so look it up by the room's space.
+    const spaceId = spaceIdFromRoomId(roomId);
+    const memberCap = getMemberCap(spaceId);
     (async () => {
       try {
         let enc: Encryptor;
         let roomClient: StarfishClient;
         if (memberCap) {
-          // Joined room: open as a keyring recipient, don't try to create it.
-          // The room owner (the cap's issuer) is the trusted keyring adder.
+          // Joined space: open as a keyring recipient, don't try to create it.
+          // The space owner (the cap's issuer) is the trusted keyring adder.
           const cap = JSON.parse(memberCap) as { iss?: string };
           roomClient = makeClient(cap, session.keys.edPriv);
-          enc = await openEncryptor(roomClient, session.keys, roomId, cap.iss ? [cap.iss] : []);
+          enc = await openEncryptor(roomClient, session.keys, spaceId, cap.iss ? [cap.iss] : []);
         } else {
           roomClient = session.chatClient;
-          enc = await ownerEnsureKeyring(session.chatClient, session.keys, roomId);
+          enc = await ownerEnsureKeyring(session.chatClient, session.keys, spaceId);
           await ensureRoomInitialized(session.chatClient, enc, roomId);
-          await ensureMembersInitialized(session.chatClient, roomId).catch(() => {});
         }
         if (!cancelled) {
           setEncryptor(enc);

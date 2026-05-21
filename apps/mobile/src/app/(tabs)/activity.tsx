@@ -9,6 +9,7 @@ import { useSpaces } from '@/lib/use-spaces';
 import { AppBar } from '@/components/ui/AppBar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StackScreen } from '@/components/ui/StackScreen';
+import { MessageListSkeleton } from '@/components/chat/MessageListSkeleton';
 import { MessageResult } from '@/components/chat/MessageResult';
 
 export default function ActivityScreen() {
@@ -24,7 +25,7 @@ export default function ActivityScreen() {
       {!session ? (
         <EmptyState iconName="lock" title="Sign in first" />
       ) : loading ? (
-        <EmptyState iconName="globe" title="Loading activity…" />
+        <MessageListSkeleton count={5} />
       ) : items.length === 0 ? (
         <EmptyState
           iconName="bell"

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
-import { fonts, radii, spacing, type as typeScale } from '@/theme';
+import { radii, spacing } from '@/theme';
 import { inviteMember, readMembers, revokeMember, type MemberRow } from '@/lib/starfish/members';
 import { useSession } from '@/lib/session-context';
 import { useTheme } from '@/lib/use-theme';
@@ -13,6 +13,7 @@ import { Callout } from '@/components/ui/Callout';
 import { Card } from '@/components/ui/Card';
 import { Divider } from '@/components/ui/Divider';
 import { StackScreen } from '@/components/ui/StackScreen';
+import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
 function copy(text: string) {
@@ -111,12 +112,11 @@ export default function MembersScreen() {
         <Txt variant="footnote" tone="inkSoft">
           Paste their join request (from “Join a room” on their device).
         </Txt>
-        <TextInput
+        <TextField
           value={request}
           onChangeText={setRequest}
           placeholder="Paste join request…"
-          placeholderTextColor={colors.inkMuted}
-          style={[styles.input, { color: colors.ink, backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}
+          mono
           multiline
           autoCapitalize="none"
           autoCorrect={false}
@@ -128,7 +128,7 @@ export default function MembersScreen() {
           </Callout>
         ) : null}
         {invite ? (
-          <View style={styles.inviteBox}>
+          <View style={[styles.inviteBox, { backgroundColor: colors.accentBg, borderColor: colors.accentBorder }]}>
             <Txt variant="micro" weight="semibold" mono uppercase tone="inkSoft">
               Invite cap — send to your invitee
             </Txt>
@@ -150,14 +150,5 @@ const styles = StyleSheet.create({
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 4 },
   memberText: { flex: 1, gap: 2 },
   divider: { marginVertical: spacing.xs },
-  input: {
-    minHeight: 64,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    padding: spacing.md,
-    fontFamily: fonts.mono,
-    fontSize: typeScale.caption.fontSize,
-    textAlignVertical: 'top',
-  },
-  inviteBox: { gap: spacing.sm, padding: spacing.md, borderRadius: radii.md, borderWidth: 0 },
+  inviteBox: { gap: spacing.sm, padding: spacing.md, borderRadius: radii.md, borderWidth: 1 },
 });

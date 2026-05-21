@@ -1,6 +1,7 @@
 /**
- * Member caps for rooms this identity has JOINED (vs. owns). Maps roomId →
- * member cap-cert JSON so `useRoom` can open someone else's room as a recipient.
+ * Member caps for spaces this identity has JOINED (vs. owns). Maps spaceId →
+ * space member cap-cert JSON so `useRoom` can open a joined space's channels as
+ * a keyring recipient (one cap covers every channel in the space).
  *
  * Persisted via the platform kv (web localStorage / native AsyncStorage) and
  * hydrated into an in-memory cache once at startup, so reads stay synchronous
@@ -29,16 +30,16 @@ export async function hydrateMemberCaps(): Promise<void> {
   hydrated = true;
 }
 
-export function getMemberCap(roomId: string): string | null {
-  return cache[roomId] ?? null;
+export function getMemberCap(spaceId: string): string | null {
+  return cache[spaceId] ?? null;
 }
 
-export function saveMemberCap(roomId: string, capJson: string): void {
-  cache = { ...cache, [roomId]: capJson };
+export function saveMemberCap(spaceId: string, capJson: string): void {
+  cache = { ...cache, [spaceId]: capJson };
   void kvSet(KEY, JSON.stringify(cache));
 }
 
-/** Forget all joined-room caps (on lock / identity switch). */
+/** Forget all joined-space caps (on lock / identity switch). */
 export function clearMemberCaps(): void {
   cache = {};
   void kvSet(KEY, JSON.stringify(cache));

@@ -20,10 +20,14 @@ export function PinDots({ length = 6, filled = 0 }: PinDotsProps) {
             key={i}
             style={[
               styles.slot,
-              { borderColor: on ? colors.accent : colors.lineSoft, backgroundColor: colors.paperAlt },
+              {
+                borderColor: on ? colors.accent : colors.lineSoft,
+                backgroundColor: on ? colors.accentBg : colors.paperAlt,
+                borderTopColor: on ? colors.accent : colors.hairlineHi,
+              },
             ]}
           >
-            {on ? <View style={[styles.dot, { backgroundColor: colors.ink }]} /> : null}
+            {on ? <View style={[styles.dot, { backgroundColor: colors.accent }]} /> : null}
           </View>
         );
       })}

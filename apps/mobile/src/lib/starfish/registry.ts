@@ -1,8 +1,7 @@
 /**
  * Space + room registries (plaintext metadata docs). A user's spaces live at
  * `user/<userId>/_spaces`; each space's rooms at `spaces/<spaceId>/_rooms`.
- * A fresh identity is seeded with one space and a few channels so the app is
- * never empty.
+ * A fresh identity starts with no spaces — the user creates or joins one.
  */
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
@@ -33,72 +32,84 @@ export async function writeSpaces(
   await client.push(spacesPush(userId), { v: 1, spaces }, hash);
 }
 
+/** Opaque, dedicated space id — independent of any userId. Ownership is recorded
+ *  in the registry doc's `owner` field, not derivable from the id. */
+function newSpaceId(): string {
+  return `sp-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+}
+
 export async function readRooms(
   client: StarfishClient,
   spaceId: string,
-): Promise<{ rooms: Room[]; hash: string | null }> {
+): Promise<{ rooms: Room[]; owner: string | null; members: string[]; hash: string | null }> {
   const res = await client.pull(roomsRegistryPull(spaceId)).catch(() => null);
-  const rooms = (res?.data as { rooms?: Room[] } | undefined)?.rooms;
-  return { rooms: Array.isArray(rooms) ? rooms : [], hash: res?.hash ?? null };
+  const data = res?.data as { rooms?: Room[]; owner?: string; members?: unknown[] } | undefined;
+  return {
+    rooms: Array.isArray(data?.rooms) ? data!.rooms! : [],
+    owner: typeof data?.owner === 'string' ? data.owner : null,
+    members: Array.isArray(data?.members)
+      ? data!.members!.filter((m): m is string => typeof m === 'string')
+      : [],
+    hash: res?.hash ?? null,
+  };
 }
 
 export async function writeRooms(
   client: StarfishClient,
   spaceId: string,
   rooms: Room[],
+  owner: string,
+  members: string[],
   hash: string | null,
 ): Promise<void> {
-  await client.push(roomsRegistryPush(spaceId), { v: 1, rooms }, hash);
+  // `owner` + `members` are the authoritative access record the server's
+  // space:owner/space:member enricher reads to gate this registry and the space
+  // keyring — stamp both on every write so neither is ever dropped.
+  await client.push(roomsRegistryPush(spaceId), { v: 1, owner, members, rooms }, hash);
 }
 
-/** Seed a default space + channels for a brand-new identity. Idempotent. */
-export async function ensureDefaults(client: StarfishClient, userId: string): Promise<Space> {
-  const existing = await readSpaces(client, userId);
-  let spaces = existing.spaces;
-  if (spaces.length === 0) {
-    const space: Space = { id: `sp-${userId.slice(0, 8)}`, name: 'My Space', short: 'MY', members: 1 };
-    spaces = [space];
-    await writeSpaces(client, userId, spaces, existing.hash);
-  }
-  const space = spaces[0]!;
+/** Owner-side: add an invitee's userId to the space roster → grants them
+ *  `space:member` (read the registry + the space keyring). Idempotent. */
+export async function addSpaceMember(
+  client: StarfishClient,
+  spaceId: string,
+  ownerUserId: string,
+  memberUserId: string,
+): Promise<void> {
+  const { rooms, owner, members, hash } = await readRooms(client, spaceId);
+  if (memberUserId === (owner ?? ownerUserId) || members.includes(memberUserId)) return;
+  await writeRooms(client, spaceId, rooms, owner ?? ownerUserId, [...members, memberUserId], hash);
+}
 
-  const rooms = await readRooms(client, space.id);
-  if (rooms.rooms.length === 0) {
-    const seeded: Room[] = ['general', 'random', 'design'].map((name) => ({
-      id: `${space.id}-${name}`,
-      spaceId: space.id,
-      category: 'CHANNELS',
-      name,
-      kind: 'channel' as const,
-    }));
-    await writeRooms(client, space.id, seeded, rooms.hash);
-  }
+/** Invitee-side: record a joined space in the identity's own space list. */
+export async function addJoinedSpace(client: StarfishClient, userId: string, space: Space): Promise<void> {
+  const { spaces, hash } = await readSpaces(client, userId);
+  if (spaces.some((s) => s.id === space.id)) return;
+  await writeSpaces(client, userId, [...spaces, space], hash);
+}
+
+/** Create a new space (+ a seeded "general" channel) owned by the identity. */
+export async function createSpace(client: StarfishClient, userId: string, name: string): Promise<Space> {
+  const { spaces, hash } = await readSpaces(client, userId);
+  const trimmed = name.trim() || 'New Space';
+  const id = newSpaceId();
+  const space: Space = { id, name: trimmed, short: trimmed.slice(0, 2).toUpperCase(), members: 1 };
+  await writeSpaces(client, userId, [...spaces, space], hash);
+  // Seed one channel + stamp ownership (TOFU: this first write claims the space).
+  const general: Room = { id: `${id}-general`, spaceId: id, category: 'CHANNELS', name: 'general', kind: 'channel' };
+  await writeRooms(client, id, [general], userId, [], null);
   return space;
 }
 
-/** Add a room joined via invite into the identity's default space, under "JOINED". */
-export async function addJoinedRoom(client: StarfishClient, userId: string, roomId: string): Promise<void> {
-  const space = await ensureDefaults(client, userId);
-  const { rooms, hash } = await readRooms(client, space.id);
-  if (rooms.some((r) => r.id === roomId)) return;
-  const room: Room = {
-    id: roomId,
-    spaceId: space.id,
-    category: 'JOINED',
-    name: `room-${roomId.slice(-6)}`,
-    kind: 'channel',
-  };
-  await writeRooms(client, space.id, [...rooms, room], hash);
-}
-
-/** Append a new channel to a space's registry. */
+/** Append a new channel to a space's registry (owner-only write). */
 export async function createRoom(
   client: StarfishClient,
+  userId: string,
   spaceId: string,
   name: string,
   category = 'CHANNELS',
 ): Promise<Room> {
-  const { rooms, hash } = await readRooms(client, spaceId);
+  const { rooms, owner, members, hash } = await readRooms(client, spaceId);
   const room: Room = {
     id: `${spaceId}-${name.toLowerCase().replace(/\s+/g, '-')}-${Date.now().toString(36)}`,
     spaceId,
@@ -106,6 +117,6 @@ export async function createRoom(
     name,
     kind: 'channel',
   };
-  await writeRooms(client, spaceId, [...rooms, room], hash);
+  await writeRooms(client, spaceId, [...rooms, room], owner ?? userId, members, hash);
   return room;
 }

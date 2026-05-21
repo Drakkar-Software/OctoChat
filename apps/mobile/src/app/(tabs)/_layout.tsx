@@ -1,13 +1,26 @@
 import { Tabs } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
 
-import { fonts } from '@/theme';
+import { fonts, radii, spacing } from '@/theme';
 import { useResponsive } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
 import { Icon, type IconName } from '@/components/ui/Icon';
 
+/** Tab icon with a Material-style accent pill behind the active tab. */
+function TabBarIcon({ name, color, size, focused }: { name: IconName; color: string; size: number; focused: boolean }) {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.iconWrap, focused && { backgroundColor: colors.accentBg }]}>
+      <Icon name={name} size={size} color={color} />
+    </View>
+  );
+}
+
 const tabIcon =
   (name: IconName) =>
-  ({ color, size }: { color: string; size: number }) => <Icon name={name} size={size} color={color} />;
+  ({ color, size, focused }: { color: string; size: number; focused: boolean }) => (
+    <TabBarIcon name={name} color={color} size={size} focused={focused} />
+  );
 
 export default function TabsLayout() {
   const { colors } = useTheme();
@@ -23,6 +36,7 @@ export default function TabsLayout() {
           ? { display: 'none' }
           : { backgroundColor: colors.paper, borderTopColor: colors.lineSoft },
         tabBarLabelStyle: { fontFamily: fonts.bodyMedium, fontSize: 10 },
+        tabBarIconStyle: { marginTop: 2 },
       }}
     >
       <Tabs.Screen name="rooms" options={{ title: 'Rooms', tabBarIcon: tabIcon('hash') }} />
@@ -32,3 +46,14 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconWrap: {
+    minWidth: 44,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

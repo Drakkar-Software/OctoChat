@@ -21,7 +21,7 @@ export function Card({ title, children, padded = true, style }: CardProps) {
     <View
       style={[
         styles.card,
-        { backgroundColor: colors.paper, borderColor: colors.lineSoft },
+        { backgroundColor: colors.paper, borderColor: colors.lineSoft, borderTopColor: colors.hairlineHi },
         padded && styles.padded,
         shadows.sm,
         style,

@@ -46,10 +46,26 @@ export interface Palette {
   /** Translucent dividers for use over arbitrary backgrounds. */
   rule: string;
   ruleSoft: string;
+  /** "Lit from above" top-edge highlight on raised surfaces (the inner light
+   *  that gives cards/sheets depth — dark mode's stand-in for a drop shadow). */
+  hairlineHi: string;
+
+  // ── Interaction (web pointer states) ─────────────────────────────────────
+  /** Translucent fill painted under a hovered control/row. */
+  hover: string;
+  /** Hover wash for already-selected (accentSoft) rows. */
+  accentSoftHover: string;
+  /** White brightening wash layered over a solid/gradient fill on hover. */
+  brightWash: string;
 
   // ── Marine accent system ─────────────────────────────────────────────────
   accent: string;
   accentStrong: string;
+  /** Gradient stops for primary fills (buttons, send, brand disc): top → bottom. */
+  accentGradTop: string;
+  accentGradBottom: string;
+  /** Bioluminescent glow color — drives accent glows that read in both schemes. */
+  glow: string;
   /** Solid soft accent (selected rows, highlight blocks). */
   accentSoft: string;
   /** Readable accent-tinted ink (text on accentSoft). */
@@ -83,6 +99,8 @@ export interface Palette {
   /** Full-bleed scrim behind modals / camera overlays. */
   scrim: string;
   overlay: string;
+  /** Foreground (icons/text) drawn on top of `scrim` — light in both themes. */
+  onScrim: string;
 }
 
 const light: Palette = {
@@ -106,9 +124,17 @@ const light: Palette = {
   lineFaint: '#dde6ec',
   rule: 'rgba(20,38,52,0.10)',
   ruleSoft: 'rgba(20,38,52,0.06)',
+  hairlineHi: 'rgba(255,255,255,0.85)',
+
+  hover: 'rgba(20,38,52,0.05)',
+  accentSoftHover: 'rgba(14,112,144,0.18)',
+  brightWash: 'rgba(255,255,255,0.12)',
 
   accent: '#0e7090',
   accentStrong: '#0a5a74',
+  accentGradTop: '#1a90b3',
+  accentGradBottom: '#0a5a74',
+  glow: '#0e7090',
   accentSoft: '#bbdce6',
   accentInk: '#063848',
   onAccent: '#ffffff',
@@ -134,12 +160,13 @@ const light: Palette = {
 
   scrim: 'rgba(20,38,52,0.55)',
   overlay: 'rgba(20,38,52,0.35)',
+  onScrim: '#f4f8fb',
 };
 
 const dark: Palette = {
   canvas: '#0b151c',
-  depthTop: '#12222c',
-  depthBottom: '#070f15',
+  depthTop: '#13303f',
+  depthBottom: '#060d12',
   paper: '#16252f',
   paperAlt: '#1c2f3b',
   fill: '#1f3240',
@@ -157,9 +184,17 @@ const dark: Palette = {
   lineFaint: '#22323e',
   rule: 'rgba(216,230,238,0.10)',
   ruleSoft: 'rgba(216,230,238,0.06)',
+  hairlineHi: 'rgba(190,228,238,0.10)',
+
+  hover: 'rgba(216,230,238,0.055)',
+  accentSoftHover: 'rgba(82,182,212,0.16)',
+  brightWash: 'rgba(255,255,255,0.12)',
 
   accent: '#52b6d4',
   accentStrong: '#6cc6e0',
+  accentGradTop: '#6fcce6',
+  accentGradBottom: '#3f9fc0',
+  glow: '#52b6d4',
   accentSoft: '#264a58',
   accentInk: '#bfe4ee',
   onAccent: '#052029',
@@ -185,6 +220,7 @@ const dark: Palette = {
 
   scrim: 'rgba(4,10,15,0.66)',
   overlay: 'rgba(4,10,15,0.45)',
+  onScrim: '#f4f8fb',
 };
 
 export const colors: Record<ColorScheme, Palette> = { light, dark };
@@ -288,10 +324,29 @@ export const shadows = {
   },
 } as const;
 
+/**
+ * Accent-tinted glow keyed to the active scheme's `glow` color. Dark surfaces
+ * swallow near-black drop shadows, so primary moments (buttons, send, the brand
+ * disc, focused inputs) lean on a colored bloom instead. Pass `colors.glow`.
+ */
+export function glowShadow(color: string, opacity = 0.45, radius = 18) {
+  return {
+    shadowColor: color,
+    shadowOpacity: opacity,
+    shadowRadius: radius,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  } as const;
+}
+
 export const motion = {
   fast: 140,
   base: 220,
   slow: 360,
+  /** Slow ambient loop — bioluminescent halo / breathing glow. */
+  pulse: 2800,
+  /** Skeleton shimmer loop. */
+  shimmer: 1100,
   /** Spring config for press / drag interactions (Reanimated). */
   spring: { damping: 18, stiffness: 220, mass: 0.8 },
 } as const;

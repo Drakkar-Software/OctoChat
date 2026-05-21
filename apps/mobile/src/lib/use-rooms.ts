@@ -56,7 +56,7 @@ export function useRooms(spaceId: string | null) {
   const createRoom = useCallback(
     async (name: string, category?: string) => {
       if (!session || !spaceId) return;
-      await createRoomDoc(session.accountClient, spaceId, name, category);
+      await createRoomDoc(session.accountClient, session.userId, spaceId, name, category);
       await refresh();
     },
     [session, spaceId, refresh],

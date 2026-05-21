@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
-import { fonts, radii, spacing, type as typeScale } from '@/theme';
+import { fonts, glowShadow, radii, spacing, type as typeScale } from '@/theme';
 import { formatBytes } from '@/lib/format';
 import { tapFeedback } from '@/lib/haptics';
 import { pickFile, type PickedFile } from '@/lib/pick-file';
@@ -24,6 +25,7 @@ export function Composer({ placeholder, onSend }: ComposerProps) {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [pending, setPending] = useState<PickedFile | null>(null);
   const [busy, setBusy] = useState(false);
+  const [focused, setFocused] = useState(false);
   const hasContent = text.trim().length > 0 || !!pending;
 
   const submit = async () => {
@@ -83,7 +85,13 @@ export function Composer({ placeholder, onSend }: ComposerProps) {
         </View>
       ) : null}
 
-      <View style={[styles.bar, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
+      <View
+        style={[
+          styles.bar,
+          { backgroundColor: colors.paperAlt, borderColor: focused ? colors.accentBorder : colors.lineSoft },
+          focused ? glowShadow(colors.glow, 0.22, 12) : null,
+        ]}
+      >
         <IconButton name="plus" size={18} color={colors.inkSoft} accessibilityLabel="Attach a file" onPress={attach} />
         <TextInput
           value={text}
@@ -94,6 +102,8 @@ export function Composer({ placeholder, onSend }: ComposerProps) {
           multiline
           numberOfLines={1}
           editable={!busy}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
         />
         <IconButton
           name="smile"
@@ -111,8 +121,11 @@ export function Composer({ placeholder, onSend }: ComposerProps) {
           accessibilityLabel="Send"
           disabled={!hasContent || busy}
           onPress={submit}
-          style={[styles.send, { backgroundColor: hasContent ? colors.accent : colors.fill }]}
+          style={[styles.send, { backgroundColor: colors.fill }, hasContent ? glowShadow(colors.glow, 0.3, 7) : null]}
         >
+          {hasContent ? (
+            <LinearGradient colors={[colors.accentGradTop, colors.accentGradBottom]} style={[StyleSheet.absoluteFill, styles.sendFill]} />
+          ) : null}
           {busy ? (
             <ActivityIndicator size="small" color={colors.onAccent} />
           ) : (
@@ -188,4 +201,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  sendFill: { borderRadius: 17 },
 });

@@ -4,21 +4,17 @@ import { StyleSheet } from 'react-native';
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
 import { useRoom } from '@/lib/use-room';
-import { useTheme } from '@/lib/use-theme';
 import type { RoomKind } from '@/lib/types';
 import { AppBar } from '@/components/ui/AppBar';
 import { Callout } from '@/components/ui/Callout';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { StackScreen } from '@/components/ui/StackScreen';
-import { Txt } from '@/components/ui/Txt';
 import { Composer } from '@/components/chat/Composer';
 import { DesktopChatTopbar } from '@/components/chat/DesktopChatTopbar';
 import { RoomConversation } from '@/components/chat/RoomConversation';
 
 export default function RoomScreen() {
-  const { colors } = useTheme();
   const params = useLocalSearchParams<{ id: string; name?: string; kind?: string }>();
   const id = params.id;
   const name = params.name ?? id;
@@ -40,14 +36,6 @@ export default function RoomScreen() {
         <AppBar
           title={title}
           onBack={() => router.back()}
-          subtitle={
-            <>
-              <Icon name="lock" size={10} color={colors.accent} />
-              <Txt variant="caption" tone="inkMuted">
-                e2ee · synced
-              </Txt>
-            </>
-          }
           right={
             <>
               <IconButton name="search" accessibilityLabel="Search in room" onPress={openSearch} />

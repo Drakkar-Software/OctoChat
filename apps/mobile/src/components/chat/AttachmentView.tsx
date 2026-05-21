@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { getBase64 } from '@drakkar.software/starfish-protocol';
 
 import { radii, spacing } from '@/theme';
@@ -7,6 +7,7 @@ import { formatBytes } from '@/lib/format';
 import type { AttachmentRef } from '@/lib/starfish/attachments';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
+import { Lightbox } from '@/components/ui/Lightbox';
 import { Txt } from '@/components/ui/Txt';
 
 /** Decrypted bytes → a renderable URI. Web uses an object URL; native a data URI. */
@@ -33,10 +34,12 @@ interface AttachmentViewProps {
  *  show a card that fetches + downloads on press. All bytes are E2EE at rest. */
 export function AttachmentView({ attachment, onLoad }: AttachmentViewProps) {
   const { colors } = useTheme();
+  const win = useWindowDimensions();
   const isImage = attachment.kind === 'image';
   const [uri, setUri] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
 
   // Images decrypt eagerly so they show inline; files fetch only on download.
   useEffect(() => {
@@ -63,18 +66,40 @@ export function AttachmentView({ attachment, onLoad }: AttachmentViewProps) {
   }, [attachment, isImage, onLoad]);
 
   if (isImage) {
+    const boxStyle = [styles.imageBox, { backgroundColor: colors.fill, borderColor: colors.lineFaint }];
+    if (!uri) {
+      return (
+        <View style={boxStyle}>
+          {failed ? (
+            <Txt variant="micro" tone="inkMuted">
+              Couldn&apos;t load image
+            </Txt>
+          ) : (
+            <ActivityIndicator color={colors.accent} />
+          )}
+        </View>
+      );
+    }
     return (
-      <View style={[styles.imageBox, { backgroundColor: colors.fill, borderColor: colors.lineFaint }]}>
-        {uri ? (
+      <>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`View ${attachment.name} larger`}
+          onPress={() => setZoomed(true)}
+          style={boxStyle}
+        >
           <Image source={{ uri }} style={styles.image} resizeMode="cover" accessibilityLabel={attachment.name} />
-        ) : failed ? (
-          <Txt variant="micro" tone="inkMuted">
-            Couldn&apos;t load image
-          </Txt>
-        ) : (
-          <ActivityIndicator color={colors.accent} />
-        )}
-      </View>
+        </Pressable>
+        <Lightbox visible={zoomed} onClose={() => setZoomed(false)} closeLabel={`Close ${attachment.name} preview`}>
+          {/* Fractions of the viewport keep the full image on-screen; contain preserves aspect. */}
+          <Image
+            source={{ uri }}
+            style={{ width: win.width * 0.92, height: win.height * 0.82 }}
+            resizeMode="contain"
+            accessibilityLabel={attachment.name}
+          />
+        </Lightbox>
+      </>
     );
   }
 

@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
-import { presenceColor, type PresenceStatus } from '@/theme';
+import { glowShadow, presenceColor, type PresenceStatus } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
 
 import { Txt } from './Txt';
@@ -8,12 +9,13 @@ import { Txt } from './Txt';
 interface AvatarProps {
   label: string;
   size?: number;
-  /** Accent ring (e.g. active DM). */
+  /** Accent ring + glow (e.g. active DM, the signed-in identity). */
   ring?: boolean;
   presence?: PresenceStatus;
 }
 
-/** Monogram avatar with optional presence dot. */
+/** Monogram avatar — softly dimensional gradient fill, optional presence dot
+ *  and an accent glow ring. */
 export function Avatar({ label, size = 36, ring = false, presence }: AvatarProps) {
   const { colors } = useTheme();
   const dot = Math.max(8, size * 0.28);
@@ -30,10 +32,16 @@ export function Avatar({ label, size = 36, ring = false, presence }: AvatarProps
             backgroundColor: colors.fillDeep,
             borderWidth: ring ? 2 : 1,
             borderColor: ring ? colors.accent : colors.lineSoft,
+            borderTopColor: ring ? colors.accent : colors.hairlineHi,
           },
+          ring ? glowShadow(colors.glow, 0.32, 7) : null,
         ]}
       >
-        <Txt mono weight="semibold" color={colors.inkMuted} style={{ fontSize: glyph, lineHeight: glyph + 1 }}>
+        <LinearGradient
+          colors={[colors.fill, colors.fillDeep]}
+          style={[StyleSheet.absoluteFill, { borderRadius: size / 2 }]}
+        />
+        <Txt mono weight="semibold" color={colors.inkSoft} style={{ fontSize: glyph, lineHeight: glyph + 1 }}>
           {label}
         </Txt>
       </View>

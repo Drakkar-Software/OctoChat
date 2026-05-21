@@ -41,7 +41,7 @@ export function Callout({ tone = 'info', iconName, title, children }: CalloutPro
       style={[
         styles.callout,
         s.full
-          ? { backgroundColor: s.bg, borderColor: s.border, borderWidth: 1 }
+          ? { backgroundColor: s.bg, borderColor: s.border, borderTopColor: colors.hairlineHi, borderWidth: 1 }
           : { backgroundColor: s.bg, borderLeftColor: s.border, borderLeftWidth: 3 },
       ]}
     >

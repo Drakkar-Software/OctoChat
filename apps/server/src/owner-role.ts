@@ -31,7 +31,11 @@ function ownerUserIdFromKeyring(raw: string): string | null {
       | undefined;
     const addedBy = data?.epochs?.["1"]?.wrappedKeys?.[0]?.addedBy;
     if (typeof addedBy !== "string") return null;
-    return createHash("sha256").update(Buffer.from(addedBy, "hex")).digest("hex").slice(0, 16);
+    // userId = first 32 hex chars of SHA-256(rootEdPub bytes), matching the SDK's
+    // bootstrapRootIdentity (identities/identity.ts). Truncating to 16 here would
+    // only match half the id, denying the real owner `chat:owner` on every
+    // keyring/roster write (member-roster doc then never lands → invite crash).
+    return createHash("sha256").update(Buffer.from(addedBy, "hex")).digest("hex").slice(0, 32);
   } catch {
     return null;
   }

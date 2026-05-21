@@ -22,3 +22,11 @@ export async function kvSet(key: string, value: string): Promise<void> {
     /* ignore */
   }
 }
+
+export async function kvRemove(key: string): Promise<void> {
+  try {
+    ls()?.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}

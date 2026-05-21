@@ -9,6 +9,7 @@ import { useSpaces } from '@/lib/use-spaces';
 import type { Room } from '@/lib/types';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StackScreen } from '@/components/ui/StackScreen';
+import { ChannelListSkeleton } from '@/components/chat/ChannelListSkeleton';
 import { RoomCategorySection } from '@/components/chat/RoomCategorySection';
 import { SpaceHeader } from '@/components/chat/SpaceHeader';
 
@@ -48,6 +49,7 @@ export default function RoomsScreen() {
             activeId={activeId ?? space.id}
             onSelectSpace={setActiveId}
             onSearch={() => router.push('/(tabs)/search')}
+            onOpenSpace={() => router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
             onMenu={() => router.push('/join')}
           />
         ) : undefined
@@ -56,7 +58,7 @@ export default function RoomsScreen() {
       {!session ? (
         <EmptyState iconName="lock" title="Sign in first" subtitle="Create an identity to see your spaces." />
       ) : spacesLoading || roomsLoading ? (
-        <EmptyState iconName="globe" title="Loading spaces…" />
+        <ChannelListSkeleton />
       ) : categories.length === 0 ? (
         <EmptyState iconName="hash" title="No rooms yet" subtitle="Create a channel to get started." />
       ) : (

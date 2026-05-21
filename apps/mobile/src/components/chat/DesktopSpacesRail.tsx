@@ -1,7 +1,8 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { layout, radii, spacing } from '@/theme';
+import { glowShadow, layout, radii, spacing } from '@/theme';
 import type { Space } from '@/lib/types';
+import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -31,20 +32,22 @@ function SpaceTile({
   onPress?: () => void;
 }) {
   const { colors } = useTheme();
+  const { hovered, hoverProps } = useHover();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={styles.tileWrap}>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} {...hoverProps} style={styles.tileWrap}>
       <View
         style={[
           styles.tile,
           {
-            borderRadius: active ? radii.lg : radii.xl,
-            backgroundColor: active ? colors.accent : colors.fill,
-            borderColor: active ? 'transparent' : colors.lineFaint,
+            borderRadius: active ? radii.lg : hovered ? radii.lg : radii.xl,
+            backgroundColor: active ? colors.accent : hovered ? colors.accentBg : colors.fill,
+            borderColor: active ? 'transparent' : hovered ? colors.accentBorder : colors.lineFaint,
             borderWidth: active ? 0 : 1,
           },
+          active ? glowShadow(colors.glow, 0.3, 8) : null,
         ]}
       >
-        <Txt variant="footnote" weight="bold" mono color={active ? colors.onAccent : colors.inkSoft}>
+        <Txt variant="footnote" weight="bold" mono color={active ? colors.onAccent : hovered ? colors.accentInk : colors.inkSoft}>
           {label}
         </Txt>
       </View>

@@ -4,10 +4,12 @@ import { layout, radii, spacing } from '@/theme';
 import type { Room, Space } from '@/lib/types';
 import type { RoomCategory } from '@/lib/use-rooms';
 import { plural } from '@/lib/format';
+import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 
+import { ChannelListSkeleton } from './ChannelListSkeleton';
 import { RoomCategorySection } from './RoomCategorySection';
 
 interface DesktopRoomSidebarProps {
@@ -40,13 +42,16 @@ export function DesktopRoomSidebar({
   loading = false,
 }: DesktopRoomSidebarProps) {
   const { colors } = useTheme();
+  const headerHover = useHover();
+  const jumpHover = useHover();
   return (
     <View style={[styles.sidebar, { width: layout.sidebarWidth, backgroundColor: colors.paperAlt, borderRightColor: colors.lineSoft }]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Space menu"
         onPress={onOpenSpaceMenu}
-        style={[styles.header, { borderBottomColor: colors.lineFaint }]}
+        {...headerHover.hoverProps}
+        style={[styles.header, { borderBottomColor: colors.lineFaint, backgroundColor: headerHover.hovered ? colors.hover : 'transparent' }]}
       >
         <View style={styles.headerText}>
           <Txt variant="subhead" weight="semibold" numberOfLines={1}>
@@ -66,7 +71,8 @@ export function DesktopRoomSidebar({
         accessibilityRole="button"
         accessibilityLabel="Jump to a room"
         onPress={onJumpTo}
-        style={[styles.jump, { backgroundColor: colors.fill, borderColor: colors.lineFaint }]}
+        {...jumpHover.hoverProps}
+        style={[styles.jump, { backgroundColor: colors.fill, borderColor: jumpHover.hovered ? colors.accentBorder : colors.lineFaint }]}
       >
         <Icon name="search" size={12} color={colors.inkMuted} />
         <Txt variant="footnote" tone="inkMuted" style={styles.jumpLabel}>
@@ -81,9 +87,7 @@ export function DesktopRoomSidebar({
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
         {loading ? (
-          <Txt variant="footnote" tone="inkMuted" style={styles.empty}>
-            Loading rooms…
-          </Txt>
+          <ChannelListSkeleton />
         ) : categories.length === 0 ? (
           <Txt variant="footnote" tone="inkMuted" style={styles.empty}>
             No rooms yet.

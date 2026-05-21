@@ -1,6 +1,6 @@
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { radii, spacing } from '@/theme';
+import { spacing } from '@/theme';
 import type { Space } from '@/lib/types';
 import { plural } from '@/lib/format';
 import { useTheme } from '@/lib/use-theme';
@@ -18,6 +18,8 @@ interface SpaceHeaderProps {
   onAddSpace?: () => void;
   onSearch?: () => void;
   onMenu?: () => void;
+  /** Tap the space title to open its info + settings screen. */
+  onOpenSpace?: () => void;
 }
 
 /** Channel-list header: current space identity, actions, and the space rail. */
@@ -29,18 +31,19 @@ export function SpaceHeader({
   onAddSpace,
   onSearch,
   onMenu,
+  onOpenSpace,
 }: SpaceHeaderProps) {
   const { colors } = useTheme();
   return (
     <View style={[styles.header, { backgroundColor: colors.paper, borderBottomColor: colors.lineSoft }]}>
       <View style={styles.top}>
-        <View style={[styles.mono, { backgroundColor: colors.accent }]}>
-          <Txt variant="footnote" weight="bold" mono color={colors.onAccent}>
-            {space.short}
-          </Txt>
-        </View>
-        <View style={styles.titleCol}>
-          <Txt variant="subhead" weight="bold" numberOfLines={1}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Space info and settings"
+          onPress={onOpenSpace}
+          style={styles.titleCol}
+        >
+          <Txt variant="heading" weight="bold" numberOfLines={1}>
             {space.name}
           </Txt>
           <View style={styles.meta}>
@@ -49,7 +52,7 @@ export function SpaceHeader({
               {plural(space.members, 'member')} · e2ee
             </Txt>
           </View>
-        </View>
+        </Pressable>
         <IconButton name="search" onPress={onSearch} accessibilityLabel="Search" />
         <IconButton name="dots" onPress={onMenu} accessibilityLabel="Space menu" />
       </View>
@@ -67,7 +70,6 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   top: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  mono: { width: 34, height: 34, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
   titleCol: { flex: 1, minWidth: 0, gap: 2 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
 });
