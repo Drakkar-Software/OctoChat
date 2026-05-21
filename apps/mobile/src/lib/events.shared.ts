@@ -49,15 +49,31 @@ export function parseRoomChange(data: string): RoomChange | null {
 
 const RECONNECT_MS = 3000;
 
+/** Options for {@link subscribeRoomChanges}. */
+export interface SubscribeOptions {
+  /**
+   * Candidate space ids to subscribe to. The server validates each against
+   * the caller's membership and only forwards events for authorized spaces.
+   */
+  spaces: string[];
+  /**
+   * Async function that builds cap-cert auth headers for the SSE fetch.
+   * Called on every connect/reconnect so each attempt gets a fresh nonce.
+   */
+  authHeaders: (method: string, pathAndQuery: string) => Promise<Record<string, string>>;
+  /** Reports stream health (true = connected, false = disconnected/reconnecting). */
+  onStatus?: (connected: boolean) => void;
+}
+
 /**
  * Subscribe to room-change events from `EVENTS_URL` via streaming `fetch`.
- * `onStatus(connected)` reports stream health so callers can fall back to
- * polling while disconnected. Returns an unsubscribe fn. Works on web and (best
- * effort) native — both have streaming `fetch`.
+ * Sends the caller's authorized candidate spaces and cap-cert auth headers so
+ * the server proxy can filter by membership. Returns an unsubscribe fn.
+ * Works on web and (best effort) native — both have streaming `fetch`.
  */
 export function subscribeRoomChanges(
   onChange: (e: RoomChange) => void,
-  onStatus?: (connected: boolean) => void,
+  opts: SubscribeOptions,
 ): () => void {
   const controller = new AbortController();
   let closed = false;
@@ -77,13 +93,19 @@ export function subscribeRoomChanges(
   void (async () => {
     while (!closed) {
       try {
-        const res = await fetch(EVENTS_URL, {
-          headers: { Accept: 'text/event-stream' },
+        // Build the URL with the candidate spaces param.
+        const eventsUrl = new URL(EVENTS_URL);
+        eventsUrl.searchParams.set('spaces', opts.spaces.join(','));
+        const pathAndQuery = eventsUrl.pathname + eventsUrl.search;
+        // Auth headers are built fresh each attempt (new nonce + timestamp).
+        const extraHeaders = await opts.authHeaders('GET', pathAndQuery);
+        const res = await fetch(eventsUrl.toString(), {
+          headers: { Accept: 'text/event-stream', ...extraHeaders },
           signal: controller.signal,
         });
         const body = res.body as ReadableStream<Uint8Array> | null;
         if (!res.ok || !body) throw new Error(`SSE ${res.status}`);
-        if (!closed) onStatus?.(true);
+        if (!closed) opts.onStatus?.(true);
         const reader = body.getReader();
         const decoder = new TextDecoder();
         let buf = '';
@@ -101,7 +123,7 @@ export function subscribeRoomChanges(
         if (closed) return;
       }
       if (!closed) {
-        onStatus?.(false);
+        opts.onStatus?.(false);
         await new Promise((r) => setTimeout(r, RECONNECT_MS));
       }
     }

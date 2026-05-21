@@ -26,6 +26,8 @@ import { ensureNotifyPermission, notifyNewMessage } from './notify';
 import { useSession } from './session-context';
 import { kvGet, kvSet } from './starfish/kv';
 import { spaceIdFromRoomId } from './starfish/paths';
+import { readSpaces } from './starfish/registry';
+import { buildAuthHeaders } from './starfish/client';
 
 interface UnreadValue {
   /** Unread count per room id (absent = caught up). */
@@ -50,6 +52,13 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   // and keeps state updaters pure (no side effects inside setState).
   const mapRef = useRef<Record<string, number>>({});
 
+  // The user's space ids — passed as candidates to the /events proxy.
+  // Avoids useSpaces() to prevent a circular dep (use-spaces → useUnread → here).
+  const [spaceIds, setSpaceIds] = useState<string[]>([]);
+  // Stable sorted-join so the subscription effect only re-runs when the set changes,
+  // not on every navigation that produces a new spaceIds array reference.
+  const spacesKey = useMemo(() => [...spaceIds].sort().join(','), [spaceIds]);
+
   // Track the room currently being viewed so its events are never counted.
   const pathname = usePathname();
   const params = useGlobalSearchParams<{ id?: string; roomId?: string }>();
@@ -61,6 +70,16 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
         ? params.roomId
         : undefined;
   }, [pathname, params.id, params.roomId]);
+
+  // Load the user's space ids from the registry. Re-read on navigation so a
+  // join/create propagates to the subscription without a full reload. Matches
+  // what use-spaces.ts does, without going through that hook (circular dep).
+  useEffect(() => {
+    if (!session) { setSpaceIds([]); return; }
+    void readSpaces(session.accountClient, session.userId)
+      .then(({ spaces }) => { setSpaceIds(spaces.map((s) => s.id)); })
+      .catch(() => {});
+  }, [pathname, session]);
 
   // Hydrate persisted counts for this identity, THEN subscribe — so an event
   // arriving right after mount builds on the restored counts, not on {}.
@@ -85,22 +104,38 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       }
       mapRef.current = initial;
       setUnreadByRoom(initial);
+
+      // Skip subscribing when the user has no spaces — the server sentinel is the
+      // real guard, but there's no value in connecting with an empty candidate set.
+      if (!session || spaceIds.length === 0) return;
+
       ensureNotifyPermission();
-      unsub = subscribeRoomChanges((e) => {
-        if (e.roomId === activeRoomIdRef.current) return; // viewing it → already read
-        const m = mapRef.current;
-        const next = { ...m, [e.roomId]: (m[e.roomId] ?? 0) + 1 };
-        mapRef.current = next;
-        setUnreadByRoom(next);
-        void kvSet(persistKey(userId), JSON.stringify(next));
-        notifyNewMessage(); // web-only browser notification (no-op when focused / native)
-      });
+      unsub = subscribeRoomChanges(
+        (e) => {
+          if (e.roomId === activeRoomIdRef.current) return; // viewing it → already read
+          const m = mapRef.current;
+          const next = { ...m, [e.roomId]: (m[e.roomId] ?? 0) + 1 };
+          mapRef.current = next;
+          setUnreadByRoom(next);
+          void kvSet(persistKey(userId), JSON.stringify(next));
+          notifyNewMessage(); // web-only browser notification (no-op when focused / native)
+        },
+        {
+          spaces: spaceIds,
+          // Auth headers built fresh on each connect/reconnect (new nonce + timestamp).
+          authHeaders: (method, pathAndQuery) =>
+            buildAuthHeaders(session.chatCap, session.keys.edPriv, method, pathAndQuery),
+        },
+      );
     })();
     return () => {
       cancelled = true;
       unsub();
     };
-  }, [userId]);
+    // spacesKey is the stable sorted-join of spaceIds; changing it re-establishes
+    // the stream when the user joins or leaves a space.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, spacesKey, session]);
 
   const markRoomRead = useCallback(
     (roomId: string) => {

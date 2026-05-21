@@ -7,6 +7,7 @@ import {
   createGracefulShutdown,
   saveConfig,
 } from "@drakkar.software/starfish-server";
+import { createEventsRoute } from "./events.js";
 import { FilesystemObjectStore } from "@drakkar.software/starfish-server/node";
 import { identitiesServerPlugin } from "@drakkar.software/starfish-identities";
 import { sharingServerPlugin } from "@drakkar.software/starfish-sharing";
@@ -38,9 +39,13 @@ const store = new FilesystemObjectStore({ baseDir: DATA_DIR });
 // Cap-cert auth: device caps (identities plugin) + member caps (sharing plugin).
 // Nonce cache stays in-memory (replay window is ephemeral by nature); the
 // revocation store is file-backed so revokes survive a restart.
+// Both are constructed separately so the /events route can share them (same nonce
+// namespace for replay protection across all authenticated endpoints).
+const nonceCache = createInMemoryNonceCache({ windowMs: 5 * 60_000, maxEntries: 100_000 });
+const revocationStore = createFileRevocationStore(`${DATA_DIR}/_revocations.json`);
 const roleResolver = createCapCertRoleResolver({
-  nonceCache: createInMemoryNonceCache({ windowMs: 5 * 60_000, maxEntries: 100_000 }),
-  revocationStore: createFileRevocationStore(`${DATA_DIR}/_revocations.json`),
+  nonceCache,
+  revocationStore,
   allowAnonymous: true, // public-read collections (profile, pairing)
   plugins: [identitiesServerPlugin, sharingServerPlugin],
   // The resolver buffers the body to verify the request signature and checks
@@ -61,13 +66,17 @@ const queuing = createQueuingServerPlugin({
   collections: { chat: { topic: "octochat.chat.changed", includeParams: true } },
 });
 
+// Pre-construct the space enricher so it's shared between the sync router
+// (collection-level gating) and the /events proxy (membership validation).
+const spaceEnricher = makeSpaceRoleEnricher(store);
+
 const syncRouter = createSyncRouter({
   store,
   config,
   roleResolver,
   // Grants `space:owner` / `space:member` from each space's owner+roster record
   // (space-role.ts), gating the space keyring and room registry.
-  roleEnricher: makeSpaceRoleEnricher(store),
+  roleEnricher: spaceEnricher,
   plugins: [queuing],
 });
 
@@ -96,6 +105,13 @@ app.use("*", async (c, next) => {
   c.header("Access-Control-Allow-Origin", origin);
   c.header("Vary", "Origin");
 });
+
+// Authenticated SSE proxy: gates the Whistlers stream per caller's space membership.
+// Must be mounted BEFORE the sync router so /events is not swallowed by its catch-all.
+app.route(
+  "/",
+  createEventsRoute({ enricher: spaceEnricher, nonceCache, revocationStore }),
+);
 
 // starfish-server is typed against the satellite workspace's hono copy; it's
 // runtime-compatible with ours, so cast across the nominal type-identity gap.

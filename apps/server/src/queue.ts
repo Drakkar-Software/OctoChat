@@ -21,7 +21,18 @@ export async function createNatsQueue(): Promise<{ queue: Queue; nc: NatsConnect
   console.log(`[OctoChat] Publishing chat change-events to NATS at ${url}`);
   const queue = new CustomQueue({
     onPublish: (subject, payload) => {
-      nc.publish(subject, payload);
+      // Derive a per-space NATS subject so Whistlers can filter per space.
+      // The queuing plugin sets includeParams:true, so payload always carries params.
+      let spaceId: string | undefined;
+      try {
+        const msg = JSON.parse(new TextDecoder().decode(payload)) as {
+          params?: { spaceId?: string };
+        };
+        spaceId = msg.params?.spaceId;
+      } catch {
+        /* fall through — publish on the base subject */
+      }
+      nc.publish(spaceId ? `${subject}.${spaceId}` : subject, payload);
     },
   });
   return { queue, nc };

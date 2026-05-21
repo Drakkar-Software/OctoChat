@@ -6,6 +6,8 @@ import { StarfishClient } from '@drakkar.software/starfish-client';
 import type { Encryptor, StarfishCapProvider } from '@drakkar.software/starfish-client';
 import { createKeyring, createKeyringEncryptor } from '@drakkar.software/starfish-keyring';
 import type { Keyring } from '@drakkar.software/starfish-keyring';
+import { signRequest, stableStringify } from '@drakkar.software/starfish-protocol';
+import type { SignableMethod } from '@drakkar.software/starfish-protocol';
 
 import { SYNC_BASE } from './config';
 import { keyringPull, keyringPush, roomPull, roomPush } from './paths';
@@ -163,6 +165,45 @@ export async function writeProfile(
 /** Write the caller's own profile pseudo, preserving any other profile fields. */
 export async function writePseudo(client: StarfishClient, userId: string, pseudo: string): Promise<void> {
   await writeProfile(client, userId, { pseudo });
+}
+
+/**
+ * Build cap-cert auth headers for a raw `fetch` outside the StarfishClient
+ * (e.g. `GET /events`). Signing host is derived from `SYNC_BASE` so the
+ * server-side verifier agrees — same pin as the client's own requests.
+ *
+ * Mirrors the private `buildAuthHeaders` inside `StarfishClient` without
+ * touching the satellite SDK.
+ */
+export async function buildAuthHeaders(
+  cap: unknown,
+  devEdPrivHex: string,
+  method: string,
+  pathAndQuery: string,
+): Promise<Record<string, string>> {
+  let host = '';
+  try {
+    host = new URL(SYNC_BASE).host;
+  } catch { /* relative base — empty host, both sides agree */ }
+
+  const { sig, ts, nonce } = await signRequest(
+    { method: method as SignableMethod, pathAndQuery, host },
+    devEdPrivHex,
+  );
+
+  // encodeCapAuth: btoa(stableStringify(cap)) — mirrors StarfishClient's private helper.
+  const capJson = stableStringify(cap as Record<string, unknown>);
+  const capB64 =
+    typeof btoa === 'function'
+      ? btoa(capJson)
+      : Buffer.from(capJson, 'utf-8').toString('base64');
+
+  return {
+    Authorization: `Cap ${capB64}`,
+    'X-Starfish-Sig': sig,
+    'X-Starfish-Ts': String(ts),
+    'X-Starfish-Nonce': nonce,
+  };
 }
 
 /**

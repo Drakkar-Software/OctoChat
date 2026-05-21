@@ -5,6 +5,7 @@ import { useSyncInit } from '@drakkar.software/starfish-client/zustand';
 
 import { SYNC_BASE } from './starfish/config';
 import {
+  buildAuthHeaders,
   capProviderFor,
   ensureRoomInitialized,
   makeClient,
@@ -118,9 +119,17 @@ export function useRoom(roomId: string) {
       return;
     }
     pull();
-    const unsub = subscribeRoomChanges((e) => {
-      if (e.roomId === roomId) pull();
-    }, setSseUp);
+    const unsub = subscribeRoomChanges(
+      (e) => { if (e.roomId === roomId) pull(); },
+      {
+        spaces: [spaceIdFromRoomId(roomId)],
+        // session is non-null here: store is only defined when config is non-null,
+        // and config requires a non-null session (see useMemo above).
+        authHeaders: (method, pathAndQuery) =>
+          buildAuthHeaders(session!.chatCap, session!.keys.edPriv, method, pathAndQuery),
+        onStatus: setSseUp,
+      },
+    );
     return unsub;
   }, [store, roomId, pull]);
 
