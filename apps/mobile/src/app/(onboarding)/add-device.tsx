@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
+import { copyText } from '@/lib/clipboard';
 import { startDevicePairing } from '@/lib/starfish/pairing';
 import { useSession } from '@/lib/session-context';
 import { successFeedback } from '@/lib/haptics';
@@ -18,14 +19,6 @@ import { PinPad } from '@/components/onboarding/PinPad';
 import { QrCode } from '@/components/onboarding/QrCode';
 
 const PIN_LENGTH = 6;
-
-function copy(text: string) {
-  try {
-    (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => void } } }).navigator?.clipboard?.writeText?.(text);
-  } catch {
-    /* ignore */
-  }
-}
 
 /** Step 1: confirm device PIN → Step 2: a real, PIN-sealed pairing QR to scan. */
 export default function AddDeviceScreen() {
@@ -133,7 +126,7 @@ export default function AddDeviceScreen() {
       <View style={styles.statusRow}>
         <Pill tone="accent" label="WAITING FOR SCAN…" mono />
         {Platform.OS === 'web' && payload ? (
-          <Pressable onPress={() => copy(payload)} accessibilityRole="button">
+          <Pressable onPress={() => copyText(payload)} accessibilityRole="button">
             <Txt variant="micro" mono tone="accent">
               COPY CODE
             </Txt>

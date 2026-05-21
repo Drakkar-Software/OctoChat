@@ -1,13 +1,14 @@
 import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
-import { layout, spacing } from '@/theme';
+import { layout } from '@/theme';
 import type { Room } from '@/lib/types';
 import { useProfile } from '@/lib/use-profile';
 import { useRooms } from '@/lib/use-rooms';
 import { useSpaces } from '@/lib/use-spaces';
 import { useTheme } from '@/lib/use-theme';
-import { Txt } from '@/components/ui/Txt';
+import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 import { DesktopRoomSidebar } from './DesktopRoomSidebar';
 import { DesktopSpacesRail } from './DesktopSpacesRail';
@@ -65,10 +66,20 @@ export function DesktopNav() {
           loading={roomsLoading}
         />
       ) : (
-        <View style={[styles.placeholder, { width: layout.sidebarWidth, backgroundColor: colors.paperAlt, borderRightColor: colors.lineSoft }]}>
-          <Txt variant="footnote" tone="inkMuted">
-            {spacesLoading ? 'Loading spaces…' : 'No spaces yet'}
-          </Txt>
+        <View style={[styles.sidebar, { width: layout.sidebarWidth, backgroundColor: colors.paperAlt, borderRightColor: colors.lineSoft }]}>
+          {spacesLoading ? (
+            <View style={styles.loading}>
+              <ActivityIndicator color={colors.accent} />
+            </View>
+          ) : (
+            <EmptyState
+              iconName="globe"
+              title="No spaces yet"
+              subtitle="Join a space with an invite to start chatting securely."
+            >
+              <Button label="Join a space" variant="primary" iconName="plus" full onPress={() => router.push('/join')} />
+            </EmptyState>
+          )}
         </View>
       )}
     </>
@@ -76,5 +87,6 @@ export function DesktopNav() {
 }
 
 const styles = StyleSheet.create({
-  placeholder: { borderRightWidth: 1, padding: spacing.md },
+  sidebar: { borderRightWidth: 1 },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { router } from 'expo-router';
-import { Platform, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
 import { acceptSpaceInvite, makeJoinRequest } from '@/lib/starfish/members';
@@ -10,17 +10,10 @@ import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Card } from '@/components/ui/Card';
+import { CopyField } from '@/components/ui/CopyField';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
-
-function copy(text: string) {
-  try {
-    (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => void } } }).navigator?.clipboard?.writeText?.(text);
-  } catch {
-    /* ignore */
-  }
-}
 
 export default function JoinScreen() {
   const { session } = useSession();
@@ -88,12 +81,7 @@ export default function JoinScreen() {
         <Txt variant="footnote" tone="inkSoft">
           Send this to a space owner so they can invite you.
         </Txt>
-        <Txt variant="caption" mono tone="inkSoft" numberOfLines={4}>
-          {myRequest}
-        </Txt>
-        {Platform.OS === 'web' ? (
-          <Button label="Copy join request" variant="secondary" size="sm" iconName="copy" onPress={() => copy(myRequest)} />
-        ) : null}
+        <CopyField value={myRequest} copyLabel="Copy join request" />
       </Card>
 
       <Card title="PASTE AN INVITE">

@@ -4,6 +4,7 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, TextInput, View } f
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { fonts, glowShadow, radii, spacing, type as typeScale } from '@/theme';
+import { submitOnEnter } from '@/lib/composer-keys';
 import { formatBytes } from '@/lib/format';
 import { tapFeedback } from '@/lib/haptics';
 import { pickFile, type PickedFile } from '@/lib/pick-file';
@@ -106,6 +107,7 @@ export function Composer({ placeholder, onSend }: ComposerProps) {
           multiline
           numberOfLines={1}
           editable={!busy}
+          onKeyPress={submitOnEnter(submit)}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
         />
