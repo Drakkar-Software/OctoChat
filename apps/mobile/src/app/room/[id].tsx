@@ -4,6 +4,7 @@ import { StyleSheet } from 'react-native';
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
 import { useRoom } from '@/lib/use-room';
+import { spaceIdFromRoomId } from '@/lib/starfish/paths';
 import type { RoomKind } from '@/lib/types';
 import { AppBar } from '@/components/ui/AppBar';
 import { Callout } from '@/components/ui/Callout';
@@ -25,7 +26,7 @@ export default function RoomScreen() {
 
   const openThread = (msgId: string) =>
     router.push({ pathname: '/thread/[id]', params: { id: msgId, roomId: id, roomName: name } });
-  const openMembers = () => router.push({ pathname: '/members/[id]', params: { id, name } });
+  const openMembers = () => router.push({ pathname: '/space/[id]', params: { id: spaceIdFromRoomId(id) } });
   const openSearch = () => router.push('/(tabs)/search');
 
   return (

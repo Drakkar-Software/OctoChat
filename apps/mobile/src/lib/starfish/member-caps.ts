@@ -39,6 +39,15 @@ export function saveMemberCap(spaceId: string, capJson: string): void {
   void kvSet(KEY, JSON.stringify(cache));
 }
 
+/** Forget one joined space's cap (on leaving that space). */
+export function removeMemberCap(spaceId: string): void {
+  if (!(spaceId in cache)) return;
+  const next = { ...cache };
+  delete next[spaceId];
+  cache = next;
+  void kvSet(KEY, JSON.stringify(cache));
+}
+
 /** Forget all joined-space caps (on lock / identity switch). */
 export function clearMemberCaps(): void {
   cache = {};

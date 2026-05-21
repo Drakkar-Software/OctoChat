@@ -3,8 +3,7 @@ import { router } from 'expo-router';
 import { Platform, StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
-import { acceptInvite, makeJoinRequest } from '@/lib/starfish/members';
-import { addJoinedRoom } from '@/lib/starfish/registry';
+import { acceptSpaceInvite, makeJoinRequest } from '@/lib/starfish/members';
 import { useSession } from '@/lib/session-context';
 import { useSpaces } from '@/lib/use-spaces';
 import { AppBar } from '@/components/ui/AppBar';
@@ -54,9 +53,8 @@ export default function JoinScreen() {
     setBusy(true);
     setError(null);
     try {
-      const roomId = await acceptInvite(session, invite.trim());
-      await addJoinedRoom(session.accountClient, session.userId, roomId);
-      router.replace({ pathname: '/room/[id]', params: { id: roomId, name: `room-${roomId.slice(-6)}`, kind: 'channel' } });
+      const space = await acceptSpaceInvite(session, invite.trim());
+      router.replace({ pathname: '/room/[id]', params: { id: `${space.id}-general`, name: 'general', kind: 'channel' } });
     } catch (e) {
       setError(String((e as Error)?.message ?? e));
       setBusy(false);
@@ -88,7 +86,7 @@ export default function JoinScreen() {
 
       <Card title="YOUR JOIN REQUEST">
         <Txt variant="footnote" tone="inkSoft">
-          Send this to a room owner so they can invite you.
+          Send this to a space owner so they can invite you.
         </Txt>
         <Txt variant="caption" mono tone="inkSoft" numberOfLines={4}>
           {myRequest}
@@ -108,7 +106,7 @@ export default function JoinScreen() {
           autoCapitalize="none"
           autoCorrect={false}
         />
-        <Button label={busy ? 'Joining…' : 'Join room'} variant="primary" size="md" disabled={busy} onPress={join} />
+        <Button label={busy ? 'Joining…' : 'Join space'} variant="primary" size="md" disabled={busy} onPress={join} />
         {error ? (
           <Callout tone="danger" iconName="alert">
             {error}

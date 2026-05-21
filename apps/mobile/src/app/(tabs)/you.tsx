@@ -14,12 +14,13 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Icon } from '@/components/ui/Icon';
 import { Row } from '@/components/ui/Row';
 import { StackScreen } from '@/components/ui/StackScreen';
+import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
 export default function YouScreen() {
   const { colors } = useTheme();
   const { lock } = useSession();
-  const { profile, save, saving } = useProfile();
+  const { profile, draft, setDraft, dirty, save, saving } = useProfile();
   const verified = verificationColor(colors, 'verified');
 
   if (!profile) {
@@ -42,8 +43,14 @@ export default function YouScreen() {
         <AppBar
           title="Profile"
           right={
-            <Pressable accessibilityRole="button" onPress={() => save(profile.name)}>
-              <Txt variant="subhead" weight="semibold" tone="accent">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Save profile"
+              accessibilityState={{ disabled: !dirty || saving }}
+              disabled={!dirty || saving}
+              onPress={save}
+            >
+              <Txt variant="subhead" weight="semibold" tone={dirty || saving ? 'accent' : 'inkMuted'}>
                 {saving ? 'Saving…' : 'Save'}
               </Txt>
             </Pressable>
@@ -68,7 +75,18 @@ export default function YouScreen() {
           <Txt variant="micro" weight="semibold" mono uppercase tone="inkMuted">
             Display name
           </Txt>
-          <Txt variant="callout">{profile.name}</Txt>
+          <TextField
+            value={draft}
+            onChangeText={setDraft}
+            placeholder="Your display name"
+            autoCapitalize="words"
+            autoCorrect={false}
+            maxLength={40}
+            returnKeyType="done"
+            onSubmitEditing={() => {
+              if (dirty) save();
+            }}
+          />
         </View>
         <View style={styles.field}>
           <Txt variant="micro" weight="semibold" mono uppercase tone="inkMuted">

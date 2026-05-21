@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { StyleProp, TextInputProps, ViewStyle } from 'react-native';
+import type { StyleProp, TextInputProps, TextStyle, ViewStyle } from 'react-native';
 import { Platform, StyleSheet, TextInput, View } from 'react-native';
 
 import { fonts, glowShadow, radii, spacing, type as typeScale } from '@/theme';
@@ -10,7 +10,7 @@ import { Icon, type IconName } from './Icon';
 // On web, drop the browser's default focus outline — the field container shows
 // a themed accent ring + glow on focus, which is the (more on-brand) indicator.
 // `outlineStyle` is a web-only style prop not present in RN's types.
-const WEB_OUTLINE_RESET = (Platform.OS === 'web' ? { outlineStyle: 'none' } : null) as StyleProp<ViewStyle>;
+const WEB_OUTLINE_RESET = (Platform.OS === 'web' ? { outlineStyle: 'none' } : null) as unknown as StyleProp<TextStyle>;
 
 interface TextFieldProps extends Omit<TextInputProps, 'style' | 'placeholderTextColor'> {
   /** Optional leading icon (tints to accent on focus). */

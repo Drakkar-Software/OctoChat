@@ -82,7 +82,7 @@ export function useRoom(roomId: string) {
 
   const config = useMemo(() => {
     if (!session || !encryptor) return null;
-    const memberCap = getMemberCap(roomId);
+    const memberCap = getMemberCap(spaceIdFromRoomId(roomId));
     const cap = memberCap ? JSON.parse(memberCap) : session.chatCap;
     return {
       serverUrl: SYNC_BASE,

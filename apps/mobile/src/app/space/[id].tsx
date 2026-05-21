@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
-import { fonts, radii, spacing, type as typeScale } from '@/theme';
+import { spacing } from '@/theme';
 import { plural } from '@/lib/format';
 import { useSession } from '@/lib/session-context';
 import { useSpaces } from '@/lib/use-spaces';
@@ -11,10 +11,20 @@ import { useTheme } from '@/lib/use-theme';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Divider } from '@/components/ui/Divider';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Icon } from '@/components/ui/Icon';
 import { StackScreen } from '@/components/ui/StackScreen';
+import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
+
+function copy(text: string) {
+  try {
+    (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => void } } }).navigator?.clipboard?.writeText?.(text);
+  } catch {
+    /* ignore */
+  }
+}
 
 export default function SpaceScreen() {
   const { colors } = useTheme();
@@ -24,12 +34,17 @@ export default function SpaceScreen() {
   const { spaces } = useSpaces();
   const space = spaces.find((s) => s.id === spaceId);
   const name = space?.name ?? params.name ?? 'Space';
-  const members = space?.members ?? 1;
-  const { isOwner, loading, rename } = useSpaceSettings(spaceId);
+  const { isOwner, isMember, members, loading, rename, invite, leave } = useSpaceSettings(spaceId);
+  const memberCount = 1 + members.length; // owner + roster
 
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [request, setRequest] = useState('');
+  const [inviting, setInviting] = useState(false);
+  const [inviteCap, setInviteCap] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
 
   const save = async () => {
     if (saving) return;
@@ -40,6 +55,31 @@ export default function SpaceScreen() {
       setSaved(true);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const createInvite = async () => {
+    if (inviting) return;
+    setInviting(true);
+    setError(null);
+    try {
+      setInviteCap(await invite(request.trim()));
+      setRequest('');
+    } catch (e) {
+      setError(String((e as Error)?.message ?? e));
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const doLeave = async () => {
+    if (leaving) return;
+    setLeaving(true);
+    try {
+      await leave();
+      router.replace('/(tabs)/rooms');
+    } catch {
+      setLeaving(false);
     }
   };
 
@@ -56,7 +96,7 @@ export default function SpaceScreen() {
             <View style={styles.meta}>
               <Icon name="lock" size={12} color={colors.accent} />
               <Txt variant="footnote" tone="inkMuted">
-                end-to-end encrypted · {plural(members, 'member')}
+                end-to-end encrypted · {plural(memberCount, 'member')}
               </Txt>
             </View>
             <Txt variant="caption" mono tone="inkMuted" numberOfLines={1}>
@@ -64,25 +104,36 @@ export default function SpaceScreen() {
             </Txt>
           </Card>
 
-          <Card title="SETTINGS">
-            {loading ? (
+          <Card title={`MEMBERS · ${memberCount}`}>
+            {members.length === 0 ? (
               <Txt variant="footnote" tone="inkMuted">
-                Checking access…
+                Just the owner so far.
               </Txt>
-            ) : isOwner ? (
-              <>
+            ) : (
+              members.map((m, i) => (
+                <View key={m}>
+                  {i > 0 ? <Divider style={styles.divider} /> : null}
+                  <Txt variant="callout" mono numberOfLines={1}>
+                    {m.slice(0, 12)}…
+                  </Txt>
+                </View>
+              ))
+            )}
+          </Card>
+
+          {loading ? null : isOwner ? (
+            <>
+              <Card title="SETTINGS">
                 <Txt variant="footnote" tone="inkSoft">
                   Space name
                 </Txt>
-                <TextInput
+                <TextField
                   value={draft ?? name}
                   onChangeText={(t) => {
                     setDraft(t);
                     setSaved(false);
                   }}
                   placeholder="Space name…"
-                  placeholderTextColor={colors.inkMuted}
-                  style={[styles.input, { color: colors.ink, backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}
                   autoCapitalize="words"
                   autoCorrect={false}
                   onSubmitEditing={save}
@@ -97,13 +148,62 @@ export default function SpaceScreen() {
                     </Txt>
                   </View>
                 ) : null}
-              </>
-            ) : (
-              <Txt variant="footnote" tone="inkMuted">
-                Only the space owner can change these settings.
+              </Card>
+
+              <Card title="INVITE SOMEONE">
+                <Txt variant="footnote" tone="inkSoft">
+                  Paste their join request (from “Join or create” on their device). They’ll get access to every channel.
+                </Txt>
+                <TextField
+                  value={request}
+                  onChangeText={setRequest}
+                  placeholder="Paste join request…"
+                  mono
+                  multiline
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Button
+                  label={inviting ? 'Creating…' : 'Create invite'}
+                  variant="primary"
+                  size="md"
+                  disabled={inviting}
+                  onPress={createInvite}
+                />
+                {error ? (
+                  <Txt variant="footnote" tone="inkMuted">
+                    {error}
+                  </Txt>
+                ) : null}
+                {inviteCap ? (
+                  <View style={styles.inviteBox}>
+                    <Txt variant="micro" weight="semibold" mono uppercase tone="inkSoft">
+                      Invite — send to your invitee
+                    </Txt>
+                    <Txt variant="caption" mono tone="inkSoft" numberOfLines={4}>
+                      {inviteCap}
+                    </Txt>
+                    {Platform.OS === 'web' ? (
+                      <Button label="Copy invite" variant="secondary" size="sm" iconName="copy" onPress={() => copy(inviteCap)} />
+                    ) : null}
+                  </View>
+                ) : null}
+              </Card>
+            </>
+          ) : isMember ? (
+            <Card title="MEMBERSHIP">
+              <Txt variant="footnote" tone="inkSoft">
+                You’re a member of this space.
               </Txt>
-            )}
-          </Card>
+              <Button
+                label={leaving ? 'Leaving…' : 'Leave space'}
+                variant="danger"
+                size="md"
+                disabled={leaving}
+                onPress={doLeave}
+              />
+            </Card>
+          ) : null}
         </>
       )}
     </StackScreen>
@@ -113,12 +213,6 @@ export default function SpaceScreen() {
 const styles = StyleSheet.create({
   content: { padding: spacing.screenX, gap: spacing.lg },
   meta: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  input: {
-    height: spacing.controlMinHeight,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    paddingHorizontal: spacing.md,
-    fontFamily: fonts.body,
-    fontSize: typeScale.body.fontSize,
-  },
+  divider: { marginVertical: spacing.xs },
+  inviteBox: { gap: spacing.sm },
 });

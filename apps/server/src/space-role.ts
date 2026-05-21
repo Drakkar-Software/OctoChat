@@ -13,8 +13,8 @@
  *                      grants by adding the joinee to `members`.
  *
  * Decided purely from the requester's identity and the space id, as asked, by
- * reading the authoritative owner-written record. Mirrors {@link
- * makeOwnerRoleEnricher} (chat:owner), one level up at the space.
+ * reading the authoritative owner-written record (trust-on-first-use: the first
+ * writer of a space's registry stamps itself as `owner`).
  */
 import type { ObjectStore, RoleEnricher } from "@drakkar.software/starfish-server";
 

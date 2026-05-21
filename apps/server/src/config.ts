@@ -18,9 +18,9 @@ export const config: SyncConfig = {
     // Encrypted room messages.
     {
       name: "chat",
-      storagePath: "chat/rooms/{roomId}",
-      readRoles: ["cap:read:chat"],
-      writeRoles: ["cap:write:chat"],
+      storagePath: "spaces/{spaceId}/chat/rooms/{roomId}",
+      readRoles: ["space:member"],
+      writeRoles: ["space:member"],
       encryption: "delegated",
       maxBodyBytes: 262_144,
       allowedMimeTypes: JSON_ONLY,
@@ -32,7 +32,7 @@ export const config: SyncConfig = {
     // makeSpaceRoleEnricher from the space registry's owner/members record.
     {
       name: "chatkeyring",
-      storagePath: "chatkeyring/spaces/{spaceId}/_keyring",
+      storagePath: "spaces/{spaceId}/_keyring",
       readRoles: ["space:member"],
       writeRoles: ["space:owner"],
       encryption: "none",
@@ -45,9 +45,9 @@ export const config: SyncConfig = {
     // Authorized by the same chat cap (gated by the attachments path scope).
     {
       name: "attachments",
-      storagePath: "attachments/rooms/{roomId}/{blobId}",
-      readRoles: ["cap:read:chat"],
-      writeRoles: ["cap:write:chat"],
+      storagePath: "spaces/{spaceId}/chat/rooms/{roomId}/attachments/{blobId}",
+      readRoles: ["space:member"],
+      writeRoles: ["space:member"],
       encryption: "none",
       maxBodyBytes: 11_534_336, // ~11 MB: ~10 MB plaintext + IV/tag/epoch overhead.
       allowedMimeTypes: ["application/octet-stream"],

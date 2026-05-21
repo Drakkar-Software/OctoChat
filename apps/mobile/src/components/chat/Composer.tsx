@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import type { StyleProp, TextStyle } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { fonts, glowShadow, radii, spacing, type as typeScale } from '@/theme';
@@ -11,6 +12,9 @@ import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { Txt } from '@/components/ui/Txt';
+
+// Web-only: drop the UA focus outline; the bar itself lifts to an accent ring on focus.
+const WEB_OUTLINE_RESET = (Platform.OS === 'web' ? { outlineStyle: 'none' } : null) as unknown as StyleProp<TextStyle>;
 
 interface ComposerProps {
   placeholder: string;
@@ -98,7 +102,7 @@ export function Composer({ placeholder, onSend }: ComposerProps) {
           onChangeText={setText}
           placeholder={placeholder}
           placeholderTextColor={colors.inkMuted}
-          style={[styles.input, { color: colors.ink }]}
+          style={[styles.input, { color: colors.ink }, WEB_OUTLINE_RESET]}
           multiline
           numberOfLines={1}
           editable={!busy}

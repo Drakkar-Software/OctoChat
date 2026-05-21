@@ -3,27 +3,30 @@
  * Paths are signed relative to SYNC_BASE; the server mounts the sync router at
  * root, so they start with /pull or /push.
  *
- * Keyrings are SPACE-wide: every channel in a space shares one keyring (and CEK),
- * so a single space invite grants all of its channels. A room id is `<spaceId>-…`,
- * so the space a room belongs to is derivable from the id (see spaceIdFromRoomId).
+ * Everything for a space is nested under `spaces/{spaceId}/…` so the `{spaceId}`
+ * segment gates it all uniformly through the space:owner/space:member enricher,
+ * and a single `spaces/{spaceId}/**` member cap covers a whole space. Keyrings
+ * are SPACE-wide (one per space, shared by every channel). A room id is
+ * `<spaceId>-<name…>`, so a room's space is derivable from its id.
  */
 import type { ScopePreset } from '@drakkar.software/starfish-identities';
 
-// ── Rooms / messages ────────────────────────────────────────────────────────
-export const roomPull = (id: string) => `/pull/chat/rooms/${id}`;
-export const roomPush = (id: string) => `/push/chat/rooms/${id}`;
-
-/** A room id is `sp-<rand>-<name…>`; the space is its first two `-` segments. */
+/** A room id is `sp-<rand>-<name>`; the space is its first two `-` segments. */
 export const spaceIdFromRoomId = (roomId: string) => roomId.split('-').slice(0, 2).join('-');
 
+// ── Channel messages (nested under their space) ───────────────────────────────
+export const roomPull = (roomId: string) => `/pull/spaces/${spaceIdFromRoomId(roomId)}/chat/rooms/${roomId}`;
+export const roomPush = (roomId: string) => `/push/spaces/${spaceIdFromRoomId(roomId)}/chat/rooms/${roomId}`;
+
 // ── Space-wide keyring (one per space, shared by all its channels) ────────────
-export const keyringName = (spaceId: string) => `chatkeyring/spaces/${spaceId}`;
+export const keyringName = (spaceId: string) => `spaces/${spaceId}`;
 export const keyringPull = (spaceId: string) => `/pull/${keyringName(spaceId)}/_keyring`;
 export const keyringPush = (spaceId: string) => `/push/${keyringName(spaceId)}/_keyring`;
 
-// ── Attachments (sealed binary blobs) ─────────────────────────────────────────
+// ── Attachments (sealed blobs, nested under their channel) ────────────────────
 /** Storage path of one attachment blob — also the AAD bound into its seal. */
-export const attachmentName = (roomId: string, blobId: string) => `attachments/rooms/${roomId}/${blobId}`;
+export const attachmentName = (roomId: string, blobId: string) =>
+  `spaces/${spaceIdFromRoomId(roomId)}/chat/rooms/${roomId}/attachments/${blobId}`;
 export const attachmentPull = (roomId: string, blobId: string) => `/pull/${attachmentName(roomId, blobId)}`;
 export const attachmentPush = (roomId: string, blobId: string) => `/push/${attachmentName(roomId, blobId)}`;
 
@@ -38,31 +41,33 @@ export const roomsRegistryPull = (spaceId: string) => `/pull/spaces/${spaceId}/_
 export const roomsRegistryPush = (spaceId: string) => `/push/spaces/${spaceId}/_rooms`;
 
 // ── Cap scopes ────────────────────────────────────────────────────────────────
-/** Full owner/device access: every room message + every space keyring + attachments. */
+/** Full owner/device access to every space the identity owns. */
 export function ownerScope(): ScopePreset {
   return {
     ops: ['read', 'list', 'write'],
     collections: ['chat'],
-    paths: ['chat/rooms/**', 'chatkeyring/spaces/**', 'attachments/rooms/**'],
+    paths: ['spaces/**'],
   };
 }
 
 /**
- * Member access to one SPACE: every channel's messages + attachments + the
- * space keyring. `chat/rooms/${spaceId}-*` covers all current AND future
- * channels of the space (a room id is a single segment `${spaceId}-…`, and the
- * cap `*` glob matches a run of non-slash chars), so one cap never goes stale.
+ * Member access to one SPACE — its keyring + every channel's messages and
+ * attachments + the room registry, all under `spaces/{spaceId}/**`. One cap
+ * covers current AND future channels. The keyring/registry stay owner-only:
+ * their WRITE is `space:owner`-gated server-side, so a member's path reach does
+ * not grant write. (`collections:['chat']` keeps the member-cap shape check
+ * happy — it keys off the collection name, never these paths.)
  */
 export function spaceMemberScope(spaceId: string, canWrite: boolean): ScopePreset {
   const ops: ('read' | 'write' | 'list')[] = canWrite ? ['read', 'list', 'write'] : ['read', 'list'];
   return {
     ops,
     collections: ['chat'],
-    paths: [`chat/rooms/${spaceId}-*`, `${keyringName(spaceId)}/_keyring`, `attachments/rooms/${spaceId}-*/**`],
+    paths: [`spaces/${spaceId}/**`],
   };
 }
 
-/** Personal cap: profile + space/room registries + device directory. */
+/** Personal cap: profile + space registry + device directory + spaces. */
 export function accountScope(userId: string): ScopePreset {
   return {
     ops: ['read', 'list', 'write'],
@@ -76,10 +81,10 @@ export function accountScope(userId: string): ScopePreset {
   };
 }
 
-/** Extract the space id a member cap is scoped to (from its keyring path). */
+/** Extract the space id a member cap is scoped to (from its `spaces/<id>/**`). */
 export function spaceIdFromCap(cap: { scope?: { paths?: string[] } }): string | null {
   for (const p of cap.scope?.paths ?? []) {
-    const m = /^chatkeyring\/spaces\/([^/]+)\/_keyring$/.exec(p);
+    const m = /^spaces\/([^/]+)\//.exec(p);
     if (m) return m[1]!;
   }
   return null;
