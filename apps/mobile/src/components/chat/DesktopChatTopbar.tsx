@@ -14,7 +14,6 @@ interface DesktopChatTopbarProps {
   topic?: string;
   members?: number;
   onSearch?: () => void;
-  onMembers?: () => void;
 }
 
 /**
@@ -22,7 +21,7 @@ interface DesktopChatTopbarProps {
  * left, encryption/member affordances on the right. Replaces the centered
  * mobile {@link AppBar} when the app is in shell mode.
  */
-export function DesktopChatTopbar({ name, kind = 'channel', topic, members, onSearch, onMembers }: DesktopChatTopbarProps) {
+export function DesktopChatTopbar({ name, kind = 'channel', topic, members, onSearch }: DesktopChatTopbarProps) {
   const { colors } = useTheme();
   return (
     <View style={[styles.bar, { height: layout.desktopTopbarHeight, backgroundColor: colors.paper, borderBottomColor: colors.lineSoft }]}>
@@ -42,7 +41,6 @@ export function DesktopChatTopbar({ name, kind = 'channel', topic, members, onSe
       )}
       {members != null ? <Pill iconName="people" label={String(members)} mono style={styles.pill} /> : null}
       <IconButton name="search" size={16} onPress={onSearch} accessibilityLabel="Search in room" />
-      <IconButton name="people" size={16} onPress={onMembers} accessibilityLabel="View members" />
     </View>
   );
 }

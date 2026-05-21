@@ -5,6 +5,7 @@ import { spacing } from '@/theme';
 import type { Room } from '@/lib/types';
 import type { RoomCategory } from '@/lib/use-rooms';
 import { useTheme } from '@/lib/use-theme';
+import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { TextField } from '@/components/ui/TextField';
@@ -16,8 +17,10 @@ interface RoomCategorySectionProps {
   category: RoomCategory;
   activeRoomId?: string;
   onOpenRoom: (room: Room) => void;
-  /** Create a channel in this category. Omit to hide the add control. */
-  onCreateRoom?: (category: string, name: string) => void;
+  /** Create a channel in this category. Resolves to an error message to show
+   *  (e.g. only the owner may add channels), or `null`/void on success. Omit to
+   *  hide the add control. */
+  onCreateRoom?: (category: string, name: string) => Promise<string | null> | void;
 }
 
 /** A collapsible category header followed by its room rows. */
@@ -26,12 +29,15 @@ export function RoomCategorySection({ category, activeRoomId, onOpenRoom, onCrea
   const [collapsed, setCollapsed] = useState(false);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
-  const submit = () => {
+  const submit = async () => {
     const n = name.trim();
-    if (n) onCreateRoom?.(category.name, n);
     setName('');
     setAdding(false);
+    if (!n) return;
+    const message = await onCreateRoom?.(category.name, n);
+    setError(typeof message === 'string' ? message : null);
   };
 
   return (
@@ -52,6 +58,7 @@ export function RoomCategorySection({ category, activeRoomId, onOpenRoom, onCrea
             color={colors.inkMuted}
             accessibilityLabel={adding ? 'Cancel new channel' : `Add a channel to ${category.name}`}
             onPress={() => {
+              setError(null);
               setCollapsed(false);
               setAdding((a) => !a);
             }}
@@ -87,6 +94,14 @@ export function RoomCategorySection({ category, activeRoomId, onOpenRoom, onCrea
           containerStyle={[styles.addField, { backgroundColor: colors.paper }]}
         />
       ) : null}
+
+      {error ? (
+        <View style={styles.notice}>
+          <Callout tone="warning" iconName="lock">
+            {error}
+          </Callout>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -96,4 +111,5 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingRight: spacing.xs },
   toggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: spacing.md },
   addField: { marginHorizontal: spacing.xs, marginTop: spacing.xs },
+  notice: { marginHorizontal: spacing.xs, marginTop: spacing.xs },
 });

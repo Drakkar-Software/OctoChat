@@ -6,6 +6,14 @@ import { readProfile } from './starfish/client';
 // so the same author resolved in the message stream, a thread and a search result
 // all hit one cache and one fetch. Profiles are public-read, so any user's is
 // resolvable; the monogram / hex prefix fills in until one arrives.
+//
+// CAVEAT (React Compiler): the accessors below return getters over this module
+// cache, whose identity does NOT change when the cache updates. Consumers re-render
+// (via the listener tick) but the compiler can memoize accessor-derived JSX as long
+// as the input `ids` are stable — so a fetched profile may never reach the screen.
+// Today's consumers work because their `ids` churn (the message stream ticks); a
+// consumer with a *stable* id set (e.g. a fixed members list) must opt out with a
+// `'use no memo'` directive. A fuller fix would key the accessor on the tick.
 interface CachedProfile {
   pseudo?: string;
   avatar?: string;

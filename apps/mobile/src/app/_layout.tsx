@@ -2,6 +2,7 @@ import 'react-native-gesture-handler';
 
 import { configureStarfishPlatform } from '@/lib/starfish/platform';
 import { SessionProvider } from '@/lib/session-context';
+import { UnreadProvider } from '@/lib/unread-context';
 
 import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
@@ -38,14 +39,16 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
         <SessionProvider>
-          <AppFrame>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: palette.canvas },
-              }}
-            />
-          </AppFrame>
+          <UnreadProvider>
+            <AppFrame>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: palette.canvas },
+                }}
+              />
+            </AppFrame>
+          </UnreadProvider>
         </SessionProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

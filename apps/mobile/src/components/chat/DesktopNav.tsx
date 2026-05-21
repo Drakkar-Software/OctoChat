@@ -7,6 +7,7 @@ import { useProfile } from '@/lib/use-profile';
 import { useRooms } from '@/lib/use-rooms';
 import { useSpaces } from '@/lib/use-spaces';
 import { useTheme } from '@/lib/use-theme';
+import { useUnread } from '@/lib/unread-context';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 
@@ -26,6 +27,7 @@ export function DesktopNav() {
   const { profile } = useProfile();
   const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
   const { categories, loading: roomsLoading, createRoom } = useRooms(activeId);
+  const { totalUnread } = useUnread();
 
   const space = spaces.find((s) => s.id === activeId) ?? spaces[0];
   const activeRoomId =
@@ -51,6 +53,8 @@ export function DesktopNav() {
         activeId={activeId}
         onSelect={selectSpace}
         onAdd={() => router.push('/join')}
+        unread={totalUnread}
+        onOpenActivity={() => router.push('/(tabs)/activity')}
         meLabel={meLabel}
         meAvatar={profile?.avatar}
         onOpenProfile={() => router.push('/(tabs)/you')}

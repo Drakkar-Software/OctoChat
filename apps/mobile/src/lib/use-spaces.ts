@@ -1,18 +1,26 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'expo-router';
 
 import type { Space } from '@/lib/types';
 
 import { createSpace as createSpaceDoc, readSpaces } from './starfish/registry';
 import { useSession } from './session-context';
+import { useUnread } from './unread-context';
 
 /** The current identity's spaces (empty until the user creates or joins one). */
 export function useSpaces() {
   const { session } = useSession();
+  const { unreadBySpace } = useUnread();
   const pathname = usePathname();
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Overlay live per-space unread totals so the space rails' Badges light up.
+  const spacesWithUnread = useMemo<Space[]>(
+    () => spaces.map((s) => ({ ...s, unread: unreadBySpace[s.id] ?? 0 })),
+    [spaces, unreadBySpace],
+  );
 
   const refresh = useCallback(async () => {
     if (!session) return;
@@ -62,5 +70,5 @@ export function useSpaces() {
     [session, refresh],
   );
 
-  return { spaces, activeId, setActiveId, loading, createSpace };
+  return { spaces: spacesWithUnread, activeId, setActiveId, loading, createSpace };
 }

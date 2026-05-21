@@ -20,8 +20,9 @@ interface DesktopRoomSidebarProps {
   onJumpTo?: () => void;
   /** Open the space switcher / join surface (the header acts as a menu). */
   onOpenSpaceMenu?: () => void;
-  /** Create a channel in a category. */
-  onCreateRoom?: (category: string, name: string) => void;
+  /** Create a channel in a category. Resolves to an error message to show, or
+   *  `null`/void on success. */
+  onCreateRoom?: (category: string, name: string) => Promise<string | null> | void;
   loading?: boolean;
 }
 

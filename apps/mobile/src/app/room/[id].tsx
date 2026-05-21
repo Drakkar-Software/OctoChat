@@ -1,9 +1,11 @@
+import { useEffect } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
 import { useRoom } from '@/lib/use-room';
+import { useUnread } from '@/lib/unread-context';
 import { spaceIdFromRoomId } from '@/lib/starfish/paths';
 import type { RoomKind } from '@/lib/types';
 import { AppBar } from '@/components/ui/AppBar';
@@ -21,8 +23,19 @@ export default function RoomScreen() {
   const name = params.name ?? id;
   const kind = (params.kind ?? 'channel') as RoomKind;
   const { session } = useSession();
+  const { markRoomRead } = useUnread();
   const { store, opening, openError, syncError, send, toggleReaction, uploadAttachment, loadAttachment } = useRoom(id);
   const title = kind === 'dm' ? name : `#${name}`;
+
+  // Clear this room's unread on open and again whenever new messages arrive
+  // while it's the open room (the store ticks on every synced change).
+  useEffect(() => {
+    if (!session || !store) return;
+    const mark = () => markRoomRead(id);
+    mark();
+    const unsub = (store as { subscribe?: (cb: () => void) => () => void }).subscribe?.(mark);
+    return () => unsub?.();
+  }, [session, store, id, markRoomRead]);
 
   const openThread = (msgId: string) =>
     router.push({ pathname: '/thread/[id]', params: { id: msgId, roomId: id, roomName: name } });
@@ -45,7 +58,7 @@ export default function RoomScreen() {
           }
         />
       }
-      desktopHeader={<DesktopChatTopbar name={name} kind={kind} onSearch={openSearch} onMembers={openMembers} />}
+      desktopHeader={<DesktopChatTopbar name={name} kind={kind} onSearch={openSearch} />}
       footer={
         <Composer
           placeholder={`Message ${title}`}

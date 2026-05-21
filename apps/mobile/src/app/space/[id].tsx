@@ -11,12 +11,12 @@ import { useTheme } from '@/lib/use-theme';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { Divider } from '@/components/ui/Divider';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Icon } from '@/components/ui/Icon';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
+import { SpaceMembersCard } from '@/components/chat/SpaceMembersCard';
 
 function copy(text: string) {
   try {
@@ -34,7 +34,7 @@ export default function SpaceScreen() {
   const { spaces } = useSpaces();
   const space = spaces.find((s) => s.id === spaceId);
   const name = space?.name ?? params.name ?? 'Space';
-  const { isOwner, isMember, members, loading, rename, invite, leave } = useSpaceSettings(spaceId);
+  const { ownerId, isOwner, isMember, members, loading, rename, invite, leave } = useSpaceSettings(spaceId);
   const memberCount = 1 + members.length; // owner + roster
 
   const [draft, setDraft] = useState<string | null>(null);
@@ -104,22 +104,7 @@ export default function SpaceScreen() {
             </Txt>
           </Card>
 
-          <Card title={`MEMBERS · ${memberCount}`}>
-            {members.length === 0 ? (
-              <Txt variant="footnote" tone="inkMuted">
-                Just the owner so far.
-              </Txt>
-            ) : (
-              members.map((m, i) => (
-                <View key={m}>
-                  {i > 0 ? <Divider style={styles.divider} /> : null}
-                  <Txt variant="callout" mono numberOfLines={1}>
-                    {m.slice(0, 12)}…
-                  </Txt>
-                </View>
-              ))
-            )}
-          </Card>
+          <SpaceMembersCard ownerId={ownerId} members={members} currentUserId={session.userId} />
 
           {loading ? null : isOwner ? (
             <>
@@ -213,6 +198,5 @@ export default function SpaceScreen() {
 const styles = StyleSheet.create({
   content: { padding: spacing.screenX, gap: spacing.lg },
   meta: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  divider: { marginVertical: spacing.xs },
   inviteBox: { gap: spacing.sm },
 });

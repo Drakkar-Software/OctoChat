@@ -7,6 +7,7 @@ import { useTheme } from '@/lib/use-theme';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/Icon';
+import { IconButton } from '@/components/ui/IconButton';
 import { Octopus } from '@/components/brand/Octopus';
 import { Txt } from '@/components/ui/Txt';
 
@@ -15,6 +16,10 @@ interface DesktopSpacesRailProps {
   activeId: string | null;
   onSelect?: (id: string) => void;
   onAdd?: () => void;
+  /** Total unread across all spaces — badge on the notifications bell. */
+  unread?: number;
+  /** Open the notifications / activity view. */
+  onOpenActivity?: () => void;
   /** Bottom avatar / gear → the current identity's profile. */
   meLabel: string;
   /** The current identity's uploaded avatar (data URI), if any. */
@@ -72,6 +77,8 @@ export function DesktopSpacesRail({
   activeId,
   onSelect,
   onAdd,
+  unread = 0,
+  onOpenActivity,
   meLabel,
   meAvatar,
   onOpenProfile,
@@ -99,6 +106,16 @@ export function DesktopSpacesRail({
         <Icon name="plus" size={16} color={colors.inkMuted} />
       </Pressable>
       <View style={styles.spacer} />
+      {onOpenActivity ? (
+        <View style={styles.tileWrap}>
+          <IconButton name="bell" size={20} onPress={onOpenActivity} accessibilityLabel="Notifications" />
+          {unread ? (
+            <View style={styles.badge}>
+              <Badge count={unread} />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
       <Pressable accessibilityRole="button" accessibilityLabel="Your profile" onPress={onOpenProfile} style={styles.foot}>
         <Avatar label={meLabel} image={meAvatar} size={32} />
       </Pressable>

@@ -4,22 +4,38 @@ import type { Room } from '@/lib/types';
 
 import { createRoom as createRoomDoc, readRooms } from './starfish/registry';
 import { useSession } from './session-context';
+import { useUnread } from './unread-context';
 
 export interface RoomCategory {
   name: string;
   rooms: Room[];
 }
 
-/** Rooms of a space, grouped by category, with a creator action. */
+/** Adding a channel writes the `space:owner`-gated room registry, so only the
+ *  owner may do it; a member is told to ask rather than the call rejecting. */
+const NOT_OWNER_MESSAGE = 'Only the space owner can create channels — ask the owner to add this one.';
+const CREATE_FAILED_MESSAGE = "Couldn't create the channel. Please try again.";
+
+/** Rooms of a space, grouped by category, with an owner-gated creator action. */
 export function useRooms(spaceId: string | null) {
   const { session } = useSession();
+  const { unreadByRoom } = useUnread();
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [owner, setOwner] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Overlay live unread counts onto the registry rooms so `ChannelRow`'s Badge
+  // and emphasis light up without the row components touching the provider.
+  const roomsWithUnread = useMemo<Room[]>(
+    () => rooms.map((r) => ({ ...r, unread: unreadByRoom[r.id] ?? 0 })),
+    [rooms, unreadByRoom],
+  );
 
   const refresh = useCallback(async () => {
     if (!session || !spaceId) return;
-    const { rooms: list } = await readRooms(session.accountClient, spaceId);
+    const { rooms: list, owner: o } = await readRooms(session.accountClient, spaceId);
     setRooms(list);
+    setOwner(o);
   }, [session, spaceId]);
 
   useEffect(() => {
@@ -27,6 +43,7 @@ export function useRooms(spaceId: string | null) {
     setLoading(true);
     if (!session || !spaceId) {
       setRooms([]);
+      setOwner(null);
       setLoading(false);
       return;
     }
@@ -46,21 +63,38 @@ export function useRooms(spaceId: string | null) {
 
   const categories = useMemo<RoomCategory[]>(() => {
     const map = new Map<string, Room[]>();
-    for (const r of rooms) {
+    for (const r of roomsWithUnread) {
       if (!map.has(r.category)) map.set(r.category, []);
       map.get(r.category)!.push(r);
     }
     return [...map.entries()].map(([name, rs]) => ({ name, rooms: rs }));
-  }, [rooms]);
+  }, [roomsWithUnread]);
 
+  /** True when the signed-in identity owns this space (and so may add channels). */
+  const isOwner = !!session && owner !== null && owner === session.userId;
+
+  /**
+   * Create a channel. Resolves to `null` on success, or a user-facing message
+   * to surface when it can't — chiefly the owner-only registry write: a member
+   * is told to ask the owner instead of the promise rejecting unhandled.
+   */
   const createRoom = useCallback(
-    async (name: string, category?: string) => {
-      if (!session || !spaceId) return;
-      await createRoomDoc(session.accountClient, session.userId, spaceId, name, category);
-      await refresh();
+    async (name: string, category?: string): Promise<string | null> => {
+      if (!session || !spaceId) return null;
+      // Known non-owner: skip the doomed write and explain it directly.
+      if (owner !== null && owner !== session.userId) return NOT_OWNER_MESSAGE;
+      try {
+        await createRoomDoc(session.accountClient, session.userId, spaceId, name, category);
+        await refresh();
+        return null;
+      } catch (e) {
+        // The registry write is `space:owner`-gated; a 403 means we aren't it.
+        if ((e as { status?: number })?.status === 403) return NOT_OWNER_MESSAGE;
+        return CREATE_FAILED_MESSAGE;
+      }
     },
-    [session, spaceId, refresh],
+    [session, spaceId, owner, refresh],
   );
 
-  return { categories, rooms, loading, createRoom };
+  return { categories, rooms: roomsWithUnread, loading, isOwner, createRoom };
 }
