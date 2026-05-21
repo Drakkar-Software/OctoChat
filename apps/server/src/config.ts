@@ -39,13 +39,17 @@ export const config: SyncConfig = {
       maxBodyBytes: 65_536,
       allowedMimeTypes: JSON_ONLY,
     },
-    // Encrypted file attachments for a room. Bytes are sealed client-side with
-    // the space keyring CEK (sealBytes), so the collection itself is "none" —
-    // the server only ever holds opaque ciphertext (application/octet-stream).
-    // Authorized by the same chat cap (gated by the attachments path scope).
+    // Encrypted file attachments, in a per-space subtree keyed by room. Bytes are
+    // sealed client-side with the space keyring CEK (sealBytes), so the collection
+    // itself is "none" — the server only ever holds opaque ciphertext
+    // (application/octet-stream). Covered by the same `spaces/{spaceId}/**` member
+    // cap as the room messages. NOT nested under `chat/rooms/{roomId}`: the
+    // FilesystemObjectStore maps a key to a nested directory, so a key can't be
+    // both the room's message-doc leaf file AND a directory prefix (mkdir →
+    // ENOTDIR → an opaque 500). Keep in sync with attachmentName in apps/mobile.
     {
       name: "attachments",
-      storagePath: "spaces/{spaceId}/chat/rooms/{roomId}/attachments/{blobId}",
+      storagePath: "spaces/{spaceId}/attachments/{roomId}/{blobId}",
       readRoles: ["space:member"],
       writeRoles: ["space:member"],
       encryption: "none",

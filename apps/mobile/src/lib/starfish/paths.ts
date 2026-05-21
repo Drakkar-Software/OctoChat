@@ -23,10 +23,17 @@ export const keyringName = (spaceId: string) => `spaces/${spaceId}`;
 export const keyringPull = (spaceId: string) => `/pull/${keyringName(spaceId)}/_keyring`;
 export const keyringPush = (spaceId: string) => `/push/${keyringName(spaceId)}/_keyring`;
 
-// ── Attachments (sealed blobs, nested under their channel) ────────────────────
+// ── Attachments (sealed blobs, in a per-space subtree keyed by room) ──────────
+// Deliberately NOT under `chat/rooms/{roomId}`: the server's FilesystemObjectStore
+// maps a document key to a nested directory path, so a key can't be both a leaf
+// file AND a directory prefix. The room's message doc is the leaf file
+// `…/chat/rooms/{roomId}`, so nesting blobs beneath it made `mkdir` fail with
+// ENOTDIR → an opaque server 500. A separate `attachments/{roomId}/…` subtree
+// avoids the file/dir collision and is still covered by the `spaces/{spaceId}/**`
+// member cap. Keep this in sync with the `attachments` storagePath in apps/server.
 /** Storage path of one attachment blob — also the AAD bound into its seal. */
 export const attachmentName = (roomId: string, blobId: string) =>
-  `spaces/${spaceIdFromRoomId(roomId)}/chat/rooms/${roomId}/attachments/${blobId}`;
+  `spaces/${spaceIdFromRoomId(roomId)}/attachments/${roomId}/${blobId}`;
 export const attachmentPull = (roomId: string, blobId: string) => `/pull/${attachmentName(roomId, blobId)}`;
 export const attachmentPush = (roomId: string, blobId: string) => `/push/${attachmentName(roomId, blobId)}`;
 
