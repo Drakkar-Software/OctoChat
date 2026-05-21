@@ -28,6 +28,7 @@ import { kvGet, kvSet } from './starfish/kv';
 import { spaceIdFromRoomId } from './starfish/paths';
 import { readSpaces } from './starfish/registry';
 import { buildAuthHeaders } from './starfish/client';
+import { emitRoomChange, emitSseStatus } from './room-events-bus';
 
 interface UnreadValue {
   /** Unread count per room id (absent = caught up). */
@@ -112,6 +113,8 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       ensureNotifyPermission();
       unsub = subscribeRoomChanges(
         (e) => {
+          // Broadcast to use-room consumers so they can pull without a second SSE connection.
+          emitRoomChange(e.roomId);
           if (e.roomId === activeRoomIdRef.current) return; // viewing it → already read
           const m = mapRef.current;
           const next = { ...m, [e.roomId]: (m[e.roomId] ?? 0) + 1 };
@@ -125,6 +128,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
           // Auth headers built fresh on each connect/reconnect (new nonce + timestamp).
           authHeaders: (method, pathAndQuery) =>
             buildAuthHeaders(session.chatCap, session.keys.edPriv, method, pathAndQuery),
+          onStatus: emitSseStatus,
         },
       );
     })();

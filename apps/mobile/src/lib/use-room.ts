@@ -5,13 +5,13 @@ import { useSyncInit } from '@drakkar.software/starfish-client/zustand';
 
 import { SYNC_BASE } from './starfish/config';
 import {
-  buildAuthHeaders,
   capProviderFor,
   ensureRoomInitialized,
   makeClient,
   openEncryptor,
   ownerEnsureKeyring,
 } from './starfish/client';
+import { onRoomChange, onSseStatus } from './room-events-bus';
 import {
   loadAttachment as loadAttachmentDoc,
   uploadAttachment as uploadAttachmentDoc,
@@ -19,7 +19,6 @@ import {
   type ByteSealer,
 } from './starfish/attachments';
 import { getMemberCap } from './starfish/member-caps';
-import { subscribeRoomChanges } from './events';
 import { roomPull, roomPush, spaceIdFromRoomId } from './starfish/paths';
 import type { ReactionEvent } from './types';
 import { useSession } from './session-context';
@@ -110,27 +109,16 @@ export function useRoom(roomId: string) {
     );
   }, [store]);
 
-  // Live updates come from the SSE stream: an initial pull on open, then a pull
-  // whenever an event lands for THIS room. No polling while the stream is up.
+  // Live updates: pull on open, then whenever the global SSE bus fires for this
+  // room (UnreadProvider holds the single shared SSE connection — no second
+  // connection here). sseUp tracks the global stream's health for the fallback.
   const [sseUp, setSseUp] = useState(false);
   useEffect(() => {
-    if (!store) {
-      setSyncError(null);
-      return;
-    }
+    if (!store) { setSyncError(null); return; }
     pull();
-    const unsub = subscribeRoomChanges(
-      (e) => { if (e.roomId === roomId) pull(); },
-      {
-        spaces: [spaceIdFromRoomId(roomId)],
-        // session is non-null here: store is only defined when config is non-null,
-        // and config requires a non-null session (see useMemo above).
-        authHeaders: (method, pathAndQuery) =>
-          buildAuthHeaders(session!.chatCap, session!.keys.edPriv, method, pathAndQuery),
-        onStatus: setSseUp,
-      },
-    );
-    return unsub;
+    const unsubChange = onRoomChange((id) => { if (id === roomId) pull(); });
+    const unsubStatus = onSseStatus(setSseUp);
+    return () => { unsubChange(); unsubStatus(); };
   }, [store, roomId, pull]);
 
   // Fallback: poll only while the SSE stream is unreachable/disconnected, so a
