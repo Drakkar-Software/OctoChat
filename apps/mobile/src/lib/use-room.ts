@@ -5,11 +5,11 @@ import { useSyncInit } from '@drakkar.software/starfish-client/zustand';
 
 import { SYNC_BASE } from './starfish/config';
 import {
-  buildEncryptor,
   capProviderFor,
   ensureMembersInitialized,
   ensureRoomInitialized,
   makeClient,
+  openEncryptor,
   ownerEnsureKeyring,
 } from './starfish/client';
 import { getMemberCap } from './starfish/member-caps';
@@ -46,8 +46,7 @@ export function useRoom(roomId: string) {
           // The room owner (the cap's issuer) is the trusted keyring adder.
           const cap = JSON.parse(memberCap) as { iss?: string };
           const client = makeClient(cap, session.keys.edPriv);
-          enc = await buildEncryptor(client, session.keys, roomId, cap.iss ? [cap.iss] : []);
-          if (!enc) throw new Error("You're not a recipient of this room's keyring yet.");
+          enc = await openEncryptor(client, session.keys, roomId, cap.iss ? [cap.iss] : []);
         } else {
           enc = await ownerEnsureKeyring(session.chatClient, session.keys, roomId);
           await ensureRoomInitialized(session.chatClient, enc, roomId);
@@ -87,9 +86,19 @@ export function useRoom(roomId: string) {
 
   const store = useSyncInit(config);
 
+  // Surface repeated sync failures instead of swallowing them: the poll sets a
+  // banner on a failed pull and clears it on the next success.
+  const [syncError, setSyncError] = useState<string | null>(null);
   useEffect(() => {
-    if (!store) return;
-    const tick = () => void store.getState().pull().catch(() => {});
+    if (!store) {
+      setSyncError(null);
+      return;
+    }
+    const tick = () =>
+      void store.getState().pull().then(
+        () => setSyncError((prev) => (prev === null ? prev : null)),
+        () => setSyncError('Reconnecting… messages may be out of date.'),
+      );
     tick();
     const id = setInterval(tick, 4000);
     return () => clearInterval(id);
@@ -125,5 +134,5 @@ export function useRoom(roomId: string) {
     [store, session],
   );
 
-  return { store, opening, openError, send, toggleReaction };
+  return { store, opening, openError, syncError, send, toggleReaction };
 }

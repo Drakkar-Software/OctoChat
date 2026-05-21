@@ -30,14 +30,43 @@ export function makeClient(cap: unknown, devEdPrivHex: string): StarfishClient {
 }
 
 /**
- * Build a decryptor from a room's keyring, or null if absent / not a recipient.
+ * Open a room's decryptor, throwing a descriptive error per failure mode
+ * (unreachable server / no keyring yet / not a recipient) instead of collapsing
+ * them all to null.
  *
- * `trustedAdders` is the fail-closed provenance pin the SDK now requires (the
+ * `trustedAdders` is the fail-closed provenance pin the SDK requires (the
  * keyring's per-entry `addedSig` is self-attesting, so a hostile server could
  * substitute a wrapped CEK). Pass the Ed25519 pubkey(s) of whoever may grant
  * keyring access: the room owner — `keys.edPub` for our own rooms, the member
  * cap's `iss` for a joined room.
  */
+export async function openEncryptor(
+  client: StarfishClient,
+  keys: DeviceKeys,
+  roomId: string,
+  trustedAdders: string[],
+): Promise<Encryptor> {
+  const res = await client.pull(keyringPull(roomId)).catch(() => {
+    throw new Error('Could not reach the server to fetch room keys.');
+  });
+  const keyring = res?.data as unknown as Keyring | undefined;
+  if (!keyring || !keyring.epochs) {
+    throw new Error('This room has no keyring yet — ask the owner to open it first.');
+  }
+  try {
+    const enc = await createKeyringEncryptor(
+      keyring,
+      { kemPubHex: keys.kemPub, kemPrivHex: keys.kemPriv },
+      { trustedAdders },
+    );
+    return enc as unknown as Encryptor;
+  } catch {
+    throw new Error("You're not a recipient of this room's keyring yet — ask the owner to re-invite.");
+  }
+}
+
+/** Soft variant of {@link openEncryptor}: returns null instead of throwing,
+ *  for cross-room sweeps where an unreadable room is simply skipped. */
 export async function buildEncryptor(
   client: StarfishClient,
   keys: DeviceKeys,
@@ -45,15 +74,7 @@ export async function buildEncryptor(
   trustedAdders: string[],
 ): Promise<Encryptor | null> {
   try {
-    const res = await client.pull(keyringPull(roomId));
-    const keyring = res?.data as unknown as Keyring | undefined;
-    if (!keyring || !keyring.epochs) return null;
-    const enc = await createKeyringEncryptor(
-      keyring,
-      { kemPubHex: keys.kemPub, kemPrivHex: keys.kemPriv },
-      { trustedAdders },
-    );
-    return enc as unknown as Encryptor;
+    return await openEncryptor(client, keys, roomId, trustedAdders);
   } catch {
     return null;
   }

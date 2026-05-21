@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { deriveSession, type Session } from './starfish/identity';
+import { clearMemberCaps, hydrateMemberCaps } from './starfish/member-caps';
 import { clearStoredSession, loadSession, saveSession } from './starfish/storage';
 
 interface SessionContextValue {
@@ -22,6 +23,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      await hydrateMemberCaps();
       const persisted = await loadSession();
       if (persisted && !cancelled) {
         try {
@@ -49,6 +51,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       },
       lock: async () => {
         await clearStoredSession();
+        clearMemberCaps();
         setSession(null);
       },
     }),

@@ -4,7 +4,6 @@ import {
   createSyncRouter,
   createCapCertRoleResolver,
   createInMemoryNonceCache,
-  createInMemoryRevocationStore,
   createGracefulShutdown,
   saveConfig,
 } from "@drakkar.software/starfish-server";
@@ -13,16 +12,32 @@ import { identitiesServerPlugin } from "@drakkar.software/starfish-identities";
 import { sharingServerPlugin } from "@drakkar.software/starfish-sharing";
 
 import { config } from "./config.js";
+import { createFileRevocationStore } from "./revocation-store.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const DATA_DIR = process.env.STARFISH_DATA_DIR ?? "./data";
 
+// Comma-separated allowlist (e.g. "https://app.example.com,https://staging.example.com").
+// When empty (dev default) any origin is echoed; when set, only listed origins are allowed.
+const CORS_ALLOW = (process.env.STARFISH_CORS_ORIGINS ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+function allowOrigin(reqOrigin: string | undefined): string {
+  if (CORS_ALLOW.length === 0) return reqOrigin ?? "*"; // permissive dev default
+  if (reqOrigin && CORS_ALLOW.includes(reqOrigin)) return reqOrigin;
+  return CORS_ALLOW[0]; // a non-matching origin → browser blocks the response
+}
+
 const store = new FilesystemObjectStore({ baseDir: DATA_DIR });
 
 // Cap-cert auth: device caps (identities plugin) + member caps (sharing plugin).
+// Nonce cache stays in-memory (replay window is ephemeral by nature); the
+// revocation store is file-backed so revokes survive a restart.
 const roleResolver = createCapCertRoleResolver({
   nonceCache: createInMemoryNonceCache({ windowMs: 5 * 60_000, maxEntries: 100_000 }),
-  revocationStore: createInMemoryRevocationStore(),
+  revocationStore: createFileRevocationStore(`${DATA_DIR}/_revocations.json`),
   allowAnonymous: true, // public-read collections (profile, pairing)
   plugins: [identitiesServerPlugin, sharingServerPlugin],
 });
@@ -37,10 +52,11 @@ await saveConfig(store, config);
 
 const app = new Hono();
 
-// Permissive dev CORS: echo the browser's requested headers on preflight so the
-// cap-cert auth headers (Authorization: Cap, X-Starfish-*) are always allowed.
+// CORS: echo the browser's requested headers on preflight so the cap-cert auth
+// headers (Authorization: Cap, X-Starfish-*) are always allowed. The allowed
+// origin is gated by STARFISH_CORS_ORIGINS (permissive when unset — dev default).
 app.use("*", async (c, next) => {
-  const origin = c.req.header("Origin") ?? "*";
+  const origin = allowOrigin(c.req.header("Origin"));
   if (c.req.method === "OPTIONS") {
     return new Response(null, {
       status: 204,

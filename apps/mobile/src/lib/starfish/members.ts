@@ -14,6 +14,7 @@ import { buildEncryptor, makeClient, reSealRoomAtCurrentEpoch } from './client';
 import type { Session } from './identity';
 import { bytesToHex, keyringName, membersName, membersPull, memberScope, roomIdFromCap } from './paths';
 import { SYNC_BASE } from './config';
+import { kvGet, kvSet } from './kv';
 import { getMemberCap, saveMemberCap } from './member-caps';
 
 function hexToBytes(h: string): Uint8Array {
@@ -111,13 +112,15 @@ async function revokeCap(
   userId: string,
   target: { sub: string; nonce: string; exp: number },
 ): Promise<void> {
-  const key = `octochat-revlist-${userId}`;
+  const key = `octochat.revlist.${userId}`;
   let ledger: { generation: number; revoked: typeof target[] } = { generation: 0, revoked: [] };
-  try {
-    const raw = (globalThis as { localStorage?: Storage }).localStorage?.getItem(key);
-    if (raw) ledger = JSON.parse(raw);
-  } catch {
-    /* fresh */
+  const raw = await kvGet(key);
+  if (raw) {
+    try {
+      ledger = JSON.parse(raw);
+    } catch {
+      /* fresh */
+    }
   }
   const revoked = ledger.revoked.filter((e) => !(e.sub === target.sub && e.nonce === target.nonce));
   revoked.push(target);
@@ -130,7 +133,7 @@ async function revokeCap(
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ ...unsigned, sig: bytesToBase64(sig) }),
     });
-    (globalThis as { localStorage?: Storage }).localStorage?.setItem(key, JSON.stringify({ generation, revoked }));
+    await kvSet(key, JSON.stringify({ generation, revoked }));
   } catch {
     /* best-effort; keyring epoch rotation below is the real lockout */
   }

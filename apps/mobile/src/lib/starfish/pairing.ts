@@ -45,7 +45,9 @@ export async function startDevicePairing(session: Session, pin: string): Promise
   const sealed = await sealWithPassphrase(pin, new TextEncoder().encode(blob));
   const nonce = randomNonce();
   await anonClient().push(`/push/_pairing/${nonce}`, sealed as unknown as Record<string, unknown>, null);
-  return `${PAIR_PREFIX}${nonce}`;
+  // Carry the root pubkey out-of-band in the QR so the new device can pin the
+  // bundle to it (defence in depth on top of the PIN seal).
+  return `${PAIR_PREFIX}${nonce}.${session.keys.edPub}`;
 }
 
 export interface PairResult {
@@ -55,7 +57,8 @@ export interface PairResult {
 
 /** New device: fetch the sealed blob by nonce, open with PIN, validate the bundle. */
 export async function completeDevicePairing(payload: string, pin: string): Promise<PairResult> {
-  const nonce = payload.startsWith(PAIR_PREFIX) ? payload.slice(PAIR_PREFIX.length) : payload.trim();
+  const body = (payload.startsWith(PAIR_PREFIX) ? payload.slice(PAIR_PREFIX.length) : payload).trim();
+  const [nonce, expectedRootEdPub] = body.split('.');
   const res = await anonClient().pull(`/pull/_pairing/${nonce}`).catch(() => null);
   const sealed = res?.data as Record<string, unknown> | undefined;
   if (!sealed || !sealed.v) throw new Error('Pairing code not found or expired.');
@@ -66,9 +69,13 @@ export async function completeDevicePairing(payload: string, pin: string): Promi
     throw new Error('Wrong PIN or corrupted pairing code.');
   }
   const blob = JSON.parse(new TextDecoder().decode(inner)) as { keys: unknown; bundle: unknown };
+  // Pin the bundle to the QR-supplied root pubkey: rejects a bundle minted by a
+  // different root even if the PIN seal were somehow opened by the wrong party.
+  const opts = (expectedRootEdPub ? { expectedRootEdPub } : {}) as Parameters<typeof installPairingBundle>[2];
   const installed = await installPairingBundle(
     blob.bundle as Parameters<typeof installPairingBundle>[0],
     blob.keys as Parameters<typeof installPairingBundle>[1],
+    opts,
   );
   const userId = installed.credentials.userId;
   return { userId, fingerprint: fingerprintFromUserId(userId) };

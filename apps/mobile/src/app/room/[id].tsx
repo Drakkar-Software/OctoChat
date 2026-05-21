@@ -7,6 +7,7 @@ import { useRoom } from '@/lib/use-room';
 import { useTheme } from '@/lib/use-theme';
 import type { RoomKind } from '@/lib/types';
 import { AppBar } from '@/components/ui/AppBar';
+import { Callout } from '@/components/ui/Callout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
@@ -23,7 +24,7 @@ export default function RoomScreen() {
   const name = params.name ?? id;
   const kind = (params.kind ?? 'channel') as RoomKind;
   const { session } = useSession();
-  const { store, opening, openError, send, toggleReaction } = useRoom(id);
+  const { store, opening, openError, syncError, send, toggleReaction } = useRoom(id);
   const title = kind === 'dm' ? name : `#${name}`;
 
   const openThread = (msgId: string) =>
@@ -65,12 +66,19 @@ export default function RoomScreen() {
       ) : openError ? (
         <EmptyState iconName="alert" title="Couldn't open room" subtitle={openError} />
       ) : store ? (
-        <RoomConversation
-          store={store}
-          currentUserId={session.userId}
-          onToggleReaction={toggleReaction}
-          onOpenThread={openThread}
-        />
+        <>
+          {syncError ? (
+            <Callout tone="warning" iconName="alert">
+              {syncError}
+            </Callout>
+          ) : null}
+          <RoomConversation
+            store={store}
+            currentUserId={session.userId}
+            onToggleReaction={toggleReaction}
+            onOpenThread={openThread}
+          />
+        </>
       ) : (
         <EmptyState iconName="globe" title="Connecting…" />
       )}
