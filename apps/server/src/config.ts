@@ -103,6 +103,24 @@ export const config: SyncConfig = {
       maxBodyBytes: 131_072,
       allowedMimeTypes: JSON_ONLY,
     },
+    // Plaintext, cap-only shares — read-only "broadcast" links and read/write
+    // "collaborative" links. NOT end-to-end encrypted: the owner publishes plaintext
+    // JSON here so an outsider can read/write WITHOUT a keyring, a seed, or space
+    // membership. Keyed by a free `{ownerId}`, so access is gated on the synthesized
+    // share:reader/share:writer/share:owner roles from makeShareRoleEnricher (issuer-
+    // bound), NOT a plain cap role — see share-role.ts. `{docId}` is the leaf file
+    // (e.g. `feed`); nothing is stored AT `shared/{ownerId}/{shareId}`, so the
+    // FilesystemObjectStore file-vs-directory collision noted on `attachments` above
+    // can't arise.
+    {
+      name: "shared",
+      storagePath: "shared/{ownerId}/{shareId}/{docId}",
+      readRoles: ["share:reader"],
+      writeRoles: ["share:owner", "share:writer"],
+      encryption: "none",
+      maxBodyBytes: 262_144,
+      allowedMimeTypes: JSON_ONLY,
+    },
     // Anonymous rendezvous slot for QR device pairing.
     {
       name: "pairing",

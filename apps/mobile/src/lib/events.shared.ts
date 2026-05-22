@@ -18,7 +18,7 @@
  * Because chat docs are E2E-encrypted, an event can only carry the roomId (+ doc
  * hash + timestamp) — never a message id or author.
  */
-import { EVENTS_URL } from './starfish/config';
+import { EVENTS_URL, SYNC_BASE } from './starfish/config';
 
 export interface RoomChange {
   roomId: string;
@@ -96,7 +96,17 @@ export function subscribeRoomChanges(
         // Build the URL with the candidate spaces param.
         const eventsUrl = new URL(EVENTS_URL);
         eventsUrl.searchParams.set('spaces', opts.spaces.join(','));
-        const pathAndQuery = eventsUrl.pathname + eventsUrl.search;
+        // Sign the path the SERVER observes: strip SYNC_BASE's mount path (e.g.
+        // "/sync", which nginx rewrites away) so the signed pathAndQuery matches
+        // the server's post-rewrite request path. Mirrors how StarfishClient signs
+        // the endpoint path, not the baseUrl path. (Host is bound from SYNC_BASE in
+        // buildAuthHeaders, so it already agrees with the server's Host header.)
+        const basePath = new URL(SYNC_BASE).pathname.replace(/\/+$/, '');
+        const signedPath =
+          basePath && eventsUrl.pathname.startsWith(basePath)
+            ? eventsUrl.pathname.slice(basePath.length)
+            : eventsUrl.pathname;
+        const pathAndQuery = signedPath + eventsUrl.search;
         // Auth headers are built fresh each attempt (new nonce + timestamp).
         const extraHeaders = await opts.authHeaders('GET', pathAndQuery);
         const res = await fetch(eventsUrl.toString(), {

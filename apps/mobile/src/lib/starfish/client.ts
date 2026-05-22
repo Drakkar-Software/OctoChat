@@ -10,7 +10,7 @@ import { signRequest, stableStringify } from '@drakkar.software/starfish-protoco
 import type { SignableMethod } from '@drakkar.software/starfish-protocol';
 
 import { SYNC_BASE } from './config';
-import { keyringPull, keyringPush, roomPull, roomPush } from './paths';
+import { keyringPull, keyringPush, profilePull, profilePush, roomPull, roomPush } from './paths';
 
 export interface DeviceKeys {
   edPriv: string;
@@ -126,7 +126,7 @@ export interface PublicProfile {
 /** Read any user's public profile — pseudo and the inlined avatar data URI. */
 export async function readProfile(userId: string): Promise<PublicProfile> {
   try {
-    const r = await fetch(`${SYNC_BASE}/pull/user/${userId}/profile`);
+    const r = await fetch(`${SYNC_BASE}${profilePull(userId)}`);
     if (!r.ok) return { pseudo: null, avatar: null };
     const body = await r.json();
     const data = body?.data as { pseudo?: unknown; avatar?: unknown } | undefined;
@@ -155,11 +155,11 @@ export async function writeProfile(
   userId: string,
   patch: { pseudo?: string; avatar?: string | null },
 ): Promise<void> {
-  const current = await client.pull(`/pull/user/${userId}/profile`).catch(() => null);
+  const current = await client.pull(profilePull(userId)).catch(() => null);
   const base = (current?.data as Record<string, unknown> | undefined) ?? {};
   const next: Record<string, unknown> = { ...base, ...patch, v: 1 };
   if (next.avatar == null) delete next.avatar; // null/undefined ⇒ remove the key
-  await client.push(`/push/user/${userId}/profile`, next, current?.hash ?? null);
+  await client.push(profilePush(userId), next, current?.hash ?? null);
 }
 
 /** Write the caller's own profile pseudo, preserving any other profile fields. */

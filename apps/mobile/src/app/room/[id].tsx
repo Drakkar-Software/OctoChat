@@ -37,6 +37,7 @@ export default function RoomScreen() {
     router.push({ pathname: '/thread/[id]', params: { id: msgId, roomId: id, roomName: name } });
   const openMembers = () => router.push({ pathname: '/space/[id]', params: { id: spaceIdFromRoomId(id) } });
   const openSearch = () => router.push('/(tabs)/search');
+  const openShare = () => router.push({ pathname: '/broadcast', params: { roomId: id, name } });
 
   return (
     <StackScreen
@@ -48,12 +49,13 @@ export default function RoomScreen() {
           right={
             <>
               <IconButton name="search" accessibilityLabel="Search in room" onPress={openSearch} />
+              <IconButton name="link" accessibilityLabel="Share as link" onPress={openShare} />
               <IconButton name="people" accessibilityLabel="Members" onPress={openMembers} />
             </>
           }
         />
       }
-      desktopHeader={<DesktopChatTopbar name={name} kind={kind} onSearch={openSearch} />}
+      desktopHeader={<DesktopChatTopbar name={name} kind={kind} onSearch={openSearch} onShare={openShare} />}
       footer={
         <Composer
           placeholder={`Message ${title}`}
