@@ -16,7 +16,7 @@ import { colors } from '@/theme';
 import { useAppFonts } from '@/lib/use-app-fonts';
 import { AppFrame } from '@/components/ui/AppFrame';
 
-// Install platform crypto (no-op on web; quick-crypto polyfill on native).
+// Install platform crypto (no-op on web; quick-crypto install() on native).
 configureStarfishPlatform();
 
 // Keep the native splash up until our fonts are ready (must run at module top).

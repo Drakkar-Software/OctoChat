@@ -1,8 +1,8 @@
 /**
  * Platform crypto setup. Web (and Node) expose WebCrypto on globalThis, so the
  * crypto provider needs no configuration; the native variant
- * (platform.native.ts) installs the react-native-quick-crypto polyfill. Import
- * for its side effect before any other starfish call.
+ * (platform.native.ts) installs react-native-quick-crypto via its install().
+ * Call before any other starfish call.
  */
 import { configurePlatform } from '@drakkar.software/starfish-protocol';
 
