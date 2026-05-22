@@ -31,7 +31,7 @@ export const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
  */
 export const UPDATE_BASE: string =
   (process.env['OCTOCHAT_UPDATE_URL'] as string | undefined) ??
-  'https://octochat.octobot.workers.dev';
+  'https://oc.drakkar.software';
 
 /** Root directory under userData where downloaded bundle versions are stored. */
 export function updatesRoot(): string {
