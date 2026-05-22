@@ -18,12 +18,12 @@
   "devDependencies": {
     "@octochat/tsconfig": "workspace:*",
     "@types/node": "^22.10.0",
-    "concurrently": "^9.1.0",
-    "cross-env": "^7.0.3",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
     "electron": "^42.0.0",
-    "electron-builder": "^25.1.8",
+    "electron-builder": "^26.8.1",
     "tsup": "^8.3.5",
-    "typescript": "~5.9.2",
-    "wait-on": "^8.0.1"
+    "typescript": "~6.0.3",
+    "wait-on": "^9.0.10"
   }
 }

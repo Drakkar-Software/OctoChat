@@ -1,8 +1,8 @@
 {
   "extends": "@octochat/tsconfig/base.json",
   "compilerOptions": {
-    "module": "CommonJS",
-    "moduleResolution": "Node",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
     "target": "ES2022",
     "lib": ["ES2022", "DOM"],
     "types": ["node", "electron"],
