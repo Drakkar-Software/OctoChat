@@ -1,180 +1,133 @@
-# Server-side SSE via NATS + Whistlers — implementation plan
+# Server-side SSE via NATS + Whistlers
 
-> **Status: plan (not implemented).** Wires the existing SSE-driven frontend to a
-> real delivery path: the OctoChat Starfish server publishes chat change-events
-> to **NATS**; **Whistlers** (`@drakkar.software/whistlers`) consumes NATS and
-> serves them to clients as **SSE**. The frontend already consumes SSE
-> (`apps/mobile/src/lib/events.ts`); today its `/events` endpoint doesn't exist.
+Real-time delivery path for chat change notifications. The OctoChat Starfish
+server publishes chat change-events to **NATS**; **Whistlers**
+(`@drakkar.software/whistlers`) consumes NATS and serves them as **SSE**;
+an authenticated proxy on the Starfish server gates the stream per-caller.
 
 ## Architecture
 
 ```
 client push ─▶ Starfish server (apps/server, Hono :8787)
-                   │  afterWrite (queuing plugin, "chat" collection only)
+                   │  afterWrite — queuing plugin, "chat" collection only
+                   │  subject: octochat.chat.changed.<spaceId>
                    ▼
-                 NATS  (subject: octochat.chat.changed)   :4222
+                 NATS                                          :4222
                    │
                    ▼
-               Whistlers  (NatsQueueAdapter → SSEDestination)  :8080 /events
-                   │  text/event-stream
+               Whistlers  (NatsQueueAdapter → SSEDestination) :8080/events
+               namespace "octochat" → topic:
+               octochat-octochat-chat-changed-<spaceId>
+                   │  text/event-stream (internal, not client-facing)
                    ▼
-            OctoChat clients (EventSource → unread counts)
+            Starfish /events proxy (events.ts)
+               • verifies cap-cert + Ed25519 request signature
+               • validates caller membership for each ?spaces= id
+               • reconstructs namespaced ?topic= filters server-side
+               • proxies only the authorized topics upstream
+                   │
+                   ▼
+            OctoChat clients (fetch SSE → unread counts / live messages)
 ```
 
-Three deployables: **Starfish server**, **NATS**, **Whistlers**. Only the
-Starfish server needs code; NATS + Whistlers are configured/deployed; the
-frontend gets a one-line URL change.
-
-Event payload (E2E constraint): the queuing plugin can only publish
-`{ collection:"chat", hash, timestamp, params:{ spaceId, roomId } }` — never
-message content/author. Counts are per-room; "not my own" stays handled
-client-side (the open room isn't counted).
+Three deployables: **Starfish server** (`:8787`), **NATS** (`:4222`),
+**Whistlers** (`:8080`). Clients connect to the Starfish server only; the
+internal Whistlers endpoint is never exposed directly.
 
 ---
 
-## Component 1 — Starfish server → NATS (`apps/server`, code)
+## Dev setup
 
-1. **Deps** (`apps/server/package.json`): add
-   `@drakkar.software/starfish-queuing` as a `link:` to
-   `../../../../Drakkar-Software/satellite/packages/ts/queuing` (mirrors the
-   existing `starfish-*` links) and `@nats-io/transport-node` (nats.js v3 — the
-   same client Whistlers 0.4.1 uses).
+### 1. NATS
 
-2. **`apps/server/src/queue.ts` (new)** — NATS transport via `CustomQueue` (TS has
-   no built-in NATS backend):
-   ```ts
-   import { connect, type NatsConnection } from "@nats-io/transport-node";
-   import { CustomQueue, type Queue } from "@drakkar.software/starfish-queuing";
+```
+docker compose up nats
+```
 
-   export async function createNatsQueue(): Promise<{ queue: Queue; nc: NatsConnection | null }> {
-     const url = process.env.NATS_URL;
-     if (!url) { // dev: run without NATS
-       console.warn("[OctoChat] NATS_URL unset — chat change-events disabled.");
-       return { queue: new CustomQueue({ onPublish: () => {} }), nc: null };
-     }
-     const nc = await connect({ servers: url });
-     const queue = new CustomQueue({ onPublish: (subject, payload) => { nc.publish(subject, payload); } });
-     return { queue, nc };
-   }
-   ```
+Or keep it running via the full `docker compose up`.
 
-3. **`apps/server/src/index.ts`** — register the plugin on the **sync router**
-   (NOT the role resolver — `identitiesServerPlugin`/`sharingServerPlugin` stay in
-   `createCapCertRoleResolver` where they already are):
-   ```ts
-   const { queue, nc } = await createNatsQueue();
-   const queuing = createQueuingServerPlugin({
-     queue,
-     collections: { chat: { topic: "octochat.chat.changed", includeParams: true } },
-   });
+### 2. Whistlers (SSE gateway)
 
-   const syncRouter = createSyncRouter({
-     store, config, roleResolver,
-     roleEnricher: makeSpaceRoleEnricher(store),
-     plugins: [queuing],                 // ← add
-   });
-   // …
-   createGracefulShutdown({ plugins: [queuing] });  // ← was () ; runs queue.close()
-   // also drain NATS on shutdown: await nc?.drain()
-   ```
-   Publish **only `chat`** (keyring/registry/profile writes stay quiet).
-   `includeParams:true`, `includeBody:false`.
+Whistlers ships as an npm package. A custom launcher (`infra/whistlers-sse.mjs`)
+wraps it with CORS headers (needed because the browser app on :8081 connects
+cross-origin to :8080 in dev, whereas the prod path goes through the Starfish
+proxy).
 
-> **Optional (multi-tenant hardening):** instead of one static subject, derive a
-> per-space subject in `onPublish` (parse the JSON, publish to
-> `octochat.chat.<spaceId>`). Lets Whistlers/clients subscribe per space. Skip
-> for a single-tenant POC.
+```
+QUEUE_URL=nats://localhost:4222 node infra/whistlers-sse.mjs
+```
 
----
+> **Restart required.** Whistlers loads `infra/whistlers.config.json` and the
+> npm package **once at startup** — it does not watch for changes. Restart the
+> process any time you change the config file or update the package.
 
-## Component 2 — NATS + Whistlers (deploy/config, no code)
+Config lives at `infra/whistlers.config.json` (mounted into the Docker service
+as `/etc/whistlers/config.json`):
 
-Whistlers ships a stock CLI/Docker server (`@drakkar.software/whistlers`,
-`bin/server.ts`) driven by env + a JSON config — no code needed.
-
-**`infra/whistlers.config.json`:**
 ```json
 {
   "version": 1,
-  "subscriptions": [
-    { "name": "octochat-chat", "topics": ["octochat.chat.changed"], "destinationTopic": "octochat-chat" }
-  ]
+  "subscriptions": [],
+  "namespaces": {
+    "octochat": {
+      "subscriptions": [
+        { "name": "octochat-chat", "topics": ["octochat.chat.changed.*"] }
+      ]
+    }
+  }
 }
 ```
 
-**`docker-compose.yml` (dev):**
-```yaml
-services:
-  nats:
-    image: nats:2
-    ports: ["4222:4222"]
-  whistlers:
-    image: ghcr.io/drakkar-software/whistlers:latest   # or build from the repo
-    depends_on: [nats]
-    environment:
-      QUEUE_TYPE: nats
-      QUEUE_URL: nats://nats:4222
-      DESTINATION_TYPE: sse
-      SSE_PORT: "8080"
-      SSE_PATH: /events
-    ports: ["8080:8080"]
-    volumes: ["./infra/whistlers.config.json:/etc/whistlers/config.json:ro"]
+The `octochat` namespace prefixes every destination topic with `octochat-`,
+producing `octochat-octochat-chat-changed-<spaceId>`. The Starfish proxy
+(`apps/server/src/events.ts`, constant `WHISTLERS_NAMESPACE`) reconstructs the
+same prefix when building `?topic=` filters — the two must stay in sync.
+
+### 3. Starfish server
+
 ```
-Run the Starfish server with `NATS_URL=nats://localhost:4222`. (Prod: Whistlers
-has an Ansible/systemd role; same env.)
+NATS_URL=nats://localhost:4222 pnpm --filter @octochat/server dev
+```
 
-**SSE payload shape:** Whistlers' default SSE `data:` is an envelope
-`{ topic, sourceTopic, notification, data, rawPayload }` — the Starfish
-`QueueMessage` lands under **`rawPayload`** (`rawPayload.params.roomId`). Handled
-in Component 3 by making the parser tolerant.
-
----
-
-## Component 3 — Point the frontend SSE client at Whistlers (`apps/mobile`)
-
-The SSE endpoint now lives on Whistlers (`:8080`), not the Starfish server.
-
-1. **`src/lib/starfish/config.ts`** — add:
-   ```ts
-   export const EVENTS_URL = process.env.EXPO_PUBLIC_EVENTS_URL ?? "http://localhost:8080/events";
-   ```
-2. **`src/lib/events.ts` / `events.native.ts`** — connect to `EVENTS_URL`
-   (instead of `${SYNC_BASE}/events`).
-3. **`src/lib/events.shared.ts` `parseRoomChange`** — accept both the Whistlers
-   envelope and a raw `QueueMessage`:
-   ```ts
-   const d = JSON.parse(data);
-   const params = d.params ?? d.rawPayload?.params;   // raw OR Whistlers envelope
-   const roomId = params?.roomId;
-   ```
-   Everything downstream (unread counts, badges, notifications screen) is
-   unchanged.
-
-> **Optional:** connect to `/events?topic=octochat-chat` to filter at the
-> gateway (Whistlers sanitizes `destinationTopic`), and/or use per-space subjects
-> from Component 1's hardening note.
-
----
-
-## Optional follow-on — open-room live messages over SSE
-
-`useRoom` still pulls the open room every 4 s for live messages. Once SSE is
-live, replace that timer with a pull triggered by an SSE event for the open room
-(`event.roomId === roomId → store.pull()`), completing "rely on SSE, never poll."
-Scoped separately — confirm before doing it.
+With `NATS_URL` unset the server boots normally; chat events are silently
+dropped (no-op queue).
 
 ---
 
 ## Verification
 
-1. `docker compose up` (NATS + Whistlers); start the Starfish server with
-   `NATS_URL=nats://localhost:4222`.
-2. `nats sub "octochat.chat.>"` → send a message in the app → one
-   `{collection:"chat",…,params:{spaceId,roomId}}` per push; none on keyring/registry writes.
-3. `curl -N "http://localhost:8080/events"` → see `data: {…}` frames + `:keep-alive`.
-4. In the app (second identity/tab), a message to a room you're not viewing
-   increments that room's badge, its space monogram, the bell, and the tab badge;
-   your own open room doesn't increment; counts persist across reload.
-5. With `NATS_URL` unset the Starfish server still boots (no-op queue).
-6. `pnpm typecheck` clean.
-```
+1. Start all three: NATS, Whistlers, Starfish server (see above).
+
+2. Confirm Whistlers subscribes and emits:
+   ```
+   # terminal 1 — subscribe (should stream a namespaced event)
+   curl -N "http://localhost:8080/events?topic=octochat-octochat-chat-changed-sp-<id>"
+
+   # terminal 2 — publish a fake NATS message
+   node -e "
+   import('@nats-io/transport-node').then(async ({connect}) => {
+     const nc = await connect({ servers: 'nats://localhost:4222' });
+     nc.publish('octochat.chat.changed.sp-<id>',
+       new TextEncoder().encode(JSON.stringify({spaceId:'sp-<id>',roomId:'room-x'})));
+     await nc.drain();
+   });"
+   ```
+   Expect a `data: {"topic":"octochat-octochat-chat-changed-sp-<id>", ...}` frame.
+
+3. In the app (two tabs / identities): send a message to a room you are not
+   viewing → the unread badge increments; your own open room does not increment;
+   counts survive a reload.
+
+4. `pnpm typecheck` clean.
+
+---
+
+## Whistlers package
+
+`@drakkar.software/whistlers` is declared as a root-level npm dependency
+(`package.json`) so Node can resolve it from `infra/whistlers-sse.mjs`. With
+pnpm's `nodeLinker: hoisted` it lands in root `node_modules` alongside its
+transitive deps (including `@nats-io/transport-node`).
+
+To test local Whistlers changes against OctoChat, use `pnpm link` instead of
+editing the hardcoded path — the path-based approach was intentionally removed.
