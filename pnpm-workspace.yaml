@@ -10,4 +10,20 @@ nodeLinker: hoisted
 # electron (the runtime) and esbuild (used by tsup to build main/preload).
 onlyBuiltDependencies:
   - electron
+  - electron-winstaller
   - esbuild
+  - msgpackr-extract
+
+# electron-builder pulls two incompatible yallist majors: `tar@7` needs
+# yallist@5 (ESM `{ Yallist }`) and `hosted-git-info@4`'s `lru-cache@6` needs
+# yallist@4 (CJS default `new Yallist()`). In flat-hoisted mode only one yallist
+# can sit at the node_modules root, so Node's directory-walk handed v5 to
+# lru-cache@6 → "Yallist is not a constructor" during `electron-builder`.
+# hosted-git-info@4.1.0 only uses `new LRU({max})` + has/set/get, so we point its
+# sole lru-cache@6 at lru-cache@7 — the last line that is BOTH zero-dependency
+# (no yallist, so no constructor-walk crash) AND keeps the default constructor
+# export `module.exports = LRUCache` that `new LRU()` needs. v9+ switched to a
+# named-only `{ LRUCache }` export which breaks `const LRU = require('lru-cache')`.
+# This drops the yallist@4 requirement entirely, leaving just tar's yallist@5.
+overrides:
+  "hosted-git-info@4>lru-cache": "^7.18.3"
