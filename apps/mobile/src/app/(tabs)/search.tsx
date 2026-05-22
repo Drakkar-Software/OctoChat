@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { LegendList } from '@legendapp/list/react-native';
 
 import { spacing } from '@/theme';
@@ -54,7 +54,7 @@ export default function SearchScreen() {
         <LegendList
           style={styles.flex}
           contentContainerStyle={styles.list}
-          keyboardShouldPersistTaps="handled"
+          {...(Platform.OS !== 'web' && { keyboardShouldPersistTaps: 'handled' })}
           data={results}
           keyExtractor={(r) => r.room.id + r.msg.id}
           estimatedItemSize={88}
