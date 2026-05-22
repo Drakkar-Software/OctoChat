@@ -2,8 +2,10 @@
 
 Universal (web + native) **Expo** app for **OctoChat**, an end-to-end-encrypted
 team chat (Slack/Mattermost-style) with a marine/subaquatic theme and an octopus
-mark. Built from the exported Claude Design wireframes; currently a
-**frontend-only** build driven by placeholder data (no backend / crypto yet).
+mark. Built from the exported Claude Design wireframes and now **wired to a live
+backend**: it syncs against a **Starfish** server (default `http://localhost:8787`,
+override with `EXPO_PUBLIC_STARFISH_URL`) over REST + SSE, with real end-to-end
+encryption (BIP-39 seed → Ed25519/Kyber keys → per-room keyrings).
 
 ## Layout
 
@@ -14,10 +16,11 @@ mark. Built from the exported Claude Design wireframes; currently a
 
 pnpm workspace. `pnpm-workspace.yaml` sets `nodeLinker: hoisted` because React
 Native / Metro resolve dependencies best with a flat `node_modules`
-(see https://docs.expo.dev/guides/monorepos/). `apps/mobile/metro.config.js`
-extends the SDK 56 default to watch the sibling satellite repo (for the
-`@drakkar.software/starfish-*` `link:` deps), enable package `exports`, and
-block the Node-only `apps/server` from the app bundle.
+(see https://docs.expo.dev/guides/monorepos/). The
+`@drakkar.software/starfish-*` SDK is consumed as pinned npm deps
+(`3.0.0-alpha.0`). `apps/mobile/metro.config.js` extends the SDK 56 default to
+watch the workspace root, enable package `exports`, and block the Node-only
+`apps/server` from the app bundle.
 
 ## Commands
 

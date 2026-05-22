@@ -10,11 +10,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@drakkar.software/starfish-server": "link:../../../../Drakkar-Software/satellite/packages/ts/server",
-    "@drakkar.software/starfish-identities": "link:../../../../Drakkar-Software/satellite/packages/ts/identities",
-    "@drakkar.software/starfish-sharing": "link:../../../../Drakkar-Software/satellite/packages/ts/sharing",
-    "@drakkar.software/starfish-protocol": "link:../../../../Drakkar-Software/satellite/packages/ts/protocol",
-    "@drakkar.software/starfish-queuing": "link:../../../../Drakkar-Software/satellite/packages/ts/queuing",
+    "@drakkar.software/starfish-server": "3.0.0-alpha.0",
+    "@drakkar.software/starfish-identities": "3.0.0-alpha.0",
+    "@drakkar.software/starfish-sharing": "3.0.0-alpha.0",
+    "@drakkar.software/starfish-protocol": "3.0.0-alpha.0",
+    "@drakkar.software/starfish-queuing": "3.0.0-alpha.0",
     "@nats-io/transport-node": "^3.4.0",
     "@hono/node-server": "^1.13.0",
     "hono": "^4.12.7"

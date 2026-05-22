@@ -7,9 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "octochat",
     "userInterfaceStyle": "automatic",
-    "ios": {
-      "icon": "./assets/expo.icon"
-    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -34,6 +31,8 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#0b151c",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76,
           "android": {
             "image": "./assets/images/splash-icon.png",
             "imageWidth": 76

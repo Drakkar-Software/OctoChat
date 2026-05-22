@@ -94,6 +94,20 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
           initial = {};
         }
       }
+      // Drop unread for spaces the user has left: leaving removes the space from
+      // the registry but not its rooms' counts, and those orphans would inflate
+      // the Activity counter forever (no tile/row can clear them). Gated on a
+      // loaded, non-empty space set so a pre-load empty set never wipes live counts.
+      if (spaceIds.length > 0) {
+        const live = new Set(spaceIds);
+        const pruned = Object.fromEntries(
+          Object.entries(initial).filter(([roomId]) => live.has(spaceIdFromRoomId(roomId))),
+        );
+        if (Object.keys(pruned).length !== Object.keys(initial).length) {
+          initial = pruned;
+          void kvSet(persistKey(userId), JSON.stringify(pruned));
+        }
+      }
       mapRef.current = initial;
       setUnreadByRoom(initial);
 
@@ -154,9 +168,12 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
     return m;
   }, [unreadByRoom]);
 
+  // Sum only over spaces the user is currently in — the same set the space tiles
+  // render — so the Activity bell / tab badge can't be stuck above zero by orphan
+  // counts from spaces that are no longer in the registry.
   const totalUnread = useMemo(
-    () => Object.values(unreadByRoom).reduce((a, b) => a + b, 0),
-    [unreadByRoom],
+    () => spaceIds.reduce((n, sid) => n + (unreadBySpace[sid] ?? 0), 0),
+    [unreadBySpace, spaceIds],
   );
 
   // Mirror the unread total on the desktop dock / taskbar badge. No-op on

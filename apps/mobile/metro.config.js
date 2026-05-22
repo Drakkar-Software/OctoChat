@@ -1,24 +1,21 @@
 // Metro config for the OctoChat monorepo.
 //
-// The @drakkar.software/starfish-* packages are consumed via pnpm `link:` from
-// the sibling satellite repo (v3 isn't on npm). Metro must therefore watch that
-// repo and resolve its node_modules so the linked packages and their transitive
-// `workspace:*` deps load. Package `exports` is enabled for the `/zustand` subpath.
+// The @drakkar.software/starfish-* packages are consumed as pinned npm
+// dependencies, so Metro only needs to watch the workspace root. Package
+// `exports` is enabled for the `/zustand` subpath.
 const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
 
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, '../..');
-const satelliteRoot = path.resolve(workspaceRoot, '../../Drakkar-Software/satellite');
 
 const config = getDefaultConfig(projectRoot);
 
-config.watchFolders = [workspaceRoot, satelliteRoot];
+config.watchFolders = [workspaceRoot];
 
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
-  path.resolve(satelliteRoot, 'node_modules'),
 ];
 
 config.resolver.unstable_enablePackageExports = true;
