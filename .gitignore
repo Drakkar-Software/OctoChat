@@ -42,3 +42,6 @@ ios/
 android/
 
 # @generated: expo-router/dev
+*.apk
+*.ipa
+*.tar.gz

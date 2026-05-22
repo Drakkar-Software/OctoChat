@@ -1,4 +1,5 @@
-import { View } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { LegendList } from '@legendapp/list/react-native';
 import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 
 import { authorFor, displayName, toDisplayMessage, type StoredMsg } from '@/lib/message-view';
@@ -10,7 +11,16 @@ import { useAvatars, usePseudos } from '@/lib/use-pseudos';
 import { DateDivider } from './Dividers';
 import { MessageGroup } from './MessageGroup';
 
-/** Live, decrypted top-level message stream with reactions + thread entry points. */
+/** Rough message-row height; only a virtualization hint before measurement. */
+const ESTIMATED_ROW_HEIGHT = 80;
+
+/**
+ * Live, decrypted top-level message stream with reactions + thread entry points.
+ * Renders through a virtualized {@link LegendList} that opens on the newest
+ * message (`initialScrollAtEnd`) and keeps following new ones near the bottom
+ * (`maintainScrollAtEnd`). `recycleItems` stays off because {@link MessageGroup}
+ * holds per-row hover state.
+ */
 export function RoomConversation({
   store,
   currentUserId,
@@ -34,13 +44,22 @@ export function RoomConversation({
   const nameFor = (userId: string) => displayName(userId, currentUserId, pseudo(userId));
 
   return (
-    <View>
-      <DateDivider date="Today" />
-      {top.map((m) => {
+    <LegendList
+      style={styles.list}
+      data={top}
+      keyExtractor={(m) => m.id}
+      recycleItems={false}
+      estimatedItemSize={ESTIMATED_ROW_HEIGHT}
+      ListHeaderComponent={<DateDivider date="Today" />}
+      initialScrollAtEnd
+      alignItemsAtEnd
+      maintainScrollAtEnd
+      maintainScrollAtEndThreshold={0.1}
+      maintainVisibleContentPosition
+      renderItem={({ item: m }) => {
         const rc = replyCount(messages, m.id);
         return (
           <MessageGroup
-            key={m.id}
             message={toDisplayMessage(m, reactions, currentUserId, rc || undefined)}
             author={authorFor(m.authorId, currentUserId, pseudo(m.authorId), avatar(m.authorId))}
             nameFor={nameFor}
@@ -49,7 +68,11 @@ export function RoomConversation({
             onLoadAttachment={onLoadAttachment}
           />
         );
-      })}
-    </View>
+      }}
+    />
   );
 }
+
+const styles = StyleSheet.create({
+  list: { flex: 1 },
+});

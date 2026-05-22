@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { LegendList } from '@legendapp/list/react-native';
 
 import { spacing } from '@/theme';
 import type { Room, Space } from '@/lib/types';
@@ -64,11 +65,20 @@ export function ActivityFeed({ spaceId }: { spaceId: string | null }) {
           </Txt>
         </Pressable>
       </View>
-      <ScrollView style={styles.flex} contentContainerStyle={styles.list}>
-        {sections.map((s) => (
-          <SpaceSection key={s.id} space={s} onOpen={open} />
-        ))}
-      </ScrollView>
+      {/* Virtualized at the space-section grain: each SpaceSection lazy-loads its
+          own rooms via useRooms, so we list the spaces rather than a flattened
+          SectionList. recycleItems stays off because that per-section hook holds
+          async state (mirrors RoomConversation); a separator stands in for the
+          container `gap` a virtualized list ignores. */}
+      <LegendList
+        style={styles.flex}
+        contentContainerStyle={styles.list}
+        data={sections}
+        keyExtractor={(s) => s.id}
+        estimatedItemSize={140}
+        ItemSeparatorComponent={Separator}
+        renderItem={({ item: s }) => <SpaceSection space={s} onOpen={open} />}
+      />
     </View>
   );
 }
@@ -90,9 +100,13 @@ function SpaceSection({ space, onOpen }: { space: Space; onOpen: (r: Room) => vo
   );
 }
 
+/** Spacer between space sections — the virtualized list can't honor the container `gap`. */
+const Separator = () => <View style={styles.gap} />;
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'flex-end', paddingBottom: spacing.sm },
-  list: { gap: spacing.md, paddingBottom: 96 },
+  list: { paddingBottom: 96 },
+  gap: { height: spacing.md },
   section: { gap: spacing.xs },
 });

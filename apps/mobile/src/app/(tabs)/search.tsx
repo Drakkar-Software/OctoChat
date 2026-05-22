@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { ScrollView, StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { LegendList } from '@legendapp/list/react-native';
 
 import { spacing } from '@/theme';
 import type { CrossRoomMessage } from '@/lib/cross-room';
@@ -47,24 +48,32 @@ export default function SearchScreen() {
       ) : results.length === 0 ? (
         <EmptyState iconName="search" title="No matches" subtitle={`Nothing for “${query.trim()}”.`} />
       ) : (
-        <ScrollView style={styles.flex} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
-          {results.map((r) => (
-            <MessageResult
-              key={r.room.id + r.msg.id}
-              room={r.room}
-              msg={r.msg}
-              currentUserId={session.userId}
-              onPress={() => open(r)}
-            />
-          ))}
-        </ScrollView>
+        // Virtualized via LegendList. recycleItems stays off because MessageResult
+        // holds per-row hover state (mirrors RoomConversation), and a separator
+        // reproduces the old container `gap` that a virtualized list ignores.
+        <LegendList
+          style={styles.flex}
+          contentContainerStyle={styles.list}
+          keyboardShouldPersistTaps="handled"
+          data={results}
+          keyExtractor={(r) => r.room.id + r.msg.id}
+          estimatedItemSize={88}
+          ItemSeparatorComponent={Separator}
+          renderItem={({ item: r }) => (
+            <MessageResult room={r.room} msg={r.msg} currentUserId={session.userId} onPress={() => open(r)} />
+          )}
+        />
       )}
     </StackScreen>
   );
 }
 
+/** Spacer between results — the virtualized list can't honor the container `gap`. */
+const Separator = () => <View style={styles.gap} />;
+
 const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.screenX, paddingTop: spacing.md, gap: spacing.md },
   flex: { flex: 1 },
-  list: { gap: spacing.sm, paddingBottom: 96 },
+  list: { paddingBottom: 96 },
+  gap: { height: spacing.sm },
 });

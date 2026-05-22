@@ -14,8 +14,10 @@ mark. Built from the exported Claude Design wireframes; currently a
 
 pnpm workspace. `pnpm-workspace.yaml` sets `nodeLinker: hoisted` because React
 Native / Metro resolve dependencies best with a flat `node_modules`
-(see https://docs.expo.dev/guides/monorepos/). Expo SDK 56 needs **no** custom
-`metro.config.js` for monorepos — its built-in config handles it.
+(see https://docs.expo.dev/guides/monorepos/). `apps/mobile/metro.config.js`
+extends the SDK 56 default to watch the sibling satellite repo (for the
+`@drakkar.software/starfish-*` `link:` deps), enable package `exports`, and
+block the Node-only `apps/server` from the app bundle.
 
 ## Commands
 

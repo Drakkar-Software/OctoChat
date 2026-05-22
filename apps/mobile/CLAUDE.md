@@ -59,3 +59,11 @@ Non-negotiable. Follow these for every change:
 
 - `pnpm web` / `pnpm start` / `pnpm ios` / `pnpm android`
 - `pnpm typecheck`
+
+## OTA updates (EAS Update)
+
+- `expo-updates` is wired to EAS Update (`app.json` `updates.url` → `u.expo.dev`,
+  `runtimeVersion.policy: appVersion`; channels set per profile in `eas.json`).
+- Publish: `eas update --channel <development|preview|production> --message "…"`.
+- `appVersion` policy: bump `version` in `app.json` when native deps change, or
+  OTA updates won't reach existing builds.

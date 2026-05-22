@@ -40,7 +40,6 @@ export default function RoomScreen() {
 
   return (
     <StackScreen
-      scroll
       contentStyle={styles.content}
       header={
         <AppBar
