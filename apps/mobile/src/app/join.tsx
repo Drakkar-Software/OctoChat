@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { router } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { acceptSpaceInvite, makeJoinRequest } from '@/lib/starfish/members';
+import { decodePublicInvite, joinPublicSpace } from '@/lib/starfish/pubspace';
 import { useSession } from '@/lib/session-context';
 import { useSpaces } from '@/lib/use-spaces';
 import { AppBar } from '@/components/ui/AppBar';
@@ -15,6 +16,14 @@ import { StackScreen } from '@/components/ui/StackScreen';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
+type SpaceType = 'private' | 'public';
+
+/** Read an invitation-link fragment (`/join#<token>`) on web; empty otherwise. */
+function inviteFragment(): string {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return '';
+  return window.location.hash ?? '';
+}
+
 export default function JoinScreen() {
   const { session } = useSession();
   const { createSpace } = useSpaces();
@@ -23,43 +32,99 @@ export default function JoinScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [spaceName, setSpaceName] = useState('');
+  const [spaceType, setSpaceType] = useState<SpaceType>('private');
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
+
+  const enterSpace = (spaceId: string) =>
+    router.replace({ pathname: '/room/[id]', params: { id: `${spaceId}-general`, name: 'general', kind: 'channel' } });
 
   const makeSpace = async () => {
     if (!session || creating) return;
     setCreating(true);
     setCreateErr(null);
     try {
-      const space = await createSpace(spaceName);
+      const space = await createSpace(spaceName, spaceType);
       if (!space) throw new Error('Could not create space.');
       setSpaceName('');
-      router.replace({ pathname: '/room/[id]', params: { id: `${space.id}-general`, name: 'general', kind: 'channel' } });
+      enterSpace(space.id);
     } catch (e) {
       setCreateErr(String((e as Error)?.message ?? e));
       setCreating(false);
     }
   };
 
-  const join = async () => {
+  /** Accept either a PRIVATE invite cap (JSON) or a PUBLIC invitation link/token. */
+  const join = async (raw: string) => {
     if (!session || busy) return;
+    const text = raw.trim();
+    if (!text) return;
     setBusy(true);
     setError(null);
     try {
-      const space = await acceptSpaceInvite(session, invite.trim());
-      router.replace({ pathname: '/room/[id]', params: { id: `${space.id}-general`, name: 'general', kind: 'channel' } });
+      // A public invite link carries its token in a `#…` fragment; a private invite
+      // is a JSON cap bundle. Branch on the fragment.
+      if (text.includes('#')) {
+        const space = await joinPublicSpace(session, decodePublicInvite(text.slice(text.indexOf('#'))));
+        enterSpace(space.id);
+      } else {
+        const space = await acceptSpaceInvite(session, text);
+        enterSpace(space.id);
+      }
     } catch (e) {
       setError(String((e as Error)?.message ?? e));
       setBusy(false);
     }
   };
 
+  // Opening an invitation link (`/join#<token>`) auto-joins the public space, then
+  // clears the credential from the URL. Waits for a session (needed to register it).
+  useEffect(() => {
+    const frag = inviteFragment();
+    if (!frag || frag === '#' || !session) return;
+    void (async () => {
+      try {
+        const space = await joinPublicSpace(session, decodePublicInvite(frag));
+        if (typeof window !== 'undefined') {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+        enterSpace(space.id);
+      } catch (e) {
+        setError(String((e as Error)?.message ?? e));
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
   return (
     <StackScreen scroll contentStyle={styles.content} header={<AppBar title="Join or create" onBack={() => router.back()} />}>
       <Card title="CREATE A SPACE">
+        <View style={styles.typeRow}>
+          <Button
+            label="Private"
+            variant={spaceType === 'private' ? 'primary' : 'secondary'}
+            size="sm"
+            iconName="lock"
+            onPress={() => setSpaceType('private')}
+          />
+          <Button
+            label="Public"
+            variant={spaceType === 'public' ? 'primary' : 'secondary'}
+            size="sm"
+            iconName="globe"
+            onPress={() => setSpaceType('public')}
+          />
+        </View>
         <Txt variant="footnote" tone="inkSoft">
-          Start a new space with its own channels. You’ll be its owner.
+          {spaceType === 'private'
+            ? 'End-to-end encrypted. Members join by encrypted invite. You’ll be its owner.'
+            : 'Plaintext — anyone with the invitation link can read (or, with a read/write link, post). You’ll be its owner.'}
         </Txt>
+        {spaceType === 'public' ? (
+          <Callout tone="warning" iconName="unlock" title="Not end-to-end encrypted">
+            A public space is stored as plaintext the server can read. Don’t use it for anything sensitive.
+          </Callout>
+        ) : null}
         <TextField
           value={spaceName}
           onChangeText={setSpaceName}
@@ -69,7 +134,13 @@ export default function JoinScreen() {
           onSubmitEditing={makeSpace}
           returnKeyType="go"
         />
-        <Button label={creating ? 'Creating…' : 'Create space'} variant="primary" size="md" disabled={creating} onPress={makeSpace} />
+        <Button
+          label={creating ? 'Creating…' : spaceType === 'public' ? 'Create public space' : 'Create space'}
+          variant="primary"
+          size="md"
+          disabled={creating}
+          onPress={makeSpace}
+        />
         {createErr ? (
           <Callout tone="danger" iconName="alert">
             {createErr}
@@ -79,22 +150,25 @@ export default function JoinScreen() {
 
       <Card title="YOUR JOIN REQUEST">
         <Txt variant="footnote" tone="inkSoft">
-          Send this to a space owner so they can invite you.
+          For private spaces: send this to an owner so they can invite you.
         </Txt>
         <CopyField value={myRequest} copyLabel="Copy join request" />
       </Card>
 
       <Card title="PASTE AN INVITE">
+        <Txt variant="footnote" tone="inkSoft">
+          Paste a private invite cap, or a public space’s invitation link.
+        </Txt>
         <TextField
           value={invite}
           onChangeText={setInvite}
-          placeholder="Paste invite cap…"
+          placeholder="Paste invite cap or link…"
           multiline
           mono
           autoCapitalize="none"
           autoCorrect={false}
         />
-        <Button label={busy ? 'Joining…' : 'Join space'} variant="primary" size="md" disabled={busy} onPress={join} />
+        <Button label={busy ? 'Joining…' : 'Join space'} variant="primary" size="md" disabled={busy} onPress={() => join(invite)} />
         {error ? (
           <Callout tone="danger" iconName="alert">
             {error}
@@ -107,4 +181,5 @@ export default function JoinScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.screenX, gap: spacing.lg },
+  typeRow: { flexDirection: 'row', gap: spacing.sm },
 });

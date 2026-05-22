@@ -4,6 +4,7 @@ import { usePathname } from 'expo-router';
 import type { Space } from '@/lib/types';
 
 import { createSpace as createSpaceDoc, readSpaces } from './starfish/registry';
+import { createPublicSpace } from './starfish/pubspace';
 import { useSession } from './session-context';
 import { useUnread } from './unread-context';
 
@@ -60,9 +61,12 @@ export function useSpaces() {
   }, [pathname, session, refresh]);
 
   const createSpace = useCallback(
-    async (name: string): Promise<Space | null> => {
+    async (name: string, type: 'private' | 'public' = 'private'): Promise<Space | null> => {
       if (!session) return null;
-      const space = await createSpaceDoc(session.accountClient, session.userId, name);
+      const space =
+        type === 'public'
+          ? await createPublicSpace(session, name)
+          : await createSpaceDoc(session.accountClient, session.userId, name);
       await refresh();
       setActiveId(space.id);
       return space;

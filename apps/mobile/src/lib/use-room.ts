@@ -19,7 +19,8 @@ import {
   type ByteSealer,
 } from './starfish/attachments';
 import { getMemberCap } from './starfish/member-caps';
-import { roomPull, roomPush, spaceIdFromRoomId } from './starfish/paths';
+import { isPublicSpaceId, publicSpaceAuth } from './starfish/pubspace';
+import { pubspaceRoomPull, pubspaceRoomPush, roomPull, roomPush, spaceIdFromRoomId } from './starfish/paths';
 import type { ReactionEvent } from './types';
 import { useSession } from './session-context';
 
@@ -28,11 +29,17 @@ function randomId(): string {
 }
 
 /**
- * Opens an encrypted room: ensures the keyring/encryptor + room doc exist, then
- * builds a synced Zustand store. Live updates via polling (uniform web+native).
+ * Opens a room and builds a synced Zustand store. Two modes by the room's space:
+ *  - PRIVATE (E2EE): ensure the space keyring/encryptor + room doc exist, sync with
+ *    the encryptor (sealed messages). Joiners open as keyring recipients.
+ *  - PUBLIC (plaintext): NO keyring/encryptor — authorize with the invitation cap
+ *    (joiner) or the account cap (owner) and sync the plaintext `pubspaces/…` doc.
+ * Live updates via the shared SSE bus with a polling fallback (uniform web+native).
  */
 export function useRoom(roomId: string) {
   const { session } = useSession();
+  const spaceId = spaceIdFromRoomId(roomId);
+  const isPublic = isPublicSpaceId(spaceId);
   const [encryptor, setEncryptor] = useState<Encryptor | null>(null);
   const [client, setClient] = useState<StarfishClient | null>(null);
   const [opening, setOpening] = useState(true);
@@ -45,17 +52,27 @@ export function useRoom(roomId: string) {
     setOpenError(null);
     setOpening(true);
     if (!session) return;
-    // The keyring is space-wide; the room doc stays per-room. A joined space's
-    // cap is stored by spaceId, so look it up by the room's space.
-    const spaceId = spaceIdFromRoomId(roomId);
-    const memberCap = getMemberCap(spaceId);
     (async () => {
       try {
+        if (isPublic) {
+          // Public space: no keyring, no encryptor. Authorize with the invite cap
+          // (joiner) or the account cap (owner) — see publicSpaceAuth.
+          const auth = publicSpaceAuth(session, spaceId);
+          if (!cancelled) {
+            setEncryptor(null);
+            setClient(makeClient(auth.cap, auth.signingKey));
+            setOpening(false);
+          }
+          return;
+        }
+        // PRIVATE: the keyring is space-wide; the room doc is per-room. A joined
+        // space's cap is stored by spaceId, so look it up by the room's space.
+        const memberCap = getMemberCap(spaceId);
         let enc: Encryptor;
         let roomClient: StarfishClient;
         if (memberCap) {
-          // Joined space: open as a keyring recipient, don't try to create it.
-          // The space owner (the cap's issuer) is the trusted keyring adder.
+          // Joined space: open as a keyring recipient; the cap's issuer is the
+          // trusted keyring adder.
           const cap = JSON.parse(memberCap) as { iss?: string };
           roomClient = makeClient(cap, session.keys.edPriv);
           enc = await openEncryptor(roomClient, session.keys, spaceId, cap.iss ? [cap.iss] : []);
@@ -79,11 +96,25 @@ export function useRoom(roomId: string) {
     return () => {
       cancelled = true;
     };
-  }, [session, roomId]);
+  }, [session, roomId, spaceId, isPublic]);
 
   const config = useMemo(() => {
-    if (!session || !encryptor) return null;
-    const memberCap = getMemberCap(spaceIdFromRoomId(roomId));
+    if (!session || !client) return null;
+    if (isPublic) {
+      // Plaintext sync: no `encryptor` (the SDK treats its absence as plaintext).
+      const auth = publicSpaceAuth(session, spaceId);
+      return {
+        serverUrl: SYNC_BASE,
+        capProvider: capProviderFor(auth.cap, auth.signingKey),
+        pullPath: pubspaceRoomPull(auth.ownerId, spaceId, roomId),
+        pushPath: pubspaceRoomPush(auth.ownerId, spaceId, roomId),
+        onConflict: createUnionMerge(),
+        storeName: `pub-${session.userId}-${roomId}`,
+        storage: false as const,
+      };
+    }
+    if (!encryptor) return null;
+    const memberCap = getMemberCap(spaceId);
     const cap = memberCap ? JSON.parse(memberCap) : session.chatCap;
     return {
       serverUrl: SYNC_BASE,
@@ -95,7 +126,7 @@ export function useRoom(roomId: string) {
       storeName: `chat-${session.userId}-${roomId}`,
       storage: false as const,
     };
-  }, [session, encryptor, roomId]);
+  }, [session, client, encryptor, roomId, spaceId, isPublic]);
 
   const store = useSyncInit(config);
 
@@ -122,12 +153,13 @@ export function useRoom(roomId: string) {
   }, [store, roomId, pull]);
 
   // Fallback: poll only while the SSE stream is unreachable/disconnected, so a
-  // client without the gateway still receives new messages.
+  // client without the gateway still receives new messages. Public spaces aren't
+  // covered by the space SSE gate, so they rely on this poll for live updates.
   useEffect(() => {
-    if (!store || sseUp) return;
+    if (!store || (sseUp && !isPublic)) return;
     const id = setInterval(pull, 4000);
     return () => clearInterval(id);
-  }, [store, sseUp, pull]);
+  }, [store, sseUp, isPublic, pull]);
 
   const send = useCallback(
     (text: string, parentId?: string, attachment?: AttachmentRef) => {
@@ -145,12 +177,11 @@ export function useRoom(roomId: string) {
     [store, session],
   );
 
-  /** Seal + upload a file to the room's blob collection, returning its ref. */
+  /** Seal + upload a file to the room's blob collection, returning its ref. Public
+   *  rooms have no encryptor, so attachments are unavailable there (returns null). */
   const uploadAttachment = useCallback(
     async (bytes: Uint8Array, name: string, mime: string): Promise<AttachmentRef | null> => {
       if (!client || !encryptor) return null;
-      // The room encryptor is a keyring encryptor at runtime — it has the byte
-      // seal/open methods even though it's typed as the narrower protocol Encryptor.
       return uploadAttachmentDoc(client, encryptor as unknown as ByteSealer, roomId, bytes, name, mime);
     },
     [client, encryptor, roomId],
@@ -181,5 +212,12 @@ export function useRoom(roomId: string) {
     [store, session],
   );
 
-  return { store, opening, openError, syncError, send, toggleReaction, uploadAttachment, loadAttachment };
+  // Whether this identity may post here: always for private rooms; for public rooms,
+  // only when the invitation link (or ownership) grants write.
+  const canWrite = useMemo(() => {
+    if (!session) return false;
+    return isPublic ? publicSpaceAuth(session, spaceId).write : true;
+  }, [session, isPublic, spaceId]);
+
+  return { store, opening, openError, syncError, send, toggleReaction, uploadAttachment, loadAttachment, canWrite };
 }

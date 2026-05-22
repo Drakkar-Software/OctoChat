@@ -3,6 +3,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Room } from '@/lib/types';
 
 import { createRoom as createRoomDoc, readRooms } from './starfish/registry';
+import {
+  createPublicRoom,
+  isPublicSpaceId,
+  publicSpaceAuth,
+  publicSpaceClient,
+  readPublicRooms,
+} from './starfish/pubspace';
 import { useSession } from './session-context';
 import { useUnread } from './unread-context';
 
@@ -33,6 +40,13 @@ export function useRooms(spaceId: string | null) {
 
   const refresh = useCallback(async () => {
     if (!session || !spaceId) return;
+    if (isPublicSpaceId(spaceId)) {
+      const auth = publicSpaceAuth(session, spaceId);
+      const list = await readPublicRooms(publicSpaceClient(session, spaceId), auth.ownerId, spaceId);
+      setRooms(list);
+      setOwner(auth.ownerId); // only the path owner may add channels
+      return;
+    }
     const { rooms: list, owner: o } = await readRooms(session.accountClient, spaceId);
     setRooms(list);
     setOwner(o);
@@ -84,11 +98,15 @@ export function useRooms(spaceId: string | null) {
       // Known non-owner: skip the doomed write and explain it directly.
       if (owner !== null && owner !== session.userId) return NOT_OWNER_MESSAGE;
       try {
-        await createRoomDoc(session.accountClient, session.userId, spaceId, name, category);
+        if (isPublicSpaceId(spaceId)) {
+          await createPublicRoom(session, spaceId, name, category);
+        } else {
+          await createRoomDoc(session.accountClient, session.userId, spaceId, name, category);
+        }
         await refresh();
         return null;
       } catch (e) {
-        // The registry write is `space:owner`-gated; a 403 means we aren't it.
+        // The registry write is owner-gated; a 403 means we aren't it.
         if ((e as { status?: number })?.status === 403) return NOT_OWNER_MESSAGE;
         return CREATE_FAILED_MESSAGE;
       }

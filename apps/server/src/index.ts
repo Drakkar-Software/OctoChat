@@ -17,7 +17,7 @@ import { config } from "./config.js";
 import { createNatsQueue } from "./queue.js";
 import { createFileRevocationStore } from "./revocation-store.js";
 import { makeSpaceRoleEnricher } from "./space-role.js";
-import { makeShareRoleEnricher } from "./share-role.js";
+import { makePubspaceRoleEnricher } from "./pubspace-role.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const DATA_DIR = process.env.STARFISH_DATA_DIR ?? "./data";
@@ -71,22 +71,22 @@ const queuing = createQueuingServerPlugin({
 // (collection-level gating) and the /events proxy (membership validation).
 const spaceEnricher = makeSpaceRoleEnricher(store);
 
-// Issuer-binding for the plaintext `shared` collection (broadcast / collaborative
-// links). Composed with the space enricher below: each keys off a disjoint path
-// param ({spaceId} vs {ownerId}) and returns [] otherwise, so unioning their roles
-// is safe. The /events proxy stays space-only (broadcast viewers have no space).
-const shareEnricher = makeShareRoleEnricher();
+// Issuer-binding for PUBLIC spaces (plaintext, cap-only). Composed with the space
+// enricher below: each keys off a disjoint path param ({spaceId} vs {ownerId}) and
+// returns [] otherwise, so unioning their roles is safe. The /events proxy stays
+// space-only (public spaces don't use the encrypted-space SSE membership gate).
+const pubspaceEnricher = makePubspaceRoleEnricher();
 const roleEnricher: typeof spaceEnricher = async (auth, params) => [
   ...(await spaceEnricher(auth, params)),
-  ...(await shareEnricher(auth, params)),
+  ...(await pubspaceEnricher(auth, params)),
 ];
 
 const syncRouter = createSyncRouter({
   store,
   config,
   roleResolver,
-  // Grants `space:owner` / `space:member` (space-role.ts) and the issuer-bound
-  // `share:owner` / `share:reader` / `share:writer` (share-role.ts) roles.
+  // Grants `space:owner` / `space:member` (space-role.ts) plus the issuer-bound
+  // `pubspace:owner` / `:reader` / `:writer` roles for public spaces (pubspace-role.ts).
   roleEnricher,
   plugins: [queuing],
 });

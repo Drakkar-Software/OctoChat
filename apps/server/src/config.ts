@@ -103,20 +103,19 @@ export const config: SyncConfig = {
       maxBodyBytes: 131_072,
       allowedMimeTypes: JSON_ONLY,
     },
-    // Plaintext, cap-only shares — read-only "broadcast" links and read/write
-    // "collaborative" links. NOT end-to-end encrypted: the owner publishes plaintext
-    // JSON here so an outsider can read/write WITHOUT a keyring, a seed, or space
-    // membership. Keyed by a free `{ownerId}`, so access is gated on the synthesized
-    // share:reader/share:writer/share:owner roles from makeShareRoleEnricher (issuer-
-    // bound), NOT a plain cap role — see share-role.ts. `{docId}` is the leaf file
-    // (e.g. `feed`); nothing is stored AT `shared/{ownerId}/{shareId}`, so the
-    // FilesystemObjectStore file-vs-directory collision noted on `attachments` above
-    // can't arise.
+    // PUBLIC spaces: plaintext, cap-only spaces joined via a space-wide invitation
+    // link. NOT end-to-end encrypted — the owner stores plaintext JSON here so a
+    // link-bearer can read (or, with a read/write link, write) WITHOUT a keyring, a
+    // seed, or an encrypted join. `{docId}` is the room registry (`_rooms`) or a room
+    // id (one plaintext message doc per room); both sit under the owner's space
+    // subtree. Keyed by a free `{ownerId}`, so access is gated on the synthesized
+    // pubspace:owner/reader/writer roles from makePubspaceRoleEnricher (issuer-bound),
+    // NOT a plain cap role — see pubspace-role.ts.
     {
-      name: "shared",
-      storagePath: "shared/{ownerId}/{shareId}/{docId}",
-      readRoles: ["share:reader"],
-      writeRoles: ["share:owner", "share:writer"],
+      name: "pubspace",
+      storagePath: "pubspaces/{ownerId}/{spaceId}/{docId}",
+      readRoles: ["pubspace:reader"],
+      writeRoles: ["pubspace:owner", "pubspace:writer"],
       encryption: "none",
       maxBodyBytes: 262_144,
       allowedMimeTypes: JSON_ONLY,

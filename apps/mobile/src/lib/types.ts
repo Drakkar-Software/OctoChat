@@ -22,6 +22,14 @@ export interface Space {
   short: string;
   members: number;
   unread?: number;
+  /** 'private' (E2EE keyring space, the default) or 'public' (plaintext, joined via
+   *  a space-wide invitation link). Absent ⇒ treat as 'private' (back-compat). */
+  type?: 'private' | 'public';
+  /** Public spaces only: the owner's userId (the cap issuer + storage path owner). */
+  ownerId?: string;
+  /** Public spaces only (joiner side): whether this identity's invite link grants
+   *  write. Owner always has write. */
+  write?: boolean;
 }
 
 export type RoomKind = 'channel' | 'private' | 'dm';

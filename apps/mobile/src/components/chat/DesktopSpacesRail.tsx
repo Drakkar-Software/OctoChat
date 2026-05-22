@@ -31,11 +31,13 @@ function SpaceTile({
   label,
   active,
   unread,
+  locked,
   onPress,
 }: {
   label: string;
   active: boolean;
   unread?: number;
+  locked?: boolean;
   onPress?: () => void;
 }) {
   const { colors } = useTheme();
@@ -58,6 +60,11 @@ function SpaceTile({
           {label}
         </Txt>
       </View>
+      {locked ? (
+        <View style={[styles.lock, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
+          <Icon name="lock" size={9} color={colors.inkMuted} />
+        </View>
+      ) : null}
       {unread ? (
         <View style={styles.badge}>
           <Badge count={unread} />
@@ -94,6 +101,7 @@ export function DesktopSpacesRail({
           label={s.short}
           active={s.id === activeId}
           unread={s.unread}
+          locked={(s.type ?? 'private') === 'private'}
           onPress={() => onSelect?.(s.id)}
         />
       ))}
@@ -135,6 +143,17 @@ const styles = StyleSheet.create({
   tile: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   add: { borderRadius: radii.xl, borderWidth: 1, borderStyle: 'dashed' },
   badge: { position: 'absolute', top: -5, right: -5 },
+  lock: {
+    position: 'absolute',
+    bottom: -3,
+    right: -3,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   spacer: { flex: 1 },
   foot: { alignItems: 'center', gap: spacing.sm },
 });

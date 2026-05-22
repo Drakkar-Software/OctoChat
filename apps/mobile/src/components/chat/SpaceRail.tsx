@@ -18,11 +18,13 @@ function RailItem({
   label,
   active,
   unread,
+  locked,
   onPress,
 }: {
   label: string;
   active: boolean;
   unread?: number;
+  locked?: boolean;
   onPress?: () => void;
 }) {
   const { colors } = useTheme();
@@ -43,6 +45,11 @@ function RailItem({
           {label}
         </Txt>
       </View>
+      {locked ? (
+        <View style={[styles.lock, { backgroundColor: colors.paper, borderColor: colors.lineSoft }]}>
+          <Icon name="lock" size={8} color={colors.inkMuted} />
+        </View>
+      ) : null}
       {unread ? (
         <View style={styles.badge}>
           <Badge count={unread} />
@@ -63,6 +70,7 @@ export function SpaceRail({ spaces, activeId, onSelect, onAdd }: SpaceRailProps)
           label={s.short}
           active={s.id === activeId}
           unread={s.unread}
+          locked={(s.type ?? 'private') === 'private'}
           onPress={() => onSelect?.(s.id)}
         />
       ))}
@@ -84,4 +92,15 @@ const styles = StyleSheet.create({
   tile: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
   add: { borderRadius: radii.lg, borderWidth: 1, borderStyle: 'dashed' },
   badge: { position: 'absolute', top: -5, right: -5 },
+  lock: {
+    position: 'absolute',
+    bottom: -3,
+    right: -3,
+    width: 15,
+    height: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

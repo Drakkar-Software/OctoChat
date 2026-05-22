@@ -47,9 +47,13 @@ export function SpaceHeader({
             {space.name}
           </Txt>
           <View style={styles.meta}>
-            <Icon name="lock" size={10} color={colors.accent} />
+            <Icon
+              name={space.type === 'public' ? 'globe' : 'lock'}
+              size={10}
+              color={space.type === 'public' ? colors.inkMuted : colors.accent}
+            />
             <Txt variant="micro" tone="inkMuted">
-              {plural(space.members, 'member')} · e2ee
+              {plural(space.members, 'member')} · {space.type === 'public' ? 'public' : 'e2ee'}
             </Txt>
           </View>
         </Pressable>

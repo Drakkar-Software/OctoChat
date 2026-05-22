@@ -17,7 +17,7 @@ import { SYNC_PREFIX } from './config';
  * Request-path helpers. The action path is signed relative to SYNC_BASE; the
  * SYNC_PREFIX ('' locally, '/v1/octochat' deployed) is part of the SIGNED path so
  * it must live here, NOT in SYNC_BASE (the SDK signs the endpoint path, not the
- * baseUrl path). Storage-name helpers (keyringName/attachmentName/sharedFeedName)
+ * baseUrl path). Storage-name helpers (keyringName/attachmentName/pubspaceRoomName)
  * stay UNPREFIXED — they're the object-storage keys / cap-scope paths the server
  * matches after stripping the action+namespace prefix.
  */
@@ -60,14 +60,22 @@ export const spacesPush = (userId: string) => push(`user/${userId}/_spaces`);
 export const roomsRegistryPull = (spaceId: string) => pull(`spaces/${spaceId}/_rooms`);
 export const roomsRegistryPush = (spaceId: string) => push(`spaces/${spaceId}/_rooms`);
 
-// ── Plaintext shares (broadcast / collaborative LINKS; NOT encrypted) ─────────
-// A share is a single plaintext feed doc at `shared/{ownerId}/{shareId}/feed`. The
-// owner publishes/manages it with their account cap (write gated `share:owner`); a
-// link-bearer reads (and optionally writes) with a member cap the owner minted
-// (gated `share:reader`/`share:writer`). See apps/server/src/share-role.ts.
-export const sharedFeedName = (ownerId: string, shareId: string) => `shared/${ownerId}/${shareId}/feed`;
-export const sharedFeedPull = (ownerId: string, shareId: string) => pull(sharedFeedName(ownerId, shareId));
-export const sharedFeedPush = (ownerId: string, shareId: string) => push(sharedFeedName(ownerId, shareId));
+// ── Public spaces (plaintext; NOT encrypted) ──────────────────────────────────
+// A public space lives under the owner's `pubspaces/{ownerId}/{spaceId}/` subtree:
+// a `_rooms` registry doc + one plaintext message doc per room. The owner manages
+// it with their account cap (gated `pubspace:owner`); a link-bearer reads (and,
+// with a read/write link, writes room docs) via a member cap the owner minted
+// (gated `pubspace:reader`/`pubspace:writer`). See apps/server/src/pubspace-role.ts.
+const pubspaceBase = (ownerId: string, spaceId: string) => `pubspaces/${ownerId}/${spaceId}`;
+export const pubspaceRoomsName = (ownerId: string, spaceId: string) => `${pubspaceBase(ownerId, spaceId)}/_rooms`;
+export const pubspaceRoomsPull = (ownerId: string, spaceId: string) => pull(pubspaceRoomsName(ownerId, spaceId));
+export const pubspaceRoomsPush = (ownerId: string, spaceId: string) => push(pubspaceRoomsName(ownerId, spaceId));
+export const pubspaceRoomName = (ownerId: string, spaceId: string, roomId: string) =>
+  `${pubspaceBase(ownerId, spaceId)}/${roomId}`;
+export const pubspaceRoomPull = (ownerId: string, spaceId: string, roomId: string) =>
+  pull(pubspaceRoomName(ownerId, spaceId, roomId));
+export const pubspaceRoomPush = (ownerId: string, spaceId: string, roomId: string) =>
+  push(pubspaceRoomName(ownerId, spaceId, roomId));
 
 // ── Cap scopes ────────────────────────────────────────────────────────────────
 /** Full owner/device access to every space the identity owns. */
@@ -96,39 +104,40 @@ export function spaceMemberScope(spaceId: string, canWrite: boolean): ScopePrese
   };
 }
 
-/** Personal cap: profile + space registry + device directory + spaces + own shares. */
+/** Personal cap: profile + space registry + device directory + spaces + own public spaces. */
 export function accountScope(userId: string): ScopePreset {
   return {
     ops: ['read', 'list', 'write'],
-    collections: ['profile', 'devices', 'spaces', 'rooms', 'shared'],
+    collections: ['profile', 'devices', 'spaces', 'rooms', 'pubspace'],
     paths: [
       `user/${userId}/profile`,
       `users/${userId}/_devices`,
       `user/${userId}/_spaces`,
       'spaces/**',
-      // The owner's own plaintext shares — server grants `share:owner` because this
-      // is a device cap (auth.identity = issUserId = userId = the {ownerId} segment).
-      `shared/${userId}/**`,
+      // The owner's own public spaces — server grants `pubspace:owner` because this is
+      // a device cap (auth.identity = issUserId = userId = the {ownerId} segment).
+      `pubspaces/${userId}/**`,
     ],
   };
 }
 
 /**
- * Link-bearer access to ONE plaintext share at `shared/{ownerId}/{shareId}`.
- * Read-only (broadcast link) or +write (collaborative link). The tight single-share
- * path is the per-cap isolation that complements the server's issuer-binding
- * enricher — a holder reaches only this one share. `collections:['shared']` is the
- * bare name the member-cap shape check keys off; the path never matches
- * `shared/_keyring`/`shared/_members`, so no deny rule is needed (cf.
+ * Link-bearer access to ONE public space at `pubspaces/{ownerId}/{spaceId}` —
+ * space-wide (every room + the room registry), read-only or read/write. The tight
+ * single-space path is the per-space isolation that complements the server's
+ * issuer-binding enricher (a holder reaches only this one space); `pubspace:writer`
+ * is further withheld on the `_rooms` doc server-side. `collections:['pubspace']` is
+ * the bare name the member-cap shape check keys off; the path never matches
+ * `pubspace/_keyring`/`pubspace/_members`, so no deny rule is needed (cf.
  * `spaceMemberScope`). The subject is a throwaway ephemeral keypair, so this cap is
  * meaningless without the matching private key shipped alongside it in the link.
  */
-export function broadcastReaderScope(ownerId: string, shareId: string, canWrite = false): ScopePreset {
+export function pubspaceScope(ownerId: string, spaceId: string, canWrite = false): ScopePreset {
   const ops: ('read' | 'write' | 'list')[] = canWrite ? ['read', 'list', 'write'] : ['read', 'list'];
   return {
     ops,
-    collections: ['shared'],
-    paths: [`shared/${ownerId}/${shareId}/**`],
+    collections: ['pubspace'],
+    paths: [`pubspaces/${ownerId}/${spaceId}/**`],
   };
 }
 
