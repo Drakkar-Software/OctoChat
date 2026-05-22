@@ -7,14 +7,14 @@ mark. Built from the exported Claude Design wireframes; currently a
 
 ## Layout
 
-- `apps/mobile` — the Expo (SDK 55) app, package `@octochat/mobile`. Runs on
+- `apps/mobile` — the Expo (SDK 56) app, package `@octochat/mobile`. Runs on
   iOS, Android and web from one codebase.
 - `packages/tsconfig` — shared base TypeScript config, package
   `@octochat/tsconfig`, consumed via `workspace:*`.
 
 pnpm workspace. `pnpm-workspace.yaml` sets `nodeLinker: hoisted` because React
 Native / Metro resolve dependencies best with a flat `node_modules`
-(see https://docs.expo.dev/guides/monorepos/). Expo SDK 55 needs **no** custom
+(see https://docs.expo.dev/guides/monorepos/). Expo SDK 56 needs **no** custom
 `metro.config.js` for monorepos — its built-in config handles it.
 
 ## Commands

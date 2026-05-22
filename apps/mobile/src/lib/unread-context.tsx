@@ -22,6 +22,7 @@ import {
 import { usePathname } from 'expo-router';
 
 import { subscribeRoomChanges } from './events';
+import { setDesktopBadge } from './desktop';
 import { ensureNotifyPermission, notifyNewMessage } from './notify';
 import { useSession } from './session-context';
 import { kvGet, kvSet } from './starfish/kv';
@@ -110,7 +111,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
           mapRef.current = next;
           setUnreadByRoom(next);
           void kvSet(persistKey(userId), JSON.stringify(next));
-          notifyNewMessage(); // web-only browser notification (no-op when focused / native)
+          notifyNewMessage(e.roomId); // web/desktop notification (no-op when focused / native)
         },
         {
           spaces: spaceIds,
@@ -157,6 +158,12 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
     () => Object.values(unreadByRoom).reduce((a, b) => a + b, 0),
     [unreadByRoom],
   );
+
+  // Mirror the unread total on the desktop dock / taskbar badge. No-op on
+  // web/native; clears as rooms are marked read and the total shrinks.
+  useEffect(() => {
+    setDesktopBadge(totalUnread);
+  }, [totalUnread]);
 
   const value = useMemo<UnreadValue>(
     () => ({ unreadByRoom, unreadBySpace, totalUnread, markRoomRead }),

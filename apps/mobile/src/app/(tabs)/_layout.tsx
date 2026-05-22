@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type ColorValue } from 'react-native';
 
 import { fonts, radii, spacing } from '@/theme';
 import { useResponsive } from '@/lib/use-responsive';
@@ -19,8 +19,10 @@ function TabBarIcon({ name, color, size, focused }: { name: IconName; color: str
 
 const tabIcon =
   (name: IconName) =>
-  ({ color, size, focused }: { color: string; size: number; focused: boolean }) => (
-    <TabBarIcon name={name} color={color} size={size} focused={focused} />
+  // expo-router/RN types `color` as ColorValue; our tab tints are string theme
+  // tokens (colors.accent / colors.inkMuted), so coerce at the boundary.
+  ({ color, size, focused }: { color: ColorValue; size: number; focused: boolean }) => (
+    <TabBarIcon name={name} color={color as string} size={size} focused={focused} />
   );
 
 export default function TabsLayout() {

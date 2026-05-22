@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  ipcMain,
   Menu,
   protocol,
   shell,
@@ -79,6 +80,26 @@ function createWindow(): void {
   }
 }
 
+// Renderer → main bridge for the few things the sandboxed renderer can't do
+// itself. Channels mirror the methods exposed in preload.ts.
+function registerIpc(): void {
+  // Bring the window forward (notification toast clicked). Same restore/focus
+  // pattern as the single-instance handler below, plus show() in case it's hidden.
+  ipcMain.handle('octochat:focus-window', () => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (!win) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  });
+
+  // Reflect the unread total on the dock (macOS) / taskbar (Linux Unity) icon.
+  // Windows has no numeric badge — setBadgeCount is a no-op there.
+  ipcMain.handle('octochat:set-badge', (_event, count: unknown) => {
+    app.setBadgeCount(typeof count === 'number' && count > 0 ? count : 0);
+  });
+}
+
 function buildMenu(): void {
   const isMac = process.platform === 'darwin';
 
@@ -125,7 +146,11 @@ if (!gotLock) {
   });
 
   void app.whenReady().then(() => {
+    // Identifies the app to Windows so notification toasts show the right name
+    // and icon (no-op on macOS/Linux). Must match electron-builder.yml `appId`.
+    app.setAppUserModelId('software.drakkar.octochat');
     if (!isDev) registerAppProtocol(resolveDistDir());
+    registerIpc();
     buildMenu();
     createWindow();
 
