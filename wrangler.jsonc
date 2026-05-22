@@ -1,0 +1,14 @@
+{
+  // Cloudflare Workers static-assets deployment for the OctoChat web export.
+  // `pnpm web:package` runs `expo export -p web` into apps/mobile/dist; this
+  // Worker serves that directory. No `main` entry — it is a static-only Worker.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "octochat",
+  "compatibility_date": "2026-05-22",
+  "assets": {
+    "directory": "./apps/mobile/dist",
+    // expo-router web export is a single index.html SPA, so every unmatched
+    // route must fall back to it (otherwise deep links 404).
+    "not_found_handling": "single-page-application"
+  }
+}
