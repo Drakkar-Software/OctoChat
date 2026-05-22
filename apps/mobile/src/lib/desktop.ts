@@ -15,6 +15,10 @@ declare global {
       platform?: string;
       focusWindow?: () => void;
       setBadgeCount?: (n: number) => void;
+      /** Subscribe to OTA update-ready events. Call once at startup. */
+      onUpdateReady?: (cb: (version: string) => void) => void;
+      /** Relaunch the app to apply a staged OTA bundle. */
+      relaunch?: () => void;
     };
   }
 }
@@ -31,4 +35,21 @@ export function focusDesktopWindow(): void {
 /** Reflect the unread total on the dock / taskbar icon. No-op elsewhere. */
 export function setDesktopBadge(n: number): void {
   globalThis.window?.octochat?.setBadgeCount?.(n);
+}
+
+/**
+ * Register a callback that fires when an OTA bundle finishes downloading and is
+ * ready to apply on the next relaunch. No-op off-desktop. Call once at app
+ * startup (e.g. in the root layout).
+ */
+export function onDesktopUpdateReady(cb: (version: string) => void): void {
+  globalThis.window?.octochat?.onUpdateReady?.(cb);
+}
+
+/**
+ * Relaunch the desktop app to apply a staged OTA bundle. No-op off-desktop.
+ * Only call this after `onDesktopUpdateReady` fires.
+ */
+export function relaunchDesktop(): void {
+  globalThis.window?.octochat?.relaunch?.();
 }

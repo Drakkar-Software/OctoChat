@@ -18,4 +18,11 @@ contextBridge.exposeInMainWorld('octochat', {
   focusWindow: () => ipcRenderer.invoke('octochat:focus-window'),
   // Reflect the unread total on the dock / taskbar icon.
   setBadgeCount: (n: number) => ipcRenderer.invoke('octochat:set-badge', n),
+  // Subscribe to OTA update-ready events. The callback receives the new version
+  // string; call relaunch() to apply it. Wires one listener — call once at app
+  // startup.
+  onUpdateReady: (cb: (version: string) => void) =>
+    ipcRenderer.on('octochat:update-ready', (_event, version: string) => cb(version)),
+  // Relaunch the app to apply a staged OTA bundle.
+  relaunch: () => ipcRenderer.invoke('octochat:relaunch'),
 });

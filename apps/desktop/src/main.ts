@@ -16,6 +16,7 @@ import {
   resolveDistDir,
 } from './constants';
 import { registerAppProtocol } from './protocol';
+import { checkForUpdates } from './updater';
 
 // Must run BEFORE app is ready and at top level. `standard` gives a real origin
 // (relative URLs + reliable localStorage), `secure` enables secure-context APIs
@@ -98,6 +99,13 @@ function registerIpc(): void {
   ipcMain.handle('octochat:set-badge', (_event, count: unknown) => {
     app.setBadgeCount(typeof count === 'number' && count > 0 ? count : 0);
   });
+
+  // Relaunch the app to apply a staged OTA bundle (called from the renderer
+  // when the user accepts the "update ready" prompt).
+  ipcMain.handle('octochat:relaunch', () => {
+    app.relaunch();
+    app.quit();
+  });
 }
 
 function buildMenu(): void {
@@ -127,6 +135,20 @@ function buildMenu(): void {
       ],
     },
     { role: 'windowMenu' },
+    // Only show update controls in production — dev already has live reload.
+    ...(!isDev
+      ? ([
+          {
+            label: 'Help',
+            submenu: [
+              {
+                label: 'Check for Updates',
+                click: () => void checkForUpdates(),
+              },
+            ],
+          },
+        ] as MenuItemConstructorOptions[])
+      : []),
   ];
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
@@ -153,6 +175,9 @@ if (!gotLock) {
     registerIpc();
     buildMenu();
     createWindow();
+    // Check for a newer web bundle in the background after the window is up.
+    // Errors are caught inside checkForUpdates — offline launch is always safe.
+    if (!isDev) void checkForUpdates();
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();

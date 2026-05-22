@@ -9,7 +9,8 @@
     "dev": "concurrently -k -n expo,electron -c blue,magenta \"pnpm dev:web\" \"pnpm dev:electron\"",
     "dev:web": "pnpm --filter @octochat/mobile web",
     "dev:electron": "wait-on tcp:8081 && cross-env NODE_ENV=development tsup --watch --onSuccess \"electron .\"",
-    "export": "pnpm --filter @octochat/mobile export:web",
+    "export": "pnpm --filter @octochat/mobile export:web && node scripts/gen-update-manifest.mjs",
+    "deploy:web": "pnpm export && wrangler pages deploy ../mobile/dist",
     "package": "pnpm export && pnpm build:main && electron-builder",
     "package:dir": "pnpm export && pnpm build:main && electron-builder --dir",
     "typecheck": "tsc -p tsconfig.json --noEmit"
