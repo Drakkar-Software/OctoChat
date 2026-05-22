@@ -3,7 +3,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { plural } from '@/lib/format';
 import { useSession } from '@/lib/session-context';
 import { useSpaces } from '@/lib/use-spaces';
 import { useSpaceSettings } from '@/lib/use-space-settings';
@@ -20,6 +19,7 @@ import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 import { QrCode } from '@/components/onboarding/QrCode';
 import { SpaceMembersCard } from '@/components/chat/SpaceMembersCard';
+import { SpaceMeta } from '@/components/chat/SpaceMeta';
 
 function copy(text: string) {
   try {
@@ -117,12 +117,7 @@ export default function SpaceScreen() {
             <Txt variant="title" weight="bold" numberOfLines={1}>
               {name}
             </Txt>
-            <View style={styles.meta}>
-              <Icon name={isPublic ? 'globe' : 'lock'} size={12} color={isPublic ? colors.inkMuted : colors.accent} />
-              <Txt variant="footnote" tone="inkMuted">
-                {isPublic ? 'public · not encrypted' : `end-to-end encrypted · ${plural(memberCount, 'member')}`}
-              </Txt>
-            </View>
+            <SpaceMeta isPublic={isPublic} memberCount={memberCount} iconSize={12} variant="footnote" />
             <Txt variant="caption" mono tone="inkMuted" numberOfLines={1}>
               {spaceId}
             </Txt>

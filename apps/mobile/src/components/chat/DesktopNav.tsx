@@ -26,7 +26,7 @@ export function DesktopNav() {
   const params = useGlobalSearchParams<{ id?: string; roomId?: string }>();
   const { profile } = useProfile();
   const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
-  const { categories, loading: roomsLoading, createRoom } = useRooms(activeId);
+  const { categories, loading: roomsLoading, isPublic, memberCount, createRoom } = useRooms(activeId);
   const { totalUnread } = useUnread();
 
   const space = spaces.find((s) => s.id === activeId) ?? spaces[0];
@@ -62,6 +62,8 @@ export function DesktopNav() {
       {space ? (
         <DesktopRoomSidebar
           space={space}
+          isPublic={isPublic}
+          memberCount={memberCount}
           categories={categories}
           activeRoomId={activeRoomId}
           onOpenRoom={openRoom}

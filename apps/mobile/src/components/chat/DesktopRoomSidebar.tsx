@@ -3,7 +3,6 @@ import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { layout, radii, spacing } from '@/theme';
 import type { Room, Space } from '@/lib/types';
 import type { RoomCategory } from '@/lib/use-rooms';
-import { plural } from '@/lib/format';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
@@ -11,9 +10,14 @@ import { Txt } from '@/components/ui/Txt';
 
 import { ChannelListSkeleton } from './ChannelListSkeleton';
 import { RoomCategorySection } from './RoomCategorySection';
+import { SpaceMeta } from './SpaceMeta';
 
 interface DesktopRoomSidebarProps {
   space: Space;
+  /** Whether the active space is public (plaintext) vs private (E2EE). */
+  isPublic: boolean;
+  /** Owner + roster for private spaces; null for public (no roster). */
+  memberCount?: number | null;
   categories: RoomCategory[];
   activeRoomId?: string;
   onOpenRoom: (room: Room) => void;
@@ -34,6 +38,8 @@ interface DesktopRoomSidebarProps {
  */
 export function DesktopRoomSidebar({
   space,
+  isPublic,
+  memberCount,
   categories,
   activeRoomId,
   onOpenRoom,
@@ -58,12 +64,7 @@ export function DesktopRoomSidebar({
           <Txt variant="subhead" weight="semibold" numberOfLines={1}>
             {space.name}
           </Txt>
-          <View style={styles.meta}>
-            <Icon name="lock" size={9} color={colors.accent} />
-            <Txt variant="micro" tone="inkMuted" numberOfLines={1}>
-              end-to-end encrypted · {plural(space.members, 'member')}
-            </Txt>
-          </View>
+          <SpaceMeta isPublic={isPublic} memberCount={memberCount} iconSize={9} numberOfLines={1} />
         </View>
         <Icon name="chevron-down" size={13} color={colors.inkMuted} />
       </Pressable>
@@ -121,7 +122,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerText: { flex: 1, minWidth: 0, gap: 2 },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   jump: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -17,7 +17,7 @@ export default function RoomsScreen() {
   const { session } = useSession();
   const inShell = useInShell();
   const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
-  const { categories, loading: roomsLoading, createRoom } = useRooms(activeId);
+  const { categories, loading: roomsLoading, isPublic, memberCount, createRoom } = useRooms(activeId);
   const space = spaces.find((s) => s.id === activeId) ?? spaces[0];
 
   const openRoom = (room: Room) =>
@@ -47,6 +47,8 @@ export default function RoomsScreen() {
             space={space}
             spaces={spaces}
             activeId={activeId ?? space.id}
+            isPublic={isPublic}
+            memberCount={memberCount}
             onSelectSpace={setActiveId}
             onSearch={() => router.push('/(tabs)/search')}
             onOpenSpace={() => router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}

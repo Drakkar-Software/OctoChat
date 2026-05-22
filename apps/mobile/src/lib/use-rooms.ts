@@ -29,7 +29,9 @@ export function useRooms(spaceId: string | null) {
   const { unreadByRoom } = useUnread();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [owner, setOwner] = useState<string | null>(null);
+  const [members, setMembers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const isPublic = !!spaceId && isPublicSpaceId(spaceId);
 
   // Overlay live unread counts onto the registry rooms so `ChannelRow`'s Badge
   // and emphasis light up without the row components touching the provider.
@@ -45,11 +47,13 @@ export function useRooms(spaceId: string | null) {
       const list = await readPublicRooms(publicSpaceClient(session, spaceId), auth.ownerId, spaceId);
       setRooms(list);
       setOwner(auth.ownerId); // only the path owner may add channels
+      setMembers([]); // public spaces have no roster (access is by cap, not membership)
       return;
     }
-    const { rooms: list, owner: o } = await readRooms(session.accountClient, spaceId);
+    const { rooms: list, owner: o, members: roster } = await readRooms(session.accountClient, spaceId);
     setRooms(list);
     setOwner(o);
+    setMembers(roster);
   }, [session, spaceId]);
 
   useEffect(() => {
@@ -58,6 +62,7 @@ export function useRooms(spaceId: string | null) {
     if (!session || !spaceId) {
       setRooms([]);
       setOwner(null);
+      setMembers([]);
       setLoading(false);
       return;
     }
@@ -87,6 +92,10 @@ export function useRooms(spaceId: string | null) {
   /** True when the signed-in identity owns this space (and so may add channels). */
   const isOwner = !!session && owner !== null && owner === session.userId;
 
+  // Owner + roster, mirroring the space screen. Public spaces have no roster
+  // (access is cap-based), so their count is unknown → null.
+  const memberCount = isPublic ? null : 1 + members.length;
+
   /**
    * Create a channel. Resolves to `null` on success, or a user-facing message
    * to surface when it can't — chiefly the owner-only registry write: a member
@@ -114,5 +123,5 @@ export function useRooms(spaceId: string | null) {
     [session, spaceId, owner, refresh],
   );
 
-  return { categories, rooms: roomsWithUnread, loading, isOwner, createRoom };
+  return { categories, rooms: roomsWithUnread, loading, isOwner, isPublic, memberCount, createRoom };
 }

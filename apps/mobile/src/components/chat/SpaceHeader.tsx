@@ -2,18 +2,21 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import type { Space } from '@/lib/types';
-import { plural } from '@/lib/format';
 import { useTheme } from '@/lib/use-theme';
-import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { Txt } from '@/components/ui/Txt';
 
+import { SpaceMeta } from './SpaceMeta';
 import { SpaceRail } from './SpaceRail';
 
 interface SpaceHeaderProps {
   space: Space;
   spaces: Space[];
   activeId: string;
+  /** Whether the active space is public (plaintext) vs private (E2EE). */
+  isPublic: boolean;
+  /** Owner + roster for private spaces; null for public (no roster). */
+  memberCount?: number | null;
   onSelectSpace?: (id: string) => void;
   onAddSpace?: () => void;
   onSearch?: () => void;
@@ -27,6 +30,8 @@ export function SpaceHeader({
   space,
   spaces,
   activeId,
+  isPublic,
+  memberCount,
   onSelectSpace,
   onAddSpace,
   onSearch,
@@ -46,16 +51,7 @@ export function SpaceHeader({
           <Txt variant="heading" weight="bold" numberOfLines={1}>
             {space.name}
           </Txt>
-          <View style={styles.meta}>
-            <Icon
-              name={space.type === 'public' ? 'globe' : 'lock'}
-              size={10}
-              color={space.type === 'public' ? colors.inkMuted : colors.accent}
-            />
-            <Txt variant="micro" tone="inkMuted">
-              {plural(space.members, 'member')} · {space.type === 'public' ? 'public' : 'e2ee'}
-            </Txt>
-          </View>
+          <SpaceMeta isPublic={isPublic} memberCount={memberCount} iconSize={10} />
         </Pressable>
         <IconButton name="search" onPress={onSearch} accessibilityLabel="Search" />
         <IconButton name="dots" onPress={onMenu} accessibilityLabel="Space menu" />
@@ -75,5 +71,4 @@ const styles = StyleSheet.create({
   },
   top: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   titleCol: { flex: 1, minWidth: 0, gap: 2 },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
 });
