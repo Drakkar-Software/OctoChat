@@ -10,18 +10,16 @@
 //
 // Run:  QUEUE_URL=nats://localhost:4222 node infra/whistlers-sse.mjs
 import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import {
+  Whistler,
+  NatsQueueAdapter,
+  SSEDestination,
+  parseConfigJson,
+} from "@drakkar.software/whistlers";
 
-const DIST =
-  process.env.WHISTLERS_DIST ??
-  "/Users/user/Documents/dev/Drakkar-Software/Whistlers/packages/ts/whistlers/dist/index.js";
-
-const { Whistler, NatsQueueAdapter, SSEDestination, createConfig } = await import(
-  pathToFileURL(DIST).href
+const config = parseConfigJson(
+  readFileSync(new URL("./whistlers.config.json", import.meta.url), "utf8"),
 );
-
-const cfg = JSON.parse(readFileSync(new URL("./whistlers.config.json", import.meta.url), "utf8"));
-const config = createConfig({ subscriptions: cfg.subscriptions });
 
 const destination = new SSEDestination({
   path: process.env.SSE_PATH ?? "/events",

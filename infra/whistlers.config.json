@@ -1,9 +1,11 @@
 {
   "version": 1,
-  "subscriptions": [
-    {
-      "name": "octochat-chat",
-      "topics": ["octochat.chat.changed.*"]
+  "subscriptions": [],
+  "namespaces": {
+    "octochat": {
+      "subscriptions": [
+        { "name": "octochat-chat", "topics": ["octochat.chat.changed.*"] }
+      ]
     }
-  ]
+  }
 }

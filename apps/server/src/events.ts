@@ -17,10 +17,10 @@
  * stream the global firehose to an unauthorized client.
  *
  * Whistlers topic derivation: queue.ts onPublish emits
- * `octochat.chat.changed.<spaceId>`; Whistlers' wildcard subscription derives the
- * destinationTopic via sanitizeTopic — every char outside [a-zA-Z0-9-_~%] → "-".
- * This proxy reconstructs that exact transform server-side so Whistlers' ?topic=
- * filter matches.
+ * `octochat.chat.changed.<spaceId>`; Whistlers applies the `octochat` namespace
+ * prefix then sanitizeTopic — every char outside [a-zA-Z0-9-_~%] → "-", giving
+ * `octochat-octochat-chat-changed-<spaceId>`. This proxy reconstructs that exact
+ * transform server-side so Whistlers' ?topic= filter matches.
  */
 import { Hono, type Context } from "hono";
 import {
@@ -43,6 +43,9 @@ const WHISTLERS_INTERNAL_URL =
 
 /** Exact sanitizeTopic from Whistlers bridge.ts:30-32. */
 const sanitizeTopic = (t: string) => t.replace(/[^a-zA-Z0-9\-_~%]/g, "-");
+
+/** Whistlers namespace — MUST match the namespace key in infra/whistlers.config.json. */
+const WHISTLERS_NAMESPACE = "octochat";
 
 function parseCapHeader(authHeader: string): CapCert | null {
   if (!authHeader.startsWith("Cap ")) return null;
@@ -153,7 +156,9 @@ export function createEventsRoute(opts: EventsRouteOptions): Hono {
 
     // 4. Map to sanitized destinationTopics server-side (never trust the client).
     //    Mirrors Whistlers' per-message derivation for `octochat.chat.changed.<spaceId>`.
-    const topics = authorized.map((s) => sanitizeTopic(`octochat.chat.changed.${s}`));
+    const topics = authorized.map(
+      (s) => `${WHISTLERS_NAMESPACE}-${sanitizeTopic(`octochat.chat.changed.${s}`)}`,
+    );
 
     // 5. ★ Firehose-prevention invariant.
     //    An empty topic list would make Whistlers stream the global firehose.

@@ -17,5 +17,8 @@
     "desktop:package": "pnpm --filter @octochat/desktop package",
     "typecheck": "pnpm -r --if-present run typecheck",
     "lint": "pnpm -r --if-present run lint"
+  },
+  "dependencies": {
+    "@drakkar.software/whistlers": "^0.5.0"
   }
 }
