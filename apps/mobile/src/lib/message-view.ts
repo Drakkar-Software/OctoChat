@@ -109,3 +109,22 @@ export function toDisplayMessage(
     deleted,
   };
 }
+
+/** The current user's most recent top-level message that is still editable —
+ *  it has text and hasn't been deleted (edits folded via {@link resolveEdit}).
+ *  Returns null when they have no such message. Powers the composer's ArrowUp
+ *  "edit my last message" shortcut. */
+export function lastEditableMessageId(
+  messages: StoredMsg[],
+  edits: MessageEditEvent[],
+  currentUserId: string,
+): string | null {
+  const mine = messages.filter((m) => m.authorId === currentUserId && !m.parentId).sort((a, b) => b.ts - a.ts);
+  for (const m of mine) {
+    const edit = resolveEdit(edits, m.id, m.authorId);
+    if (edit?.kind === 'delete') continue;
+    const text = edit?.kind === 'edit' ? edit.text : m.text;
+    if (text && text.trim()) return m.id;
+  }
+  return null;
+}

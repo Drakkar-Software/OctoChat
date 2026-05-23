@@ -2,6 +2,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 
 import { layout, radii, spacing } from '@/theme';
 import type { Room, Space } from '@/lib/types';
+import type { ThreadSummary } from '@/lib/threads';
 import type { RoomCategory } from '@/lib/use-rooms';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
@@ -20,7 +21,11 @@ interface DesktopRoomSidebarProps {
   memberCount?: number | null;
   categories: RoomCategory[];
   activeRoomId?: string;
+  /** Recent threads of the active room, listed under its row. Omit to show none. */
+  threads?: ThreadSummary[];
   onOpenRoom: (room: Room) => void;
+  /** Open one of the active room's threads (the reply target's message id). */
+  onOpenThread?: (parentId: string) => void;
   onJumpTo?: () => void;
   /** Open the space switcher / join surface (the header acts as a menu). */
   onOpenSpaceMenu?: () => void;
@@ -42,7 +47,9 @@ export function DesktopRoomSidebar({
   memberCount,
   categories,
   activeRoomId,
+  threads,
   onOpenRoom,
+  onOpenThread,
   onJumpTo,
   onOpenSpaceMenu,
   onCreateRoom,
@@ -100,7 +107,9 @@ export function DesktopRoomSidebar({
               key={cat.name}
               category={cat}
               activeRoomId={activeRoomId}
+              threads={threads}
               onOpenRoom={onOpenRoom}
+              onOpenThread={onOpenThread}
               onCreateRoom={onCreateRoom}
             />
           ))

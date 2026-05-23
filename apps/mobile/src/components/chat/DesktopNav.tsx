@@ -7,6 +7,7 @@ import { useProfile } from '@/lib/use-profile';
 import { useRooms } from '@/lib/use-rooms';
 import { useSpaces } from '@/lib/use-spaces';
 import { useTheme } from '@/lib/use-theme';
+import { useThreadDigest } from '@/lib/thread-digest-context';
 import { useUnread } from '@/lib/unread-context';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -28,6 +29,7 @@ export function DesktopNav() {
   const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
   const { categories, loading: roomsLoading, isPublic, memberCount, createRoom } = useRooms(activeId);
   const { totalUnread } = useUnread();
+  const { digest } = useThreadDigest();
 
   const space = spaces.find((s) => s.id === activeId) ?? spaces[0];
   const activeRoomId =
@@ -38,8 +40,21 @@ export function DesktopNav() {
         : undefined;
   const meLabel = (profile?.name ?? '··').slice(0, 2).toUpperCase();
 
+  // Recent threads of the open room, shown under its sidebar row. Only when the
+  // published digest is for the row we're highlighting (it's cleared on leave).
+  const activeRoom = activeRoomId ? categories.flatMap((c) => c.rooms).find((r) => r.id === activeRoomId) : undefined;
+  const activeThreads = digest && digest.roomId === activeRoomId ? digest.threads : undefined;
+
   const openRoom = (room: Room) =>
     router.push({ pathname: '/room/[id]', params: { id: room.id, name: room.name, kind: room.kind } });
+
+  const openThread = (parentId: string) => {
+    if (!activeRoomId) return; // only reachable while a room (the digest's) is open
+    router.push({
+      pathname: '/thread/[id]',
+      params: { id: parentId, roomId: activeRoomId, roomName: activeRoom?.name ?? activeRoomId },
+    });
+  };
 
   const selectSpace = (id: string) => {
     setActiveId(id);
@@ -66,7 +81,9 @@ export function DesktopNav() {
           memberCount={memberCount}
           categories={categories}
           activeRoomId={activeRoomId}
+          threads={activeThreads}
           onOpenRoom={openRoom}
+          onOpenThread={openThread}
           onJumpTo={() => router.push('/(tabs)/search')}
           onOpenSpaceMenu={() => router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
           onCreateRoom={(category, name) => createRoom(name, category)}

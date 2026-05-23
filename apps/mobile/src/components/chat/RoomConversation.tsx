@@ -34,6 +34,8 @@ export function RoomConversation({
   onDeleteMessage,
   onOpenProfile,
   onLoadAttachment,
+  editingId,
+  onEditingChange,
 }: {
   store: Parameters<typeof useStarfishData>[0];
   /** Space this room belongs to — resolves `#channel` mentions to links. */
@@ -53,6 +55,10 @@ export function RoomConversation({
   /** Open an author's public profile (avatar/name tap). */
   onOpenProfile?: (userId: string) => void;
   onLoadAttachment?: (ref: AttachmentRef) => Promise<Uint8Array | null>;
+  /** Id of the message whose inline editor is open (null = none) — lets the
+   *  composer's ArrowUp shortcut open the viewer's last message for editing. */
+  editingId?: string | null;
+  onEditingChange?: (id: string | null) => void;
 }) {
   const messages = (useStarfishData(store, (d) => d.messages as StoredMsg[] | undefined) ?? []) as StoredMsg[];
   const reactions = (useStarfishData(store, (d) => d.reactions as ReactionEvent[] | undefined) ?? []) as ReactionEvent[];
@@ -75,6 +81,10 @@ export function RoomConversation({
       keyExtractor={(m) => m.id}
       recycleItems={false}
       estimatedItemSize={ESTIMATED_ROW_HEIGHT}
+      // Rows are memoized by item data, so a room-level editingId change alone
+      // wouldn't re-render the target row; extraData busts that memo so opening
+      // a row's inline editor (edit pencil / composer ArrowUp) actually shows.
+      extraData={editingId}
       ListHeaderComponent={<DateDivider date="Today" />}
       initialScrollAtEnd
       alignItemsAtEnd
@@ -97,6 +107,8 @@ export function RoomConversation({
             onDelete={m.authorId === currentUserId ? () => onDeleteMessage(m.id) : undefined}
             onPressAuthor={onOpenProfile ? () => onOpenProfile(m.authorId) : undefined}
             onLoadAttachment={onLoadAttachment}
+            editing={onEditingChange ? editingId === m.id : undefined}
+            onEditingChange={onEditingChange ? (v) => onEditingChange(v ? m.id : null) : undefined}
           />
         );
       }}

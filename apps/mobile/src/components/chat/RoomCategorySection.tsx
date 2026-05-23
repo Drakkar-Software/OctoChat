@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import type { Room } from '@/lib/types';
+import type { ThreadSummary } from '@/lib/threads';
 import type { RoomCategory } from '@/lib/use-rooms';
 import { useTheme } from '@/lib/use-theme';
 import { Callout } from '@/components/ui/Callout';
@@ -12,19 +13,32 @@ import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
 import { ChannelRow } from './ChannelRow';
+import { ThreadRow } from './ThreadRow';
 
 interface RoomCategorySectionProps {
   category: RoomCategory;
   activeRoomId?: string;
+  /** Recent threads of the active room — rendered indented under its row. */
+  threads?: ThreadSummary[];
   onOpenRoom: (room: Room) => void;
+  /** Open one of the active room's threads (the reply target's message id). */
+  onOpenThread?: (parentId: string) => void;
   /** Create a channel in this category. Resolves to an error message to show
    *  (e.g. only the owner may add channels), or `null`/void on success. Omit to
    *  hide the add control. */
   onCreateRoom?: (category: string, name: string) => Promise<string | null> | void;
 }
 
-/** A collapsible category header followed by its room rows. */
-export function RoomCategorySection({ category, activeRoomId, onOpenRoom, onCreateRoom }: RoomCategorySectionProps) {
+/** A collapsible category header followed by its room rows. The active room's
+ *  row is trailed by its most recent threads (when supplied). */
+export function RoomCategorySection({
+  category,
+  activeRoomId,
+  threads,
+  onOpenRoom,
+  onOpenThread,
+  onCreateRoom,
+}: RoomCategorySectionProps) {
   const { colors } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -68,12 +82,14 @@ export function RoomCategorySection({ category, activeRoomId, onOpenRoom, onCrea
 
       {!collapsed
         ? category.rooms.map((room) => (
-            <ChannelRow
-              key={room.id}
-              room={room}
-              active={room.id === activeRoomId}
-              onPress={() => onOpenRoom(room)}
-            />
+            <Fragment key={room.id}>
+              <ChannelRow room={room} active={room.id === activeRoomId} onPress={() => onOpenRoom(room)} />
+              {room.id === activeRoomId && threads?.length
+                ? threads.map((t) => (
+                    <ThreadRow key={t.parentId} thread={t} onPress={() => onOpenThread?.(t.parentId)} />
+                  ))
+                : null}
+            </Fragment>
           ))
         : null}
 

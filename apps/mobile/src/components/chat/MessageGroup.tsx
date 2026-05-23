@@ -39,6 +39,11 @@ interface MessageGroupProps {
   /** Commit an edit to this message's text. Omit to hide the edit affordance
    *  (e.g. not the author, or the message has no text to edit). */
   onEdit?: (newText: string) => void;
+  /** Controlled inline-editor state. When provided, the parent owns whether this
+   *  row's editor is open (e.g. the room's ArrowUp "edit last" shortcut); omit to
+   *  keep it local to the row's edit button. */
+  editing?: boolean;
+  onEditingChange?: (editing: boolean) => void;
   /** Delete this message. Omit to hide the delete affordance (e.g. not the author). */
   onDelete?: () => void;
   /** Open the author's profile (tapping the avatar or name). Omit to render them
@@ -65,10 +70,16 @@ export function MessageGroup({
   onEdit,
   onDelete,
   onPressAuthor,
+  editing: editingProp,
+  onEditingChange,
 }: MessageGroupProps) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useRowHover();
-  const [editing, setEditing] = useState(false);
+  // Controllable: the parent owns editing when it passes `editing`/`onEditingChange`
+  // (room ArrowUp shortcut); otherwise the row's own edit button drives local state.
+  const [editingInternal, setEditingInternal] = useState(false);
+  const editing = editingProp ?? editingInternal;
+  const setEditing: (v: boolean) => void = onEditingChange ?? setEditingInternal;
   const tinted = message.mention || highlighted;
   // An @-mention of you that you haven't read yet escalates the highlight: a
   // wider, stronger accent bar + deeper tint so it stands out from a read mention

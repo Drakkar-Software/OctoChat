@@ -3,6 +3,7 @@ import { StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
+import { threadDraftKey } from '@/lib/use-draft';
 import { useRoom } from '@/lib/use-room';
 import { useUnread } from '@/lib/unread-context';
 import { spaceIdFromRoomId } from '@/lib/starfish/paths';
@@ -30,6 +31,7 @@ export default function ThreadScreen() {
       footer={
         <Composer
           placeholder="Reply in thread…"
+          draftKey={session ? threadDraftKey(session.userId, roomId, parentId) : undefined}
           onSend={async (t, file) => {
             const ref = file ? await uploadAttachment(file.bytes, file.name, file.mime) : null;
             send(t, parentId, ref ?? undefined);

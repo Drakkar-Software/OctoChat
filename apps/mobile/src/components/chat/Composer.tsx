@@ -1,18 +1,23 @@
-import { useState } from 'react';
-import type { StyleProp, TextStyle } from 'react-native';
+import { useCallback, useState, type MutableRefObject } from 'react';
+import type { NativeSyntheticEvent, StyleProp, TextInputKeyPressEventData, TextStyle } from 'react-native';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { fonts, glowShadow, radii, spacing, type as typeScale } from '@/theme';
 import { submitOnEnter } from '@/lib/composer-keys';
+import { useDraft } from '@/lib/use-draft';
 import { formatBytes } from '@/lib/format';
 import { tapFeedback } from '@/lib/haptics';
 import { pickFile, type PickedFile } from '@/lib/pick-file';
 import { QUICK_REACTIONS } from '@/lib/reactions';
+import { useEmojiAutocomplete } from '@/lib/use-emoji-autocomplete';
+import { useImagePaste } from '@/lib/use-image-paste';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { Txt } from '@/components/ui/Txt';
+
+import { EmojiSuggestions } from './EmojiSuggestions';
 
 // Web-only: drop the UA focus outline; the bar itself lifts to an accent ring on focus.
 const WEB_OUTLINE_RESET = (Platform.OS === 'web' ? { outlineStyle: 'none' } : null) as unknown as StyleProp<TextStyle>;
@@ -21,16 +26,34 @@ interface ComposerProps {
   placeholder: string;
   /** Send text and/or a picked file. May be async (e.g. while the file uploads). */
   onSend?: (text: string, file?: PickedFile) => void | Promise<void>;
+  /** Edit the viewer's last message — wired to ArrowUp on an empty composer (web).
+   *  Omit to disable the shortcut (e.g. nothing editable here). */
+  onEditLast?: () => void;
+  /** kv key under which to persist the unsent text as a local draft (survives
+   *  refresh and re-entry). Omit to keep the input ephemeral. */
+  draftKey?: string;
 }
 
 /** Message input bar — attach a file, insert an emoji, and send. */
-export function Composer({ placeholder, onSend }: ComposerProps) {
+export function Composer({ placeholder, onSend, onEditLast, draftKey }: ComposerProps) {
   const { colors } = useTheme();
-  const [text, setText] = useState('');
+  const { text, setText, clearDraft } = useDraft(draftKey);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [pending, setPending] = useState<PickedFile | null>(null);
   const [busy, setBusy] = useState(false);
   const [focused, setFocused] = useState(false);
+  // Web only: paste a clipboard image straight into the pending attachment slot.
+  const pasteRef = useImagePaste((file) => setPending(file));
+  // `:shortcode:` emoji autocomplete — tracks the caret and swaps the typed token
+  // for a glyph. Shares the same <TextInput> node as the paste listener.
+  const emoji = useEmojiAutocomplete(text, setText);
+  const setInputRef = useCallback(
+    (node: TextInput | null) => {
+      (pasteRef as MutableRefObject<TextInput | null>).current = node;
+      (emoji.inputRef as MutableRefObject<TextInput | null>).current = node;
+    },
+    [pasteRef, emoji.inputRef],
+  );
   const hasContent = text.trim().length > 0 || !!pending;
 
   const submit = async () => {
@@ -38,12 +61,20 @@ export function Composer({ placeholder, onSend }: ComposerProps) {
     setBusy(true);
     try {
       await onSend?.(text.trim(), pending ?? undefined);
-      setText('');
+      clearDraft();
       setPending(null);
       setEmojiOpen(false);
     } finally {
       setBusy(false);
     }
+  };
+
+  // Let the emoji popup capture Arrow/Enter/Tab/Escape first (web); otherwise fall
+  // through to the composer's submit + edit-last shortcuts.
+  const onComposerKey = submitOnEnter(submit, onEditLast, () => !hasContent);
+  const handleKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    if (emoji.onKeyPress(e)) return;
+    onComposerKey?.(e);
   };
 
   const attach = async () => {
@@ -59,17 +90,26 @@ export function Composer({ placeholder, onSend }: ComposerProps) {
 
   return (
     <View style={[styles.wrap, { backgroundColor: colors.paper, borderTopColor: colors.lineSoft }]}>
-      {emojiOpen ? (
+      {emoji.open ? (
+        <EmojiSuggestions
+          suggestions={emoji.suggestions}
+          activeIndex={emoji.activeIndex}
+          onChoose={emoji.choose}
+          onHover={emoji.setActive}
+        />
+      ) : null}
+
+      {emojiOpen && !emoji.open ? (
         <View style={[styles.palette, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
-          {QUICK_REACTIONS.map((emoji) => (
+          {QUICK_REACTIONS.map((glyph) => (
             <Pressable
-              key={emoji}
+              key={glyph}
               accessibilityRole="button"
-              accessibilityLabel={`Insert ${emoji}`}
-              onPress={() => insertEmoji(emoji)}
+              accessibilityLabel={`Insert ${glyph}`}
+              onPress={() => insertEmoji(glyph)}
               style={styles.paletteItem}
             >
-              <Txt variant="subhead">{emoji}</Txt>
+              <Txt variant="subhead">{glyph}</Txt>
             </Pressable>
           ))}
         </View>
@@ -99,15 +139,17 @@ export function Composer({ placeholder, onSend }: ComposerProps) {
       >
         <IconButton name="plus" size={18} color={colors.inkSoft} accessibilityLabel="Attach a file" onPress={attach} />
         <TextInput
+          ref={setInputRef}
           value={text}
           onChangeText={setText}
+          onSelectionChange={emoji.onSelectionChange}
           placeholder={placeholder}
           placeholderTextColor={colors.inkMuted}
           style={[styles.input, { color: colors.ink }, WEB_OUTLINE_RESET]}
           multiline
           numberOfLines={1}
           editable={!busy}
-          onKeyPress={submitOnEnter(submit)}
+          onKeyPress={handleKeyPress}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
         />

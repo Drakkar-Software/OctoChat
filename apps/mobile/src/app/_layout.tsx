@@ -4,6 +4,7 @@ import { configureStarfishPlatform } from '@/lib/starfish/platform';
 import { registerServiceWorker } from '@/lib/pwa';
 import { registerBackgroundPushHandler } from '@/lib/push/fcm';
 import { SessionProvider } from '@/lib/session-context';
+import { ThreadDigestProvider } from '@/lib/thread-digest-context';
 import { UnreadProvider } from '@/lib/unread-context';
 
 import { useEffect } from 'react';
@@ -49,14 +50,16 @@ export default function RootLayout() {
         <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
         <SessionProvider>
           <UnreadProvider>
-            <AppFrame>
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: palette.canvas },
-                }}
-              />
-            </AppFrame>
+            <ThreadDigestProvider>
+              <AppFrame>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: palette.canvas },
+                  }}
+                />
+              </AppFrame>
+            </ThreadDigestProvider>
           </UnreadProvider>
         </SessionProvider>
       </SafeAreaProvider>

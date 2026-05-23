@@ -4,6 +4,8 @@ import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
+import { roomDraftKey } from '@/lib/use-draft';
+import { useMessageEditing } from '@/lib/use-message-editing';
 import { useRoom } from '@/lib/use-room';
 import { useUnread } from '@/lib/unread-context';
 import { spaceIdFromRoomId } from '@/lib/starfish/paths';
@@ -19,6 +21,7 @@ import { Txt } from '@/components/ui/Txt';
 import { Composer } from '@/components/chat/Composer';
 import { DesktopChatTopbar } from '@/components/chat/DesktopChatTopbar';
 import { RoomConversation } from '@/components/chat/RoomConversation';
+import { ThreadDigestPublisher } from '@/components/chat/ThreadDigestPublisher';
 
 export default function RoomScreen() {
   const params = useLocalSearchParams<{ id: string; name?: string; kind?: string }>();
@@ -30,6 +33,7 @@ export default function RoomScreen() {
   const { markRoomRead, lastReadAt } = useUnread();
   const { store, opening, openError, syncError, send, toggleReaction, editMessage, deleteMessage, uploadAttachment, loadAttachment, canWrite } =
     useRoom(id);
+  const { editingId, setEditingId, editLast } = useMessageEditing(store, session?.userId ?? '');
   const title = kind === 'dm' ? name : `#${name}`;
 
   // Snapshot the last-read mark during render — before the focus effect below
@@ -77,10 +81,12 @@ export default function RoomScreen() {
         canWrite ? (
           <Composer
             placeholder={`Message ${title}`}
+            draftKey={session ? roomDraftKey(session.userId, id) : undefined}
             onSend={async (t, file) => {
               const ref = file ? await uploadAttachment(file.bytes, file.name, file.mime) : null;
               send(t, undefined, ref ?? undefined);
             }}
+            onEditLast={editLast}
           />
         ) : (
           <View style={[styles.readonly, { borderTopColor: colors.lineSoft }]}>
@@ -117,7 +123,11 @@ export default function RoomScreen() {
             onDeleteMessage={deleteMessage}
             onOpenProfile={openProfile}
             onLoadAttachment={loadAttachment}
+            editingId={editingId}
+            onEditingChange={setEditingId}
           />
+          {/* Publish this room's recent threads to the desktop sidebar (no UI). */}
+          <ThreadDigestPublisher store={store} roomId={id} readBefore={readBefore} />
         </>
       ) : (
         <EmptyState iconName="globe" title="Connecting…" />
