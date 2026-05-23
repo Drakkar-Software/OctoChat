@@ -9,7 +9,7 @@ import type { Keyring } from '@drakkar.software/starfish-keyring';
 import { signRequest, stableStringify } from '@drakkar.software/starfish-protocol';
 import type { SignableMethod } from '@drakkar.software/starfish-protocol';
 
-import { SYNC_BASE } from './config';
+import { SYNC_BASE, SYNC_PREFIX } from './config';
 import { keyringPull, keyringPush, profilePull, profilePush, roomPull, roomPush } from './paths';
 
 export interface DeviceKeys {
@@ -29,6 +29,30 @@ export function capProviderFor(cap: unknown, devEdPrivHex: string): StarfishCapP
 
 export function makeClient(cap: unknown, devEdPrivHex: string): StarfishClient {
   return new StarfishClient({ baseUrl: SYNC_BASE, capProvider: capProviderFor(cap, devEdPrivHex) });
+}
+
+/**
+ * Wrap a client so SDK helpers that build their OWN `/pull/…` `/push/…` action
+ * paths (e.g. starfish-keyring's `addCollectionRecipient`) get `SYNC_PREFIX`
+ * applied. Those helpers are namespace-unaware: on the deployed `/v1/octochat`
+ * server an unprefixed `/sync/pull/…` misses every nginx location and hits the
+ * catch-all → 404 with no CORS headers, which the browser surfaces as
+ * "Failed to fetch". Our own `paths.ts` helpers already include the prefix, so
+ * this is ONLY for SDK-built paths. The prefix lands in the signed path too
+ * (the SDK signs the path we hand it), which the server requires. No-op when
+ * `SYNC_PREFIX` is empty (local dev) — which is why this only bites the deploy.
+ */
+export function prefixedClient(client: StarfishClient): StarfishClient {
+  if (!SYNC_PREFIX) return client;
+  return new Proxy(client, {
+    get(target, prop, receiver) {
+      if (prop === 'pull' || prop === 'push') {
+        const orig = Reflect.get(target, prop, target) as (path: string, ...rest: unknown[]) => unknown;
+        return (path: string, ...rest: unknown[]) => orig.call(target, `${SYNC_PREFIX}${path}`, ...rest);
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  });
 }
 
 /**

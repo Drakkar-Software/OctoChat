@@ -13,7 +13,7 @@ import { mintMemberCap } from '@drakkar.software/starfish-sharing';
 
 import type { Space } from '@/lib/types';
 
-import { buildEncryptor, makeClient } from './client';
+import { buildEncryptor, makeClient, prefixedClient } from './client';
 import type { Session } from './identity';
 import { getMemberCap, saveMemberCap } from './member-caps';
 import { keyringName, spaceMemberScope } from './paths';
@@ -51,8 +51,10 @@ export async function inviteToSpace(
   const req = JSON.parse(requestJson) as JoinRequest;
   if (!req.edPub || !req.kemPub || !req.userId) throw new Error('That is not a valid join request.');
   // 1. Add the invitee to the space keyring (covers every channel at once).
+  // prefixedClient: the keyring SDK builds its own unprefixed `/pull|/push` paths,
+  // so apply SYNC_PREFIX or the write 404s on the deployed `/v1/octochat` server.
   await addCollectionRecipient(
-    session.chatClient,
+    prefixedClient(session.chatClient),
     keyringName(spaceId),
     { subKem: req.kemPub, userId: req.userId, label: req.userId.slice(0, 8) },
     { edPriv: session.keys.edPriv, edPub: session.keys.edPub, kemPriv: session.keys.kemPriv },
