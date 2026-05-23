@@ -62,6 +62,7 @@ export default function SeedScreen() {
             variant="primary"
             size="lg"
             full
+            loading={busy}
             disabled={busy}
             onPress={confirm}
           />

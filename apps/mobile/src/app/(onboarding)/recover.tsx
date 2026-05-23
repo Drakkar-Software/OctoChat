@@ -58,7 +58,7 @@ export default function RecoverScreen() {
         autoCapitalize="none"
         autoCorrect={false}
       />
-      <Button label={busy ? 'Recovering…' : 'Recover'} variant="primary" size="lg" full disabled={busy} onPress={restore} />
+      <Button label={busy ? 'Recovering…' : 'Recover'} variant="primary" size="lg" full loading={busy} disabled={busy} onPress={restore} />
       {error ? (
         <Callout tone="danger" iconName="alert">
           {error}

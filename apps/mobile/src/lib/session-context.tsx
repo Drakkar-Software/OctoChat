@@ -47,6 +47,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       session,
       status,
       signIn: async (seedWords, name) => {
+        // Yield one macrotask so React commits the caller's `busy` state and the
+        // browser paints the spinner BEFORE the synchronous, memory-hard Argon2id
+        // derivation in `deriveSession` locks the main thread. Without this the
+        // derivation starts in the same tick and the UI freezes with no feedback
+        // (the Argon2 impl only yields microtasks, which never trigger a repaint).
+        await new Promise((r) => setTimeout(r, 0));
         const s = await deriveSession(seedWords, name);
         await saveSession({ seed: seedWords, name: s.name });
         setSession(s);
