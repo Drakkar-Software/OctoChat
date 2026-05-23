@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { createUnionMerge } from '@drakkar.software/starfish-client';
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 import { useSyncInit } from '@drakkar.software/starfish-client/zustand';
@@ -21,7 +22,7 @@ import {
 import { getMemberCap } from './starfish/member-caps';
 import { isPublicSpaceId, publicSpaceAuth } from './starfish/pubspace';
 import { pubspaceRoomPull, pubspaceRoomPush, roomPull, roomPush, spaceIdFromRoomId } from './starfish/paths';
-import type { ReactionEvent } from './types';
+import type { MessageEditEvent, ReactionEvent } from './types';
 import { useSession } from './session-context';
 
 function randomId(): string {
@@ -35,6 +36,9 @@ function randomId(): string {
  *  - PUBLIC (plaintext): NO keyring/encryptor — authorize with the invitation cap
  *    (joiner) or the account cap (owner) and sync the plaintext `pubspaces/…` doc.
  * Live updates via the shared SSE bus with a polling fallback (uniform web+native).
+ *
+ * MUST be called from a router screen: it gates its live pull on `useFocusEffect`,
+ * which needs a navigator context. Both callers (room/[id], thread/[id]) are screens.
  */
 export function useRoom(roomId: string) {
   const { session } = useSession();
@@ -140,17 +144,29 @@ export function useRoom(roomId: string) {
     );
   }, [store]);
 
-  // Live updates: pull on open, then whenever the global SSE bus fires for this
-  // room (UnreadProvider holds the single shared SSE connection — no second
-  // connection here). sseUp tracks the global stream's health for the fallback.
+  // Track the global SSE stream's health for the fallback poll below. Always on
+  // (even while this screen is backgrounded) so the poll's gate stays accurate.
   const [sseUp, setSseUp] = useState(false);
-  useEffect(() => {
-    if (!store) { setSyncError(null); return; }
-    pull();
-    const unsubPull = registerPull(roomId, pull);
-    const unsubStatus = onSseStatus(setSseUp);
-    return () => { unsubPull(); unsubStatus(); };
-  }, [store, roomId, pull]);
+  useEffect(() => onSseStatus(setSseUp), []);
+
+  // Live updates, gated on this room screen being FOCUSED. On focus we pull once
+  // and register a pull on the global SSE bus so new messages arrive live while
+  // the room is open (UnreadProvider holds the single shared SSE connection — no
+  // second connection here). Registering ONLY while focused is the crux of the
+  // unread-badge fix: a room screen left mounted *underneath* a pushed screen (you
+  // opened another channel or a thread) must release its registration, or
+  // UnreadProvider's dispatchRoomChange keeps treating it as the active room and
+  // silently pulls its change-events instead of bumping the unread count. On blur
+  // we unregister so a backgrounded room accrues unread like any unopened one.
+  // Tradeoff: a backgrounded room no longer live-updates its (invisible) message
+  // store — the pull-on-focus refresh covers re-entry. This is intentional.
+  useFocusEffect(
+    useCallback(() => {
+      if (!store) { setSyncError(null); return; }
+      pull();
+      return registerPull(roomId, pull);
+    }, [store, roomId, pull]),
+  );
 
   // Fallback: poll only while the SSE stream is unreachable/disconnected, so a
   // client without the gateway still receives new messages. Public spaces aren't
@@ -212,6 +228,34 @@ export function useRoom(roomId: string) {
     [store, session],
   );
 
+  // Edit/delete are append-only events keyed by msgId (mirrors `toggleReaction`),
+  // folded at render by `resolveEdit`. The author check there is the real guard;
+  // these only fire from the UI for the viewer's own messages.
+  const editMessage = useCallback(
+    (msgId: string, text: string) => {
+      const t = text.trim();
+      if (!store || !session || !t) return;
+      store.getState().set((d: Record<string, unknown>) => {
+        const events = ((d.edits as MessageEditEvent[]) ?? []).slice();
+        events.push({ id: randomId(), msgId, userId: session.userId, kind: 'edit', text: t, ts: Date.now() });
+        return { ...d, edits: events };
+      });
+    },
+    [store, session],
+  );
+
+  const deleteMessage = useCallback(
+    (msgId: string) => {
+      if (!store || !session) return;
+      store.getState().set((d: Record<string, unknown>) => {
+        const events = ((d.edits as MessageEditEvent[]) ?? []).slice();
+        events.push({ id: randomId(), msgId, userId: session.userId, kind: 'delete', ts: Date.now() });
+        return { ...d, edits: events };
+      });
+    },
+    [store, session],
+  );
+
   // Whether this identity may post here: always for private rooms; for public rooms,
   // only when the invitation link (or ownership) grants write.
   const canWrite = useMemo(() => {
@@ -219,5 +263,5 @@ export function useRoom(roomId: string) {
     return isPublic ? publicSpaceAuth(session, spaceId).write : true;
   }, [session, isPublic, spaceId]);
 
-  return { store, opening, openError, syncError, send, toggleReaction, uploadAttachment, loadAttachment, canWrite };
+  return { store, opening, openError, syncError, send, toggleReaction, editMessage, deleteMessage, uploadAttachment, loadAttachment, canWrite };
 }

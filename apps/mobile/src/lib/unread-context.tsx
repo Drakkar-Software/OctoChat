@@ -42,9 +42,13 @@ interface UnreadValue {
   totalUnread: number;
   /** Clear a room's unread (on open, or from the notifications list). */
   markRoomRead: (roomId: string) => void;
+  /** The viewer's last-read timestamp for a room (ms); 0 if never read. Lets a
+   *  conversation flag messages newer than the previous visit as unread. */
+  lastReadAt: (roomId: string) => number;
 }
 
 const persistKey = (userId: string) => `octochat.unread.${userId}`;
+const lastReadKey = (userId: string) => `octochat.lastread.${userId}`;
 
 const Ctx = createContext<UnreadValue | null>(null);
 
@@ -55,6 +59,11 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   // Mirror of the map for the SSE callback + persistence — avoids stale closures
   // and keeps state updaters pure (no side effects inside setState).
   const mapRef = useRef<Record<string, number>>({});
+
+  // Per-room last-read timestamp (ms), persisted per identity. Advanced on every
+  // room open so messages newer than the previous visit read as "unread". Ref-only
+  // (no state): it's a selector input snapshotted by callers, not reactive UI.
+  const lastReadRef = useRef<Record<string, number>>({});
 
   // The user's space ids — passed as candidates to the /events proxy.
   // Avoids useSpaces() to prevent a circular dep (use-spaces → useUnread → here).
@@ -86,13 +95,23 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
     if (!userId) {
       mapRef.current = {};
       setUnreadByRoom({});
+      lastReadRef.current = {};
       return;
     }
     let cancelled = false;
     let unsub = () => {};
     void (async () => {
-      const raw = await kvGet(persistKey(userId));
+      const [raw, rawLastRead] = await Promise.all([kvGet(persistKey(userId)), kvGet(lastReadKey(userId))]);
       if (cancelled) return;
+      let lastRead: Record<string, number> = {};
+      if (rawLastRead) {
+        try {
+          lastRead = JSON.parse(rawLastRead) as Record<string, number>;
+        } catch {
+          lastRead = {};
+        }
+      }
+      lastReadRef.current = lastRead;
       let initial: Record<string, number> = {};
       if (raw) {
         try {
@@ -154,6 +173,12 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
 
   const markRoomRead = useCallback(
     (roomId: string) => {
+      // Advance the read mark first — every open counts as "read up to now", so
+      // messages that arrive after this stop reading as unread on the next visit.
+      const lr = { ...lastReadRef.current, [roomId]: Date.now() };
+      lastReadRef.current = lr;
+      if (userId) void kvSet(lastReadKey(userId), JSON.stringify(lr));
+      // Then clear the unread count, if any.
       const m = mapRef.current;
       if (!m[roomId]) return;
       const next = { ...m };
@@ -164,6 +189,10 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
     },
     [userId],
   );
+
+  // Read the last-read mark for a room from the live mirror (0 = never read).
+  // Reads the ref so callers can snapshot it during render before markRoomRead.
+  const lastReadAt = useCallback((roomId: string) => lastReadRef.current[roomId] ?? 0, []);
 
   const unreadBySpace = useMemo(() => {
     const m: Record<string, number> = {};
@@ -196,8 +225,8 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   }, [totalUnread]);
 
   const value = useMemo<UnreadValue>(
-    () => ({ unreadByRoom, unreadBySpace, totalUnread, markRoomRead }),
-    [unreadByRoom, unreadBySpace, totalUnread, markRoomRead],
+    () => ({ unreadByRoom, unreadBySpace, totalUnread, markRoomRead, lastReadAt }),
+    [unreadByRoom, unreadBySpace, totalUnread, markRoomRead, lastReadAt],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

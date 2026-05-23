@@ -70,6 +70,19 @@ export interface ReactionEvent {
   ts: number;
 }
 
+/** Append-only message-edit event stored in the room doc; the latest one (by `ts`)
+ *  authored by the message's author wins at render — see `resolveEdit`. A `delete`
+ *  tombstones the message; an `edit` carries the replacement `text`. */
+export interface MessageEditEvent {
+  id: string;
+  msgId: string;
+  userId: string;
+  kind: 'edit' | 'delete';
+  /** Replacement body for an `edit`; absent for a `delete`. */
+  text?: string;
+  ts: number;
+}
+
 export type Attachment =
   | { kind: 'image'; label: string; ratio: number }
   | { kind: 'video'; label: string; duration: string }
@@ -90,8 +103,15 @@ export interface Message {
   threadCount?: number;
   /** Whether this message @-mentions the current user. */
   mention?: boolean;
+  /** Whether this message arrived since the viewer last read the room. Combined
+   *  with {@link mention} it escalates the highlight (a wider, stronger bar). */
+  unread?: boolean;
   /** Render an "unread" divider above this message. */
   unreadBefore?: boolean;
+  /** Whether the author has edited this message's text (renders an "(edited)" mark). */
+  edited?: boolean;
+  /** Whether the author has deleted this message (renders a "deleted" tombstone). */
+  deleted?: boolean;
 }
 
 export interface Thread {

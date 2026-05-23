@@ -15,6 +15,10 @@ interface MessageActionsProps {
   onReact?: (emoji: string) => void;
   /** Open a thread reply. Omit to hide the reply button (e.g. inside a thread). */
   onReply?: () => void;
+  /** Edit this message. Omit to hide the edit button (e.g. not the author). */
+  onEdit?: () => void;
+  /** Delete this message (after an inline confirm). Omit to hide the delete button. */
+  onDelete?: () => void;
   /** Emojis the user has already reacted with, highlighted in the picker. */
   mine?: Set<string>;
 }
@@ -25,15 +29,22 @@ interface MessageActionsProps {
  * surrounding content. Tapping react swaps the bar for a quick-emoji picker in
  * place — still anchored, so still no reflow.
  */
-export function MessageActions({ visible, onReact, onReply, mine }: MessageActionsProps) {
+export function MessageActions({ visible, onReact, onReply, onEdit, onDelete, mine }: MessageActionsProps) {
   const { colors } = useTheme();
   const [picking, setPicking] = useState(false);
-  if (!visible && !picking) return null;
+  const [confirming, setConfirming] = useState(false);
+  if (!visible && !picking && !confirming) return null;
 
   const pick = (emoji: string) => {
     tapFeedback();
     onReact?.(emoji);
     setPicking(false);
+  };
+
+  const confirmDelete = () => {
+    tapFeedback();
+    onDelete?.();
+    setConfirming(false);
   };
 
   return (
@@ -44,7 +55,15 @@ export function MessageActions({ visible, onReact, onReply, mine }: MessageActio
         shadows.sm,
       ]}
     >
-      {picking ? (
+      {confirming ? (
+        <>
+          <Txt variant="footnote" weight="semibold" tone="danger" style={styles.confirmLabel}>
+            Delete?
+          </Txt>
+          <IconButton name="check" size={16} color={colors.danger} accessibilityLabel="Confirm delete" onPress={confirmDelete} />
+          <IconButton name="x" size={14} color={colors.inkMuted} accessibilityLabel="Cancel delete" onPress={() => setConfirming(false)} />
+        </>
+      ) : picking ? (
         <>
           {QUICK_REACTIONS.map((emoji) => (
             <Pressable
@@ -76,6 +95,21 @@ export function MessageActions({ visible, onReact, onReply, mine }: MessageActio
           {onReply ? (
             <IconButton name="thread" size={16} color={colors.inkSoft} accessibilityLabel="Reply in thread" onPress={onReply} />
           ) : null}
+          {onEdit ? (
+            <IconButton name="edit" size={16} color={colors.inkSoft} accessibilityLabel="Edit message" onPress={onEdit} />
+          ) : null}
+          {onDelete ? (
+            <IconButton
+              name="trash"
+              size={16}
+              color={colors.inkSoft}
+              accessibilityLabel="Delete message"
+              onPress={() => {
+                tapFeedback();
+                setConfirming(true);
+              }}
+            />
+          ) : null}
         </>
       )}
     </View>
@@ -104,4 +138,5 @@ const styles = StyleSheet.create({
     borderRadius: radii.sm,
     paddingHorizontal: 4,
   },
+  confirmLabel: { paddingHorizontal: spacing.xs },
 });

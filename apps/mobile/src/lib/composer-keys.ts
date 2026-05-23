@@ -28,3 +28,22 @@ export function submitOnEnter(submit: () => void) {
     }
   };
 }
+
+/**
+ * Inline-editor key handler (web only): bare Enter saves, Escape cancels, and
+ * Shift+Enter falls through to insert a newline. Mirrors {@link submitOnEnter}
+ * but adds the Escape-to-cancel that an edit box needs; native keeps defaults.
+ */
+export function submitOnEnterCancelOnEsc(submit: () => void, cancel: () => void) {
+  if (Platform.OS !== 'web') return undefined;
+  return (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    const ev = e as WebKeyEvent;
+    if (ev.nativeEvent.key === 'Enter' && !ev.shiftKey && !ev.nativeEvent.isComposing) {
+      ev.preventDefault?.();
+      submit();
+    } else if (ev.nativeEvent.key === 'Escape') {
+      ev.preventDefault?.();
+      cancel();
+    }
+  };
+}

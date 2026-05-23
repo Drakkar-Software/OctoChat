@@ -7,7 +7,7 @@ import { useTheme, type Palette } from '@/lib/use-theme';
 type Variant = keyof typeof typeScale;
 type Weight = 'regular' | 'medium' | 'semibold' | 'bold';
 
-interface TxtProps extends TextProps {
+export interface TxtProps extends TextProps {
   variant?: Variant;
   weight?: Weight;
   /** Use JetBrains Mono (keys, fingerprints, timestamps, labels). */

@@ -4,6 +4,8 @@ import { StyleSheet } from 'react-native';
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
 import { useRoom } from '@/lib/use-room';
+import { useUnread } from '@/lib/unread-context';
+import { spaceIdFromRoomId } from '@/lib/starfish/paths';
 import { AppBar } from '@/components/ui/AppBar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { IconButton } from '@/components/ui/IconButton';
@@ -17,7 +19,8 @@ export default function ThreadScreen() {
   const roomId = params.roomId;
   const roomName = params.roomName ?? roomId;
   const { session } = useSession();
-  const { store, opening, openError, send, toggleReaction, uploadAttachment, loadAttachment } = useRoom(roomId);
+  const { lastReadAt } = useUnread();
+  const { store, opening, openError, send, toggleReaction, editMessage, deleteMessage, uploadAttachment, loadAttachment } = useRoom(roomId);
 
   return (
     <StackScreen
@@ -43,9 +46,15 @@ export default function ThreadScreen() {
       ) : store ? (
         <ThreadConversation
           store={store}
+          spaceId={spaceIdFromRoomId(roomId)}
           parentId={parentId}
           currentUserId={session.userId}
+          currentUserName={session.name}
+          lastReadAt={lastReadAt(roomId)}
           onToggleReaction={toggleReaction}
+          onEditMessage={editMessage}
+          onDeleteMessage={deleteMessage}
+          onOpenProfile={(userId) => router.push({ pathname: '/profile/[id]', params: { id: userId } })}
           onLoadAttachment={loadAttachment}
         />
       ) : (

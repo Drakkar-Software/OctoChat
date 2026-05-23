@@ -57,6 +57,7 @@ const ICONS = {
   alert: { lib: Feather, n: 'alert-triangle' },
   info: { lib: Feather, n: 'info' },
   edit: { lib: Feather, n: 'edit-2' },
+  trash: { lib: Feather, n: 'trash-2' },
   logout: { lib: Feather, n: 'log-out' },
   at: { lib: Feather, n: 'at-sign' },
   clock: { lib: Feather, n: 'clock' },

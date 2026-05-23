@@ -1,6 +1,7 @@
+import { mentionsUser } from './links';
 import { aggregateReactions } from './reactions';
 import type { AttachmentRef } from './starfish/attachments';
-import type { Message, ReactionEvent, User } from './types';
+import type { Message, MessageEditEvent, ReactionEvent, User } from './types';
 
 /** Shape of a message as stored (encrypted) in a room document. */
 export interface StoredMsg {
@@ -51,21 +52,60 @@ export function hhmm(ts: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+/** Latest edit/delete event for a message, folded from the append-only `edits`
+ *  log (matches the reactions house style: filter → sort by `ts` asc → take last).
+ *  SECURITY: only events authored by the message's own author count — the room doc
+ *  is E2EE with no server-side authorship check, so a peer could push an edit for
+ *  someone else's message; this filter, not the UI, is the real guard. */
+export function resolveEdit(
+  edits: MessageEditEvent[],
+  msgId: string,
+  authorId: string,
+): MessageEditEvent | undefined {
+  return edits
+    .filter((e) => e.msgId === msgId && e.userId === authorId)
+    .sort((a, b) => a.ts - b.ts)
+    .at(-1);
+}
+
+/** View-time context for mapping a stored message to its display form. */
+export interface DisplayOpts {
+  /** Reply count if this message anchors a thread. */
+  threadCount?: number;
+  /** The viewer's pseudo — flags a message that `@`-mentions them. */
+  selfName?: string;
+  /** The viewer's last-read timestamp for this room — messages newer than it are
+   *  "unread" (escalates a mention's highlight). Absent ⇒ treat as never read. */
+  lastReadAt?: number;
+  /** Append-only edit/delete log for the room — folded per message at render. */
+  edits?: MessageEditEvent[];
+}
+
 /** Map a stored message → the display `Message` the UI components expect. */
 export function toDisplayMessage(
   m: StoredMsg,
   reactions: ReactionEvent[],
   currentUserId: string,
-  threadCount?: number,
+  opts: DisplayOpts = {},
 ): Message {
+  // Fold the author's latest edit/delete over the stored body.
+  const edit = resolveEdit(opts.edits ?? [], m.id, m.authorId);
+  const deleted = edit?.kind === 'delete';
+  const text = deleted ? undefined : edit?.kind === 'edit' ? edit.text : m.text;
+  // Don't flag your own message as mentioning you, even if you typed your name.
+  const mention = m.authorId !== currentUserId && mentionsUser(text, opts.selfName);
   return {
     id: m.id,
     roomId: '',
     authorId: m.authorId,
     time: hhmm(m.ts),
-    text: m.text,
+    text,
     attachmentRef: m.attachment,
     reactions: aggregateReactions(reactions, m.id, currentUserId),
-    threadCount,
+    threadCount: opts.threadCount,
+    mention,
+    unread: m.ts > (opts.lastReadAt ?? 0),
+    edited: edit?.kind === 'edit',
+    deleted,
   };
 }
