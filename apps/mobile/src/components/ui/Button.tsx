@@ -1,5 +1,5 @@
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -25,6 +25,9 @@ interface ButtonProps {
   /** Optional leading icon, auto-colored to match the label. */
   iconName?: IconName;
   disabled?: boolean;
+  /** Show a spinner in place of the leading icon and block presses — for async
+   *  actions (e.g. generating an invite link) so the wait reads as "working". */
+  loading?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -57,6 +60,7 @@ export function Button({
   full = false,
   iconName,
   disabled = false,
+  loading = false,
   style,
 }: ButtonProps) {
   const { colors } = useTheme();
@@ -72,7 +76,7 @@ export function Button({
   return (
     <AnimatedPressable
       accessibilityRole="button"
-      disabled={disabled}
+      disabled={disabled || loading}
       onPress={onPress}
       {...hoverProps}
       onPressIn={() => {
@@ -107,7 +111,11 @@ export function Button({
         />
       ) : null}
       {hoverWash ? <View style={[StyleSheet.absoluteFill, styles.fill, { backgroundColor: hoverWash }]} /> : null}
-      {iconName ? <Icon name={iconName} size={s.fontSize + 2} color={v.fg} /> : null}
+      {loading ? (
+        <ActivityIndicator size="small" color={v.fg} />
+      ) : iconName ? (
+        <Icon name={iconName} size={s.fontSize + 2} color={v.fg} />
+      ) : null}
       <Text style={[styles.label, { color: v.fg, fontSize: s.fontSize }]} numberOfLines={1}>
         {label}
       </Text>

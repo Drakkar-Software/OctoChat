@@ -69,6 +69,9 @@ export default function SpaceScreen() {
   const [saved, setSaved] = useState(false);
   const [request, setRequest] = useState('');
   const [inviting, setInviting] = useState(false);
+  // Which public link is currently being minted (null = none) — drives the
+  // per-button "Generating…" spinner so the keygen wait reads as working.
+  const [genWrite, setGenWrite] = useState<boolean | null>(null);
   const [inviteCap, setInviteCap] = useState<string | null>(null);
   const [link, setLink] = useState<{ url: string; write: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +104,7 @@ export default function SpaceScreen() {
   const createPublicLink = async (write: boolean) => {
     if (inviting) return;
     setInviting(true);
+    setGenWrite(write);
     setError(null);
     try {
       const url = await createInvite(write, name, webOrigin());
@@ -109,6 +113,7 @@ export default function SpaceScreen() {
       setError(String((e as Error)?.message ?? e));
     } finally {
       setInviting(false);
+      setGenWrite(null);
     }
   };
 
@@ -220,19 +225,21 @@ export default function SpaceScreen() {
                   </Callout>
                   <View style={styles.typeRow}>
                     <Button
-                      label="Read-only link"
+                      label={genWrite === false ? 'Generating…' : 'Read-only link'}
                       variant="primary"
                       size="sm"
                       iconName="eye"
-                      disabled={inviting}
+                      loading={genWrite === false}
+                      disabled={genWrite === true}
                       onPress={() => createPublicLink(false)}
                     />
                     <Button
-                      label="Read & write link"
+                      label={genWrite === true ? 'Generating…' : 'Read & write link'}
                       variant="secondary"
                       size="sm"
                       iconName="edit"
-                      disabled={inviting}
+                      loading={genWrite === true}
+                      disabled={genWrite === false}
                       onPress={() => createPublicLink(true)}
                     />
                   </View>

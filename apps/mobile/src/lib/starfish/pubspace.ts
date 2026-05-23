@@ -11,17 +11,15 @@
  * fragment. The link itself is the credential and grants access to EVERY room in the
  * space (read-only or read/write). NOT end-to-end encrypted — the server can read it.
  */
-import { generateMnemonic } from '@scure/bip39';
-import { wordlist } from '@scure/bip39/wordlists/english.js';
-import { bootstrapRootIdentity } from '@drakkar.software/starfish-identities';
+import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 import { mintMemberCap } from '@drakkar.software/starfish-sharing';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { Room, Space } from '@/lib/types';
 
-import { makeClient, type DeviceKeys } from './client';
+import { makeClient } from './client';
 import type { Session } from './identity';
-import { pubspaceRoomPush, pubspaceRoomsPull, pubspaceRoomsPush, pubspaceScope } from './paths';
+import { bytesToHex, pubspaceRoomPush, pubspaceRoomsPull, pubspaceRoomsPush, pubspaceScope } from './paths';
 import { getPubspaceAccess, savePubspaceAccess } from './pubspace-caps';
 import { addJoinedSpace } from './registry';
 
@@ -88,6 +86,16 @@ function newPublicSpaceId(): string {
 }
 
 const monogram = (name: string) => name.trim().slice(0, 2).toUpperCase() || 'PS';
+
+/** The cap subject's userId, mirroring the SDK derivation: SHA-256(edPub), first
+ *  32 hex chars. Reproduced here so a randomly-generated throwaway keypair gets a
+ *  matching, self-consistent identity without a slow Argon2 root bootstrap. */
+async function ephemeralUserId(edPubHex: string): Promise<string> {
+  const bytes = new Uint8Array(edPubHex.length / 2);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(edPubHex.slice(i * 2, i * 2 + 2), 16);
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+  return bytesToHex(new Uint8Array(digest)).slice(0, 32);
+}
 
 interface PublicRoomsDoc {
   v: 1;
@@ -183,12 +191,17 @@ export async function createPublicInvite(
   write: boolean,
   origin: string,
 ): Promise<{ token: PublicInviteToken; link: string }> {
-  const eph = await bootstrapRootIdentity(generateMnemonic(wordlist, 128));
-  const ek = eph.device as DeviceKeys;
+  // A throwaway ephemeral keypair, generated RANDOMLY. We deliberately do NOT
+  // bootstrap a root identity from a mnemonic here: that runs Argon2id, which —
+  // under the web pure-JS shim — blocks the main thread for seconds and freezes
+  // the UI. The subject userId mirrors the SDK derivation (SHA-256(edPub)) so the
+  // minted cap is self-consistent.
+  const ek = generateDeviceKeys();
+  const userIdHex = await ephemeralUserId(ek.edPub);
   const cap = await mintMemberCap(
     session.keys.edPriv,
     session.keys.edPub,
-    { edPubHex: ek.edPub, kemPubHex: ek.kemPub, userIdHex: eph.userId },
+    { edPubHex: ek.edPub, kemPubHex: ek.kemPub, userIdHex },
     'pubspace',
     pubspaceScope(session.userId, spaceId, write),
   );
