@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
@@ -36,23 +36,25 @@ export default function RoomScreen() {
   const { editingId, setEditingId, editLast } = useMessageEditing(store, session?.userId ?? '');
   const title = kind === 'dm' ? name : `#${name}`;
 
-  // Snapshot the last-read mark during render — before the focus effect below
-  // advances it — and hold it for this visit, so messages that arrived since the
-  // previous visit keep rendering as unread (escalating an @mention's highlight)
-  // even after the room is marked read on open.
-  const readBeforeRef = useRef<Record<string, number>>({});
-  if (readBeforeRef.current[id] === undefined) readBeforeRef.current[id] = lastReadAt(id);
-  const readBefore = readBeforeRef.current[id];
+  // The room's last-read mark as it stood at the START of this visit — re-captured
+  // on EVERY focus (lazy-initialised to avoid a first-render "all unread" flash).
+  // Messages and threads newer than it render as unread for the visit (escalating an
+  // @mention's highlight) even after the room is marked read on open. Capturing per
+  // focus — not once per mount — is what fixes thread badges sticking unread forever:
+  // returning from a thread (this screen stays mounted underneath) or re-entering the
+  // room re-reads the now-advanced mark, so threads caught up since stop reading unread.
+  const [readBefore, setReadBefore] = useState(() => lastReadAt(id));
 
-  // Clear this room's unread whenever it becomes the focused screen — on first
-  // open AND on returning to it after it sat backgrounded (where it now accrues
-  // unread, since useRoom only suppresses change-events while focused). While
-  // focused the unread provider ignores its SSE events, so no live re-marking is
-  // needed; a mount-only effect would leave that re-entry unread stuck.
+  // Mark this room read whenever it becomes the focused screen — on first open AND on
+  // returning to it after it sat backgrounded (where it accrues unread, since useRoom
+  // only suppresses change-events while focused). Snapshot readBefore FIRST: lastReadAt
+  // reads the very mark markRoomRead is about to overwrite, so the order matters.
   useFocusEffect(
     useCallback(() => {
-      if (session) markRoomRead(id);
-    }, [session, id, markRoomRead]),
+      if (!session) return;
+      setReadBefore(lastReadAt(id));
+      markRoomRead(id);
+    }, [session, id, lastReadAt, markRoomRead]),
   );
 
   const openThread = (msgId: string) =>
