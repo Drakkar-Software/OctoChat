@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 
 import { radii, spacing } from '@/theme';
 import type { Space } from '@/lib/types';
@@ -16,12 +17,14 @@ interface SpaceRailProps {
 
 function RailItem({
   label,
+  image,
   active,
   unread,
   locked,
   onPress,
 }: {
   label: string;
+  image?: string;
   active: boolean;
   unread?: number;
   locked?: boolean;
@@ -41,9 +44,13 @@ function RailItem({
           },
         ]}
       >
-        <Txt variant="caption" weight="bold" mono color={active ? colors.onAccent : colors.inkSoft}>
-          {label}
-        </Txt>
+        {image ? (
+          <Image source={{ uri: image }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={label} />
+        ) : (
+          <Txt variant="caption" weight="bold" mono color={active ? colors.onAccent : colors.inkSoft}>
+            {label}
+          </Txt>
+        )}
       </View>
       {locked ? (
         <View style={[styles.lock, { backgroundColor: colors.paper, borderColor: colors.lineSoft }]}>
@@ -68,6 +75,7 @@ export function SpaceRail({ spaces, activeId, onSelect, onAdd }: SpaceRailProps)
         <RailItem
           key={s.id}
           label={s.short}
+          image={s.image}
           active={s.id === activeId}
           unread={s.unread}
           locked={(s.type ?? 'private') === 'private'}
@@ -89,7 +97,7 @@ export function SpaceRail({ spaces, activeId, onSelect, onAdd }: SpaceRailProps)
 const styles = StyleSheet.create({
   rail: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
   itemWrap: { position: 'relative' },
-  tile: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
+  tile: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   add: { borderRadius: radii.lg, borderWidth: 1, borderStyle: 'dashed' },
   badge: { position: 'absolute', top: -5, right: -5 },
   lock: {

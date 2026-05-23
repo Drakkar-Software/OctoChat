@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { Room } from '@/lib/types';
 
-import { createRoom as createRoomDoc, readRooms } from './starfish/registry';
+import { createRoom as createRoomDoc, readRooms, reconcileSpaceMeta } from './starfish/registry';
 import {
   createPublicRoom,
   isPublicSpaceId,
   publicSpaceAuth,
   publicSpaceClient,
-  readPublicRooms,
+  readPublicRoomsDoc,
 } from './starfish/pubspace';
 import { useSession } from './session-context';
 import { useUnread } from './unread-context';
@@ -44,16 +44,23 @@ export function useRooms(spaceId: string | null) {
     if (!session || !spaceId) return;
     if (isPublicSpaceId(spaceId)) {
       const auth = publicSpaceAuth(session, spaceId);
-      const list = await readPublicRooms(publicSpaceClient(session, spaceId), auth.ownerId, spaceId);
+      const { rooms: list, name, image } = await readPublicRoomsDoc(
+        publicSpaceClient(session, spaceId),
+        auth.ownerId,
+        spaceId,
+      );
       setRooms(list);
       setOwner(auth.ownerId); // only the path owner may add channels
       setMembers([]); // public spaces have no roster (access is by cap, not membership)
+      // Fold the owner's shared name/image into our own _spaces cache (best-effort).
+      void reconcileSpaceMeta(session.accountClient, session.userId, spaceId, { name, image }).catch(() => {});
       return;
     }
-    const { rooms: list, owner: o, members: roster } = await readRooms(session.accountClient, spaceId);
+    const { rooms: list, owner: o, members: roster, name, image } = await readRooms(session.accountClient, spaceId);
     setRooms(list);
     setOwner(o);
     setMembers(roster);
+    void reconcileSpaceMeta(session.accountClient, session.userId, spaceId, { name, image }).catch(() => {});
   }, [session, spaceId]);
 
   useEffect(() => {

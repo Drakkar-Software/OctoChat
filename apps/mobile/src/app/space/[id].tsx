@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
@@ -8,6 +8,7 @@ import { useSpaces } from '@/lib/use-spaces';
 import { useSpaceSettings } from '@/lib/use-space-settings';
 import { useTheme } from '@/lib/use-theme';
 import { AppBar } from '@/components/ui/AppBar';
+import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Card } from '@/components/ui/Card';
@@ -42,12 +43,29 @@ export default function SpaceScreen() {
   const { spaces } = useSpaces();
   const space = spaces.find((s) => s.id === spaceId);
   const name = space?.name ?? params.name ?? 'Space';
-  const { ownerId, isOwner, isMember, members, loading, isPublic, rename, invite, createInvite, leave } =
-    useSpaceSettings(spaceId);
+  const shortLabel = space?.short ?? name.slice(0, 2).toUpperCase();
+  const {
+    ownerId,
+    isOwner,
+    isMember,
+    members,
+    loading,
+    isPublic,
+    nameDraft,
+    setNameDraft,
+    imageDraft,
+    pickImage,
+    removeImage,
+    imageError,
+    dirty,
+    saving,
+    save,
+    invite,
+    createInvite,
+    leave,
+  } = useSpaceSettings(spaceId);
   const memberCount = 1 + members.length; // owner + roster (public spaces have no roster)
 
-  const [draft, setDraft] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [request, setRequest] = useState('');
   const [inviting, setInviting] = useState(false);
@@ -56,16 +74,14 @@ export default function SpaceScreen() {
   const [error, setError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
 
-  const save = async () => {
-    if (saving) return;
-    setSaving(true);
-    setSaved(false);
-    try {
-      await rename(draft ?? name);
-      setSaved(true);
-    } finally {
-      setSaving(false);
-    }
+  // Clear the "Saved." note as soon as the form is dirtied again (name or image).
+  useEffect(() => {
+    if (dirty) setSaved(false);
+  }, [dirty]);
+
+  const onSave = async () => {
+    await save();
+    setSaved(true);
   };
 
   const createPrivateInvite = async () => {
@@ -130,22 +146,63 @@ export default function SpaceScreen() {
           {loading ? null : isOwner ? (
             <>
               <Card title="SETTINGS">
+                <View style={styles.imageRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Change space image"
+                    onPress={pickImage}
+                    style={styles.imageWrap}
+                  >
+                    <Avatar label={shortLabel} image={imageDraft} size={68} />
+                    <View style={[styles.cameraBadge, { backgroundColor: colors.accent, borderColor: colors.paper }]}>
+                      <Icon name="camera" size={12} color={colors.onAccent} />
+                    </View>
+                  </Pressable>
+                  <View style={styles.imageText}>
+                    <Txt variant="footnote" tone="inkSoft">
+                      Space image
+                    </Txt>
+                    <View style={styles.imageActions}>
+                      <Pressable accessibilityRole="button" onPress={pickImage} hitSlop={6}>
+                        <Txt variant="footnote" weight="semibold" tone="accent">
+                          {imageDraft ? 'Change image' : 'Upload image'}
+                        </Txt>
+                      </Pressable>
+                      {imageDraft ? (
+                        <Pressable accessibilityRole="button" onPress={removeImage} hitSlop={6}>
+                          <Txt variant="footnote" weight="semibold" tone="danger">
+                            Remove
+                          </Txt>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                    {imageError ? (
+                      <Txt variant="micro" tone="danger">
+                        {imageError}
+                      </Txt>
+                    ) : null}
+                  </View>
+                </View>
+
                 <Txt variant="footnote" tone="inkSoft">
                   Space name
                 </Txt>
                 <TextField
-                  value={draft ?? name}
-                  onChangeText={(t) => {
-                    setDraft(t);
-                    setSaved(false);
-                  }}
+                  value={nameDraft}
+                  onChangeText={setNameDraft}
                   placeholder="Space name…"
                   autoCapitalize="words"
                   autoCorrect={false}
-                  onSubmitEditing={save}
+                  onSubmitEditing={onSave}
                   returnKeyType="done"
                 />
-                <Button label={saving ? 'Saving…' : 'Save'} variant="primary" size="md" disabled={saving} onPress={save} />
+                <Button
+                  label={saving ? 'Saving…' : 'Save'}
+                  variant="primary"
+                  size="md"
+                  disabled={saving || !dirty}
+                  onPress={onSave}
+                />
                 {saved ? (
                   <View style={styles.meta}>
                     <Icon name="check" size={12} color={colors.success} />
@@ -261,6 +318,21 @@ export default function SpaceScreen() {
 const styles = StyleSheet.create({
   content: { padding: spacing.screenX, gap: spacing.lg },
   meta: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  imageRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
+  imageWrap: { position: 'relative' },
+  cameraBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageText: { flex: 1, gap: 2 },
+  imageActions: { flexDirection: 'row', gap: spacing.md, marginTop: 2 },
   inviteBox: { gap: spacing.sm },
   typeRow: { flexDirection: 'row', gap: spacing.sm },
   linkBox: { gap: spacing.md },

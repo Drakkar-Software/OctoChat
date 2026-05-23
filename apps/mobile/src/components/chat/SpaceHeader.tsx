@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { spacing } from '@/theme';
 import type { Space } from '@/lib/types';
 import { useTheme } from '@/lib/use-theme';
+import { Avatar } from '@/components/ui/Avatar';
 import { IconButton } from '@/components/ui/IconButton';
 import { Txt } from '@/components/ui/Txt';
 
@@ -46,12 +47,15 @@ export function SpaceHeader({
           accessibilityRole="button"
           accessibilityLabel="Space info and settings"
           onPress={onOpenSpace}
-          style={styles.titleCol}
+          style={styles.titleRow}
         >
-          <Txt variant="heading" weight="bold" numberOfLines={1}>
-            {space.name}
-          </Txt>
-          <SpaceMeta isPublic={isPublic} memberCount={memberCount} iconSize={10} />
+          <Avatar label={space.short} image={space.image} size={34} />
+          <View style={styles.titleCol}>
+            <Txt variant="heading" weight="bold" numberOfLines={1}>
+              {space.name}
+            </Txt>
+            <SpaceMeta isPublic={isPublic} memberCount={memberCount} iconSize={10} />
+          </View>
         </Pressable>
         <IconButton name="search" onPress={onSearch} accessibilityLabel="Search" />
         <IconButton name="dots" onPress={onMenu} accessibilityLabel="Space menu" />
@@ -70,5 +74,6 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   top: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  titleRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   titleCol: { flex: 1, minWidth: 0, gap: 2 },
 });

@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 
 import { glowShadow, layout, radii, spacing } from '@/theme';
 import type { Space } from '@/lib/types';
@@ -29,12 +30,14 @@ interface DesktopSpacesRailProps {
 
 function SpaceTile({
   label,
+  image,
   active,
   unread,
   locked,
   onPress,
 }: {
   label: string;
+  image?: string;
   active: boolean;
   unread?: number;
   locked?: boolean;
@@ -56,9 +59,13 @@ function SpaceTile({
           active ? glowShadow(colors.glow, 0.3, 8) : null,
         ]}
       >
-        <Txt variant="footnote" weight="bold" mono color={active ? colors.onAccent : hovered ? colors.accentInk : colors.inkSoft}>
-          {label}
-        </Txt>
+        {image ? (
+          <Image source={{ uri: image }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={label} />
+        ) : (
+          <Txt variant="footnote" weight="bold" mono color={active ? colors.onAccent : hovered ? colors.accentInk : colors.inkSoft}>
+            {label}
+          </Txt>
+        )}
       </View>
       {locked ? (
         <View style={[styles.lock, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
@@ -99,6 +106,7 @@ export function DesktopSpacesRail({
         <SpaceTile
           key={s.id}
           label={s.short}
+          image={s.image}
           active={s.id === activeId}
           unread={s.unread}
           locked={(s.type ?? 'private') === 'private'}
@@ -140,7 +148,7 @@ const styles = StyleSheet.create({
   },
   rule: { width: 28, height: 1, marginVertical: spacing.xs },
   tileWrap: { position: 'relative' },
-  tile: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  tile: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   add: { borderRadius: radii.xl, borderWidth: 1, borderStyle: 'dashed' },
   badge: { position: 'absolute', top: -5, right: -5 },
   lock: {

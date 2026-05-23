@@ -92,6 +92,11 @@ const monogram = (name: string) => name.trim().slice(0, 2).toUpperCase() || 'PS'
 interface PublicRoomsDoc {
   v: 1;
   rooms: Room[];
+  /** Owner-set shared space identity (plaintext, like the rest of a public space).
+   *  Joiners read it; `pubspace:writer` is withheld on `_rooms`, so only the owner
+   *  writes it. `image` is a data URI (see avatar-image). */
+  name?: string;
+  image?: string;
 }
 
 /** Public-space ids are prefixed so the data layer can branch synchronously without
@@ -114,15 +119,21 @@ export function publicSpaceAuth(
 /** An empty plaintext room doc — same shape `useSyncInit` builds, minus encryption. */
 const emptyRoomDoc = (): Record<string, unknown> => ({ messages: [], reactions: [] });
 
-/** Read a public space's room registry doc + its hash (for an append write). */
-async function readPublicRoomsDoc(
+/** Read a public space's room registry doc — rooms, shared name/image, + its hash
+ *  (for an append write). */
+export async function readPublicRoomsDoc(
   client: StarfishClient,
   ownerId: string,
   spaceId: string,
-): Promise<{ rooms: Room[]; hash: string | null }> {
+): Promise<{ rooms: Room[]; name: string | null; image: string | null; hash: string | null }> {
   const res = await client.pull(pubspaceRoomsPull(ownerId, spaceId)).catch(() => null);
-  const rooms = (res?.data as Partial<PublicRoomsDoc> | undefined)?.rooms;
-  return { rooms: Array.isArray(rooms) ? rooms : [], hash: res?.hash ?? null };
+  const data = res?.data as Partial<PublicRoomsDoc> | undefined;
+  return {
+    rooms: Array.isArray(data?.rooms) ? data.rooms : [],
+    name: typeof data?.name === 'string' ? data.name : null,
+    image: typeof data?.image === 'string' ? data.image : null,
+    hash: res?.hash ?? null,
+  };
 }
 
 /** Read a public space's room list (gated by the caller's cap). */
@@ -139,7 +150,7 @@ export async function createPublicSpace(session: Session, name: string): Promise
   const trimmed = name.trim() || 'Public space';
   const spaceId = newPublicSpaceId();
   const general: Room = { id: `${spaceId}-general`, spaceId, category: 'CHANNELS', name: 'general', kind: 'channel' };
-  const doc: PublicRoomsDoc = { v: 1, rooms: [general] };
+  const doc: PublicRoomsDoc = { v: 1, rooms: [general], name: trimmed };
   await session.accountClient.push(
     pubspaceRoomsPush(session.userId, spaceId),
     doc as unknown as Record<string, unknown>,
@@ -223,7 +234,7 @@ export async function createPublicRoom(
   category = 'CHANNELS',
 ): Promise<Room> {
   const client = session.accountClient;
-  const { rooms, hash } = await readPublicRoomsDoc(client, session.userId, spaceId);
+  const { rooms, name: spaceName, image, hash } = await readPublicRoomsDoc(client, session.userId, spaceId);
   const room: Room = {
     id: `${spaceId}-${name.toLowerCase().replace(/\s+/g, '-')}-${Date.now().toString(36)}`,
     spaceId,
@@ -231,8 +242,33 @@ export async function createPublicRoom(
     name,
     kind: 'channel',
   };
-  const doc: PublicRoomsDoc = { v: 1, rooms: [...rooms, room] };
+  // Preserve the shared name/image so adding a channel never drops the space identity.
+  const doc: PublicRoomsDoc = {
+    v: 1,
+    rooms: [...rooms, room],
+    ...(spaceName ? { name: spaceName } : {}),
+    ...(image ? { image } : {}),
+  };
   await client.push(pubspaceRoomsPush(session.userId, spaceId), doc as unknown as Record<string, unknown>, hash);
   await client.push(pubspaceRoomPush(session.userId, spaceId, room.id), emptyRoomDoc(), null);
   return room;
+}
+
+/**
+ * Owner: update a public space's SHARED identity (name / image) in its plaintext
+ * `_rooms` registry, written with the account cap (`pubspace:owner`). Joiners read
+ * but can't write `_rooms`, so this is owner-only. Preserves the rooms list; an
+ * `undefined` field is left unchanged and a `null`/empty image clears it.
+ */
+export async function updatePublicSpaceMeta(
+  session: Session,
+  spaceId: string,
+  meta: { name?: string | null; image?: string | null },
+): Promise<void> {
+  const client = session.accountClient;
+  const { rooms, name: curName, image: curImage, hash } = await readPublicRoomsDoc(client, session.userId, spaceId);
+  const name = (meta.name === undefined ? curName : meta.name)?.trim() || undefined;
+  const image = (meta.image === undefined ? curImage : meta.image) || undefined;
+  const doc: PublicRoomsDoc = { v: 1, rooms, ...(name ? { name } : {}), ...(image ? { image } : {}) };
+  await client.push(pubspaceRoomsPush(session.userId, spaceId), doc as unknown as Record<string, unknown>, hash);
 }

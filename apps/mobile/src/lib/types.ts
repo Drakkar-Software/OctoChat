@@ -20,6 +20,9 @@ export interface Space {
   name: string;
   /** 2-letter monogram used in the space rail. */
   short: string;
+  /** Uploaded space image as a data URI; absent → render the `short` monogram.
+   *  Owner-set + shared via the space's `_rooms` registry (plaintext, NOT E2EE). */
+  image?: string;
   members: number;
   unread?: number;
   /** 'private' (E2EE keyring space, the default) or 'public' (plaintext, joined via

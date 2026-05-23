@@ -3,7 +3,7 @@ import { usePathname } from 'expo-router';
 
 import type { Space } from '@/lib/types';
 
-import { createSpace as createSpaceDoc, readSpaces } from './starfish/registry';
+import { createSpace as createSpaceDoc, onSpaceMeta, readSpaces } from './starfish/registry';
 import { createPublicSpace } from './starfish/pubspace';
 import { useSession } from './session-context';
 import { useUnread } from './unread-context';
@@ -59,6 +59,18 @@ export function useSpaces() {
     if (!session) return;
     void refresh().catch(() => {});
   }, [pathname, session, refresh]);
+
+  // Adopt a freshly-saved/reconciled space name + image (from the settings screen
+  // or a post-sync reconcile) live, without waiting for the next navigation refresh.
+  useEffect(
+    () =>
+      onSpaceMeta((id, meta) => {
+        setSpaces((prev) =>
+          prev.map((s) => (s.id === id ? { ...s, name: meta.name, short: meta.short, image: meta.image } : s)),
+        );
+      }),
+    [],
+  );
 
   const createSpace = useCallback(
     async (name: string, type: 'private' | 'public' = 'private'): Promise<Space | null> => {
