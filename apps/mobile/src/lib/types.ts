@@ -83,19 +83,12 @@ export interface MessageEditEvent {
   ts: number;
 }
 
-export type Attachment =
-  | { kind: 'image'; label: string; ratio: number }
-  | { kind: 'video'; label: string; duration: string }
-  | { kind: 'file'; name: string; meta: string }
-  | { kind: 'link'; title: string; domain: string; blurb: string };
-
 export interface Message {
   id: ID;
   roomId: ID;
   authorId: ID;
   time: string;
   text?: string;
-  attachment?: Attachment;
   /** Real (encrypted) attachment reference rendered via AttachmentView. */
   attachmentRef?: AttachmentRef;
   reactions?: Reaction[];
@@ -106,8 +99,6 @@ export interface Message {
   /** Whether this message arrived since the viewer last read the room. Combined
    *  with {@link mention} it escalates the highlight (a wider, stronger bar). */
   unread?: boolean;
-  /** Render an "unread" divider above this message. */
-  unreadBefore?: boolean;
   /** Whether the author has edited this message's text (renders an "(edited)" mark). */
   edited?: boolean;
   /** Whether the author has deleted this message (renders a "deleted" tombstone). */

@@ -52,6 +52,33 @@ export function hhmm(ts: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+/** Whether two timestamps fall on the same calendar day (local time). Used to
+ *  decide where a {@link DateDivider} goes between message groups. */
+export function sameDay(a: number, b: number): boolean {
+  const da = new Date(a);
+  const db = new Date(b);
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  );
+}
+
+/** Human day label for a message's date divider: "Today" / "Yesterday" / a short
+ *  date ("May 23"), dropping to "May 23, 2025" once it predates the current year.
+ *  `now` is injectable for tests. */
+export function dayLabel(ts: number, now: number = Date.now()): string {
+  if (sameDay(ts, now)) return 'Today';
+  if (sameDay(ts, now - 86_400_000)) return 'Yesterday';
+  const d = new Date(ts);
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? null : { year: 'numeric' }),
+  });
+}
+
 /** Latest edit/delete event for a message, folded from the append-only `edits`
  *  log (matches the reactions house style: filter → sort by `ts` asc → take last).
  *  SECURITY: only events authored by the message's own author count — the room doc

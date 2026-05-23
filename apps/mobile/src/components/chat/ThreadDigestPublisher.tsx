@@ -27,8 +27,10 @@ export function ThreadDigestPublisher({
 }: {
   store: Parameters<typeof useStarfishData>[0];
   roomId: string;
-  /** The viewer's room last-read snapshot — replies newer than it read as unread. */
-  readBefore: number;
+  /** The viewer's room last-read snapshot — replies newer than it read as unread.
+   *  `null` until it hydrates from kv (see room/[id].tsx); treated as "all read"
+   *  (no unread badges) meanwhile, never as 0 (which would mark every reply unread). */
+  readBefore: number | null;
 }) {
   const { publish } = useThreadDigest();
   // Read the raw selector outputs (stable store refs, or `undefined`) and only fall
@@ -37,7 +39,8 @@ export function ThreadDigestPublisher({
   const messages = useStarfishData(store, (d) => d.messages as StoredMsg[] | undefined);
   const edits = useStarfishData(store, (d) => d.edits as MessageEditEvent[] | undefined);
   const threads = useMemo(
-    () => buildThreadDigest(messages ?? EMPTY, edits ?? EMPTY, readBefore),
+    // null readBefore → use a far-future mark so nothing counts as unread yet.
+    () => buildThreadDigest(messages ?? EMPTY, edits ?? EMPTY, readBefore ?? Number.MAX_SAFE_INTEGER),
     [messages, edits, readBefore],
   );
 

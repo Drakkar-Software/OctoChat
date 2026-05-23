@@ -1,13 +1,11 @@
 import { StyleSheet, View } from 'react-native';
-import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
+import { LegendList } from '@legendapp/list/react-native';
 
 import { spacing } from '@/theme';
-import { authorFor, displayName, toDisplayMessage, type StoredMsg } from '@/lib/message-view';
+import { authorFor, toDisplayMessage } from '@/lib/message-view';
 import { plural } from '@/lib/format';
 import type { AttachmentRef } from '@/lib/starfish/attachments';
-import type { MessageEditEvent, ReactionEvent } from '@/lib/types';
-import { useAvatars, usePseudos } from '@/lib/use-pseudos';
-import { useRoomMentions } from '@/lib/use-room-mentions';
+import { useConversationData, type ConversationStore } from '@/lib/use-conversation-data';
 import { Txt } from '@/components/ui/Txt';
 
 import { MessageGroup } from './MessageGroup';
@@ -26,7 +24,7 @@ export function ThreadConversation({
   onOpenProfile,
   onLoadAttachment,
 }: {
-  store: Parameters<typeof useStarfishData>[0];
+  store: ConversationStore;
   /** Space this thread belongs to — resolves `#channel` mentions to links. */
   spaceId?: string;
   parentId: string;
@@ -44,45 +42,50 @@ export function ThreadConversation({
   onOpenProfile?: (userId: string) => void;
   onLoadAttachment?: (ref: AttachmentRef) => Promise<Uint8Array | null>;
 }) {
-  const messages = (useStarfishData(store, (d) => d.messages as StoredMsg[] | undefined) ?? []) as StoredMsg[];
-  const reactions = (useStarfishData(store, (d) => d.reactions as ReactionEvent[] | undefined) ?? []) as ReactionEvent[];
-  const edits = (useStarfishData(store, (d) => d.edits as MessageEditEvent[] | undefined) ?? []) as MessageEditEvent[];
+  const { messages, reactions, edits, pseudo, avatar, nameFor, resolveRoom, selfName } = useConversationData(
+    store,
+    spaceId,
+    currentUserId,
+    currentUserName,
+  );
   const parent = messages.find((m) => m.id === parentId);
   const replies = messages.filter((m) => m.parentId === parentId);
-  // Resolve names for authors AND reactors, so the "who reacted" tooltip can name
-  // them; include the viewer so their own pseudo resolves for @mention matching.
-  const ids = [...new Set([currentUserId, ...messages.map((m) => m.authorId), ...reactions.map((r) => r.userId)])];
-  const pseudo = usePseudos(ids);
-  const avatar = useAvatars(ids);
-  const nameFor = (userId: string) => displayName(userId, currentUserId, pseudo(userId));
-  const resolveRoom = useRoomMentions(spaceId ?? null);
-  const selfName = pseudo(currentUserId)?.trim() || currentUserName;
 
   return (
-    <View>
-      {parent ? (
+    <LegendList
+      style={styles.list}
+      data={replies}
+      keyExtractor={(r) => r.id}
+      // Rows hold per-row hover/edit/reveal state, so recycling them would leak it
+      // across replies (mirrors RoomConversation).
+      recycleItems={false}
+      estimatedItemSize={ESTIMATED_ROW_HEIGHT}
+      ListHeaderComponent={
+        <>
+          {parent ? (
+            <MessageGroup
+              message={toDisplayMessage(parent, reactions, currentUserId, { selfName, lastReadAt, edits })}
+              author={authorFor(parent.authorId, currentUserId, pseudo(parent.authorId), avatar(parent.authorId))}
+              nameFor={nameFor}
+              resolveRoom={resolveRoom}
+              currentUserName={selfName}
+              onToggleReaction={(emoji) => onToggleReaction(parent.id, emoji)}
+              onEdit={parent.authorId === currentUserId && parent.text ? (t) => onEditMessage(parent.id, t) : undefined}
+              onDelete={parent.authorId === currentUserId ? () => onDeleteMessage(parent.id) : undefined}
+              onPressAuthor={onOpenProfile ? () => onOpenProfile(parent.authorId) : undefined}
+              onLoadAttachment={onLoadAttachment}
+              highlighted
+            />
+          ) : null}
+          <View style={styles.label}>
+            <Txt variant="micro" weight="bold" mono uppercase tone="inkMuted">
+              {plural(replies.length, 'reply', 'replies')}
+            </Txt>
+          </View>
+        </>
+      }
+      renderItem={({ item: r }) => (
         <MessageGroup
-          message={toDisplayMessage(parent, reactions, currentUserId, { selfName, lastReadAt, edits })}
-          author={authorFor(parent.authorId, currentUserId, pseudo(parent.authorId), avatar(parent.authorId))}
-          nameFor={nameFor}
-          resolveRoom={resolveRoom}
-          currentUserName={selfName}
-          onToggleReaction={(emoji) => onToggleReaction(parent.id, emoji)}
-          onEdit={parent.authorId === currentUserId && parent.text ? (t) => onEditMessage(parent.id, t) : undefined}
-          onDelete={parent.authorId === currentUserId ? () => onDeleteMessage(parent.id) : undefined}
-          onPressAuthor={onOpenProfile ? () => onOpenProfile(parent.authorId) : undefined}
-          onLoadAttachment={onLoadAttachment}
-          highlighted
-        />
-      ) : null}
-      <View style={styles.label}>
-        <Txt variant="micro" weight="bold" mono uppercase tone="inkMuted">
-          {plural(replies.length, 'reply', 'replies')}
-        </Txt>
-      </View>
-      {replies.map((r) => (
-        <MessageGroup
-          key={r.id}
           message={toDisplayMessage(r, reactions, currentUserId, { selfName, lastReadAt, edits })}
           author={authorFor(r.authorId, currentUserId, pseudo(r.authorId), avatar(r.authorId))}
           nameFor={nameFor}
@@ -94,11 +97,15 @@ export function ThreadConversation({
           onPressAuthor={onOpenProfile ? () => onOpenProfile(r.authorId) : undefined}
           onLoadAttachment={onLoadAttachment}
         />
-      ))}
-    </View>
+      )}
+    />
   );
 }
 
+/** Rough message-row height; only a virtualization hint before measurement. */
+const ESTIMATED_ROW_HEIGHT = 80;
+
 const styles = StyleSheet.create({
+  list: { flex: 1 },
   label: { paddingHorizontal: spacing.screenX, paddingVertical: spacing.sm },
 });

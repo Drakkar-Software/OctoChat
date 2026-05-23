@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, shadows } from '@/theme';
 import type { Reaction } from '@/lib/types';
+import { plural } from '@/lib/format';
 import { tapFeedback } from '@/lib/haptics';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
@@ -16,17 +18,23 @@ type ReactionChipProps = Reaction & {
 function ReactionChip({ emoji, count, mine, userIds, nameFor, onPress }: ReactionChipProps) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
+  // Native has no pointer, so a long-press toggles the "who reacted" bubble there;
+  // on web hover still drives it.
+  const [revealed, setRevealed] = useState(false);
+  const showWho = (hovered || revealed) && userIds.length > 0;
 
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={`${emoji}, ${plural(count, 'reaction')}${mine ? ', including you' : ''}`}
       onPress={onPress}
+      onLongPress={userIds.length ? () => setRevealed((v) => !v) : undefined}
       {...hoverProps}
       style={[
         styles.chip,
         {
           backgroundColor: mine ? colors.accentBg : colors.fill,
-          borderColor: mine ? colors.accentBorder : hovered ? colors.accentBorder : colors.lineFaint,
+          borderColor: mine || showWho ? colors.accentBorder : colors.lineFaint,
         },
       ]}
     >
@@ -34,7 +42,7 @@ function ReactionChip({ emoji, count, mine, userIds, nameFor, onPress }: Reactio
       <Txt variant="micro" weight="semibold" mono color={mine ? colors.accentInk : colors.inkSoft}>
         {count}
       </Txt>
-      {hovered && userIds.length ? (
+      {showWho ? (
         <View
           // Below the chip: more room than above and clear of the topbar. One name
           // per line (each nowrap) so the bubble grows past the narrow chip width.

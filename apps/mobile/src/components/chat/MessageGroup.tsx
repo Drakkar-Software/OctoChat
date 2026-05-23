@@ -95,27 +95,27 @@ export function MessageGroup({
     ) : (
       node
     );
-  // Quick actions (react / reply) live in a floating toolbar shown on hover
-  // (web) / always on native. It overlays the row, so revealing it never shifts
-  // surrounding content. Existing reactions and the reply count stay inline as
-  // content — those always show, since they signal a thread/reaction exists.
-  const showActions = Platform.OS !== 'web' || hovered;
+  // Quick actions (react / reply) live in a floating toolbar that overlays the
+  // row, so revealing it never shifts surrounding content. Existing reactions and
+  // the reply count stay inline as content — those always show, since they signal
+  // a thread/reaction exists. Web reveals the toolbar on row hover; native (no
+  // pointer) reveals it on a long-press, so it isn't pinned over every row.
+  const [revealed, setRevealed] = useState(false);
+  const showActions = Platform.OS === 'web' ? hovered : revealed;
   const mine = new Set((message.reactions ?? []).filter((r) => r.mine).map((r) => r.emoji));
-  return (
-    <View
-      {...hoverProps}
-      style={[
-        styles.row,
-        continuation ? styles.continuation : null,
-        strong
-          ? { backgroundColor: colors.accentBgStrong }
-          : tinted
-            ? { backgroundColor: colors.accentBg }
-            : hovered
-              ? { backgroundColor: colors.hover }
-              : null,
-      ]}
-    >
+  const rowStyle = [
+    styles.row,
+    continuation ? styles.continuation : null,
+    strong
+      ? { backgroundColor: colors.accentBgStrong }
+      : tinted
+        ? { backgroundColor: colors.accentBg }
+        : hovered
+          ? { backgroundColor: colors.hover }
+          : null,
+  ];
+  const content = (
+    <>
       {tinted ? (
         <View
           style={[
@@ -205,7 +205,20 @@ export function MessageGroup({
           mine={mine}
         />
       ) : null}
+    </>
+  );
+
+  // Web keeps a plain View — a Pressable row would force a pointer cursor and
+  // block message-text selection. Native (no hover) uses a Pressable so a
+  // long-press toggles the action toolbar instead of pinning it on every row.
+  return Platform.OS === 'web' ? (
+    <View {...hoverProps} style={rowStyle}>
+      {content}
     </View>
+  ) : (
+    <Pressable onLongPress={() => setRevealed((v) => !v)} delayLongPress={260} style={rowStyle}>
+      {content}
+    </Pressable>
   );
 }
 

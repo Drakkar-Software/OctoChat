@@ -30,31 +30,41 @@ export default function RoomScreen() {
   const kind = (params.kind ?? 'channel') as RoomKind;
   const { colors } = useTheme();
   const { session } = useSession();
-  const { markRoomRead, lastReadAt } = useUnread();
+  const { markRoomRead, lastReadAt, hydrated } = useUnread();
   const { store, opening, openError, syncError, send, toggleReaction, editMessage, deleteMessage, uploadAttachment, loadAttachment, canWrite } =
     useRoom(id);
   const { editingId, setEditingId, editLast } = useMessageEditing(store, session?.userId ?? '');
   const title = kind === 'dm' ? name : `#${name}`;
 
   // The room's last-read mark as it stood at the START of this visit — re-captured
-  // on EVERY focus (lazy-initialised to avoid a first-render "all unread" flash).
-  // Messages and threads newer than it render as unread for the visit (escalating an
-  // @mention's highlight) even after the room is marked read on open. Capturing per
-  // focus — not once per mount — is what fixes thread badges sticking unread forever:
-  // returning from a thread (this screen stays mounted underneath) or re-entering the
-  // room re-reads the now-advanced mark, so threads caught up since stop reading unread.
-  const [readBefore, setReadBefore] = useState(() => lastReadAt(id));
+  // on EVERY focus. Messages and threads newer than it render as unread for the visit
+  // (escalating an @mention's highlight) even after the room is marked read on open.
+  // Capturing per focus — not once per mount — is what fixes thread badges sticking
+  // unread on re-entry: returning from a thread (this screen stays mounted underneath)
+  // or re-entering the room re-reads the now-advanced mark, so threads caught up since
+  // stop reading unread.
+  //
+  // `null` until captured: the mark lives in kv and hydrates async (unread-context),
+  // so on a fresh page load it isn't ready at mount. Capturing then would read 0 and
+  // flash EVERY thread/message as unread. So we gate the capture on `hydrated` and
+  // treat null as "all read" downstream — lazy-init to the real mark only when it's
+  // already hydrated (room-to-room nav), avoiding a flash there too.
+  const [readBefore, setReadBefore] = useState<number | null>(() =>
+    hydrated ? lastReadAt(id) : null,
+  );
 
   // Mark this room read whenever it becomes the focused screen — on first open AND on
   // returning to it after it sat backgrounded (where it accrues unread, since useRoom
-  // only suppresses change-events while focused). Snapshot readBefore FIRST: lastReadAt
-  // reads the very mark markRoomRead is about to overwrite, so the order matters.
+  // only suppresses change-events while focused). Wait for `hydrated` so we snapshot
+  // the persisted mark, not the empty-map 0; the effect re-runs when it flips true.
+  // Snapshot readBefore FIRST: lastReadAt reads the very mark markRoomRead is about to
+  // overwrite, so the order matters.
   useFocusEffect(
     useCallback(() => {
-      if (!session) return;
+      if (!session || !hydrated) return;
       setReadBefore(lastReadAt(id));
       markRoomRead(id);
-    }, [session, id, lastReadAt, markRoomRead]),
+    }, [session, hydrated, id, lastReadAt, markRoomRead]),
   );
 
   const openThread = (msgId: string) =>
@@ -118,7 +128,7 @@ export default function RoomScreen() {
             spaceId={spaceIdFromRoomId(id)}
             currentUserId={session.userId}
             currentUserName={session.name}
-            lastReadAt={readBefore}
+            lastReadAt={readBefore ?? undefined}
             onToggleReaction={toggleReaction}
             onOpenThread={openThread}
             onEditMessage={editMessage}

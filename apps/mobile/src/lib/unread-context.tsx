@@ -45,6 +45,11 @@ interface UnreadValue {
   /** The viewer's last-read timestamp for a room (ms); 0 if never read. Lets a
    *  conversation flag messages newer than the previous visit as unread. */
   lastReadAt: (roomId: string) => number;
+  /** True once the persisted last-read marks have loaded from kv for the current
+   *  identity. Callers MUST gate their `lastReadAt` snapshot on this: before it,
+   *  the map is empty and `lastReadAt` returns 0, which would flash every thread /
+   *  message as unread on a fresh page load (the marks haven't hydrated yet). */
+  hydrated: boolean;
 }
 
 const persistKey = (userId: string) => `octochat.unread.${userId}`;
@@ -64,6 +69,12 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   // room open so messages newer than the previous visit read as "unread". Ref-only
   // (no state): it's a selector input snapshotted by callers, not reactive UI.
   const lastReadRef = useRef<Record<string, number>>({});
+  // Reactive flag flipped true once lastReadRef has hydrated from kv for this
+  // identity, so callers don't snapshot the empty (all-unread) map on a fresh load.
+  // Monotonic per identity (only reset to false when the identity clears): a re-run
+  // of the load (e.g. when the space set resolves) must NOT bounce it back to false,
+  // or callers would re-snapshot after markRoomRead has advanced the mark.
+  const [hydrated, setHydrated] = useState(false);
 
   // The user's space ids — passed as candidates to the /events proxy.
   // Avoids useSpaces() to prevent a circular dep (use-spaces → useUnread → here).
@@ -96,6 +107,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       mapRef.current = {};
       setUnreadByRoom({});
       lastReadRef.current = {};
+      setHydrated(false);
       return;
     }
     let cancelled = false;
@@ -112,6 +124,10 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
         }
       }
       lastReadRef.current = lastRead;
+      // Marks are loaded — flip the gate now (before the count-prune / subscribe
+      // gate below, which can early-return). `cancelled` was checked just above and
+      // nothing awaits between, so no stale-closure write. Stays true across re-runs.
+      setHydrated(true);
       let initial: Record<string, number> = {};
       if (raw) {
         try {
@@ -225,8 +241,8 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   }, [totalUnread]);
 
   const value = useMemo<UnreadValue>(
-    () => ({ unreadByRoom, unreadBySpace, totalUnread, markRoomRead, lastReadAt }),
-    [unreadByRoom, unreadBySpace, totalUnread, markRoomRead, lastReadAt],
+    () => ({ unreadByRoom, unreadBySpace, totalUnread, markRoomRead, lastReadAt, hydrated }),
+    [unreadByRoom, unreadBySpace, totalUnread, markRoomRead, lastReadAt, hydrated],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -25,7 +25,6 @@ export default function ThreadScreen() {
 
   return (
     <StackScreen
-      scroll
       contentStyle={styles.content}
       header={<AppBar title="Thread" subtitle={`#${roomName}`} onBack={() => router.back()} right={<IconButton name="dots" accessibilityLabel="Thread options" />} />}
       footer={

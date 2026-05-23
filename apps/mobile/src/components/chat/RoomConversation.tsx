@@ -1,15 +1,12 @@
 import { StyleSheet } from 'react-native';
 import { LegendList } from '@legendapp/list/react-native';
-import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 
-import { authorFor, displayName, isContinuation, toDisplayMessage, type StoredMsg } from '@/lib/message-view';
+import { authorFor, dayLabel, isContinuation, sameDay, toDisplayMessage } from '@/lib/message-view';
 import { replyCount } from '@/lib/reactions';
 import type { AttachmentRef } from '@/lib/starfish/attachments';
-import type { MessageEditEvent, ReactionEvent } from '@/lib/types';
-import { useAvatars, usePseudos } from '@/lib/use-pseudos';
-import { useRoomMentions } from '@/lib/use-room-mentions';
+import { useConversationData, type ConversationStore } from '@/lib/use-conversation-data';
 
-import { DateDivider } from './Dividers';
+import { DateDivider, UnreadDivider } from './Dividers';
 import { MessageGroup } from './MessageGroup';
 
 /** Rough message-row height; only a virtualization hint before measurement. */
@@ -37,7 +34,7 @@ export function RoomConversation({
   editingId,
   onEditingChange,
 }: {
-  store: Parameters<typeof useStarfishData>[0];
+  store: ConversationStore;
   /** Space this room belongs to — resolves `#channel` mentions to links. */
   spaceId?: string;
   currentUserId: string;
@@ -60,19 +57,13 @@ export function RoomConversation({
   editingId?: string | null;
   onEditingChange?: (id: string | null) => void;
 }) {
-  const messages = (useStarfishData(store, (d) => d.messages as StoredMsg[] | undefined) ?? []) as StoredMsg[];
-  const reactions = (useStarfishData(store, (d) => d.reactions as ReactionEvent[] | undefined) ?? []) as ReactionEvent[];
-  const edits = (useStarfishData(store, (d) => d.edits as MessageEditEvent[] | undefined) ?? []) as MessageEditEvent[];
+  const { messages, reactions, edits, pseudo, avatar, nameFor, resolveRoom, selfName } = useConversationData(
+    store,
+    spaceId,
+    currentUserId,
+    currentUserName,
+  );
   const top = messages.filter((m) => !m.parentId);
-  // Resolve names for authors AND reactors, so the "who reacted" tooltip can name
-  // them; include the viewer so their own pseudo resolves for @mention matching.
-  const ids = [...new Set([currentUserId, ...messages.map((m) => m.authorId), ...reactions.map((r) => r.userId)])];
-  const pseudo = usePseudos(ids);
-  const avatar = useAvatars(ids);
-  const nameFor = (userId: string) => displayName(userId, currentUserId, pseudo(userId));
-  const resolveRoom = useRoomMentions(spaceId ?? null);
-  // Prefer the live pseudo (reflects a profile edit) over the prop fallback.
-  const selfName = pseudo(currentUserId)?.trim() || currentUserName;
 
   return (
     <LegendList
@@ -85,31 +76,40 @@ export function RoomConversation({
       // wouldn't re-render the target row; extraData busts that memo so opening
       // a row's inline editor (edit pencil / composer ArrowUp) actually shows.
       extraData={editingId}
-      ListHeaderComponent={<DateDivider date="Today" />}
       initialScrollAtEnd
       alignItemsAtEnd
       maintainScrollAtEnd
       maintainScrollAtEndThreshold={0.1}
       maintainVisibleContentPosition
       renderItem={({ item: m, index }) => {
+        const prev = top[index - 1];
         const rc = replyCount(messages, m.id);
+        // A divider opens each new calendar day; the "New" rule fires once, at the
+        // first message past the read mark that has a read message above it (so it
+        // never lands at the very top of a never-read room).
+        const showDate = !prev || !sameDay(prev.ts, m.ts);
+        const showUnread = lastReadAt != null && !!prev && prev.ts <= lastReadAt && m.ts > lastReadAt;
         return (
-          <MessageGroup
-            message={toDisplayMessage(m, reactions, currentUserId, { threadCount: rc || undefined, selfName, lastReadAt, edits })}
-            author={authorFor(m.authorId, currentUserId, pseudo(m.authorId), avatar(m.authorId))}
-            continuation={isContinuation(m, top[index - 1])}
-            nameFor={nameFor}
-            resolveRoom={resolveRoom}
-            currentUserName={selfName}
-            onToggleReaction={(emoji) => onToggleReaction(m.id, emoji)}
-            onOpenThread={() => onOpenThread(m.id)}
-            onEdit={m.authorId === currentUserId && m.text ? (t) => onEditMessage(m.id, t) : undefined}
-            onDelete={m.authorId === currentUserId ? () => onDeleteMessage(m.id) : undefined}
-            onPressAuthor={onOpenProfile ? () => onOpenProfile(m.authorId) : undefined}
-            onLoadAttachment={onLoadAttachment}
-            editing={onEditingChange ? editingId === m.id : undefined}
-            onEditingChange={onEditingChange ? (v) => onEditingChange(v ? m.id : null) : undefined}
-          />
+          <>
+            {showDate ? <DateDivider date={dayLabel(m.ts)} /> : null}
+            {showUnread ? <UnreadDivider /> : null}
+            <MessageGroup
+              message={toDisplayMessage(m, reactions, currentUserId, { threadCount: rc || undefined, selfName, lastReadAt, edits })}
+              author={authorFor(m.authorId, currentUserId, pseudo(m.authorId), avatar(m.authorId))}
+              continuation={!showDate && !showUnread && isContinuation(m, prev)}
+              nameFor={nameFor}
+              resolveRoom={resolveRoom}
+              currentUserName={selfName}
+              onToggleReaction={(emoji) => onToggleReaction(m.id, emoji)}
+              onOpenThread={() => onOpenThread(m.id)}
+              onEdit={m.authorId === currentUserId && m.text ? (t) => onEditMessage(m.id, t) : undefined}
+              onDelete={m.authorId === currentUserId ? () => onDeleteMessage(m.id) : undefined}
+              onPressAuthor={onOpenProfile ? () => onOpenProfile(m.authorId) : undefined}
+              onLoadAttachment={onLoadAttachment}
+              editing={onEditingChange ? editingId === m.id : undefined}
+              onEditingChange={onEditingChange ? (v) => onEditingChange(v ? m.id : null) : undefined}
+            />
+          </>
         );
       }}
     />
