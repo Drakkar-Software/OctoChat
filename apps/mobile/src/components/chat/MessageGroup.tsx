@@ -229,9 +229,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.screenX,
     paddingVertical: spacing.sm,
   },
-  // Tighten only the top so a follow-up hugs the message above it while keeping
-  // normal breathing room below before the next author's group.
-  continuation: { paddingTop: spacing.xs },
+  // Drop the top gap entirely so a follow-up hugs the message above it; the row's
+  // normal bottom padding still spaces it before the next author's group.
+  continuation: { paddingTop: spacing.none },
   // Empty stand-in for the avatar so a continuation's body stays aligned; the
   // time surfaces here on hover (web) / always (native) as a quiet timestamp.
   gutter: { width: AVATAR_SIZE, alignItems: 'flex-end' },

@@ -33,14 +33,14 @@ function SpaceTile({
   image,
   active,
   unread,
-  locked,
+  isPublic,
   onPress,
 }: {
   label: string;
   image?: string;
   active: boolean;
   unread?: number;
-  locked?: boolean;
+  isPublic?: boolean;
   onPress?: () => void;
 }) {
   const { colors } = useTheme();
@@ -67,11 +67,9 @@ function SpaceTile({
           </Txt>
         )}
       </View>
-      {locked ? (
-        <View style={[styles.lock, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
-          <Icon name="lock" size={9} color={colors.inkMuted} />
-        </View>
-      ) : null}
+      <View style={[styles.corner, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
+        <Icon name={isPublic ? 'globe' : 'lock'} size={9} color={colors.inkMuted} />
+      </View>
       {unread ? (
         <View style={styles.badge}>
           <Badge count={unread} />
@@ -109,7 +107,7 @@ export function DesktopSpacesRail({
           image={s.image}
           active={s.id === activeId}
           unread={s.unread}
-          locked={(s.type ?? 'private') === 'private'}
+          isPublic={(s.type ?? 'private') === 'public'}
           onPress={() => onSelect?.(s.id)}
         />
       ))}
@@ -151,7 +149,7 @@ const styles = StyleSheet.create({
   tile: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   add: { borderRadius: radii.xl, borderWidth: 1, borderStyle: 'dashed' },
   badge: { position: 'absolute', top: -5, right: -5 },
-  lock: {
+  corner: {
     position: 'absolute',
     bottom: -3,
     right: -3,
