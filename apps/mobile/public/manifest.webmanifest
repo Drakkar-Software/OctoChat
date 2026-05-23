@@ -1,0 +1,58 @@
+{
+  "id": "/",
+  "name": "OctoChat",
+  "short_name": "OctoChat",
+  "description": "End-to-end-encrypted team chat. Spaces, rooms and threads, sealed per-room — with a marine, octopus-themed interface.",
+  "lang": "en",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#0b151c",
+  "theme_color": "#0b151c",
+  "categories": ["social", "communication", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/welcome-narrow.png",
+      "sizes": "512x910",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "OctoChat sign-in — no email, no phone, no password"
+    },
+    {
+      "src": "/screenshots/welcome-wide.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "OctoChat — end-to-end-encrypted team chat"
+    }
+  ]
+}

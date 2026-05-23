@@ -1,6 +1,7 @@
 import 'react-native-gesture-handler';
 
 import { configureStarfishPlatform } from '@/lib/starfish/platform';
+import { registerServiceWorker } from '@/lib/pwa';
 import { SessionProvider } from '@/lib/session-context';
 import { UnreadProvider } from '@/lib/unread-context';
 
@@ -18,6 +19,9 @@ import { AppFrame } from '@/components/ui/AppFrame';
 
 // Install platform crypto (no-op on web; quick-crypto install() on native).
 configureStarfishPlatform();
+
+// Register the PWA service worker (web production only; no-op elsewhere).
+registerServiceWorker();
 
 // Keep the native splash up until our fonts are ready (must run at module top).
 void SplashScreen.preventAutoHideAsync();
