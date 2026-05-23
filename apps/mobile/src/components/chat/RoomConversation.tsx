@@ -2,7 +2,7 @@ import { StyleSheet } from 'react-native';
 import { LegendList } from '@legendapp/list/react-native';
 import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 
-import { authorFor, displayName, toDisplayMessage, type StoredMsg } from '@/lib/message-view';
+import { authorFor, displayName, isContinuation, toDisplayMessage, type StoredMsg } from '@/lib/message-view';
 import { replyCount } from '@/lib/reactions';
 import type { AttachmentRef } from '@/lib/starfish/attachments';
 import type { ReactionEvent } from '@/lib/types';
@@ -56,12 +56,13 @@ export function RoomConversation({
       maintainScrollAtEnd
       maintainScrollAtEndThreshold={0.1}
       maintainVisibleContentPosition
-      renderItem={({ item: m }) => {
+      renderItem={({ item: m, index }) => {
         const rc = replyCount(messages, m.id);
         return (
           <MessageGroup
             message={toDisplayMessage(m, reactions, currentUserId, rc || undefined)}
             author={authorFor(m.authorId, currentUserId, pseudo(m.authorId), avatar(m.authorId))}
+            continuation={isContinuation(m, top[index - 1])}
             nameFor={nameFor}
             onToggleReaction={(emoji) => onToggleReaction(m.id, emoji)}
             onOpenThread={() => onOpenThread(m.id)}

@@ -12,6 +12,18 @@ export interface StoredMsg {
   attachment?: AttachmentRef;
 }
 
+/** Two messages from the same author posted within this window collapse into
+ *  one group: the later one renders without a repeated avatar/name header. */
+export const GROUP_WINDOW_MS = 5 * 60 * 1000;
+
+/** Whether `m` continues `prev` — same author, posted within
+ *  {@link GROUP_WINDOW_MS} — so its avatar and name header can be suppressed. */
+export function isContinuation(m: StoredMsg, prev?: StoredMsg): boolean {
+  if (!prev) return false;
+  const gap = m.ts - prev.ts;
+  return prev.authorId === m.authorId && gap >= 0 && gap < GROUP_WINDOW_MS;
+}
+
 /** A user's display label: "You" for the viewer, else the resolved pseudo, else
  *  the hex id prefix until a pseudo arrives. Used for authors and reactors. */
 export function displayName(userId: string, currentUserId: string, pseudo?: string): string {

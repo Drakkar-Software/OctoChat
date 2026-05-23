@@ -23,6 +23,7 @@ import { usePathname } from 'expo-router';
 
 import { subscribeRoomChanges } from './events';
 import { setDesktopBadge } from './desktop';
+import { setTabTitleBadge } from './tab-title';
 import { ensureNotifyPermission, notifyNewMessage } from './notify';
 import { useSession } from './session-context';
 import { kvGet, kvSet } from './starfish/kv';
@@ -30,6 +31,7 @@ import { spaceIdFromRoomId } from './starfish/paths';
 import { readSpaces } from './starfish/registry';
 import { buildAuthHeaders } from './starfish/client';
 import { dispatchRoomChange, emitSseStatus } from './room-events-bus';
+import { usePush } from './push/use-push';
 
 interface UnreadValue {
   /** Unread count per room id (absent = caught up). */
@@ -62,6 +64,11 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   const spacesKey = useMemo(() => [...spaceIds].sort().join(','), [spaceIds]);
 
   const pathname = usePathname();
+
+  // Native push: subscribe the device to per-space FCM topics, mirroring the SSE
+  // candidate set so backgrounded native apps still get notified. No-op on
+  // web/desktop (those rely on the live SSE stream + notify.ts).
+  usePush(session, spaceIds);
 
   // Load the user's space ids from the registry. Re-read on navigation so a
   // join/create propagates to the subscription without a full reload. Matches
@@ -180,6 +187,12 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   // web/native; clears as rooms are marked read and the total shrinks.
   useEffect(() => {
     setDesktopBadge(totalUnread);
+  }, [totalUnread]);
+
+  // Prefix the browser tab title with the unread count, e.g. "(3) OctoChat".
+  // Web/desktop only; clears back to the bare title at zero.
+  useEffect(() => {
+    setTabTitleBadge(totalUnread);
   }, [totalUnread]);
 
   const value = useMemo<UnreadValue>(

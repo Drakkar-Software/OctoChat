@@ -2,6 +2,7 @@ import 'react-native-gesture-handler';
 
 import { configureStarfishPlatform } from '@/lib/starfish/platform';
 import { registerServiceWorker } from '@/lib/pwa';
+import { registerBackgroundPushHandler } from '@/lib/push/fcm';
 import { SessionProvider } from '@/lib/session-context';
 import { UnreadProvider } from '@/lib/unread-context';
 
@@ -22,6 +23,10 @@ configureStarfishPlatform();
 
 // Register the PWA service worker (web production only; no-op elsewhere).
 registerServiceWorker();
+
+// Register the FCM background-message handler (native only; no-op on web). Must
+// run at module scope so it's installed before the first push arrives.
+registerBackgroundPushHandler();
 
 // Keep the native splash up until our fonts are ready (must run at module top).
 void SplashScreen.preventAutoHideAsync();

@@ -26,7 +26,14 @@ interface MessageGroupProps {
   onLoadAttachment?: (ref: AttachmentRef) => Promise<Uint8Array | null>;
   /** Emphasize as the highlighted parent in a thread view. */
   highlighted?: boolean;
+  /** Render as a follow-up to the previous message from the same author within
+   *  the grouping window: hide the avatar and name header, keep the body aligned. */
+  continuation?: boolean;
 }
+
+/** Avatar diameter; also the width of the gutter kept under continuation rows so
+ *  their body stays aligned with the first message of the group. */
+const AVATAR_SIZE = 36;
 
 /** A single authored message block: avatar, header, body, media, reactions, thread. */
 export function MessageGroup({
@@ -37,6 +44,7 @@ export function MessageGroup({
   onLoadAttachment,
   nameFor,
   highlighted,
+  continuation,
 }: MessageGroupProps) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useRowHover();
@@ -50,21 +58,37 @@ export function MessageGroup({
   return (
     <View
       {...hoverProps}
-      style={[styles.row, tinted ? { backgroundColor: colors.accentBg } : hovered ? { backgroundColor: colors.hover } : null]}
+      style={[
+        styles.row,
+        continuation ? styles.continuation : null,
+        tinted ? { backgroundColor: colors.accentBg } : hovered ? { backgroundColor: colors.hover } : null,
+      ]}
     >
       {message.mention || highlighted ? (
         <View style={[styles.mentionBar, { backgroundColor: colors.accent }]} />
       ) : null}
-      <Avatar label={author.initials} image={author.avatar} size={36} presence={author.presence} />
-      <View style={styles.body}>
-        <View style={styles.head}>
-          <Txt variant="callout" weight="bold">
-            {author.name}
-          </Txt>
-          <Txt variant="micro" mono tone="inkMuted">
-            {message.time}
-          </Txt>
+      {continuation ? (
+        <View style={styles.gutter}>
+          {showActions ? (
+            <Txt variant="micro" mono tone="inkMuted">
+              {message.time}
+            </Txt>
+          ) : null}
         </View>
+      ) : (
+        <Avatar label={author.initials} image={author.avatar} size={AVATAR_SIZE} presence={author.presence} />
+      )}
+      <View style={styles.body}>
+        {continuation ? null : (
+          <View style={styles.head}>
+            <Txt variant="callout" weight="bold">
+              {author.name}
+            </Txt>
+            <Txt variant="micro" mono tone="inkMuted">
+              {message.time}
+            </Txt>
+          </View>
+        )}
         {message.text ? (
           <Txt variant="body" tone="inkSoft">
             {message.text}
@@ -104,6 +128,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.screenX,
     paddingVertical: spacing.sm,
   },
+  // Tighten only the top so a follow-up hugs the message above it while keeping
+  // normal breathing room below before the next author's group.
+  continuation: { paddingTop: spacing.xs },
+  // Empty stand-in for the avatar so a continuation's body stays aligned; the
+  // time surfaces here on hover (web) / always (native) as a quiet timestamp.
+  gutter: { width: AVATAR_SIZE, alignItems: 'flex-end' },
   mentionBar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },
   body: { flex: 1, gap: 4 },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

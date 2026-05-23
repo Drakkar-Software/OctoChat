@@ -24,6 +24,6 @@
     "lint": "pnpm -r --if-present run lint"
   },
   "dependencies": {
-    "@drakkar.software/whistlers": "^0.5.0"
+    "@drakkar.software/whistlers": "^0.6.0"
   }
 }
