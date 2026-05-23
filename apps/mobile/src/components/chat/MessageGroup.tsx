@@ -227,10 +227,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     paddingHorizontal: spacing.screenX,
-    paddingVertical: spacing.sm,
+    // Asymmetric: a roomy top opens the gap above a new author's group, a tight
+    // bottom keeps stacked messages close. A follow-up zeroes its top (below).
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
   },
-  // Drop the top gap entirely so a follow-up hugs the message above it; the row's
-  // normal bottom padding still spaces it before the next author's group.
+  // Drop the top gap entirely so a follow-up hugs the message above it; only the
+  // row's tight bottom padding remains between it and the previous message.
   continuation: { paddingTop: spacing.none },
   // Empty stand-in for the avatar so a continuation's body stays aligned; the
   // time surfaces here on hover (web) / always (native) as a quiet timestamp.
