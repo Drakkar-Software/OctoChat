@@ -9,6 +9,7 @@ import {
 } from 'electron';
 import path from 'node:path';
 import {
+  APP_NAME,
   APP_ORIGIN,
   APP_SCHEME,
   DEV_URL,
@@ -22,6 +23,10 @@ import { checkForUpdates } from './updater';
 // (relative URLs + reliable localStorage), `secure` enables secure-context APIs
 // (navigator.clipboard, crypto), and supportFetchAPI/corsEnabled let the
 // renderer fetch the sync server (http://localhost:8787) cross-origin.
+// Display name for the menu bar / About / Quit items. Without this, an
+// unpackaged run (`electron .`) shows the package name "@octochat/desktop".
+app.setName(APP_NAME);
+
 protocol.registerSchemesAsPrivileged([
   {
     scheme: APP_SCHEME,

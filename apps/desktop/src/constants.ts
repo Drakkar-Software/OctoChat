@@ -2,6 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { app } from 'electron';
 
+/** Display name (menu bar, About/Quit items, dock in dev). Overrides the package
+ *  name `@octochat/desktop` that Electron uses by default when unpackaged.
+ *  Packaged builds get this from electron-builder's `productName`, but setting it
+ *  here makes dev (`electron .`) and prod agree. */
+export const APP_NAME = 'OctoChat';
+
 /** Custom privileged scheme that serves the exported Expo web build in prod. */
 export const APP_SCHEME = 'app';
 
