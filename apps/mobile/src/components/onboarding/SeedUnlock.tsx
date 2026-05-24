@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 
-import { opacity, spacing } from '@/theme';
+import { motion, spacing } from '@/theme';
 import type { UnlockMethod } from '@/lib/starfish/storage-types';
+import { randomFact } from '@/lib/octochat-facts';
 import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
@@ -32,6 +34,26 @@ export function SeedUnlock({ methods, onUnlock, onDone, onForget }: SeedUnlockPr
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hasPasskey = methods.includes('passkey');
+
+  // Slow-unlock flourish: while busy, the keypad fades out and an OctoChat fact
+  // fades in to fill the multi-second Argon2id wait. Shared-value opacities
+  // crossfade the two; a fresh fact is picked at the start of each attempt.
+  const [fact, setFact] = useState(randomFact);
+  const padOpacity = useSharedValue(1);
+  const tipOpacity = useSharedValue(0);
+  const padStyle = useAnimatedStyle(() => ({ opacity: padOpacity.value }));
+  const tipStyle = useAnimatedStyle(() => ({ opacity: tipOpacity.value }));
+
+  useEffect(() => {
+    if (busy) {
+      setFact(randomFact());
+      padOpacity.value = withTiming(0, { duration: motion.base });
+      tipOpacity.value = withDelay(motion.base, withTiming(1, { duration: motion.base }));
+    } else {
+      tipOpacity.value = 0;
+      padOpacity.value = withTiming(1, { duration: motion.fast });
+    }
+  }, [busy, padOpacity, tipOpacity]);
 
   const run = async (method: UnlockMethod, pin?: string) => {
     setBusy(true);
@@ -101,9 +123,21 @@ export function SeedUnlock({ methods, onUnlock, onDone, onForget }: SeedUnlockPr
         </Callout>
       ) : null}
 
-      {/* Dim + lock the keypad while busy: onDigit already no-ops, this makes it look it. */}
-      <View style={busy ? styles.padBusy : undefined} pointerEvents={busy ? 'none' : 'auto'}>
-        <PinPad onDigit={onDigit} onDelete={() => setEntry((c) => c.slice(0, -1))} />
+      {/* Crossfade: the keypad fades out and an OctoChat fact fades in to fill the
+          Argon2id wait. The keypad stays mounted (faded) so its height holds the
+          layout; the tip is overlaid, centered. pointerEvents off the pad while
+          busy — onDigit already no-ops, this makes it look it too. */}
+      <View>
+        <Animated.View style={padStyle} pointerEvents={busy ? 'none' : 'auto'}>
+          <PinPad onDigit={onDigit} onDelete={() => setEntry((c) => c.slice(0, -1))} />
+        </Animated.View>
+        {busy ? (
+          <Animated.View style={[StyleSheet.absoluteFill, styles.tip, tipStyle]} pointerEvents="none">
+            <Callout tone="accent" iconName={fact.icon} title="Did you know?">
+              {fact.text}
+            </Callout>
+          </Animated.View>
+        ) : null}
       </View>
 
       {onForget ? (
@@ -119,5 +153,5 @@ const styles = StyleSheet.create({
   // minHeight keeps the slot from collapsing when the dots swap for the spinner.
   pinBlock: { gap: spacing.md, minHeight: 56, justifyContent: 'center' },
   unlocking: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
-  padBusy: { opacity: opacity.disabled },
+  tip: { justifyContent: 'center', paddingHorizontal: spacing.sm },
 });
