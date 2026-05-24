@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
-import { spacing } from '@/theme';
+import { opacity, spacing } from '@/theme';
 import type { UnlockMethod } from '@/lib/starfish/storage-types';
+import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Txt } from '@/components/ui/Txt';
@@ -26,6 +27,7 @@ interface SeedUnlockProps {
 
 /** Cold-start unlock: PIN pad plus, when enrolled, a one-tap passkey unlock. */
 export function SeedUnlock({ methods, onUnlock, onDone, onForget }: SeedUnlockProps) {
+  const { colors } = useTheme();
   const [entry, setEntry] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,10 +74,25 @@ export function SeedUnlock({ methods, onUnlock, onDone, onForget }: SeedUnlockPr
       ) : null}
 
       <View style={styles.pinBlock}>
-        <Txt variant="caption" weight="semibold" mono uppercase tone="inkSoft" center>
-          Enter PIN
-        </Txt>
-        <PinDots length={PIN_LENGTH} filled={entry.length} />
+        {busy ? (
+          // Argon2id PIN-stretch takes seconds in the pure-JS web/Electron path;
+          // surface a spinner so the wait reads as "working", not frozen. The
+          // ActivityIndicator is CSS/compositor-animated on web, so it keeps
+          // spinning through the derivation even while the JS thread is crunching.
+          <View style={styles.unlocking}>
+            <ActivityIndicator size="small" color={colors.accent} />
+            <Txt variant="caption" weight="semibold" mono uppercase tone="inkSoft" center>
+              Unlocking…
+            </Txt>
+          </View>
+        ) : (
+          <>
+            <Txt variant="caption" weight="semibold" mono uppercase tone="inkSoft" center>
+              Enter PIN
+            </Txt>
+            <PinDots length={PIN_LENGTH} filled={entry.length} />
+          </>
+        )}
       </View>
 
       {error ? (
@@ -84,7 +101,10 @@ export function SeedUnlock({ methods, onUnlock, onDone, onForget }: SeedUnlockPr
         </Callout>
       ) : null}
 
-      <PinPad onDigit={onDigit} onDelete={() => setEntry((c) => c.slice(0, -1))} />
+      {/* Dim + lock the keypad while busy: onDigit already no-ops, this makes it look it. */}
+      <View style={busy ? styles.padBusy : undefined} pointerEvents={busy ? 'none' : 'auto'}>
+        <PinPad onDigit={onDigit} onDelete={() => setEntry((c) => c.slice(0, -1))} />
+      </View>
 
       {onForget ? (
         <Button label="Use recovery seed instead" variant="ghost" size="sm" full disabled={busy} onPress={onForget} />
@@ -96,5 +116,8 @@ export function SeedUnlock({ methods, onUnlock, onDone, onForget }: SeedUnlockPr
 const styles = StyleSheet.create({
   block: { gap: spacing.xl },
   passkeyBlock: { gap: spacing.md },
-  pinBlock: { gap: spacing.md },
+  // minHeight keeps the slot from collapsing when the dots swap for the spinner.
+  pinBlock: { gap: spacing.md, minHeight: 56, justifyContent: 'center' },
+  unlocking: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+  padBusy: { opacity: opacity.disabled },
 });

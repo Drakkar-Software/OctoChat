@@ -351,6 +351,11 @@ export const motion = {
   spring: { damping: 18, stiffness: 220, mass: 0.8 },
 } as const;
 
+export const opacity = {
+  /** Dimmed pressable/control while disabled or blocked by an async action. */
+  disabled: 0.45,
+} as const;
+
 export const layout = {
   /** Cap reading width on large/web screens. */
   maxContentWidth: 720,

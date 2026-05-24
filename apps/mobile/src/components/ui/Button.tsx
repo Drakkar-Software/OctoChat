@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { fonts, glowShadow, motion, radii, shadows, spacing, type as typeScale } from '@/theme';
+import { fonts, glowShadow, motion, opacity, radii, shadows, spacing, type as typeScale } from '@/theme';
 import { tapFeedback } from '@/lib/haptics';
 import { useHover } from '@/lib/use-hover';
 import { useTheme, type Palette } from '@/lib/use-theme';
@@ -95,7 +95,7 @@ export function Button({
           paddingHorizontal: s.paddingHorizontal,
           minHeight: s.minHeight,
           gap: s.gap,
-          opacity: disabled ? 0.45 : 1,
+          opacity: disabled ? opacity.disabled : 1,
           alignSelf: full ? 'stretch' : 'flex-start',
           width: full ? '100%' : undefined,
         },
