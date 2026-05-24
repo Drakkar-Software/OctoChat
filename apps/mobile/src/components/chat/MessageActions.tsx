@@ -60,8 +60,8 @@ export function MessageActions({ visible, onReact, onReply, onEdit, onDelete, mi
           <Txt variant="footnote" weight="semibold" tone="danger" style={styles.confirmLabel}>
             Delete?
           </Txt>
-          <IconButton name="check" size={16} color={colors.danger} accessibilityLabel="Confirm delete" onPress={confirmDelete} />
-          <IconButton name="x" size={14} color={colors.inkMuted} accessibilityLabel="Cancel delete" onPress={() => setConfirming(false)} />
+          <IconButton name="check" size={14} style={styles.btn} color={colors.danger} accessibilityLabel="Confirm delete" onPress={confirmDelete} />
+          <IconButton name="x" size={12} style={styles.btn} color={colors.inkMuted} accessibilityLabel="Cancel delete" onPress={() => setConfirming(false)} />
         </>
       ) : picking ? (
         <>
@@ -76,14 +76,15 @@ export function MessageActions({ visible, onReact, onReply, onEdit, onDelete, mi
               <Txt variant="footnote">{emoji}</Txt>
             </Pressable>
           ))}
-          <IconButton name="x" size={14} color={colors.inkMuted} accessibilityLabel="Close reaction picker" onPress={() => setPicking(false)} />
+          <IconButton name="x" size={12} style={styles.btn} color={colors.inkMuted} accessibilityLabel="Close reaction picker" onPress={() => setPicking(false)} />
         </>
       ) : (
         <>
           {onReact ? (
             <IconButton
               name="smile"
-              size={16}
+              size={14}
+              style={styles.btn}
               color={colors.inkSoft}
               accessibilityLabel="Add reaction"
               onPress={() => {
@@ -93,15 +94,16 @@ export function MessageActions({ visible, onReact, onReply, onEdit, onDelete, mi
             />
           ) : null}
           {onReply ? (
-            <IconButton name="thread" size={16} color={colors.inkSoft} accessibilityLabel="Reply in thread" onPress={onReply} />
+            <IconButton name="thread" size={14} style={styles.btn} color={colors.inkSoft} accessibilityLabel="Reply in thread" onPress={onReply} />
           ) : null}
           {onEdit ? (
-            <IconButton name="edit" size={16} color={colors.inkSoft} accessibilityLabel="Edit message" onPress={onEdit} />
+            <IconButton name="edit" size={14} style={styles.btn} color={colors.inkSoft} accessibilityLabel="Edit message" onPress={onEdit} />
           ) : null}
           {onDelete ? (
             <IconButton
               name="trash"
-              size={16}
+              size={14}
+              style={styles.btn}
               color={colors.inkSoft}
               accessibilityLabel="Delete message"
               onPress={() => {
@@ -125,14 +127,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
     borderRadius: radii.md,
     borderWidth: 1,
   },
+  // Tighter than IconButton's default padding so the toolbar's height stays
+  // within a single message line; hitSlop on the button keeps the tap target.
+  btn: { padding: 3 },
   emoji: {
-    minWidth: 30,
-    height: 28,
+    minWidth: 26,
+    height: 22,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.sm,
