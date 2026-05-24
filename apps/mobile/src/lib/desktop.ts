@@ -27,6 +27,15 @@ export function isDesktop(): boolean {
   return !!globalThis.window?.octochat?.isElectron;
 }
 
+/**
+ * True only in the macOS desktop build, where the window uses the `hiddenInset`
+ * title-bar style and the renderer must reserve a top strip for the traffic
+ * lights. `platform` mirrors Electron's `process.platform` (see preload.ts).
+ */
+export function isMacDesktop(): boolean {
+  return isDesktop() && globalThis.window?.octochat?.platform === 'darwin';
+}
+
 /** Bring the desktop window to the front (restores if minimized). No-op elsewhere. */
 export function focusDesktopWindow(): void {
   globalThis.window?.octochat?.focusWindow?.();

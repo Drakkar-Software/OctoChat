@@ -364,6 +364,12 @@ export const layout = {
   sidebarWidth: 240,
   /** Top toolbar above the main pane on desktop. */
   desktopTopbarHeight: 52,
+  /**
+   * Draggable title strip reserved at the top of the macOS desktop shell so the
+   * window's traffic-light buttons (hiddenInset titleBarStyle) don't overlap the
+   * app's own chrome. macOS-only; Windows/Linux use a native title bar.
+   */
+  desktopTitlebarInset: 28,
 } as const;
 
 // ── Semantic helpers ───────────────────────────────────────────────────────

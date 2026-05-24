@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
+import { isMacDesktop } from '@/lib/desktop';
 import { useInShell } from '@/lib/use-responsive';
 import { useSession } from '@/lib/session-context';
 import { useTheme } from '@/lib/use-theme';
+import { layout } from '@/theme';
 import { DesktopNav } from '@/components/chat/DesktopNav';
 import { DesktopUpdateBanner } from './DesktopUpdateBanner';
 
@@ -23,6 +25,17 @@ export function AppFrame({ children }: { children: ReactNode }) {
 
   return (
     <View style={styles.col}>
+      {isMacDesktop() ? (
+        // Draggable strip clearing the macOS traffic lights (hiddenInset). The
+        // WebkitAppRegion key is forwarded to inline CSS by react-native-web.
+        <View
+          style={[
+            styles.titlebar,
+            { backgroundColor: colors.canvas },
+            { WebkitAppRegion: 'drag' } as object,
+          ]}
+        />
+      ) : null}
       <DesktopUpdateBanner />
       {inShell ? (
         <View style={[styles.row, { backgroundColor: colors.canvas }]}>
@@ -43,6 +56,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
 
 const styles = StyleSheet.create({
   col: { flex: 1 },
+  titlebar: { height: layout.desktopTitlebarInset },
   fill: { flex: 1 },
   row: { flex: 1, flexDirection: 'row' },
   main: { flex: 1, minWidth: 0 },
