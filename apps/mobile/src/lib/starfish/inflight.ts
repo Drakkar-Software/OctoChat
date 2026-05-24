@@ -19,3 +19,12 @@ export function dedupe<T>(key: string, fn: () => Promise<T>): Promise<T> {
   inflight.set(key, p);
   return p;
 }
+
+/**
+ * Drop any pending read for `key` so a read started AFTER this won't join a
+ * promise that began before a mutation. Call right after a write so a follow-up
+ * refresh can't piggy-back on a now-stale in-flight read of the same doc.
+ */
+export function invalidate(key: string): void {
+  inflight.delete(key);
+}

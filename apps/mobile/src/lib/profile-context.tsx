@@ -1,4 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+/**
+ * App-wide editable profile (name + avatar) + derived security info, mounted once
+ * near the root. Before this, every `useProfile()` caller (the sidebar, the /you
+ * screen) was a standalone hook with its own state and its own `profile` fetch, so
+ * the doc was pulled several times per load and a save had to be fanned out to the
+ * other live instances through a module-level listener set. With one shared copy a
+ * save simply updates state and every consumer re-renders — no fan-out needed.
+ */
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { pickAndProcessAvatar } from './avatar-image';
 import { readProfile, writeProfile } from './starfish/client';
@@ -14,21 +31,23 @@ export interface ProfileView {
   avatar?: string;
 }
 
-// Each useProfile() call keeps its own state, so an edit on the Profile screen
-// would otherwise leave other live consumers (e.g. the desktop sidebar) showing
-// the stale name/avatar until reload. These module-level fan-outs let every
-// mounted instance adopt a freshly-saved value immediately.
-const nameListeners = new Set<(name: string) => void>();
-const avatarListeners = new Set<(avatar: string | null) => void>();
-function broadcastName(name: string) {
-  for (const fn of nameListeners) fn(name);
-}
-function broadcastAvatar(avatar: string | null) {
-  for (const fn of avatarListeners) fn(avatar);
+interface ProfileContextValue {
+  profile: ProfileView | null;
+  loading: boolean;
+  saving: boolean;
+  draft: string;
+  setDraft: (v: string) => void;
+  dirty: boolean;
+  save: () => Promise<void>;
+  avatarDraft: string | null;
+  pickAvatar: () => Promise<void>;
+  removeAvatar: () => void;
+  avatarError: string | null;
 }
 
-/** The current identity's editable profile (name + avatar) + derived security info. */
-export function useProfile() {
+const Ctx = createContext<ProfileContextValue | null>(null);
+
+export function ProfileProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
   const [name, setName] = useState('');
   const [draft, setDraftState] = useState('');
@@ -38,7 +57,7 @@ export function useProfile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   // True once the user has touched the field — guards the draft against being
-  // clobbered by an async load or a fan-out from another instance mid-edit.
+  // clobbered by an async load mid-edit.
   const edited = useRef(false);
   const avatarEdited = useRef(false);
 
@@ -69,26 +88,6 @@ export function useProfile() {
   useEffect(() => {
     if (!avatarEdited.current) setAvatarDraftState(avatar);
   }, [avatar]);
-
-  // Reflect a save made by any other mounted instance.
-  useEffect(() => {
-    const fn = (next: string) => {
-      if (!edited.current) setName(next);
-    };
-    nameListeners.add(fn);
-    return () => {
-      nameListeners.delete(fn);
-    };
-  }, []);
-  useEffect(() => {
-    const fn = (next: string | null) => {
-      if (!avatarEdited.current) setAvatar(next);
-    };
-    avatarListeners.add(fn);
-    return () => {
-      avatarListeners.delete(fn);
-    };
-  }, []);
 
   const setDraft = useCallback((v: string) => {
     edited.current = true;
@@ -135,41 +134,54 @@ export function useProfile() {
         setName(patch.pseudo);
         setDraftState(patch.pseudo);
         edited.current = false;
-        broadcastName(patch.pseudo);
       }
       if (patch.avatar !== undefined) {
         setAvatar(patch.avatar);
         setAvatarDraftState(patch.avatar);
         avatarEdited.current = false;
-        broadcastAvatar(patch.avatar);
       }
     } finally {
       setSaving(false);
     }
   }, [session, draft, name, avatarDraft, avatar]);
 
-  const profile: ProfileView | null = session
-    ? {
-        name,
-        handle: `@${name}`,
-        fingerprint: session.fingerprint,
-        userId: session.userId,
-        avatar: avatar ?? undefined,
-      }
-    : null;
+  const profile = useMemo<ProfileView | null>(
+    () =>
+      session
+        ? {
+            name,
+            handle: `@${name}`,
+            fingerprint: session.fingerprint,
+            userId: session.userId,
+            avatar: avatar ?? undefined,
+          }
+        : null,
+    [session, name, avatar],
+  );
 
-  return {
-    profile,
-    loading,
-    saving,
-    draft,
-    setDraft,
-    dirty,
-    save,
-    // Avatar: preview the draft on /you; pick/remove stage a change for Save.
-    avatarDraft,
-    pickAvatar,
-    removeAvatar,
-    avatarError,
-  };
+  const value = useMemo<ProfileContextValue>(
+    () => ({
+      profile,
+      loading,
+      saving,
+      draft,
+      setDraft,
+      dirty,
+      save,
+      avatarDraft,
+      pickAvatar,
+      removeAvatar,
+      avatarError,
+    }),
+    [profile, loading, saving, draft, setDraft, dirty, save, avatarDraft, pickAvatar, removeAvatar, avatarError],
+  );
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+/** The current identity's editable profile (name + avatar) + derived security info. */
+export function useProfile(): ProfileContextValue {
+  const v = useContext(Ctx);
+  if (!v) throw new Error('useProfile must be used within ProfileProvider');
+  return v;
 }

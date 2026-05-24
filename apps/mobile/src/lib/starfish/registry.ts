@@ -8,7 +8,7 @@ import type { StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { CapMap, Room, Space } from '@/lib/types';
 
-import { dedupe } from './inflight';
+import { dedupe, invalidate } from './inflight';
 import {
   roomsRegistryPull,
   roomsRegistryPush,
@@ -25,9 +25,9 @@ export interface SpaceMeta {
   image?: string | null;
 }
 
-/** A resolved name/image update fanned out so every mounted `useSpaces` adopts a
- *  freshly-reconciled value without waiting for its next navigation refresh
- *  (mirrors the name/avatar fan-out in use-profile.ts). */
+/** A resolved name/image update fanned out so the SpacesProvider adopts a
+ *  freshly-reconciled value (e.g. from the settings screen) without waiting for
+ *  its next navigation refresh. */
 export interface SpaceMetaUpdate {
   name: string;
   short: string;
@@ -114,6 +114,7 @@ export async function updateSpacesDoc(
     if (next === cur) return; // no-op mutation (e.g. already joined) — skip the write
     try {
       await client.push(spacesPush(userId), { v: 1, spaces: next.spaces, caps: next.caps }, hash);
+      invalidate(`spaces:${userId}`); // a refresh after this must re-read, not join a pre-write read
       return;
     } catch (err) {
       if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
@@ -197,6 +198,7 @@ export async function writeRooms(
     { v: 1, owner, members, rooms, ...(name ? { name } : {}), ...(image ? { image } : {}) },
     hash,
   );
+  invalidate(`rooms:${spaceId}`); // a refresh after this must re-read, not join a pre-write read
 }
 
 /** Owner-side: add an invitee's userId to the space roster → grants them

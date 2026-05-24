@@ -19,16 +19,15 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { usePathname } from 'expo-router';
 
 import { subscribeRoomChanges } from './events';
 import { setDesktopBadge } from './desktop';
 import { setTabTitleBadge } from './tab-title';
 import { ensureNotifyPermission, notifyNewMessage } from './notify';
 import { useSession } from './session-context';
+import { useSpacesContext } from './spaces-context';
 import { kvGet, kvSet } from './starfish/kv';
 import { spaceIdFromRoomId } from './starfish/paths';
-import { readSpaces } from './starfish/registry';
 import { buildAuthHeaders } from './starfish/client';
 import { dispatchRoomChange, emitSseStatus } from './room-events-bus';
 import { usePush } from './push/use-push';
@@ -76,29 +75,20 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   // or callers would re-snapshot after markRoomRead has advanced the mark.
   const [hydrated, setHydrated] = useState(false);
 
-  // The user's space ids — passed as candidates to the /events proxy.
-  // Avoids useSpaces() to prevent a circular dep (use-spaces → useUnread → here).
-  const [spaceIds, setSpaceIds] = useState<string[]>([]);
+  // The user's space ids — passed as candidates to the /events proxy. Read from
+  // the shared SpacesProvider (which sits above this one), NOT via useSpaces():
+  // that hook overlays unread state and would create a circular dep. The provider
+  // already refreshes on navigation, so a join/create propagates here for free.
+  const { spaces } = useSpacesContext();
+  const spaceIds = useMemo(() => spaces.map((s) => s.id), [spaces]);
   // Stable sorted-join so the subscription effect only re-runs when the set changes,
   // not on every navigation that produces a new spaceIds array reference.
   const spacesKey = useMemo(() => [...spaceIds].sort().join(','), [spaceIds]);
-
-  const pathname = usePathname();
 
   // Native push: subscribe the device to per-space FCM topics, mirroring the SSE
   // candidate set so backgrounded native apps still get notified. No-op on
   // web/desktop (those rely on the live SSE stream + notify.ts).
   usePush(session, spaceIds);
-
-  // Load the user's space ids from the registry. Re-read on navigation so a
-  // join/create propagates to the subscription without a full reload. Matches
-  // what use-spaces.ts does, without going through that hook (circular dep).
-  useEffect(() => {
-    if (!session) { setSpaceIds([]); return; }
-    void readSpaces(session.accountClient, session.userId)
-      .then(({ spaces }) => { setSpaceIds(spaces.map((s) => s.id)); })
-      .catch(() => {});
-  }, [pathname, session]);
 
   // Hydrate persisted counts for this identity, THEN subscribe — so an event
   // arriving right after mount builds on the restored counts, not on {}.

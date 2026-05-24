@@ -3,7 +3,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { layout } from '@/theme';
 import type { Room } from '@/lib/types';
-import { useProfile } from '@/lib/use-profile';
+import { useProfile } from '@/lib/profile-context';
 import { useRoomSidebarVisible } from '@/lib/use-responsive';
 import { useRooms } from '@/lib/use-rooms';
 import { useSpaces } from '@/lib/use-spaces';

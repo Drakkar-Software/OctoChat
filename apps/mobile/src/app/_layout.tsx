@@ -3,7 +3,9 @@ import 'react-native-gesture-handler';
 import { configureStarfishPlatform } from '@/lib/starfish/platform';
 import { registerServiceWorker } from '@/lib/pwa';
 import { registerBackgroundPushHandler } from '@/lib/push/fcm';
+import { ProfileProvider } from '@/lib/profile-context';
 import { SessionProvider } from '@/lib/session-context';
+import { SpacesProvider } from '@/lib/spaces-context';
 import { ThreadDigestProvider } from '@/lib/thread-digest-context';
 import { UnreadProvider } from '@/lib/unread-context';
 
@@ -49,18 +51,24 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
         <SessionProvider>
-          <UnreadProvider>
-            <ThreadDigestProvider>
-              <AppFrame>
-                <Stack
-                  screenOptions={{
-                    headerShown: false,
-                    contentStyle: { backgroundColor: palette.canvas },
-                  }}
-                />
-              </AppFrame>
-            </ThreadDigestProvider>
-          </UnreadProvider>
+          {/* SpacesProvider sits above UnreadProvider: the latter reads the space
+              set from it. ProfileProvider only needs the session. */}
+          <SpacesProvider>
+            <UnreadProvider>
+              <ProfileProvider>
+                <ThreadDigestProvider>
+                  <AppFrame>
+                    <Stack
+                      screenOptions={{
+                        headerShown: false,
+                        contentStyle: { backgroundColor: palette.canvas },
+                      }}
+                    />
+                  </AppFrame>
+                </ThreadDigestProvider>
+              </ProfileProvider>
+            </UnreadProvider>
+          </SpacesProvider>
         </SessionProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

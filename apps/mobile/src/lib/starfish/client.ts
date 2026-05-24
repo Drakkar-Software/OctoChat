@@ -10,7 +10,7 @@ import { signRequest, stableStringify } from '@drakkar.software/starfish-protoco
 import type { SignableMethod } from '@drakkar.software/starfish-protocol';
 
 import { SYNC_BASE, SYNC_PREFIX } from './config';
-import { dedupe } from './inflight';
+import { dedupe, invalidate } from './inflight';
 import { keyringPull, keyringPush, profilePull, profilePush, roomPull, roomPush } from './paths';
 
 export interface DeviceKeys {
@@ -122,6 +122,7 @@ export async function ownerEnsureKeyring(
     ]);
     keyring = created.keyring;
     await client.push(keyringPush(spaceId), keyring as unknown as Record<string, unknown>, krRes?.hash ?? null);
+    invalidate(`keyring:${spaceId}`); // next opener must read the just-created keyring
   }
   const enc = await createKeyringEncryptor(
     keyring,
@@ -191,6 +192,7 @@ export async function writeProfile(
   const next: Record<string, unknown> = { ...base, ...patch, v: 1 };
   if (next.avatar == null) delete next.avatar; // null/undefined ⇒ remove the key
   await client.push(profilePush(userId), next, current?.hash ?? null);
+  invalidate(`profile:${userId}`); // a re-read after this must not join a pre-write read
 }
 
 /** Write the caller's own profile pseudo, preserving any other profile fields. */

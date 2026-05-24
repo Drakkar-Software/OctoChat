@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Room } from '@/lib/types';
 
@@ -11,6 +11,7 @@ import {
   readPublicRoomsDoc,
 } from './starfish/pubspace';
 import { useSession } from './session-context';
+import { useSpacesContext } from './spaces-context';
 import { useUnread } from './unread-context';
 
 export interface RoomCategory {
@@ -27,11 +28,18 @@ const CREATE_FAILED_MESSAGE = "Couldn't create the channel. Please try again.";
 export function useRooms(spaceId: string | null) {
   const { session } = useSession();
   const { unreadByRoom } = useUnread();
+  const { spaces } = useSpacesContext();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [owner, setOwner] = useState<string | null>(null);
   const [members, setMembers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const isPublic = !!spaceId && isPublicSpaceId(spaceId);
+
+  // Snapshot the known spaces for reconcileSpaceMeta's fast path, via a ref so it
+  // doesn't pull `spaces` into `refresh`'s deps (which would refetch rooms on every
+  // space-list change). When the snapshot already matches, reconcile skips its read.
+  const spacesRef = useRef(spaces);
+  spacesRef.current = spaces;
 
   // Overlay live unread counts onto the registry rooms so `ChannelRow`'s Badge
   // and emphasis light up without the row components touching the provider.
@@ -52,15 +60,28 @@ export function useRooms(spaceId: string | null) {
       setRooms(list);
       setOwner(auth.ownerId); // only the path owner may add channels
       setMembers([]); // public spaces have no roster (access is by cap, not membership)
-      // Fold the owner's shared name/image into our own _spaces cache (best-effort).
-      void reconcileSpaceMeta(session.accountClient, session.userId, spaceId, { name, image }).catch(() => {});
+      // Fold the owner's shared name/image into our own _spaces cache (best-effort;
+      // the known-spaces snapshot lets it skip the read when already in sync).
+      void reconcileSpaceMeta(
+        session.accountClient,
+        session.userId,
+        spaceId,
+        { name, image },
+        spacesRef.current,
+      ).catch(() => {});
       return;
     }
     const { rooms: list, owner: o, members: roster, name, image } = await readRooms(session.accountClient, spaceId);
     setRooms(list);
     setOwner(o);
     setMembers(roster);
-    void reconcileSpaceMeta(session.accountClient, session.userId, spaceId, { name, image }).catch(() => {});
+    void reconcileSpaceMeta(
+      session.accountClient,
+      session.userId,
+      spaceId,
+      { name, image },
+      spacesRef.current,
+    ).catch(() => {});
   }, [session, spaceId]);
 
   useEffect(() => {

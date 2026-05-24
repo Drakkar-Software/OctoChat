@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing, verificationColor } from '@/theme';
-import { useProfile } from '@/lib/use-profile';
+import { useProfile } from '@/lib/profile-context';
 import { useSession } from '@/lib/session-context';
 import { useTheme } from '@/lib/use-theme';
 import { AccountSwitcher } from '@/components/account/AccountSwitcher';
