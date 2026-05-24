@@ -142,14 +142,6 @@ export default function YouScreen() {
           onPress={() => router.push('/account/backup')}
         />
         <Divider style={styles.divider} />
-        <Row
-          iconName="devices"
-          title="Devices"
-          detail="1 active · add another"
-          right={check}
-          onPress={() => router.push('/(onboarding)/add-device')}
-        />
-        <Divider style={styles.divider} />
         <Row iconName="key" title="Identity fingerprint" detail={profile.fingerprint} detailMono right={check} />
       </Card>
 
