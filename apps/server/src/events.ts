@@ -90,6 +90,13 @@ async function authenticateEventsRequest(
   const certResult = await verifyCapCert(cert, { now: Math.floor(Date.now() / 1000) });
   if (!certResult.ok) return null;
 
+  // The per-request signature is signed by the cap's subject key (cert.sub).
+  // As of starfish 3.0.0-alpha.1, `sub` is optional — absent on `audience` caps
+  // (public links), which carry no single subject and cannot sign here. /events
+  // only ever serves device/member caps, so require a concrete subject (also
+  // narrows `cert.sub` to string for the signature/nonce/revocation checks below).
+  if (!cert.sub) return null;
+
   // Verify the per-request signature, bound to this exact URL + host.
   let pathAndQuery: string;
   let host: string;
