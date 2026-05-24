@@ -79,7 +79,7 @@ export function EmptyState({ iconName, title, subtitle, children, onIconPress }:
           disc
         )}
       </PulseHalo>
-      <Txt variant="title" weight="bold" center>
+      <Txt variant="title" weight="bold" center style={styles.title}>
         {title}
       </Txt>
       {subtitle ? (
@@ -102,5 +102,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Clear the halo's bloom (rings expand to ~1.85×) so the pulse doesn't ride up
+  // onto the title — the `wrap` gap alone leaves it overlapping at full bloom.
+  title: { marginTop: spacing.sm },
   subtitle: { maxWidth: 320 },
 });
