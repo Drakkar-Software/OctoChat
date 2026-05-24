@@ -20,6 +20,7 @@ import {
   type ByteSealer,
 } from './starfish/attachments';
 import { getMemberCap } from './starfish/member-caps';
+import { readRooms } from './starfish/registry';
 import { isPublicSpaceId, publicSpaceAuth } from './starfish/pubspace';
 import { pubspaceRoomPull, pubspaceRoomPush, roomPull, roomPush, spaceIdFromRoomId } from './starfish/paths';
 import type { MessageEditEvent, ReactionEvent } from './types';
@@ -81,6 +82,20 @@ export function useRoom(roomId: string) {
           roomClient = makeClient(cap, session.keys.edPriv);
           enc = await openEncryptor(roomClient, session.keys, spaceId, cap.iss ? [cap.iss] : []);
         } else {
+          // No local cap. Only the genuine OWNER may create/own the space keyring. A
+          // member whose cap hasn't hydrated must NOT fall into the owner branch — that
+          // would fail the keyring's trustedAdders check with a confusing "no wrapped
+          // key" error and could re-create the keyring, locking everyone out. Decide
+          // from the authoritative registry owner (null ⇒ legacy/unreadable: treat as
+          // owner, as before). The cap normally self-heals via the synced `_spaces` doc.
+          const { owner, members } = await readRooms(session.accountClient, spaceId);
+          if (owner !== null && owner !== session.userId) {
+            throw new Error(
+              members.includes(session.userId)
+                ? "You're a member of this space, but its key isn't on this device yet — reconnect, or ask the owner to re-invite."
+                : "You don't have access to this space.",
+            );
+          }
           roomClient = session.chatClient;
           enc = await ownerEnsureKeyring(session.chatClient, session.keys, spaceId);
           await ensureRoomInitialized(session.chatClient, enc, roomId);

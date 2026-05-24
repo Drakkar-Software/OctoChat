@@ -5,6 +5,11 @@ import type { AttachmentRef } from './starfish/attachments';
 
 export type ID = string;
 
+/** Maps a joined private space's id → its owner-issued member cap-cert (serialized
+ *  JSON). Persisted both in device-local kv (`member-caps.ts`) and, for durability,
+ *  in the user's own synced `_spaces` doc so a fresh device re-hydrates it. */
+export type CapMap = Record<string, string>;
+
 export interface User {
   id: ID;
   name: string;

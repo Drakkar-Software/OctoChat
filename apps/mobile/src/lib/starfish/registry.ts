@@ -3,9 +3,10 @@
  * `user/<userId>/_spaces`; each space's rooms at `spaces/<spaceId>/_rooms`.
  * A fresh identity starts with no spaces — the user creates or joins one.
  */
+import { ConflictError, StarfishHttpError } from '@drakkar.software/starfish-client';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { Room, Space } from '@/lib/types';
+import type { CapMap, Room, Space } from '@/lib/types';
 
 import {
   roomsRegistryPull,
@@ -43,30 +44,92 @@ export function broadcastSpaceMeta(spaceId: string, meta: SpaceMetaUpdate): void
   for (const fn of spaceMetaListeners) fn(spaceId, meta);
 }
 
+/** The parsed `user/<userId>/_spaces` document: the joined-space list plus the
+ *  durable member-cap map (see {@link CapMap}). */
+interface SpacesDoc {
+  spaces: Space[];
+  caps: CapMap;
+  hash: string | null;
+}
+
+/**
+ * Pull the raw spaces doc, normalizing its two keys. A 404 (no doc yet) returns an
+ * empty doc with `hash: null` so a first write can create it. Any OTHER error
+ * propagates — callers doing read-modify-write must abort rather than clobber the
+ * doc with empty content on a transient failure.
+ */
+async function pullSpacesDoc(client: StarfishClient, userId: string): Promise<SpacesDoc> {
+  const res = await client.pull(spacesPull(userId)).catch((err: unknown) => {
+    // No doc yet → an empty doc a first write can create. Other errors propagate.
+    if (err instanceof StarfishHttpError && err.status === 404) return null;
+    throw err;
+  });
+  const data = res?.data as { spaces?: Space[]; caps?: CapMap } | undefined;
+  return {
+    spaces: Array.isArray(data?.spaces) ? data!.spaces! : [],
+    caps: data?.caps && typeof data.caps === 'object' ? data.caps : {},
+    hash: res?.hash ?? null,
+  };
+}
+
 export async function readSpaces(
   client: StarfishClient,
   userId: string,
-): Promise<{ spaces: Space[]; hash: string | null }> {
-  const res = await client
-    .pull(spacesPull(userId))
-    .catch((err: unknown) => {
-      // Don't collapse a reachability/auth failure into "no spaces" silently —
-      // that reads as an empty account (e.g. a desktop build baked against an
-      // unreachable server). Surface it; the caller still degrades to [].
-      console.error('[readSpaces] failed to pull spaces registry', err);
-      return null;
-    });
-  const spaces = (res?.data as { spaces?: Space[] } | undefined)?.spaces;
-  return { spaces: Array.isArray(spaces) ? spaces : [], hash: res?.hash ?? null };
+): Promise<SpacesDoc> {
+  try {
+    return await pullSpacesDoc(client, userId);
+  } catch (err) {
+    // Don't collapse a reachability/auth failure into "no spaces" silently —
+    // that reads as an empty account (e.g. a desktop build baked against an
+    // unreachable server). Surface it; the caller still degrades to empty.
+    console.error('[readSpaces] failed to pull spaces registry', err);
+    return { spaces: [], caps: {}, hash: null };
+  }
 }
 
+/**
+ * Read-modify-write the whole `_spaces` doc through a single funnel. The mutator
+ * runs on FRESH server state (re-read each attempt) and returns the next
+ * `{ spaces, caps }`, so a caller can never accidentally drop the sibling key — it
+ * must actively change it. Pushes are retried on {@link ConflictError} (a concurrent
+ * writer — e.g. another device, or a cap-save racing a space-list edit) by re-reading
+ * and re-applying. This is why caps and the space list can safely share one doc.
+ */
+export async function updateSpacesDoc(
+  client: StarfishClient,
+  userId: string,
+  mutator: (cur: { spaces: Space[]; caps: CapMap }) => { spaces: Space[]; caps: CapMap },
+): Promise<void> {
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const { spaces, caps, hash } = await pullSpacesDoc(client, userId);
+    const cur = { spaces, caps };
+    const next = mutator(cur);
+    if (next === cur) return; // no-op mutation (e.g. already joined) — skip the write
+    try {
+      await client.push(spacesPush(userId), { v: 1, spaces: next.spaces, caps: next.caps }, hash);
+      return;
+    } catch (err) {
+      if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
+      throw err;
+    }
+  }
+}
+
+/**
+ * Replace the joined-space list, preserving the durable `caps` map. Implemented over
+ * {@link updateSpacesDoc} so every existing caller is caps-safe with no call-site
+ * change; the `caps` are read fresh on write. The prior `hash` is now vestigial (the
+ * funnel re-reads) — last-writer-wins on the `spaces` array, which only races across
+ * a user's own devices.
+ */
 export async function writeSpaces(
   client: StarfishClient,
   userId: string,
   spaces: Space[],
-  hash: string | null,
+  _hash: string | null,
 ): Promise<void> {
-  await client.push(spacesPush(userId), { v: 1, spaces }, hash);
+  await updateSpacesDoc(client, userId, (cur) => ({ spaces, caps: cur.caps }));
 }
 
 /** Opaque, dedicated space id — independent of any userId. Ownership is recorded
@@ -142,11 +205,32 @@ export async function addSpaceMember(
   });
 }
 
-/** Invitee-side: record a joined space in the identity's own space list. */
+/** Invitee-side: record a joined space in the identity's own space list. Caps are
+ *  left untouched (used for public joins, which carry no member cap). Idempotent. */
 export async function addJoinedSpace(client: StarfishClient, userId: string, space: Space): Promise<void> {
-  const { spaces, hash } = await readSpaces(client, userId);
-  if (spaces.some((s) => s.id === space.id)) return;
-  await writeSpaces(client, userId, [...spaces, space], hash);
+  await updateSpacesDoc(client, userId, (cur) =>
+    cur.spaces.some((s) => s.id === space.id) ? cur : { spaces: [...cur.spaces, space], caps: cur.caps },
+  );
+}
+
+/**
+ * Invitee-side: record a joined PRIVATE space AND persist its member cap in one
+ * atomic doc write. Storing the cap in the user's own (seed-authenticated) `_spaces`
+ * doc is what lets a fresh device re-hydrate it and self-heal — the cap is owner-
+ * issued and not re-derivable, and it is not a secret (Starfish binds every request
+ * to a fresh signature over `cap.sub`, so a stored cap is useless without the
+ * member's private key). Idempotent on the space; the cap is always (re)written.
+ */
+export async function addJoinedSpaceWithCap(
+  client: StarfishClient,
+  userId: string,
+  space: Space,
+  capJson: string,
+): Promise<void> {
+  await updateSpacesDoc(client, userId, (cur) => ({
+    spaces: cur.spaces.some((s) => s.id === space.id) ? cur.spaces : [...cur.spaces, space],
+    caps: { ...cur.caps, [space.id]: capJson },
+  }));
 }
 
 /** Create a new space (+ a seeded "general" channel) owned by the identity. */

@@ -3,14 +3,20 @@
  * space member cap-cert JSON so `useRoom` can open a joined space's channels as
  * a keyring recipient (one cap covers every channel in the space).
  *
- * Persisted via the platform kv (web localStorage / native AsyncStorage), keyed
- * PER-USER so accounts never see each other's memberships, and hydrated into an
- * in-memory cache on sign-in / account switch so reads stay synchronous for the
- * hooks that consume them during render.
+ * TWO tiers: the durable source of truth is the user's own synced `_spaces` doc
+ * (see `registry.ts` — `caps` key), which a fresh device re-hydrates from its seed;
+ * the platform kv (web localStorage / native AsyncStorage) is a fast, offline cache.
+ * Both are keyed PER-USER so accounts never see each other's memberships. On
+ * sign-in / account switch we hydrate the server doc OVER the local cache into an
+ * in-memory map so reads stay synchronous for the hooks that consume them during
+ * render (`useRoom`).
  */
-import { kvGet, kvRemove, kvSet } from './kv';
+import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-type CapMap = Record<string, string>;
+import type { CapMap } from '@/lib/types';
+
+import { kvGet, kvRemove, kvSet } from './kv';
+import { readSpaces } from './registry';
 
 /** Pre-multi-account global blob; adopted once by the first user that hydrates. */
 const LEGACY_KEY = 'octochat.membercaps.v1';
@@ -22,14 +28,20 @@ let activeKey: string | null = null;
 /**
  * Load the active account's joined-space caps into memory. Call (and await) on
  * sign-in and on every account switch, before opening rooms. Re-hydrating for the
- * same user is a no-op. Member cap-certs are owner-issued and not re-derivable, so
- * they are kept per-user on disk and survive switching away and back.
+ * same user is a no-op.
+ *
+ * Two-tier load: the local kv first (fast, offline), then the user's own synced
+ * `_spaces` doc merged OVER it (durable source of truth). Merging server-over-local
+ * is what makes a fresh device — empty kv, same seed — recover its caps and a
+ * re-issued cap take precedence. A server failure (offline / unreachable) keeps the
+ * local-only cache, so the common online-device case is unaffected.
  */
-export async function hydrateMemberCaps(userId: string): Promise<void> {
+export async function hydrateMemberCaps(userId: string, accountClient: StarfishClient): Promise<void> {
   const key = keyFor(userId);
   if (activeKey === key) return;
   activeKey = key;
   cache = {};
+  // 1. Local kv — fast path, available offline.
   let raw = await kvGet(key);
   if (raw === null) {
     // One-time adoption: the single pre-migration account owns the legacy blob.
@@ -47,6 +59,17 @@ export async function hydrateMemberCaps(userId: string): Promise<void> {
     } catch {
       cache = {};
     }
+  }
+  // 2. Server doc wins — recovers caps a fresh device's kv never had. Keep the
+  //    local cache on any failure (offline / unreachable server).
+  try {
+    const { caps } = await readSpaces(accountClient, userId);
+    if (Object.keys(caps).length > 0) {
+      cache = { ...cache, ...caps };
+      await kvSet(key, JSON.stringify(cache)); // warm kv for the next offline open
+    }
+  } catch {
+    // Unreachable: the local cache from step 1 stands.
   }
 }
 

@@ -91,9 +91,11 @@ function resetAccountScopedState(): void {
   clearRoomEventsBus();
 }
 
-async function hydrateCapsFor(userId: string): Promise<void> {
-  await hydrateMemberCaps(userId);
-  await hydratePubspaceCaps(userId);
+async function hydrateCapsFor(session: Session): Promise<void> {
+  // Member caps hydrate from the user's own synced `_spaces` doc (durable) over the
+  // local kv cache, so pass the seed-authenticated accountClient.
+  await hydrateMemberCaps(session.userId, session.accountClient);
+  await hydratePubspaceCaps(session.userId);
 }
 
 // Rebuild a live session from a persisted one. Prefer the cached root identity
@@ -175,7 +177,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (acct) {
           try {
             const s = await sessionFromPersisted(acct);
-            await hydrateCapsFor(s.userId);
+            await hydrateCapsFor(s);
             if (!cancelled) setSession(s);
           } catch {
             /* corrupt/stale persisted identity — start signed-out */
@@ -229,7 +231,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         await saveVault(next, lock);
         commitVault(next);
         setPendingSeed(null);
-        await hydrateCapsFor(s.userId);
+        await hydrateCapsFor(s);
         setSession(s);
         setStatus('ready');
       },
@@ -249,7 +251,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           commitVault(next);
           setPendingSeed(null);
           resetAccountScopedState();
-          await hydrateCapsFor(s.userId);
+          await hydrateCapsFor(s);
           setSession(s);
         } finally {
           // Always leave 'switching' (clears the overlay) — the old session stays
@@ -274,7 +276,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           await saveVault(next);
           commitVault(next);
           resetAccountScopedState();
-          await hydrateCapsFor(s.userId);
+          await hydrateCapsFor(s);
           setSession(s);
         } finally {
           opRef.current = false;
@@ -308,7 +310,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             await saveVault(next);
             commitVault(next);
             resetAccountScopedState();
-            await hydrateCapsFor(s.userId);
+            await hydrateCapsFor(s);
             setSession(s);
           } else {
             await saveVault(next);
@@ -326,7 +328,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         const acct = activeAccountOf(v);
         if (acct) {
           const s = await sessionFromPersisted(acct);
-          await hydrateCapsFor(s.userId);
+          await hydrateCapsFor(s);
           setSession(s);
         }
         setUnlockMethods([]);

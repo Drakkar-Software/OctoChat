@@ -12,7 +12,7 @@ import {
   updatePublicSpaceMeta,
 } from './starfish/pubspace';
 import { removePubspaceAccess } from './starfish/pubspace-caps';
-import { broadcastSpaceMeta, readRooms, readSpaces, writeRooms, writeSpaces } from './starfish/registry';
+import { broadcastSpaceMeta, readRooms, readSpaces, updateSpacesDoc, writeRooms, writeSpaces } from './starfish/registry';
 import { useSession } from './session-context';
 
 /**
@@ -189,10 +189,16 @@ export function useSpaceSettings(spaceId: string) {
   /** Drop the space from your own list + forget its cap (member/joiner side). */
   const leave = useCallback(async () => {
     if (!session) return;
-    const { spaces, hash } = await readSpaces(session.accountClient, session.userId);
-    await writeSpaces(session.accountClient, session.userId, spaces.filter((s) => s.id !== spaceId), hash);
+    // Drop the space from the list AND forget its durable cap in one atomic doc write,
+    // so a leave never leaves a dangling cap (or vice-versa). Public spaces carry no
+    // member cap, so the caps map is untouched for them.
+    await updateSpacesDoc(session.accountClient, session.userId, (cur) => {
+      const caps = { ...cur.caps };
+      delete caps[spaceId];
+      return { spaces: cur.spaces.filter((s) => s.id !== spaceId), caps };
+    });
     if (isPublic) removePubspaceAccess(spaceId);
-    else removeMemberCap(spaceId);
+    else removeMemberCap(spaceId); // mirror the in-memory cache
   }, [session, spaceId, isPublic]);
 
   return {

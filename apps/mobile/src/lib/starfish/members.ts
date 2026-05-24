@@ -17,7 +17,7 @@ import { buildEncryptor, makeClient, prefixedClient } from './client';
 import type { Session } from './identity';
 import { getMemberCap, saveMemberCap } from './member-caps';
 import { keyringName, spaceMemberScope } from './paths';
-import { addJoinedSpace, addSpaceMember, readSpaces } from './registry';
+import { addJoinedSpaceWithCap, addSpaceMember, readSpaces } from './registry';
 
 export interface JoinRequest {
   edPub: string;
@@ -113,10 +113,15 @@ export async function acceptSpaceInvite(session: Session, inviteJson: string): P
   const client = makeClient(cap, session.keys.edPriv);
   const enc = await buildEncryptor(client, session.keys, spaceId, [cap.iss]);
   if (!enc) throw new Error("Accepted, but you're not in the space keyring yet — ask the owner to re-invite.");
-  saveMemberCap(spaceId, JSON.stringify(cap));
+  const capJson = JSON.stringify(cap);
   const name = inv.spaceName?.trim() || `space-${spaceId.slice(-6)}`;
   const space: Space = { id: spaceId, name, short: name.slice(0, 2).toUpperCase(), members: 1 };
-  await addJoinedSpace(session.accountClient, session.userId, space);
+  // Persist the joined space AND its cap together in the user's own `_spaces` doc FIRST
+  // (the durable source of truth — re-hydrates on a fresh device, so it self-heals with
+  // no owner re-invite). Only mirror into the in-memory cache once that write succeeds,
+  // so a failed push never leaves a "joined locally, not on the server" state.
+  await addJoinedSpaceWithCap(session.accountClient, session.userId, space, capJson);
+  saveMemberCap(spaceId, capJson);
   return space;
 }
 
