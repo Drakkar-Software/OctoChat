@@ -67,6 +67,7 @@ export function useSpaceSettings(spaceId: string) {
 
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: show loading while (re)reading space settings on change
     setLoading(true);
     if (!session) {
       setLoading(false);

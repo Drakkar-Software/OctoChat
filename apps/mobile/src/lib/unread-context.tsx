@@ -109,6 +109,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!userId) {
       mapRef.current = {};
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: clear unread counts when the identity (userId) clears
       setUnreadByRoom({});
       lastReadRef.current = {};
       setHydrated(false);

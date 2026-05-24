@@ -15,8 +15,12 @@ import type { PickedFile } from '@/lib/pick-file';
 export function useImagePaste(onImage: (file: PickedFile) => void) {
   const ref = useRef<TextInput>(null);
   // Hold the latest callback so the listener binds once but never goes stale.
+  // Refresh after each render (not during — that trips react-hooks/refs); the
+  // listener reads `.current` lazily at paste time, long after this commits.
   const onImageRef = useRef(onImage);
-  onImageRef.current = onImage;
+  useEffect(() => {
+    onImageRef.current = onImage;
+  });
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;

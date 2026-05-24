@@ -25,6 +25,7 @@ export function Avatar({ label, size = 36, ring = false, presence, image }: Avat
   const { colors } = useTheme();
   const [failed, setFailed] = useState(false);
   // A fresh image clears any prior load error so a re-pick can recover.
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: reset the load-error flag when `image` changes
   useEffect(() => setFailed(false), [image]);
   const showImage = !!image && !failed;
   const dot = Math.max(8, size * 0.28);

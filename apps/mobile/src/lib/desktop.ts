@@ -29,6 +29,11 @@ export function isDesktop(): boolean {
   return !!globalThis.window?.octochat?.isElectron;
 }
 
+/** The Electron app version reported by the desktop bridge. Null off-desktop. */
+export function desktopVersion(): string | null {
+  return globalThis.window?.octochat?.version ?? null;
+}
+
 /**
  * True only in the macOS desktop build, where the window uses the `hiddenInset`
  * title-bar style and the renderer must reserve a top strip for the traffic

@@ -52,6 +52,7 @@ export function useRoom(roomId: string) {
 
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: reset room crypto/open state before reopening when room or session changes
     setEncryptor(null);
     setClient(null);
     setOpenError(null);

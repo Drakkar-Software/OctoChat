@@ -79,6 +79,7 @@ export default function SpaceScreen() {
 
   // Clear the "Saved." note as soon as the form is dirtied again (name or image).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: drop the transient "Saved." note the moment the form is re-dirtied
     if (dirty) setSaved(false);
   }, [dirty]);
 

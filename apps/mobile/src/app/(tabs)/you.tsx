@@ -7,6 +7,7 @@ import { useSession } from '@/lib/session-context';
 import { useTheme } from '@/lib/use-theme';
 import { AccountSwitcher } from '@/components/account/AccountSwitcher';
 import { NotificationSettingsCard } from '@/components/settings/NotificationSettingsCard';
+import { UpdateSettingsCard } from '@/components/settings/UpdateSettingsCard';
 import { AppBar } from '@/components/ui/AppBar';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -146,6 +147,8 @@ export default function YouScreen() {
       </Card>
 
       <NotificationSettingsCard />
+
+      <UpdateSettingsCard />
 
       {accounts.length > 1 ? (
         <Button

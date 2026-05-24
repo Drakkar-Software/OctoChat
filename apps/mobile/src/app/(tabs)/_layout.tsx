@@ -17,13 +17,15 @@ function TabBarIcon({ name, color, size, focused }: { name: IconName; color: str
   );
 }
 
-const tabIcon =
-  (name: IconName) =>
+const tabIcon = (name: IconName) => {
   // expo-router/RN types `color` as ColorValue; our tab tints are string theme
   // tokens (colors.accent / colors.inkMuted), so coerce at the boundary.
-  ({ color, size, focused }: { color: ColorValue; size: number; focused: boolean }) => (
+  const TabIcon = ({ color, size, focused }: { color: ColorValue; size: number; focused: boolean }) => (
     <TabBarIcon name={name} color={color as string} size={size} focused={focused} />
   );
+  TabIcon.displayName = `TabIcon(${name})`;
+  return TabIcon;
+};
 
 export default function TabsLayout() {
   const { colors } = useTheme();

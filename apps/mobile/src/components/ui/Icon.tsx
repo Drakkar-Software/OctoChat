@@ -62,6 +62,7 @@ const ICONS = {
   logout: { lib: Feather, n: 'log-out' },
   at: { lib: Feather, n: 'at-sign' },
   clock: { lib: Feather, n: 'clock' },
+  refresh: { lib: Feather, n: 'refresh-cw' },
   globe: { lib: Ionicons, n: 'globe-outline' },
 } satisfies Record<string, IconDef>;
 

@@ -39,7 +39,11 @@ export function useRooms(spaceId: string | null) {
   // doesn't pull `spaces` into `refresh`'s deps (which would refetch rooms on every
   // space-list change). When the snapshot already matches, reconcile skips its read.
   const spacesRef = useRef(spaces);
-  spacesRef.current = spaces;
+  // Sync after each render (not during — writing a ref in render trips
+  // react-hooks/refs); `refresh` reads it from later effects / user actions.
+  useEffect(() => {
+    spacesRef.current = spaces;
+  });
 
   // Overlay live unread counts onto the registry rooms so `ChannelRow`'s Badge
   // and emphasis light up without the row components touching the provider.
@@ -86,6 +90,7 @@ export function useRooms(spaceId: string | null) {
 
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: show loading while (re)reading rooms on space/session change
     setLoading(true);
     if (!session || !spaceId) {
       setRooms([]);

@@ -63,6 +63,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: show loading while (re)reading the profile on session change
     setLoading(true);
     if (!session) {
       setLoading(false);

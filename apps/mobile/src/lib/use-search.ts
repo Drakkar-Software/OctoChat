@@ -13,6 +13,7 @@ export function useSearch(query: string, spaceId: string | null) {
     let cancelled = false;
     const q = query.trim().toLowerCase();
     if (!session || !spaceId || q.length < 2) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: clear results when the query/space falls below the search threshold
       setResults([]);
       setLoading(false);
       return;
