@@ -14,7 +14,7 @@ import { Txt } from '@/components/ui/Txt';
 import { SeedGrid } from '@/components/onboarding/SeedGrid';
 
 export default function SeedScreen() {
-  const { signIn } = useSession();
+  const { signIn, prepareSignIn } = useSession();
   const words = useMemo(() => generateSeedWords(), []);
   const [revealed, setRevealed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -32,6 +32,13 @@ export default function SeedScreen() {
 
   const confirm = async () => {
     if (busy) return;
+    // Web: the seed must be sealed behind a PIN/passkey before it touches disk, so
+    // route through the lock-setup screen instead of persisting here.
+    if (Platform.OS === 'web') {
+      prepareSignIn(words);
+      router.push('/(onboarding)/lock');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {

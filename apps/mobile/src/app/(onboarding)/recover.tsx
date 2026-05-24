@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
 import { isValidSeed } from '@/lib/starfish/identity';
@@ -13,7 +13,7 @@ import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
 export default function RecoverScreen() {
-  const { signIn } = useSession();
+  const { signIn, prepareSignIn } = useSession();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +26,12 @@ export default function RecoverScreen() {
     }
     if (!isValidSeed(words)) {
       setError('That is not a valid 12-word recovery seed.');
+      return;
+    }
+    // Web: seal the recovered seed behind a PIN/passkey before persisting it.
+    if (Platform.OS === 'web') {
+      prepareSignIn(words);
+      router.push('/(onboarding)/lock');
       return;
     }
     setBusy(true);
