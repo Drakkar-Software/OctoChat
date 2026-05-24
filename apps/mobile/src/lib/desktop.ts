@@ -17,6 +17,8 @@ declare global {
       setBadgeCount?: (n: number) => void;
       /** Subscribe to OTA update-ready events. Call once at startup. */
       onUpdateReady?: (cb: (version: string) => void) => void;
+      /** Pull an already-staged update version on mount (push isn't buffered). */
+      getPendingUpdate?: () => Promise<string | null>;
       /** Relaunch the app to apply a staged OTA bundle. */
       relaunch?: () => void;
     };
@@ -53,6 +55,16 @@ export function setDesktopBadge(n: number): void {
  */
 export function onDesktopUpdateReady(cb: (version: string) => void): void {
   globalThis.window?.octochat?.onUpdateReady?.(cb);
+}
+
+/**
+ * Pull the version of an OTA bundle that was already staged before this renderer
+ * mounted (the `onDesktopUpdateReady` push is fire-once and unbuffered, so a
+ * check that completed during load would otherwise be missed). Null off-desktop
+ * and when no update is staged.
+ */
+export async function getDesktopPendingUpdate(): Promise<string | null> {
+  return (await globalThis.window?.octochat?.getPendingUpdate?.()) ?? null;
 }
 
 /**

@@ -17,7 +17,7 @@ import {
   resolveDistDir,
 } from './constants';
 import { registerAppProtocol } from './protocol';
-import { checkForUpdates } from './updater';
+import { checkForUpdates, getPendingUpdateVersion } from './updater';
 
 // Must run BEFORE app is ready and at top level. `standard` gives a real origin
 // (relative URLs + reliable localStorage), `secure` enables secure-context APIs
@@ -104,6 +104,10 @@ function registerIpc(): void {
   ipcMain.handle('octochat:set-badge', (_event, count: unknown) => {
     app.setBadgeCount(typeof count === 'number' && count > 0 ? count : 0);
   });
+
+  // Let a freshly-mounted renderer learn about an update that was staged before
+  // it registered its `octochat:update-ready` listener (the push isn't buffered).
+  ipcMain.handle('octochat:get-pending-update', () => getPendingUpdateVersion());
 
   // Relaunch the app to apply a staged OTA bundle (called from the renderer
   // when the user accepts the "update ready" prompt).

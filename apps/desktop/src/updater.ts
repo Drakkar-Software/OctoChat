@@ -24,6 +24,7 @@ import {
   resolveDistDir,
   updatesRoot,
 } from './constants';
+import { parseJsonResponse } from './json';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,11 +58,21 @@ function getActiveVersion(): string | null {
   }
 }
 
-/** Fetch JSON, throwing on non-2xx. */
+/**
+ * Fetch JSON, throwing a descriptive error on non-2xx, a non-JSON content-type,
+ * or a parse failure. The content-type guard matters: a static host with an SPA
+ * catch-all (e.g. Cloudflare Pages) answers a missing manifest path with HTTP 200
+ * and `index.html`, which would otherwise blow up at `res.json()` with an opaque
+ * SyntaxError swallowed by the caller. The thrown body prefix lets a packaged
+ * build (no devtools) diagnose a bad deploy from the terminal. The guard itself
+ * lives in `./json` so it can be unit-tested without electron's `net`.
+ */
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await net.fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}: ${url}`);
-  return res.json() as Promise<T>;
+  const contentType = res.headers.get('content-type') ?? '';
+  const body = await res.text();
+  return parseJsonResponse<T>(url, contentType, body);
 }
 
 /**
@@ -104,6 +115,21 @@ function pruneOldVersions(keepVersion: string): void {
   } catch {
     // updatesRoot may not exist yet; nothing to prune
   }
+}
+
+// ─── Pending-update state ───────────────────────────────────────────────────────
+
+/**
+ * Version staged for next-launch apply this session, or null if none. Set when
+ * `checkForUpdates` finishes staging a bundle. Exposed so the renderer can pull
+ * it on mount — `octochat:update-ready` is a fire-once IPC push with no buffering,
+ * so a check that completes before React registers its listener would be missed.
+ */
+let pendingUpdateVersion: string | null = null;
+
+/** The version staged for next-launch apply, or null if none this session. */
+export function getPendingUpdateVersion(): string | null {
+  return pendingUpdateVersion;
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -177,7 +203,9 @@ export async function checkForUpdates(): Promise<void> {
 
     pruneOldVersions(remote.version);
 
-    // Tell the renderer a restart will apply the update
+    // Record + push so the renderer learns of the update whether it was already
+    // listening (live push) or mounts after this point (pulls via getPending).
+    pendingUpdateVersion = remote.version;
     const win = BrowserWindow.getAllWindows()[0];
     if (win && !win.isDestroyed()) {
       win.webContents.send('octochat:update-ready', remote.version);

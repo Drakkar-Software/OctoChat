@@ -1,0 +1,10 @@
+# Cloudflare Pages project that serves the OTA web bundle at oc.drakkar.software.
+#
+# Pinning the project name here (and via --project-name in package.json's
+# deploy:web) makes `wrangler pages deploy` non-interactive and deterministic:
+# without it wrangler prompts for / guesses the target project, which can push
+# the bundle to the wrong place. The exported Expo web build (incl.
+# desktop-update.json) is uploaded from ../mobile/dist by the deploy:web script.
+name = "octochat"
+compatibility_date = "2026-05-24"
+pages_build_output_dir = "../mobile/dist"

@@ -23,6 +23,10 @@ contextBridge.exposeInMainWorld('octochat', {
   // startup.
   onUpdateReady: (cb: (version: string) => void) =>
     ipcRenderer.on('octochat:update-ready', (_event, version: string) => cb(version)),
+  // Pull the already-staged update version on mount, in case the check finished
+  // before onUpdateReady was wired (the push above isn't buffered). Null if none.
+  getPendingUpdate: () =>
+    ipcRenderer.invoke('octochat:get-pending-update') as Promise<string | null>,
   // Relaunch the app to apply a staged OTA bundle.
   relaunch: () => ipcRenderer.invoke('octochat:relaunch'),
 });

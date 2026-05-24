@@ -10,10 +10,11 @@
     "dev:web": "pnpm --filter @octochat/mobile web",
     "dev:electron": "wait-on tcp:8081 && cross-env NODE_ENV=development tsup --watch --onSuccess \"electron .\"",
     "export": "node scripts/check-build-env.mjs && pnpm --filter @octochat/mobile export:web && node scripts/gen-update-manifest.mjs",
-    "deploy:web": "pnpm export && wrangler pages deploy ../mobile/dist",
+    "deploy:web": "pnpm export && wrangler pages deploy --project-name octochat",
     "package": "pnpm export && pnpm build:main && electron-builder",
     "package:dir": "pnpm export && pnpm build:main && electron-builder --dir",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@octochat/tsconfig": "workspace:*",
@@ -24,6 +25,7 @@
     "electron-builder": "^26.8.1",
     "tsup": "^8.3.5",
     "typescript": "~6.0.3",
+    "vitest": "^4.1.7",
     "wait-on": "^9.0.10"
   }
 }
