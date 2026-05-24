@@ -10,6 +10,7 @@ import { signRequest, stableStringify } from '@drakkar.software/starfish-protoco
 import type { SignableMethod } from '@drakkar.software/starfish-protocol';
 
 import { SYNC_BASE, SYNC_PREFIX } from './config';
+import { dedupe } from './inflight';
 import { keyringPull, keyringPush, profilePull, profilePush, roomPull, roomPush } from './paths';
 
 export interface DeviceKeys {
@@ -72,7 +73,9 @@ export async function openEncryptor(
   spaceId: string,
   trustedAdders: string[],
 ): Promise<Encryptor> {
-  const res = await client.pull(keyringPull(spaceId)).catch(() => {
+  // Deduped: a room open and a strict-mode/double-mounted effect can both pull
+  // the same space keyring in one tick (the `_keyring × 2` burst).
+  const res = await dedupe(`keyring:${spaceId}`, () => client.pull(keyringPull(spaceId))).catch(() => {
     throw new Error('Could not reach the server to fetch space keys.');
   });
   const keyring = res?.data as unknown as Keyring | undefined;
@@ -111,7 +114,7 @@ export async function ownerEnsureKeyring(
   keys: DeviceKeys,
   spaceId: string,
 ): Promise<Encryptor> {
-  const krRes = await client.pull(keyringPull(spaceId)).catch(() => null);
+  const krRes = await dedupe(`keyring:${spaceId}`, () => client.pull(keyringPull(spaceId))).catch(() => null);
   let keyring = krRes?.data as unknown as Keyring | undefined;
   if (!keyring || !keyring.epochs) {
     const created = await createKeyring({ edPrivHex: keys.edPriv, edPubHex: keys.edPub }, [
@@ -149,18 +152,22 @@ export interface PublicProfile {
 
 /** Read any user's public profile — pseudo and the inlined avatar data URI. */
 export async function readProfile(userId: string): Promise<PublicProfile> {
-  try {
-    const r = await fetch(`${SYNC_BASE}${profilePull(userId)}`);
-    if (!r.ok) return { pseudo: null, avatar: null };
-    const body = await r.json();
-    const data = body?.data as { pseudo?: unknown; avatar?: unknown } | undefined;
-    return {
-      pseudo: typeof data?.pseudo === 'string' ? data.pseudo : null,
-      avatar: typeof data?.avatar === 'string' ? data.avatar : null,
-    };
-  } catch {
-    return { pseudo: null, avatar: null };
-  }
+  // Deduped: the sidebar, the /you screen and the pseudo primer can request the
+  // same profile concurrently.
+  return dedupe(`profile:${userId}`, async () => {
+    try {
+      const r = await fetch(`${SYNC_BASE}${profilePull(userId)}`);
+      if (!r.ok) return { pseudo: null, avatar: null };
+      const body = await r.json();
+      const data = body?.data as { pseudo?: unknown; avatar?: unknown } | undefined;
+      return {
+        pseudo: typeof data?.pseudo === 'string' ? data.pseudo : null,
+        avatar: typeof data?.avatar === 'string' ? data.avatar : null,
+      };
+    } catch {
+      return { pseudo: null, avatar: null };
+    }
+  });
 }
 
 /** Read any user's public profile pseudo. */

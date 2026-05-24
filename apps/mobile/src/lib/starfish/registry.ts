@@ -8,6 +8,7 @@ import type { StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { CapMap, Room, Space } from '@/lib/types';
 
+import { dedupe } from './inflight';
 import {
   roomsRegistryPull,
   roomsRegistryPush,
@@ -76,15 +77,20 @@ export async function readSpaces(
   client: StarfishClient,
   userId: string,
 ): Promise<SpacesDoc> {
-  try {
-    return await pullSpacesDoc(client, userId);
-  } catch (err) {
-    // Don't collapse a reachability/auth failure into "no spaces" silently —
-    // that reads as an empty account (e.g. a desktop build baked against an
-    // unreachable server). Surface it; the caller still degrades to empty.
-    console.error('[readSpaces] failed to pull spaces registry', err);
-    return { spaces: [], caps: {}, hash: null };
-  }
+  // Deduped: several mounted consumers (desktop nav, routed page, unread ctx,
+  // reconcile) read this same doc in one tick. NOT used for the CAS read inside
+  // updateSpacesDoc, which must see fresh state on each attempt.
+  return dedupe(`spaces:${userId}`, async () => {
+    try {
+      return await pullSpacesDoc(client, userId);
+    } catch (err) {
+      // Don't collapse a reachability/auth failure into "no spaces" silently —
+      // that reads as an empty account (e.g. a desktop build baked against an
+      // unreachable server). Surface it; the caller still degrades to empty.
+      console.error('[readSpaces] failed to pull spaces registry', err);
+      return { spaces: [], caps: {}, hash: null };
+    }
+  });
 }
 
 /**
@@ -149,20 +155,24 @@ export async function readRooms(
   image: string | null;
   hash: string | null;
 }> {
-  const res = await client.pull(roomsRegistryPull(spaceId)).catch(() => null);
-  const data = res?.data as
-    | { rooms?: Room[]; owner?: string; members?: unknown[]; name?: string; image?: string }
-    | undefined;
-  return {
-    rooms: Array.isArray(data?.rooms) ? data!.rooms! : [],
-    owner: typeof data?.owner === 'string' ? data.owner : null,
-    members: Array.isArray(data?.members)
-      ? data!.members!.filter((m): m is string => typeof m === 'string')
-      : [],
-    name: typeof data?.name === 'string' ? data.name : null,
-    image: typeof data?.image === 'string' ? data.image : null,
-    hash: res?.hash ?? null,
-  };
+  // Deduped: the desktop nav, the routed rooms page and each ActivityFeed
+  // SpaceSection can all read a space's registry in the same tick.
+  return dedupe(`rooms:${spaceId}`, async () => {
+    const res = await client.pull(roomsRegistryPull(spaceId)).catch(() => null);
+    const data = res?.data as
+      | { rooms?: Room[]; owner?: string; members?: unknown[]; name?: string; image?: string }
+      | undefined;
+    return {
+      rooms: Array.isArray(data?.rooms) ? data!.rooms! : [],
+      owner: typeof data?.owner === 'string' ? data.owner : null,
+      members: Array.isArray(data?.members)
+        ? data!.members!.filter((m): m is string => typeof m === 'string')
+        : [],
+      name: typeof data?.name === 'string' ? data.name : null,
+      image: typeof data?.image === 'string' ? data.image : null,
+      hash: res?.hash ?? null,
+    };
+  });
 }
 
 export async function writeRooms(
@@ -277,16 +287,30 @@ export async function createRoom(
  * local one (back-compat for pre-feature registries). A no-op when already in
  * sync, so it's cheap to call on every space open. Broadcasts so a live `useSpaces`
  * updates without waiting for its next navigation refresh.
+ *
+ * `knownSpaces` (the caller's already-loaded space list) lets the common case —
+ * meta already in sync — short-circuit BEFORE any network read. Without it this
+ * fired a `_spaces` GET on every single space/room open even when nothing changed.
  */
 export async function reconcileSpaceMeta(
   client: StarfishClient,
   userId: string,
   spaceId: string,
   shared: SpaceMeta,
+  knownSpaces?: Space[],
 ): Promise<void> {
   const sharedName = typeof shared.name === 'string' && shared.name.trim() ? shared.name : null;
   const sharedImage = typeof shared.image === 'string' && shared.image ? shared.image : null;
   if (sharedName === null && sharedImage === null) return; // nothing shared to apply
+  // Fast path: if the caller's snapshot already matches the shared meta, there is
+  // nothing to write — skip the read + write entirely (the usual case on open).
+  const known = knownSpaces?.find((s) => s.id === spaceId);
+  if (known) {
+    const name = sharedName ?? known.name;
+    const short = name.slice(0, 2).toUpperCase();
+    const image = sharedImage ?? known.image;
+    if (name === known.name && short === known.short && (image ?? null) === (known.image ?? null)) return;
+  }
   const { spaces, hash } = await readSpaces(client, userId);
   const cur = spaces.find((s) => s.id === spaceId);
   if (!cur) return;
