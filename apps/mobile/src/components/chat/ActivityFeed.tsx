@@ -12,6 +12,7 @@ import { useUnread } from '@/lib/unread-context';
 import { useTheme } from '@/lib/use-theme';
 import { spaceIdFromRoomId } from '@/lib/starfish/paths';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { Txt } from '@/components/ui/Txt';
 import { ChannelRow } from '@/components/chat/ChannelRow';
 
@@ -45,7 +46,7 @@ export function ActivityFeed({ spaceId }: { spaceId: string | null }) {
     }
   };
 
-  if (!session) return <EmptyState iconName="lock" title="Sign in first" />;
+  if (!session) return <SignInPrompt />;
   if (sections.length === 0) {
     return (
       <EmptyState

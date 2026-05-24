@@ -8,6 +8,7 @@ import { useRooms } from '@/lib/use-rooms';
 import { useSpaces } from '@/lib/use-spaces';
 import type { Room } from '@/lib/types';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { ChannelListSkeleton } from '@/components/chat/ChannelListSkeleton';
 import { RoomCategorySection } from '@/components/chat/RoomCategorySection';
@@ -58,7 +59,7 @@ export default function RoomsScreen() {
       }
     >
       {!session ? (
-        <EmptyState iconName="lock" title="Sign in first" subtitle="Create an identity to see your spaces." />
+        <SignInPrompt subtitle="Create an identity to see your spaces." />
       ) : spacesLoading || roomsLoading ? (
         <ChannelListSkeleton />
       ) : categories.length === 0 ? (

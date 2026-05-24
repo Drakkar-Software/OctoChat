@@ -13,8 +13,8 @@ import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Card } from '@/components/ui/Card';
 import { CopyField } from '@/components/ui/CopyField';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { Icon } from '@/components/ui/Icon';
+import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
@@ -131,7 +131,7 @@ export default function SpaceScreen() {
   return (
     <StackScreen scroll contentStyle={styles.content} header={<AppBar title="Space" onBack={() => router.back()} />}>
       {!session ? (
-        <EmptyState iconName="lock" title="Sign in first" />
+        <SignInPrompt />
       ) : (
         <>
           <Card title="INFORMATION">

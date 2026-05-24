@@ -16,6 +16,7 @@ import { Callout } from '@/components/ui/Callout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
+import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { Txt } from '@/components/ui/Txt';
 import { Composer } from '@/components/chat/Composer';
@@ -111,7 +112,7 @@ export default function RoomScreen() {
       }
     >
       {!session ? (
-        <EmptyState iconName="lock" title="Sign in first" subtitle="Create an identity to open encrypted rooms." />
+        <SignInPrompt subtitle="Create an identity to open encrypted rooms." />
       ) : opening ? (
         <EmptyState iconName="globe" title="Opening room…" subtitle="Fetching keys and decrypting messages." />
       ) : openError ? (

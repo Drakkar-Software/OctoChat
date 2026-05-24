@@ -10,6 +10,7 @@ import { useSearch } from '@/lib/use-search';
 import { useSpaces } from '@/lib/use-spaces';
 import { AppBar } from '@/components/ui/AppBar';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { TextField } from '@/components/ui/TextField';
 import { MessageListSkeleton } from '@/components/chat/MessageListSkeleton';
@@ -36,7 +37,7 @@ export default function SearchScreen() {
       />
 
       {!session ? (
-        <EmptyState iconName="lock" title="Sign in first" />
+        <SignInPrompt />
       ) : query.trim().length < 2 ? (
         <EmptyState
           iconName="search"

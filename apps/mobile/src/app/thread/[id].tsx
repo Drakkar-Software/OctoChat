@@ -10,6 +10,7 @@ import { spaceIdFromRoomId } from '@/lib/starfish/paths';
 import { AppBar } from '@/components/ui/AppBar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { IconButton } from '@/components/ui/IconButton';
+import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { Composer } from '@/components/chat/Composer';
 import { ThreadConversation } from '@/components/chat/ThreadConversation';
@@ -39,7 +40,7 @@ export default function ThreadScreen() {
       }
     >
       {!session ? (
-        <EmptyState iconName="lock" title="Sign in first" />
+        <SignInPrompt />
       ) : opening ? (
         <EmptyState iconName="globe" title="Opening thread…" />
       ) : openError ? (
