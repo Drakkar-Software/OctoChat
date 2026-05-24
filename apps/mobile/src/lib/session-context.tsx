@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { deriveSession, type Session } from './starfish/identity';
+import { buildSession, deriveSession, rootIdentityOf, type Session } from './starfish/identity';
 import { clearMemberCaps, hydrateMemberCaps } from './starfish/member-caps';
 import { clearPubspaceCaps, hydratePubspaceCaps } from './starfish/pubspace-caps';
 import {
@@ -10,7 +10,7 @@ import {
   saveSession,
   unlockSession,
 } from './starfish/storage';
-import type { SeedLock, UnlockMethod } from './starfish/storage-types';
+import type { PersistedSession, SeedLock, UnlockMethod } from './starfish/storage-types';
 
 interface SessionContextValue {
   session: Session | null;
@@ -44,6 +44,20 @@ const Ctx = createContext<SessionContextValue | null>(null);
 // never trigger a repaint).
 const yieldToPaint = () => new Promise((r) => setTimeout(r, 0));
 
+// Rebuild a live session from a persisted one. Prefer the cached root identity
+// (skips the heavy bootstrap Argon2id); fall back to re-deriving from the seed
+// if it's missing or unusable (older blob / corruption).
+async function sessionFromPersisted(p: PersistedSession): Promise<Session> {
+  if (p.derived) {
+    try {
+      return await buildSession(p.derived, p.name);
+    } catch {
+      /* cached keys unusable — fall through to a full re-derive from the seed */
+    }
+  }
+  return deriveSession(p.seed, p.name);
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [status, setStatus] = useState<'loading' | 'locked' | 'ready'>('loading');
@@ -68,7 +82,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
       if (res.kind === 'ready') {
         try {
-          const s = await deriveSession(res.session.seed, res.session.name);
+          const s = await sessionFromPersisted(res.session);
           if (!cancelled) setSession(s);
         } catch {
           /* corrupt/stale persisted identity — start signed-out */
@@ -92,7 +106,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       signIn: async (seedWords, name, lock) => {
         await yieldToPaint();
         const s = await deriveSession(seedWords, name);
-        await saveSession({ seed: seedWords, name: s.name }, lock);
+        // Cache the derived root identity so unlock/cold-start skips the bootstrap
+        // Argon2id (the seed stays too, as recovery + fallback).
+        await saveSession({ seed: seedWords, name: s.name, derived: rootIdentityOf(s) }, lock);
         setPendingSeed(null);
         setSession(s);
         setStatus('ready');
@@ -100,7 +116,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       unlock: async (method, pin) => {
         await yieldToPaint();
         const persisted = await unlockSession(method, pin);
-        const s = await deriveSession(persisted.seed, persisted.name);
+        const s = await sessionFromPersisted(persisted);
         setSession(s);
         setUnlockMethods([]);
         setStatus('ready');

@@ -3,11 +3,29 @@
  * (`storage.ts` web, `storage.native.ts` native) implement the same contract so
  * `session-context` stays platform-agnostic.
  */
+import type { DeviceKeys } from './client';
+
+/**
+ * The root identity already derived from the seed (userId + device keys). Caching
+ * it lets unlock/cold-start skip the heavy `bootstrapRootIdentity` Argon2id — the
+ * single biggest cost on the restore path. Equivalent in sensitivity to the seed
+ * (it derives deterministically from it), so it lives inside the same sealed blob
+ * (web) / Keychain entry (native), never in cleartext.
+ */
+export interface DerivedIdentity {
+  userId: string;
+  keys: DeviceKeys;
+}
 
 /** The recovery seed + display name — the minimum needed to re-derive an identity. */
 export interface PersistedSession {
   seed: string[];
   name: string;
+  /**
+   * Cached root identity so restore skips the bootstrap Argon2id. Optional: if
+   * absent (or corrupt) the consumer falls back to re-deriving from `seed`.
+   */
+  derived?: DerivedIdentity;
 }
 
 /** Ways the web-persisted seed can be unlocked. */

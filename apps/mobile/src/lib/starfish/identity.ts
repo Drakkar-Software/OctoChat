@@ -10,6 +10,7 @@ import type { StarfishClient } from '@drakkar.software/starfish-client';
 
 import { makeClient, ensurePseudo, type DeviceKeys } from './client';
 import { accountScope, ownerScope } from './paths';
+import type { DerivedIdentity } from './storage-types';
 
 export interface Session {
   userId: string;
@@ -37,29 +38,44 @@ export function fingerprintFromUserId(userId: string): string {
   return [h.slice(0, 4), h.slice(4, 8), h.slice(8, 12)].filter(Boolean).join(' · ');
 }
 
-/** Derive a full owner session (identity + caps + clients) from a seed. */
-export async function deriveSession(seedWords: string[], name?: string): Promise<Session> {
-  const passphrase = seedWords.join(' ').trim();
-  const creds = await bootstrapRootIdentity(passphrase);
-  const keys = creds.device as DeviceKeys;
-  const fallback = name && name.trim() ? name.trim() : `octo-${creds.userId.slice(0, 6)}`;
+/**
+ * Build a full owner session (caps + clients + pseudo) from an already-derived
+ * root identity. This is the cheap half of {@link deriveSession}: it does NO
+ * Argon2id, only fast Ed25519 cap-minting plus a profile fetch. Restore paths
+ * (unlock / cold-start) call this with cached keys so they pay the bootstrap
+ * Argon2id once at sign-in, never again.
+ */
+export async function buildSession({ userId, keys }: DerivedIdentity, name?: string): Promise<Session> {
+  const fallback = name && name.trim() ? name.trim() : `octo-${userId.slice(0, 6)}`;
   const sub = { edPubHex: keys.edPub, kemPubHex: keys.kemPub };
   const chatCap = await mintDeviceCap(keys.edPriv, keys.edPub, sub, ownerScope());
-  const accountCap = await mintDeviceCap(keys.edPriv, keys.edPub, sub, accountScope(creds.userId));
+  const accountCap = await mintDeviceCap(keys.edPriv, keys.edPub, sub, accountScope(userId));
   const chatClient = makeClient(chatCap, keys.edPriv);
   const accountClient = makeClient(accountCap, keys.edPriv);
   // Adopt the stored pseudo if the profile already exists; only seed `fallback`
   // for a brand-new identity. Never overwrite — a blind write here would revert
   // an edit made on another device back to the bootstrap default on every open.
-  const displayName = await ensurePseudo(accountClient, creds.userId, fallback).catch(() => fallback);
+  const displayName = await ensurePseudo(accountClient, userId, fallback).catch(() => fallback);
   return {
-    userId: creds.userId,
+    userId,
     name: displayName,
     keys,
     chatCap,
     accountCap,
     chatClient,
     accountClient,
-    fingerprint: fingerprintFromUserId(creds.userId),
+    fingerprint: fingerprintFromUserId(userId),
   };
+}
+
+/** Derive a full owner session (identity + caps + clients) from a seed. */
+export async function deriveSession(seedWords: string[], name?: string): Promise<Session> {
+  const passphrase = seedWords.join(' ').trim();
+  const creds = await bootstrapRootIdentity(passphrase);
+  return buildSession({ userId: creds.userId, keys: creds.device as DeviceKeys }, name);
+}
+
+/** The cached root identity (userId + keys) carried by a built session. */
+export function rootIdentityOf(s: Session): DerivedIdentity {
+  return { userId: s.userId, keys: s.keys };
 }
