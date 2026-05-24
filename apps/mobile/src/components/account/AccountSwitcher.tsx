@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
+import { useAvatars } from '@/lib/use-pseudos';
 import { useTheme } from '@/lib/use-theme';
 import { Avatar } from '@/components/ui/Avatar';
 import { Divider } from '@/components/ui/Divider';
@@ -23,8 +24,15 @@ interface AccountSwitcherProps {
  * add / logout — UI only, no persistence logic of its own.
  */
 export function AccountSwitcher({ onRequestClose, onViewProfile }: AccountSwitcherProps) {
+  // useAvatars reads a module-level cache the React Compiler can't track; without
+  // opting out, the row JSX memoizes stale here because the accessor's identity
+  // stays stable while the held-account id set does too. See use-pseudos.ts.
+  'use no memo';
   const { colors } = useTheme();
   const { accounts, activeUserId, switchAccount, logoutAccount } = useSession();
+  // Each held account's public avatar (its own per-identity profile), resolved
+  // through the shared profile cache — falls back to the monogram until it lands.
+  const avatar = useAvatars(accounts.map((a) => a.userId).filter(Boolean));
 
   const onSwitch = (userId: string) => {
     onRequestClose?.();
@@ -58,7 +66,7 @@ export function AccountSwitcher({ onRequestClose, onViewProfile }: AccountSwitch
             onPress={() => onSwitch(a.userId)}
             style={[styles.account, active && { backgroundColor: colors.accentBg }]}
           >
-            <Avatar label={a.name.slice(0, 2).toUpperCase()} size={34} ring={active} />
+            <Avatar label={a.name.slice(0, 2).toUpperCase()} image={avatar(a.userId)} size={34} ring={active} />
             <View style={styles.accountText}>
               <Txt variant="callout" weight="semibold" numberOfLines={1}>
                 {a.name}
