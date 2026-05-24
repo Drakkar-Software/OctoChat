@@ -30,6 +30,28 @@ export function passkeySupported(): boolean {
   );
 }
 
+/**
+ * Stricter than {@link passkeySupported}: also requires a *platform* authenticator
+ * (Touch ID / Face ID / Windows Hello / Android biometric) to be present, so we only
+ * OFFER enrollment when the device can satisfy a passkey locally — not merely via a
+ * roaming security key or a cross-device QR passkey. Async because the UVPAA probe is.
+ *
+ * Unlock keeps using the looser {@link passkeySupported}: an already-enrolled
+ * credential must stay usable whenever WebAuthn can run (biometrics may be disabled,
+ * or the credential may be a security key), and PIN is always available as a fallback.
+ */
+export async function passkeyEnrollable(): Promise<boolean> {
+  if (!passkeySupported()) return false;
+  if (typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable !== 'function') {
+    return false;
+  }
+  try {
+    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  } catch {
+    return false;
+  }
+}
+
 // Return ArrayBuffer-backed views: WebAuthn's `BufferSource` fields reject the
 // default `Uint8Array<ArrayBufferLike>` (which may be a SharedArrayBuffer).
 function randomBytes(n: number): Uint8Array<ArrayBuffer> {

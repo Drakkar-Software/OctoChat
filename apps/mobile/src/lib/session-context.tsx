@@ -10,10 +10,10 @@ import {
 } from './starfish/identity';
 import { clearMemberCaps, hydrateMemberCaps } from './starfish/member-caps';
 import { clearPubspaceCaps, hydratePubspaceCaps } from './starfish/pubspace-caps';
+import { passkeyEnrollable } from './starfish/passkey';
 import {
   clearVault,
   loadVault,
-  passkeySupported,
   saveVault,
   unlockVault,
   vaultMethods,
@@ -39,7 +39,8 @@ interface SessionContextValue {
   status: 'loading' | 'locked' | 'switching' | 'ready';
   /** Unlock methods available for the locked persisted vault (web). */
   unlockMethods: UnlockMethod[];
-  /** Whether this platform/browser can enroll a passkey. */
+  /** Whether to offer passkey enrollment: WebAuthn is usable AND a platform
+   *  (biometric) authenticator is present. False until the async probe resolves. */
   passkeyAvailable: boolean;
   /** Every account held on this device (for the switcher). */
   accounts: AccountSummary[];
@@ -138,7 +139,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Serializes the in-app vault mutations (add/switch/logout) so two overlapping
   // ops can't read a stale vault and clobber each other's accounts.
   const opRef = useRef(false);
-  const passkeyAvailable = useMemo(() => passkeySupported(), []);
+  // Whether to OFFER passkey enrollment. Requires a platform authenticator (biometric)
+  // to be present, probed async — so it starts false (the enrollment UI must not flash
+  // in, then hide, before the probe resolves). Unlock of an already-enrolled passkey is
+  // gated separately in storage.methodsFor() on WebAuthn support alone.
+  const [passkeyAvailable, setPasskeyAvailable] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void passkeyEnrollable().then((ok) => {
+      if (!cancelled) setPasskeyAvailable(ok);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const commitVault = (v: Vault | null) => {
     vaultRef.current = v;

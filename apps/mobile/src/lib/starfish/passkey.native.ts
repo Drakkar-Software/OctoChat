@@ -9,6 +9,10 @@ export function passkeySupported(): boolean {
   return false;
 }
 
+export async function passkeyEnrollable(): Promise<boolean> {
+  return false;
+}
+
 export async function enrollPasskey(_displayName: string): Promise<PasskeyEnrollment> {
   throw new Error('Passkeys are not available on native.');
 }
