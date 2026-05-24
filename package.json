@@ -15,7 +15,7 @@
     "dev:server": "pnpm --filter @octochat/server dev",
     "start": "pnpm --filter @octochat/mobile start",
     "web": "pnpm --filter @octochat/mobile web",
-    "web:package": "pnpm --filter @octochat/mobile export:web",
+    "web:package": "pnpm --filter @octochat/desktop export",
     "android": "pnpm --filter @octochat/mobile android",
     "ios": "pnpm --filter @octochat/mobile ios",
     "desktop": "pnpm --filter @octochat/desktop dev",
