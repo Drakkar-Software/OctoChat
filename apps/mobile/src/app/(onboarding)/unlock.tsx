@@ -9,16 +9,16 @@ import { SeedUnlock } from '@/components/onboarding/SeedUnlock';
 
 /** Cold-start unlock for a sealed, web-persisted seed (PIN or passkey). */
 export default function UnlockScreen() {
-  const { status, unlockMethods, unlock, lock } = useSession();
+  const { status, unlockMethods, unlock, fullSignOut } = useSession();
 
   if (status === 'loading') return null;
   if (status !== 'locked') return <Redirect href="/" />;
 
-  // Navigate first, THEN clear: flipping `status` via lock() while still on this
-  // screen would trip the `status !== 'locked'` redirect above and race the nav.
+  // Navigate first, THEN clear: flipping `status` via fullSignOut() while still on
+  // this screen would trip the `status !== 'locked'` redirect above and race the nav.
   const forget = () => {
     router.replace('/(onboarding)/recover');
-    void lock();
+    void fullSignOut();
   };
 
   return (

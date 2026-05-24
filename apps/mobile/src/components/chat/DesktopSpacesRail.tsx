@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 
@@ -5,6 +6,7 @@ import { glowShadow, layout, radii, spacing } from '@/theme';
 import type { Space } from '@/lib/types';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
+import { AccountSwitcherPopover } from '@/components/account/AccountSwitcherPopover';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/Icon';
@@ -96,6 +98,7 @@ export function DesktopSpacesRail({
   onOpenProfile,
 }: DesktopSpacesRailProps) {
   const { colors } = useTheme();
+  const [menuOpen, setMenuOpen] = useState(false);
   return (
     <View style={[styles.rail, { width: layout.railWidth, backgroundColor: colors.paperAlt, borderRightColor: colors.lineSoft }]}>
       <Octopus size={28} />
@@ -130,9 +133,15 @@ export function DesktopSpacesRail({
           ) : null}
         </View>
       ) : null}
-      <Pressable accessibilityRole="button" accessibilityLabel="Your profile" onPress={onOpenProfile} style={styles.foot}>
-        <Avatar label={meLabel} image={meAvatar} size={32} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Accounts"
+        onPress={() => setMenuOpen(true)}
+        style={styles.foot}
+      >
+        <Avatar label={meLabel} image={meAvatar} size={32} ring={menuOpen} />
       </Pressable>
+      <AccountSwitcherPopover visible={menuOpen} onClose={() => setMenuOpen(false)} onViewProfile={onOpenProfile} />
     </View>
   );
 }

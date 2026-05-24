@@ -28,6 +28,18 @@ export interface PersistedSession {
   derived?: DerivedIdentity;
 }
 
+/**
+ * Every account held on this device plus which one is active. The whole vault is
+ * sealed as a unit (web: under one app-lock via a vault master key; native: a
+ * single secure-store entry), so unlocking once makes every account available and
+ * switching is an in-memory pointer flip — no re-deriving the others. `activeId`
+ * is a member `userId`; an empty `accounts` array means "fully signed out".
+ */
+export interface Vault {
+  accounts: PersistedSession[];
+  activeId: string;
+}
+
 /** Ways the web-persisted seed can be unlocked. */
 export type UnlockMethod = 'pin' | 'passkey';
 
@@ -56,10 +68,10 @@ export interface SeedLock {
 /**
  * Result of probing storage at launch:
  * - `none`   — nothing stored; start signed-out.
- * - `ready`  — session available immediately (native Keychain path).
- * - `locked` — a sealed seed exists; unlock with one of `methods` (web path).
+ * - `ready`  — vault available immediately (native Keychain path).
+ * - `locked` — a sealed vault exists; unlock with one of `methods` (web path).
  */
-export type LoadResult =
+export type VaultLoad =
   | { kind: 'none' }
-  | { kind: 'ready'; session: PersistedSession }
+  | { kind: 'ready'; vault: Vault }
   | { kind: 'locked'; methods: UnlockMethod[] };

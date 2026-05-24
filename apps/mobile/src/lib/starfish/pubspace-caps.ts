@@ -3,11 +3,12 @@
  * Maps spaceId → the link's credential so `use-room`/`use-rooms` can read/write the
  * plaintext `pubspaces/{ownerId}/{spaceId}/…` subtree as the link's ephemeral subject.
  *
- * Mirrors `member-caps.ts`: persisted via the platform kv and hydrated into an
- * in-memory cache once at startup so reads stay synchronous during render. The owner
- * of a public space needs NO entry here — they use their own account cap.
+ * Mirrors `member-caps.ts`: persisted via the platform kv, keyed PER-USER, and
+ * hydrated into an in-memory cache on sign-in / account switch so reads stay
+ * synchronous during render. The owner of a public space needs NO entry here — they
+ * use their own account cap.
  */
-import { kvGet, kvSet } from './kv';
+import { kvGet, kvRemove, kvSet } from './kv';
 
 /** Everything from an invitation link needed to authorize requests as its bearer. */
 export interface PubspaceAccess {
@@ -23,15 +24,33 @@ export interface PubspaceAccess {
 
 type AccessMap = Record<string, PubspaceAccess>;
 
-const KEY = 'octochat.pubspacecaps.v1';
+/** Pre-multi-account global blob; adopted once by the first user that hydrates. */
+const LEGACY_KEY = 'octochat.pubspacecaps.v1';
+const keyFor = (userId: string) => `octochat.pubspacecaps.${userId}`;
 
 let cache: AccessMap = {};
-let hydrated = false;
+let activeKey: string | null = null;
 
-/** Load persisted public-space access into memory. Await once before opening rooms. */
-export async function hydratePubspaceCaps(): Promise<void> {
-  if (hydrated) return;
-  const raw = await kvGet(KEY);
+/**
+ * Load the active account's public-space access into memory. Await on sign-in and on
+ * every account switch, before opening rooms. Re-hydrating for the same user is a
+ * no-op. These are invitation-link credentials, not re-derivable, so they are kept
+ * per-user on disk and survive switching away and back.
+ */
+export async function hydratePubspaceCaps(userId: string): Promise<void> {
+  const key = keyFor(userId);
+  if (activeKey === key) return;
+  activeKey = key;
+  cache = {};
+  let raw = await kvGet(key);
+  if (raw === null) {
+    const legacy = await kvGet(LEGACY_KEY);
+    if (legacy !== null) {
+      raw = legacy;
+      await kvSet(key, legacy);
+      await kvRemove(LEGACY_KEY);
+    }
+  }
   if (raw) {
     try {
       cache = JSON.parse(raw) as AccessMap;
@@ -39,7 +58,10 @@ export async function hydratePubspaceCaps(): Promise<void> {
       cache = {};
     }
   }
-  hydrated = true;
+}
+
+function persist(): void {
+  if (activeKey) void kvSet(activeKey, JSON.stringify(cache));
 }
 
 export function getPubspaceAccess(spaceId: string): PubspaceAccess | null {
@@ -48,7 +70,7 @@ export function getPubspaceAccess(spaceId: string): PubspaceAccess | null {
 
 export function savePubspaceAccess(spaceId: string, access: PubspaceAccess): void {
   cache = { ...cache, [spaceId]: access };
-  void kvSet(KEY, JSON.stringify(cache));
+  persist();
 }
 
 /** Forget one joined public space's access (on leaving it). */
@@ -57,11 +79,12 @@ export function removePubspaceAccess(spaceId: string): void {
   const next = { ...cache };
   delete next[spaceId];
   cache = next;
-  void kvSet(KEY, JSON.stringify(cache));
+  persist();
 }
 
-/** Forget all joined public-space access (on lock / identity switch). */
+/** Drop the in-memory access (on account switch / sign-out); leaves disk untouched so
+ *  the next {@link hydratePubspaceCaps} reloads the new (or re-added) user's set. */
 export function clearPubspaceCaps(): void {
   cache = {};
-  void kvSet(KEY, JSON.stringify(cache));
+  activeKey = null;
 }

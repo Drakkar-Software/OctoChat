@@ -39,6 +39,17 @@ export function emitSseStatus(up: boolean): void {
   for (const l of statusListeners) l(up);
 }
 
+/**
+ * Forget all registered room pulls and reset SSE health (on account switch). The
+ * old session's room screens unmount and re-register under the new session;
+ * `statusListeners` are React subscriptions that self-unsubscribe on unmount, so
+ * they are intentionally left intact.
+ */
+export function clearRoomEventsBus(): void {
+  pullRegistry.clear();
+  sseUp = false;
+}
+
 /** Subscribe to SSE health changes. Fires immediately with the current state. */
 export function onSseStatus(cb: StatusListener): () => void {
   statusListeners.add(cb);

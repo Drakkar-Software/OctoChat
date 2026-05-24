@@ -27,6 +27,14 @@ function notify() {
   for (const fn of listeners) fn();
 }
 
+/** Drop every cached profile (on account switch — pseudos/avatars are per-identity).
+ *  Notifies subscribers so mounted consumers re-fetch under the new session. */
+export function clearPseudoCache(): void {
+  cache.clear();
+  inflight.clear();
+  notify();
+}
+
 /** Seed/refresh one user's profile in the shared cache (e.g. after a local edit).
  *  Pass `avatar: null` to clear it locally. */
 export function primeProfile(userId: string, profile: { pseudo?: string; avatar?: string | null }): void {

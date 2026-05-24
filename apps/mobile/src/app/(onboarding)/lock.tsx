@@ -9,8 +9,12 @@ import { SeedLockSetup } from '@/components/onboarding/SeedLockSetup';
 
 /** Web set-lock step: seal the staged seed behind a PIN (+ optional passkey). */
 export default function LockScreen() {
-  const { pendingSeed, passkeyAvailable, signIn } = useSession();
+  const { pendingSeed, passkeyAvailable, signIn, session } = useSession();
 
+  // Already signed in: this screen creates the FIRST account's app-lock, so running
+  // signIn here would replace the whole vault. Adding accounts goes through
+  // addAccount (no lock step), so bounce back into the app.
+  if (session) return <Redirect href="/(tabs)/rooms" />;
   // Reached without a staged seed (e.g. a direct reload) — restart onboarding.
   if (!pendingSeed) return <Redirect href="/(onboarding)/welcome" />;
 

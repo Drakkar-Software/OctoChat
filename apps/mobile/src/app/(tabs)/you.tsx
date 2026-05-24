@@ -5,21 +5,22 @@ import { spacing, verificationColor } from '@/theme';
 import { useProfile } from '@/lib/use-profile';
 import { useSession } from '@/lib/session-context';
 import { useTheme } from '@/lib/use-theme';
+import { AccountSwitcher } from '@/components/account/AccountSwitcher';
 import { AppBar } from '@/components/ui/AppBar';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Divider } from '@/components/ui/Divider';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { Icon } from '@/components/ui/Icon';
 import { Row } from '@/components/ui/Row';
+import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
 export default function YouScreen() {
   const { colors } = useTheme();
-  const { lock } = useSession();
+  const { fullSignOut, accounts } = useSession();
   const { profile, draft, setDraft, dirty, save, saving, avatarDraft, pickAvatar, removeAvatar, avatarError } =
     useProfile();
   const verified = verificationColor(colors, 'verified');
@@ -27,7 +28,7 @@ export default function YouScreen() {
   if (!profile) {
     return (
       <StackScreen inTabs header={<AppBar title="Profile" />}>
-        <EmptyState iconName="lock" title="Sign in first" subtitle="Create an identity to view your profile." />
+        <SignInPrompt subtitle="Create an identity to view your profile." />
       </StackScreen>
     );
   }
@@ -100,6 +101,10 @@ export default function YouScreen() {
         </View>
       </View>
 
+      <Card title="ACCOUNTS">
+        <AccountSwitcher />
+      </Card>
+
       <Card title="ABOUT">
         <View style={styles.field}>
           <Txt variant="micro" weight="semibold" mono uppercase tone="inkMuted">
@@ -142,16 +147,18 @@ export default function YouScreen() {
         <Row iconName="key" title="Identity fingerprint" detail={profile.fingerprint} detailMono right={check} />
       </Card>
 
-      <Button
-        label="Lock app"
-        variant="ghost"
-        size="md"
-        iconName="logout"
-        onPress={async () => {
-          await lock();
-          router.replace('/(onboarding)/welcome');
-        }}
-      />
+      {accounts.length > 1 ? (
+        <Button
+          label="Sign out of all accounts"
+          variant="ghost"
+          size="md"
+          iconName="logout"
+          onPress={async () => {
+            await fullSignOut();
+            router.replace('/(onboarding)/welcome');
+          }}
+        />
+      ) : null}
     </StackScreen>
   );
 }

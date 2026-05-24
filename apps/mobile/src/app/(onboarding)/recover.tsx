@@ -13,7 +13,7 @@ import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
 export default function RecoverScreen() {
-  const { signIn, prepareSignIn } = useSession();
+  const { signIn, prepareSignIn, addAccount, session } = useSession();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +28,21 @@ export default function RecoverScreen() {
       setError('That is not a valid 12-word recovery seed.');
       return;
     }
-    // Web: seal the recovered seed behind a PIN/passkey before persisting it.
+    // Adding to an already-unlocked vault: append under the existing app-lock, no
+    // PIN step. (A live session means we're signed in and adding another account.)
+    if (session) {
+      setBusy(true);
+      setError(null);
+      try {
+        await addAccount(words);
+        router.replace('/(tabs)/rooms');
+      } catch (e) {
+        setError(String((e as Error)?.message ?? e));
+        setBusy(false);
+      }
+      return;
+    }
+    // First account on web: seal the recovered seed behind a PIN/passkey first.
     if (Platform.OS === 'web') {
       prepareSignIn(words);
       router.push('/(onboarding)/lock');

@@ -78,6 +78,12 @@ function cachePut(key: string, bytes: Uint8Array): void {
   }
 }
 
+/** Drop all decrypted plaintext bytes (on account switch — they belong to one identity). */
+export function clearAttachmentCache(): void {
+  decryptedCache.clear();
+  cacheBytes = 0;
+}
+
 /**
  * Persistent layer: the SEALED ciphertext, base64'd, in the platform KV store
  * (localStorage on web, AsyncStorage on native). Surviving a reload means a
