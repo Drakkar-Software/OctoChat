@@ -4,6 +4,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { layout } from '@/theme';
 import type { Room } from '@/lib/types';
 import { useProfile } from '@/lib/use-profile';
+import { useRoomSidebarVisible } from '@/lib/use-responsive';
 import { useRooms } from '@/lib/use-rooms';
 import { useSpaces } from '@/lib/use-spaces';
 import { useTheme } from '@/lib/use-theme';
@@ -30,6 +31,7 @@ export function DesktopNav() {
   const { categories, loading: roomsLoading, isPublic, memberCount, createRoom } = useRooms(activeId);
   const { totalUnread } = useUnread();
   const { digest } = useThreadDigest();
+  const showRoomSidebar = useRoomSidebarVisible();
 
   const space = spaces.find((s) => s.id === activeId) ?? spaces[0];
   const activeRoomId =
@@ -74,38 +76,39 @@ export function DesktopNav() {
         meAvatar={profile?.avatar}
         onOpenProfile={() => router.push('/(tabs)/you')}
       />
-      {space ? (
-        <DesktopRoomSidebar
-          space={space}
-          isPublic={isPublic}
-          memberCount={memberCount}
-          categories={categories}
-          activeRoomId={activeRoomId}
-          threads={activeThreads}
-          onOpenRoom={openRoom}
-          onOpenThread={openThread}
-          onJumpTo={() => router.push('/(tabs)/search')}
-          onOpenSpaceMenu={() => router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
-          onCreateRoom={(category, name) => createRoom(name, category)}
-          loading={roomsLoading}
-        />
-      ) : (
-        <View style={[styles.sidebar, { width: layout.sidebarWidth, backgroundColor: colors.paperAlt, borderRightColor: colors.lineSoft }]}>
-          {spacesLoading ? (
-            <View style={styles.loading}>
-              <ActivityIndicator color={colors.accent} />
-            </View>
-          ) : (
-            <EmptyState
-              iconName="globe"
-              title="No spaces yet"
-              subtitle="Join a space with an invite to start chatting securely."
-            >
-              <Button label="Join a space" variant="primary" iconName="plus" full onPress={() => router.push('/join')} />
-            </EmptyState>
-          )}
-        </View>
-      )}
+      {showRoomSidebar &&
+        (space ? (
+          <DesktopRoomSidebar
+            space={space}
+            isPublic={isPublic}
+            memberCount={memberCount}
+            categories={categories}
+            activeRoomId={activeRoomId}
+            threads={activeThreads}
+            onOpenRoom={openRoom}
+            onOpenThread={openThread}
+            onJumpTo={() => router.push('/(tabs)/search')}
+            onOpenSpaceMenu={() => router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
+            onCreateRoom={(category, name) => createRoom(name, category)}
+            loading={roomsLoading}
+          />
+        ) : (
+          <View style={[styles.sidebar, { width: layout.sidebarWidth, backgroundColor: colors.paperAlt, borderRightColor: colors.lineSoft }]}>
+            {spacesLoading ? (
+              <View style={styles.loading}>
+                <ActivityIndicator color={colors.accent} />
+              </View>
+            ) : (
+              <EmptyState
+                iconName="globe"
+                title="No spaces yet"
+                subtitle="Join a space with an invite to start chatting securely."
+              >
+                <Button label="Join a space" variant="primary" iconName="plus" full onPress={() => router.push('/join')} />
+              </EmptyState>
+            )}
+          </View>
+        ))}
     </>
   );
 }

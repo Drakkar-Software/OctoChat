@@ -73,7 +73,7 @@ export function DesktopRoomSidebar({
           </Txt>
           <SpaceMeta isPublic={isPublic} memberCount={memberCount} iconSize={9} numberOfLines={1} />
         </View>
-        <Icon name="chevron-down" size={13} color={colors.inkMuted} />
+        <Icon name="gear" size={15} color={colors.inkMuted} />
       </Pressable>
 
       <Pressable
