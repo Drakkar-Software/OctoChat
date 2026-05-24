@@ -20,8 +20,12 @@ import {
  * - Background/killed-app pushes are shown as local notifications by the handler
  *   registered at module scope in the root layout (`registerBackgroundPushHandler`).
  * - Tapping a notification routes to its room (incl. cold start).
+ *
+ * `enabled` is the user's master notification toggle: when off, the device drops
+ * every topic subscription (no OS banners) but keeps the tap-navigation handlers
+ * wired so a notification that's still in the tray routes correctly when opened.
  */
-export function usePush(session: Session | null, spaceIds: string[]): void {
+export function usePush(session: Session | null, spaceIds: string[], enabled: boolean): void {
   const subscribed = useRef<Set<string>>(new Set());
   const spacesKey = [...spaceIds].sort().join(',');
 
@@ -37,9 +41,10 @@ export function usePush(session: Session | null, spaceIds: string[]): void {
     };
   }, []);
 
-  // Reconcile topic subscriptions with the user's current space set.
+  // Reconcile topic subscriptions with the user's current space set. Signing out
+  // or turning notifications off drops every subscription.
   useEffect(() => {
-    if (!session) {
+    if (!session || !enabled) {
       const drop = subscribed.current;
       subscribed.current = new Set();
       for (const id of drop) void unsubscribeSpacePush(id);
@@ -60,7 +65,8 @@ export function usePush(session: Session | null, spaceIds: string[]): void {
     return () => {
       active = false;
     };
-    // spacesKey is the stable sorted-join of spaceIds — re-runs when the set changes.
+    // spacesKey is the stable sorted-join of spaceIds — re-runs when the set
+    // changes (and when the master toggle flips).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, spacesKey]);
+  }, [session, spacesKey, enabled]);
 }

@@ -6,6 +6,7 @@ import { useProfile } from '@/lib/profile-context';
 import { useSession } from '@/lib/session-context';
 import { useTheme } from '@/lib/use-theme';
 import { AccountSwitcher } from '@/components/account/AccountSwitcher';
+import { NotificationSettingsCard } from '@/components/settings/NotificationSettingsCard';
 import { AppBar } from '@/components/ui/AppBar';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -151,6 +152,8 @@ export default function YouScreen() {
         <Divider style={styles.divider} />
         <Row iconName="key" title="Identity fingerprint" detail={profile.fingerprint} detailMono right={check} />
       </Card>
+
+      <NotificationSettingsCard />
 
       {accounts.length > 1 ? (
         <Button

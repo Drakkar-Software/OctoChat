@@ -40,6 +40,7 @@ const ICONS = {
   'chevron-up': { lib: Feather, n: 'chevron-up' },
   gear: { lib: Feather, n: 'settings' },
   bell: { lib: Feather, n: 'bell' },
+  volume: { lib: Feather, n: 'volume-2' },
   menu: { lib: Feather, n: 'menu' },
   x: { lib: Feather, n: 'x' },
   'arrow-l': { lib: Feather, n: 'arrow-left' },

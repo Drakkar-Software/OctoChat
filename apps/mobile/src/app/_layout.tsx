@@ -3,6 +3,7 @@ import 'react-native-gesture-handler';
 import { configureStarfishPlatform } from '@/lib/starfish/platform';
 import { registerServiceWorker } from '@/lib/pwa';
 import { registerBackgroundPushHandler } from '@/lib/push/fcm';
+import { NotificationSettingsProvider } from '@/lib/notification-settings-context';
 import { ProfileProvider } from '@/lib/profile-context';
 import { SessionProvider } from '@/lib/session-context';
 import { SpacesProvider } from '@/lib/spaces-context';
@@ -51,24 +52,29 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
         <SessionProvider>
-          {/* SpacesProvider sits above UnreadProvider: the latter reads the space
-              set from it. ProfileProvider only needs the session. */}
-          <SpacesProvider>
-            <UnreadProvider>
-              <ProfileProvider>
-                <ThreadDigestProvider>
-                  <AppFrame>
-                    <Stack
-                      screenOptions={{
-                        headerShown: false,
-                        contentStyle: { backgroundColor: palette.canvas },
-                      }}
-                    />
-                  </AppFrame>
-                </ThreadDigestProvider>
-              </ProfileProvider>
-            </UnreadProvider>
-          </SpacesProvider>
+          {/* NotificationSettingsProvider sits above UnreadProvider (which reads the
+              master toggle to gate push + web toasts) and below the session it loads
+              per-identity settings from. SpacesProvider sits above UnreadProvider too:
+              the latter reads the space set from it. ProfileProvider only needs the
+              session. */}
+          <NotificationSettingsProvider>
+            <SpacesProvider>
+              <UnreadProvider>
+                <ProfileProvider>
+                  <ThreadDigestProvider>
+                    <AppFrame>
+                      <Stack
+                        screenOptions={{
+                          headerShown: false,
+                          contentStyle: { backgroundColor: palette.canvas },
+                        }}
+                      />
+                    </AppFrame>
+                  </ThreadDigestProvider>
+                </ProfileProvider>
+              </UnreadProvider>
+            </SpacesProvider>
+          </NotificationSettingsProvider>
         </SessionProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

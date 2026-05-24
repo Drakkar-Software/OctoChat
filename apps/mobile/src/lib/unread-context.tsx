@@ -1,7 +1,10 @@
 /**
  * App-wide unread tracking, driven purely by the live room-change SSE stream
- * (`lib/events`). There is NO polling and NO message pulling: each SSE event
- * signals that some room changed, and we bump that room's count.
+ * (`lib/events`). There is NO polling, and no message pulling for the unread count
+ * itself: each SSE event signals that some room changed, and we bump that room's
+ * count. (The one exception is the optional notification preview — when the user
+ * enables it, `notifyRoomChange` pulls + decrypts the changed room's latest message
+ * to build the toast body; the count path stays pull-free.)
  *
  * Because chat is E2E-encrypted, the server can only tell us *which room*
  * changed — not the message id or author. "Don't count my own messages" is
@@ -23,7 +26,8 @@ import {
 import { subscribeRoomChanges } from './events';
 import { setDesktopBadge } from './desktop';
 import { setTabTitleBadge } from './tab-title';
-import { ensureNotifyPermission, notifyNewMessage } from './notify';
+import { ensureNotifyPermission, notifyRoomChange } from './notify';
+import { useNotificationSettings } from './notification-settings-context';
 import { useSession } from './session-context';
 import { useSpacesContext } from './spaces-context';
 import { kvGet, kvSet } from './starfish/kv';
@@ -85,10 +89,20 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   // not on every navigation that produces a new spaceIds array reference.
   const spacesKey = useMemo(() => [...spaceIds].sort().join(','), [spaceIds]);
 
+  // Notification preferences (per identity) gate both push and web toasts.
+  const { settings: notif } = useNotificationSettings();
+
   // Native push: subscribe the device to per-space FCM topics, mirroring the SSE
   // candidate set so backgrounded native apps still get notified. No-op on
-  // web/desktop (those rely on the live SSE stream + notify.ts).
-  usePush(session, spaceIds);
+  // web/desktop (those rely on the live SSE stream + notify.ts). The master toggle
+  // drops every subscription when off.
+  usePush(session, spaceIds, notif.enabled);
+
+  // Request browser-notification permission once notifications are enabled
+  // (web/desktop; no-op on native). Re-asks when the user flips the toggle on.
+  useEffect(() => {
+    if (notif.enabled) ensureNotifyPermission();
+  }, [notif.enabled]);
 
   // Hydrate persisted counts for this identity, THEN subscribe — so an event
   // arriving right after mount builds on the restored counts, not on {}.
@@ -147,7 +161,6 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       // real guard, but there's no value in connecting with an empty candidate set.
       if (!session || spaceIds.length === 0) return;
 
-      ensureNotifyPermission();
       unsub = subscribeRoomChanges(
         (e) => {
           // Active room view: pull fresh messages there, skip the unread bump.
@@ -157,7 +170,9 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
           mapRef.current = next;
           setUnreadByRoom(next);
           void kvSet(persistKey(userId), JSON.stringify(next));
-          notifyNewMessage(e.roomId); // web/desktop notification (no-op when focused / native)
+          // web/desktop notification, honoring settings (no-op when focused, disabled,
+          // or native). Decrypts a preview when the `preview` setting is on.
+          void notifyRoomChange(session, e.roomId);
         },
         {
           spaces: spaceIds,
