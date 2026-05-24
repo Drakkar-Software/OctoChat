@@ -68,7 +68,10 @@ function getActiveVersion(): string | null {
  * lives in `./json` so it can be unit-tested without electron's `net`.
  */
 async function fetchJson<T>(url: string): Promise<T> {
-  const res = await net.fetch(url);
+  // Accept: application/json — see fetchVerified for why a non-HTML Accept
+  // matters. The manifest is served as JSON, but asking for it explicitly keeps
+  // the edge from ever treating the request as a page navigation.
+  const res = await net.fetch(url, { headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}: ${url}`);
   const contentType = res.headers.get('content-type') ?? '';
   const body = await res.text();
@@ -80,7 +83,16 @@ async function fetchJson<T>(url: string): Promise<T> {
  * the caller can abort and discard the partial download.
  */
 async function fetchVerified(url: string, expectedSha256: string): Promise<Buffer> {
-  const res = await net.fetch(url);
+  // Accept: application/octet-stream is load-bearing, not cosmetic.
+  //
+  // net.fetch's default Accept advertises `text/html`, so a CDN's edge treats the
+  // request as a page navigation and may rewrite HTML responses in flight —
+  // Cloudflare Web Analytics, for one, injects a `<script src=cloudflareinsights>`
+  // beacon into any text/html body. That mutates the bytes (and thus the sha256)
+  // of the bundle's only HTML file, index.html, so this verify would fail and the
+  // whole update would abort there forever. Asking for octet-stream makes the edge
+  // serve the raw asset untouched, keeping the build-time hash valid end-to-end.
+  const res = await net.fetch(url, { headers: { Accept: 'application/octet-stream' } });
   if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}: ${url}`);
   const buf = Buffer.from(await res.arrayBuffer());
   const actual = createHash('sha256').update(buf).digest('hex');
