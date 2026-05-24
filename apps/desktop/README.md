@@ -82,6 +82,10 @@ not inside the asar, so the `app://` handler can stream it.
 
 ## Notes & gotchas
 
+- **Notifications** (new-message toasts) have their own doc:
+  [`NOTIFICATIONS.md`](NOTIFICATIONS.md). Short version: macOS never prompts on
+  the current **ad-hoc-signed** builds (needs Developer ID); Windows/Linux show
+  toasts with no prompt.
 - **Unsigned macOS builds** are quarantined by Gatekeeper. Open via
   right-click → **Open**, or clear the flag:
   `xattr -dr com.apple.quarantine "apps/desktop/release/mac/OctoChat.app"`.
