@@ -98,9 +98,20 @@ not inside the asar, so the `app://` handler can stream it.
   ```
   A non-`localhost` `http://` URL is blocked by Chromium mixed-content rules — use
   `https://`.
-- **App icon.** `build/icon.png` (1024×1024) is the single source; electron-builder
-  auto-generates the `.icns` / `.ico` / per-size PNGs from it. Replace that file to
-  rebrand.
+- **App icons.** `build/icon.png` (1024×1024, square) is the source for Windows
+  (`.ico`) and Linux. macOS uses `build/icon-mac.png` (set via `mac.icon`) — the
+  same mark pre-shaped into the rounded "squircle" with transparent margins the
+  dock expects, because macOS does **not** round icons itself (a full-bleed square
+  shows as a square tile). To rebrand, replace `build/icon.png`, then regenerate
+  the mac variant (824×824 body on a 1024 canvas, ~22.5% corner radius — Apple's
+  grid) with ImageMagick:
+  ```bash
+  cd build
+  magick icon.png -resize 824x824 /tmp/a.png
+  magick -size 824x824 xc:black -fill white -draw "roundrectangle 0,0,823,823,185,185" /tmp/m.png
+  magick /tmp/a.png \( /tmp/m.png -alpha off \) -compose CopyOpacity -composite /tmp/r.png
+  magick -size 1024x1024 xc:none /tmp/r.png -gravity center -composite icon-mac.png
+  ```
 
 ## Layout
 

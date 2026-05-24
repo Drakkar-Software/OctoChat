@@ -13,10 +13,14 @@ extraResources:
     to: web
 # No native modules → skip rebuild; keeps pnpm's hoisted layout happy.
 npmRebuild: false
-# Per-platform icons (.icns/.ico) are auto-generated from build/icon.png
-# (1024x1024), so no explicit icon paths are needed below.
+# Windows/Linux icons (.ico/.png) are auto-generated from the square
+# build/icon.png (1024x1024). macOS gets build/icon-mac.png — the same mark
+# pre-shaped into the rounded "squircle" with transparent margins that the dock
+# expects (macOS does NOT round icons itself; a full-bleed square shows as a
+# square tile). Regenerate it from build/icon.png with the recipe in README.
 mac:
   category: public.app-category.productivity
+  icon: build/icon-mac.png
   target:
     - target: dmg
       arch:
