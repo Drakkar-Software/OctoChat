@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Redirect, router } from 'expo-router';
-import { Platform, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { generateSeedWords } from '@/lib/starfish/identity';
@@ -11,29 +11,23 @@ import { IconButton } from '@/components/ui/IconButton';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { SeedBackup } from '@/components/onboarding/SeedBackup';
 
-export default function SeedScreen() {
-  const { signIn, prepareSignIn, session } = useSession();
+/** Add-account · create: generate a fresh seed, then append it to the unlocked
+ *  vault and switch to it (no PIN step — the vault lock already exists). */
+export default function CreateAccountScreen() {
+  const { session, addAccount } = useSession();
   const words = useMemo(() => generateSeedWords(), []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Already signed in: this screen creates the FIRST account, so running signIn here
-  // would replace the whole vault. Adding accounts goes through /account/* instead.
-  if (session) return <Redirect href="/(tabs)/rooms" />;
+  // Reached without an unlocked vault (e.g. a stale deep link) — nothing to add to.
+  if (!session) return <Redirect href="/" />;
 
   const confirm = async () => {
     if (busy) return;
-    // First account on web: the seed must be sealed behind a PIN/passkey before it
-    // touches disk, so route through the lock-setup screen instead of persisting here.
-    if (Platform.OS === 'web') {
-      prepareSignIn(words);
-      router.push('/(onboarding)/lock');
-      return;
-    }
     setBusy(true);
     setError(null);
     try {
-      await signIn(words);
+      await addAccount(words);
       router.replace('/(tabs)/rooms');
     } catch (e) {
       setError(String((e as Error)?.message ?? e));
@@ -48,7 +42,7 @@ export default function SeedScreen() {
       header={
         <AppBar
           title="Backup seed"
-          subtitle="Step 2 of 2"
+          subtitle="New account"
           onBack={() => router.back()}
           right={<IconButton name="x" onPress={() => router.back()} accessibilityLabel="Cancel" />}
         />
@@ -56,7 +50,7 @@ export default function SeedScreen() {
       footer={
         <View style={styles.footer}>
           <Button
-            label={busy ? 'Creating identity…' : "I've written it down  →"}
+            label={busy ? 'Adding account…' : "I've written it down  →"}
             variant="primary"
             size="lg"
             full

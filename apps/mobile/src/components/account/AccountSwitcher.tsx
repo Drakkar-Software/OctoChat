@@ -33,8 +33,9 @@ export function AccountSwitcher({ onRequestClose, onViewProfile }: AccountSwitch
 
   const onAdd = () => {
     onRequestClose?.();
-    // The create/recover screens append to the unlocked vault when a session is live.
-    router.push('/(onboarding)/welcome');
+    // Dedicated in-app flow that appends to the unlocked vault — not the onboarding
+    // welcome front-door (which is for the FIRST account / sign-in).
+    router.push('/account/add');
   };
 
   const onLogout = () => {
