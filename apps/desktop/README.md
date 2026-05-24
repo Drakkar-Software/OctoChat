@@ -92,7 +92,7 @@ not inside the asar, so the `app://` handler can stream it.
   fall back to `http://localhost:8787` (unreachable when distributed → seed
   unlocks but no rooms load). Set them before `export`/`package`:
   ```bash
-  cross-env EXPO_PUBLIC_STARFISH_URL=https://oc.drakkar.software/sync \
+  cross-env EXPO_PUBLIC_STARFISH_URL=https://dev-sync.drakkar.software/sync \
             EXPO_PUBLIC_STARFISH_PREFIX=/v1/octochat \
             pnpm --filter @octochat/desktop package
   ```

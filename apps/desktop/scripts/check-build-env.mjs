@@ -9,7 +9,7 @@
  * fails and no rooms load. Fail the build instead of shipping that.
  *
  * Required before `pnpm package` / `pnpm export` (cross-env keeps it cross-platform):
- *   EXPO_PUBLIC_STARFISH_URL=https://oc.drakkar.software/sync
+ *   EXPO_PUBLIC_STARFISH_URL=https://dev-sync.drakkar.software/sync
  *   EXPO_PUBLIC_STARFISH_PREFIX=/v1/octochat
  */
 const REQUIRED = ['EXPO_PUBLIC_STARFISH_URL', 'EXPO_PUBLIC_STARFISH_PREFIX'];
@@ -26,7 +26,7 @@ if (missing.length > 0) {
     'back to http://localhost:8787 and ships an app that cannot reach the server.',
   );
   console.error('Set them before packaging:\n');
-  console.error('  cross-env EXPO_PUBLIC_STARFISH_URL=https://oc.drakkar.software/sync \\');
+  console.error('  cross-env EXPO_PUBLIC_STARFISH_URL=https://dev-sync.drakkar.software/sync \\');
   console.error('            EXPO_PUBLIC_STARFISH_PREFIX=/v1/octochat \\');
   console.error('            pnpm --filter @octochat/desktop package\n');
   process.exit(1);
