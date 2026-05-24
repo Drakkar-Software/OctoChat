@@ -343,6 +343,8 @@ export const motion = {
   fast: 140,
   base: 220,
   slow: 360,
+  /** Keypad fade-out / tip fade-in while a slow unlock (Argon2id) stretches the PIN. */
+  unlockFade: 2000,
   /** Slow ambient loop — bioluminescent halo / breathing glow. */
   pulse: 2800,
   /** Skeleton shimmer loop. */

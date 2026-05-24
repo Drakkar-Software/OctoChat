@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 
 import { motion, spacing } from '@/theme';
 import type { UnlockMethod } from '@/lib/starfish/storage-types';
@@ -8,6 +7,7 @@ import { randomFact } from '@/lib/octochat-facts';
 import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
+import { FadeView } from '@/components/ui/FadeView';
 import { Txt } from '@/components/ui/Txt';
 
 import { PinDots } from './PinDots';
@@ -35,30 +35,21 @@ export function SeedUnlock({ methods, onUnlock, onDone, onForget }: SeedUnlockPr
   const [error, setError] = useState<string | null>(null);
   const hasPasskey = methods.includes('passkey');
 
-  // Slow-unlock flourish: while busy, the keypad fades out and an OctoChat fact
-  // fades in to fill the multi-second Argon2id wait. Shared-value opacities
-  // crossfade the two; a fresh fact is picked at the start of each attempt.
+  // Slow-unlock flourish: while busy the keypad fades out (over ~2s, on the
+  // compositor so it animates through the JS-thread-blocking Argon2id stretch)
+  // and a rotating OctoChat fact fades in once the pad has cleared, to fill the
+  // wait. A fresh fact is picked at the start of each attempt, before busy flips.
   const [fact, setFact] = useState(randomFact);
-  const padOpacity = useSharedValue(1);
-  const tipOpacity = useSharedValue(0);
-  const padStyle = useAnimatedStyle(() => ({ opacity: padOpacity.value }));
-  const tipStyle = useAnimatedStyle(() => ({ opacity: tipOpacity.value }));
-
-  useEffect(() => {
-    if (busy) {
-      setFact(randomFact());
-      padOpacity.value = withTiming(0, { duration: motion.base });
-      tipOpacity.value = withDelay(motion.base, withTiming(1, { duration: motion.base }));
-    } else {
-      tipOpacity.value = 0;
-      padOpacity.value = withTiming(1, { duration: motion.fast });
-    }
-  }, [busy, padOpacity, tipOpacity]);
 
   const run = async (method: UnlockMethod, pin?: string) => {
+    setFact(randomFact());
     setBusy(true);
     setError(null);
     try {
+      // Yield a tick so React commits + paints the busy frame (pad at full
+      // opacity, fade armed) before Argon2id seizes the JS thread — otherwise
+      // the synchronous crunch can start before the fade-out gets to begin.
+      await new Promise((resolve) => setTimeout(resolve, 0));
       await onUnlock(method, pin);
       onDone();
     } catch (e) {
@@ -123,21 +114,26 @@ export function SeedUnlock({ methods, onUnlock, onDone, onForget }: SeedUnlockPr
         </Callout>
       ) : null}
 
-      {/* Crossfade: the keypad fades out and an OctoChat fact fades in to fill the
-          Argon2id wait. The keypad stays mounted (faded) so its height holds the
-          layout; the tip is overlaid, centered. pointerEvents off the pad while
-          busy — onDigit already no-ops, this makes it look it too. */}
+      {/* Crossfade: the keypad fades out (slowly, during the unlock) and an OctoChat
+          fact fades in once it has cleared, to fill the Argon2id wait. The keypad
+          stays mounted (faded) so its height holds the layout; the tip is overlaid,
+          centered. Fade-out runs over ~2s; recovery (on error) snaps back fast.
+          pointerEvents off the pad while busy — onDigit already no-ops too. */}
       <View>
-        <Animated.View style={padStyle} pointerEvents={busy ? 'none' : 'auto'}>
+        <FadeView visible={!busy} duration={busy ? motion.unlockFade : motion.fast} pointerEvents={busy ? 'none' : 'auto'}>
           <PinPad onDigit={onDigit} onDelete={() => setEntry((c) => c.slice(0, -1))} />
-        </Animated.View>
-        {busy ? (
-          <Animated.View style={[StyleSheet.absoluteFill, styles.tip, tipStyle]} pointerEvents="none">
-            <Callout tone="accent" iconName={fact.icon} title="Did you know?">
-              {fact.text}
-            </Callout>
-          </Animated.View>
-        ) : null}
+        </FadeView>
+        <FadeView
+          visible={busy}
+          duration={motion.base}
+          delay={busy ? motion.unlockFade : 0}
+          style={[StyleSheet.absoluteFill, styles.tip]}
+          pointerEvents="none"
+        >
+          <Callout tone="accent" iconName={fact.icon} title="Did you know?">
+            {fact.text}
+          </Callout>
+        </FadeView>
       </View>
 
       {onForget ? (
