@@ -85,11 +85,16 @@ not inside the asar, so the `app://` handler can stream it.
 - **Unsigned macOS builds** are quarantined by Gatekeeper. Open via
   right-click → **Open**, or clear the flag:
   `xattr -dr com.apple.quarantine "apps/desktop/release/mac/OctoChat.app"`.
-- **Sync server URL is baked at export time.** `EXPO_PUBLIC_STARFISH_URL` is
-  read by the renderer at *build* time, not runtime. To point a packaged build at
-  a non-default server, set it **before** running `export`/`package`:
+- **Sync server URL is baked at export time — and now required.** The renderer
+  inlines `EXPO_PUBLIC_STARFISH_URL` + `EXPO_PUBLIC_STARFISH_PREFIX` at *build*
+  time, not runtime. `scripts/check-build-env.mjs` runs first in `export` and
+  **fails the build** if either is unset, so a packaged app can never silently
+  fall back to `http://localhost:8787` (unreachable when distributed → seed
+  unlocks but no rooms load). Set them before `export`/`package`:
   ```bash
-  EXPO_PUBLIC_STARFISH_URL=https://sync.example.com pnpm --filter @octochat/desktop package
+  cross-env EXPO_PUBLIC_STARFISH_URL=https://oc.drakkar.software/sync \
+            EXPO_PUBLIC_STARFISH_PREFIX=/v1/octochat \
+            pnpm --filter @octochat/desktop package
   ```
   A non-`localhost` `http://` URL is blocked by Chromium mixed-content rules — use
   `https://`.

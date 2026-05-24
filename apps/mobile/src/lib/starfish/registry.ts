@@ -47,7 +47,15 @@ export async function readSpaces(
   client: StarfishClient,
   userId: string,
 ): Promise<{ spaces: Space[]; hash: string | null }> {
-  const res = await client.pull(spacesPull(userId)).catch(() => null);
+  const res = await client
+    .pull(spacesPull(userId))
+    .catch((err: unknown) => {
+      // Don't collapse a reachability/auth failure into "no spaces" silently —
+      // that reads as an empty account (e.g. a desktop build baked against an
+      // unreachable server). Surface it; the caller still degrades to [].
+      console.error('[readSpaces] failed to pull spaces registry', err);
+      return null;
+    });
   const spaces = (res?.data as { spaces?: Space[] } | undefined)?.spaces;
   return { spaces: Array.isArray(spaces) ? spaces : [], hash: res?.hash ?? null };
 }
