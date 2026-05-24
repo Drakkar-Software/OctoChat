@@ -59,6 +59,11 @@ export function passkeySupported(): boolean {
   return false;
 }
 
+// No app-lock on native (the OS protects the store), so there is nothing to re-prompt.
+export function vaultMethods(): UnlockMethod[] {
+  return [];
+}
+
 export async function clearVault(): Promise<void> {
   try {
     await SecureStore.deleteItemAsync(KEY);

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { clearAttachmentCache } from './starfish/attachments';
 import {
@@ -16,6 +16,7 @@ import {
   passkeySupported,
   saveVault,
   unlockVault,
+  vaultMethods,
 } from './starfish/storage';
 import type { PersistedSession, SeedLock, UnlockMethod, Vault } from './starfish/storage-types';
 import { clearRoomEventsBus } from './room-events-bus';
@@ -60,6 +61,12 @@ interface SessionContextValue {
   unlock: (method: UnlockMethod, pin?: string) => Promise<void>;
   /** Sign out of every account and forget the local vault. */
   fullSignOut: () => Promise<void>;
+  /** The active account's 12-word seed from the in-memory vault, or null. */
+  getActiveSeed: () => string[] | null;
+  /** Re-check the app-lock (web) without rebuilding the session; throws on a wrong PIN/passkey. */
+  verifyLock: (method: UnlockMethod, pin?: string) => Promise<void>;
+  /** Enrolled lock methods for the active (unlocked) vault — for a re-auth prompt (web). */
+  lockMethods: () => UnlockMethod[];
 }
 
 const Ctx = createContext<SessionContextValue | null>(null);
@@ -169,6 +176,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const accounts = useMemo(() => summarize(vault), [vault]);
+
+  // Seed of the active account. Resolved via activeAccountOf — the SAME selector the
+  // live session is built from — so the seed always matches the current session, even
+  // when activeId has fallen back to the first account. Null only when the vault is empty.
+  const getActiveSeed = useCallback((): string[] | null => {
+    const v = vaultRef.current;
+    return v ? activeAccountOf(v)?.seed ?? null : null;
+  }, []);
+
+  // Re-check the app-lock WITHOUT rebuilding the session (web). unlockVault re-derives
+  // the same VMK and returns the vault with no disk write / no other state mutation; it
+  // throws on a wrong PIN/passkey — exactly SeedUnlock's onUnlock contract. The returned
+  // vault is intentionally ignored: this only verifies, it does not swap the session.
+  const verifyLock = useCallback(async (method: UnlockMethod, pin?: string): Promise<void> => {
+    await unlockVault(method, pin);
+  }, []);
+
+  const lockMethods = useCallback((): UnlockMethod[] => vaultMethods(), []);
 
   const value = useMemo<SessionContextValue>(
     () => ({
@@ -301,8 +326,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setUnlockMethods([]);
         setStatus('ready');
       },
+      getActiveSeed,
+      verifyLock,
+      lockMethods,
     }),
-    [session, status, unlockMethods, passkeyAvailable, accounts, pendingSeed],
+    [session, status, unlockMethods, passkeyAvailable, accounts, pendingSeed, getActiveSeed, verifyLock, lockMethods],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

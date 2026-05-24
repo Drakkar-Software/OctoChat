@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
@@ -14,6 +14,8 @@ interface SeedBackupProps {
   words: readonly string[];
   /** A creation failure to surface in place of the default warning, if any. */
   error?: string | null;
+  /** Lead-in copy; defaults to the first-time "write these down" wording. */
+  intro?: ReactNode;
 }
 
 /**
@@ -22,17 +24,19 @@ interface SeedBackupProps {
  * the phrase-handling UI stays identical. The confirm action lives in each
  * screen's footer — the handler differs (first sign-in vs. add-account).
  */
-export function SeedBackup({ words, error }: SeedBackupProps) {
+export function SeedBackup({ words, error, intro }: SeedBackupProps) {
   const [revealed, setRevealed] = useState(false);
   return (
     <>
-      <Txt variant="body" tone="inkSoft">
-        Write these 12 words down somewhere private. They&apos;re the{' '}
-        <Txt variant="body" weight="bold" tone="ink">
-          only
-        </Txt>{' '}
-        way to recover your account.
-      </Txt>
+      {intro ?? (
+        <Txt variant="body" tone="inkSoft">
+          Write these 12 words down somewhere private. They&apos;re the{' '}
+          <Txt variant="body" weight="bold" tone="ink">
+            only
+          </Txt>{' '}
+          way to recover your account.
+        </Txt>
+      )}
 
       <SeedGrid words={words} concealed={!revealed} />
 

@@ -134,7 +134,12 @@ export default function YouScreen() {
       </Card>
 
       <Card title="SECURITY">
-        <Row iconName="shield" title="Recovery seed" detail="12-word phrase · backed up" right={check} />
+        <Row
+          iconName="shield"
+          title="Recovery seed"
+          detail="12 words · view or back up"
+          onPress={() => router.push('/account/backup')}
+        />
         <Divider style={styles.divider} />
         <Row
           iconName="devices"

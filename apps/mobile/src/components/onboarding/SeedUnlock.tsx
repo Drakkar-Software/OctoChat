@@ -19,8 +19,9 @@ interface SeedUnlockProps {
   onUnlock: (method: UnlockMethod, pin?: string) => Promise<void>;
   /** Called once an unlock succeeds — navigate into the app. */
   onDone: () => void;
-  /** Forget the stored seed and recover from the 12-word phrase instead. */
-  onForget: () => void;
+  /** Forget the stored seed and recover from the 12-word phrase instead. Omit to hide
+   *  the escape hatch (e.g. a re-auth gate where there's nothing to forget). */
+  onForget?: () => void;
 }
 
 /** Cold-start unlock: PIN pad plus, when enrolled, a one-tap passkey unlock. */
@@ -85,7 +86,9 @@ export function SeedUnlock({ methods, onUnlock, onDone, onForget }: SeedUnlockPr
 
       <PinPad onDigit={onDigit} onDelete={() => setEntry((c) => c.slice(0, -1))} />
 
-      <Button label="Use recovery seed instead" variant="ghost" size="sm" full disabled={busy} onPress={onForget} />
+      {onForget ? (
+        <Button label="Use recovery seed instead" variant="ghost" size="sm" full disabled={busy} onPress={onForget} />
+      ) : null}
     </View>
   );
 }

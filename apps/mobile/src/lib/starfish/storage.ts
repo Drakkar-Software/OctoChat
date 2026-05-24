@@ -169,6 +169,20 @@ export async function loadVault(): Promise<VaultLoad> {
   return { kind: 'locked', methods };
 }
 
+/**
+ * Enrolled unlock methods for the persisted vault, regardless of lock state. loadVault
+ * only reports these while a vault is *locked*; this lets an already-unlocked session
+ * re-prompt the user (e.g. to reveal a seed) with the same PIN/passkey choices. Empty
+ * when nothing is persisted. Synchronous (reads localStorage).
+ */
+export function vaultMethods(): UnlockMethod[] {
+  const stored = readStored();
+  if (!stored) return [];
+  return stored.v === 4
+    ? methodsFor(!!stored.pinWrap, !!stored.passkeyWrap)
+    : methodsFor(true, !!stored.passkey);
+}
+
 /** Unwrap the VMK from a v4 envelope using the chosen method, caching it in memory. */
 async function unwrapVmk(env: Envelope, method: UnlockMethod, pin?: string): Promise<Uint8Array> {
   if (method === 'passkey') {
