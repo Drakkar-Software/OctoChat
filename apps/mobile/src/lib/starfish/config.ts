@@ -8,15 +8,31 @@
 export const SYNC_BASE = process.env.EXPO_PUBLIC_STARFISH_URL ?? 'http://localhost:8787';
 
 /**
- * Path prefix prepended to every signed request path. EMPTY for the local dev
- * server (apps/server mounts the sync router at root, so paths are /pull, /push,
- * /events). For the deployed multi-tenant drakkar-sync, OctoChat is the
- * `octochat` namespace, so set EXPO_PUBLIC_STARFISH_PREFIX=/v1/octochat and
- * EXPO_PUBLIC_STARFISH_URL=https://<host>/sync. The prefix is part of the SIGNED
- * path (the SDK signs the endpoint path, not the baseUrl path), and nginx strips
- * the /sync mount so the server observes exactly /v1/octochat/... = the signed path.
+ * Starfish namespace name. UNSET for the local dev server (apps/server mounts the
+ * sync router at root, so paths are /pull, /push, /events). For the deployed
+ * multi-tenant drakkar-sync, OctoChat is the `octochat` namespace, so set
+ * EXPO_PUBLIC_STARFISH_NAMESPACE=octochat and EXPO_PUBLIC_STARFISH_URL=https://<host>/sync.
+ *
+ * The StarfishClient applies this via its `namespace` option, prepending
+ * `/v1/<namespace>` to every request path — signed AND sent, including the paths
+ * SDK helpers build (keyring, blobs). Pass the BARE name; the `/v1/` is supplied by
+ * the SDK. Throws on a malformed value so a misconfigured deploy fails fast rather
+ * than silently signing the wrong path.
  */
-export const SYNC_PREFIX = process.env.EXPO_PUBLIC_STARFISH_PREFIX ?? '';
+const _ns = process.env.EXPO_PUBLIC_STARFISH_NAMESPACE?.trim() ?? '';
+if (_ns !== '' && !/^[A-Za-z0-9_-]+$/.test(_ns)) {
+  throw new Error(`EXPO_PUBLIC_STARFISH_NAMESPACE must be a bare name ([A-Za-z0-9_-]+), got "${_ns}"`);
+}
+export const SYNC_NAMESPACE = _ns || undefined;
+
+/**
+ * Namespaced path prefix (`/v1/<namespace>`, or '' locally) for the `/events` SSE
+ * endpoint, which is signed by a hand-rolled signer OUTSIDE the StarfishClient (see
+ * EVENTS_URL + `buildAuthHeaders`) and so needs the literal prefix the client would
+ * otherwise add itself. Derived from {@link SYNC_NAMESPACE}. nginx strips the /sync
+ * mount, so the deployed server observes exactly /v1/octochat/events = the signed path.
+ */
+export const SYNC_PREFIX = SYNC_NAMESPACE ? `/v1/${SYNC_NAMESPACE}` : '';
 
 /**
  * Live change-event SSE endpoint. Served by the authenticated /events proxy on the

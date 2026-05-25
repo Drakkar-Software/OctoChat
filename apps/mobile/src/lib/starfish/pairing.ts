@@ -16,7 +16,7 @@ import {
   sealWithPassphrase,
 } from '@drakkar.software/starfish-identities';
 
-import { SYNC_BASE } from './config';
+import { SYNC_BASE, SYNC_NAMESPACE } from './config';
 import type { Session } from './identity';
 import { fingerprintFromUserId } from './identity';
 import { bytesToHex, ownerScope } from './paths';
@@ -24,7 +24,10 @@ import { bytesToHex, ownerScope } from './paths';
 export const PAIR_PREFIX = 'octochat-pair:';
 
 function anonClient(): StarfishClient {
-  return new StarfishClient({ baseUrl: SYNC_BASE });
+  // Namespaced like every other client (see makeClient): the `_pairing` rendezvous
+  // lives under the same `/v1/octochat` namespace on the deployed server, so the
+  // anonymous push/pull must carry it too. Undefined locally (paths unchanged).
+  return new StarfishClient({ baseUrl: SYNC_BASE, namespace: SYNC_NAMESPACE });
 }
 
 function randomNonce(): string {

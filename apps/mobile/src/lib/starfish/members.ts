@@ -13,7 +13,7 @@ import { mintMemberCap } from '@drakkar.software/starfish-sharing';
 
 import type { Space } from '@/lib/types';
 
-import { buildEncryptor, makeClient, prefixedClient } from './client';
+import { buildEncryptor, makeClient } from './client';
 import type { Session } from './identity';
 import { getMemberCap, saveMemberCap } from './member-caps';
 import { keyringName, spaceMemberScope } from './paths';
@@ -61,8 +61,9 @@ export async function inviteToSpace(
   const req = JSON.parse(requestJson) as JoinRequest;
   if (!req.edPub || !req.kemPub || !req.userId) throw new Error('That is not a valid join request.');
   // 1. Add the invitee to the space keyring (covers every channel at once).
-  // prefixedClient: the keyring SDK builds its own unprefixed `/pull|/push` paths,
-  // so apply SYNC_PREFIX or the write 404s on the deployed `/v1/octochat` server.
+  // The keyring SDK builds its own `/pull|/push` paths; `session.chatClient` carries
+  // the `namespace` option (see makeClient), so those paths get the `/v1/octochat`
+  // prefix on the deployed server automatically — no client wrapper needed.
   //
   // Re-invite tolerance: a member already wrapped into the keyring makes the SDK
   // throw "already present in epoch". That's the recover path — a member who lost
@@ -72,7 +73,7 @@ export async function inviteToSpace(
   // to re-mint the cap (step 3). Any other failure still propagates.
   try {
     await addCollectionRecipient(
-      prefixedClient(session.chatClient),
+      session.chatClient,
       keyringName(spaceId),
       { subKem: req.kemPub, userId: req.userId, label: req.userId.slice(0, 8) },
       { edPriv: session.keys.edPriv, edPub: session.keys.edPub, kemPriv: session.keys.kemPriv },

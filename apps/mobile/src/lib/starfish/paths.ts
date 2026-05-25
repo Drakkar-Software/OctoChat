@@ -11,18 +11,16 @@
  */
 import type { ScopePreset } from '@drakkar.software/starfish-identities';
 
-import { SYNC_PREFIX } from './config';
-
 /**
- * Request-path helpers. The action path is signed relative to SYNC_BASE; the
- * SYNC_PREFIX ('' locally, '/v1/octochat' deployed) is part of the SIGNED path so
- * it must live here, NOT in SYNC_BASE (the SDK signs the endpoint path, not the
- * baseUrl path). Storage-name helpers (keyringName/attachmentName/pubspaceRoomName)
- * stay UNPREFIXED — they're the object-storage keys / cap-scope paths the server
- * matches after stripping the action+namespace prefix.
+ * Request-path helpers. These emit the bare action path (`/pull/…`, `/push/…`);
+ * the StarfishClient's `namespace` option prepends `/v1/<namespace>` (deployed) for
+ * BOTH the URL and the signed canonical path, so the namespace must NOT be baked in
+ * here. Storage-name helpers (keyringName/attachmentName/pubspaceRoomName) stay bare
+ * too — they're the object-storage keys / cap-scope paths the server matches after
+ * stripping the action+namespace prefix.
  */
-const pull = (rest: string) => `${SYNC_PREFIX}/pull/${rest}`;
-const push = (rest: string) => `${SYNC_PREFIX}/push/${rest}`;
+const pull = (rest: string) => `/pull/${rest}`;
+const push = (rest: string) => `/push/${rest}`;
 
 /** A room id is `sp-<rand>-<name>`; the space is its first two `-` segments. */
 export const spaceIdFromRoomId = (roomId: string) => roomId.split('-').slice(0, 2).join('-');

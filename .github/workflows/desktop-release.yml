@@ -13,12 +13,12 @@
 #
 # Sync server URL is baked into the web bundle at export time and is REQUIRED:
 # scripts/check-build-env.mjs fails the build if EXPO_PUBLIC_STARFISH_URL /
-# EXPO_PUBLIC_STARFISH_PREFIX are unset. They come from repo variables with NO
+# EXPO_PUBLIC_STARFISH_NAMESPACE are unset. They come from repo variables with NO
 # fallback — an unset var fails the tag build loudly instead of silently shipping
 # a release pointed at the wrong server. Set them once in
 #   Settings → Secrets and variables → Actions → Variables:
-#     EXPO_PUBLIC_STARFISH_URL    e.g. https://dev-sync.drakkar.software/sync
-#     EXPO_PUBLIC_STARFISH_PREFIX e.g. /v1/octochat
+#     EXPO_PUBLIC_STARFISH_URL       e.g. https://dev-sync.drakkar.software/sync
+#     EXPO_PUBLIC_STARFISH_NAMESPACE e.g. octochat
 name: desktop-release
 
 on:
@@ -46,7 +46,7 @@ jobs:
     env:
       # Bake the sync server into the web bundle (no fallback — see header).
       EXPO_PUBLIC_STARFISH_URL: ${{ vars.EXPO_PUBLIC_STARFISH_URL }}
-      EXPO_PUBLIC_STARFISH_PREFIX: ${{ vars.EXPO_PUBLIC_STARFISH_PREFIX }}
+      EXPO_PUBLIC_STARFISH_NAMESPACE: ${{ vars.EXPO_PUBLIC_STARFISH_NAMESPACE }}
       # Pin electron / electron-builder caches to the workspace so the step below
       # can cache them uniformly across OSes (default locations differ per OS).
       ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron

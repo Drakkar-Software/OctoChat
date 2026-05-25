@@ -10,9 +10,9 @@
  *
  * Required before `pnpm package` / `pnpm export` (cross-env keeps it cross-platform):
  *   EXPO_PUBLIC_STARFISH_URL=https://dev-sync.drakkar.software/sync
- *   EXPO_PUBLIC_STARFISH_PREFIX=/v1/octochat
+ *   EXPO_PUBLIC_STARFISH_NAMESPACE=octochat
  */
-const REQUIRED = ['EXPO_PUBLIC_STARFISH_URL', 'EXPO_PUBLIC_STARFISH_PREFIX'];
+const REQUIRED = ['EXPO_PUBLIC_STARFISH_URL', 'EXPO_PUBLIC_STARFISH_NAMESPACE'];
 
 const missing = REQUIRED.filter((key) => !process.env[key]?.trim());
 
@@ -27,11 +27,11 @@ if (missing.length > 0) {
   );
   console.error('Set them before packaging:\n');
   console.error('  cross-env EXPO_PUBLIC_STARFISH_URL=https://dev-sync.drakkar.software/sync \\');
-  console.error('            EXPO_PUBLIC_STARFISH_PREFIX=/v1/octochat \\');
+  console.error('            EXPO_PUBLIC_STARFISH_NAMESPACE=octochat \\');
   console.error('            pnpm --filter @octochat/desktop package\n');
   process.exit(1);
 }
 
 console.log(
-  `✓ Desktop build env OK — Starfish ${process.env.EXPO_PUBLIC_STARFISH_URL}${process.env.EXPO_PUBLIC_STARFISH_PREFIX}`,
+  `✓ Desktop build env OK — Starfish ${process.env.EXPO_PUBLIC_STARFISH_URL} (namespace: ${process.env.EXPO_PUBLIC_STARFISH_NAMESPACE})`,
 );
