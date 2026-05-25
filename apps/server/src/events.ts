@@ -109,9 +109,17 @@ async function authenticateEventsRequest(
     host = "";
   }
 
+  // Per-request signature suite. As of starfish 3.0.0-alpha.4 `alg` is folded
+  // into the signed canonical input, so the verifier must reconstruct it with
+  // the same suite. For device/member caps (the only kinds /events serves — see
+  // the `cert.sub` guard above) the authoritative suite is the cert's `subAlg`,
+  // defaulting to the issuer suite when absent (tolerant-reader rule). We derive
+  // it from the verified cert, NOT the attacker-controlled X-Starfish-Alg header
+  // (that header is authoritative only for audience caps, which we reject here).
+  const alg = cert.subAlg ?? cert.issAlg;
   const sigOk = await verifyRequestSignature(
     { method: "GET", pathAndQuery, host },
-    { sig: sigB64, ts: tsNum, nonce },
+    { alg, sig: sigB64, ts: tsNum, nonce },
     cert.sub,
   );
   if (!sigOk) return null;
