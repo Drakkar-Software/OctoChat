@@ -27,7 +27,7 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
 
@@ -211,13 +211,24 @@ export function useRoomsRegistryActions(): RoomsRegistryActions {
 }
 
 /** Reactive read of a space's registry: subscribes (triggering a one-time read) and
- *  re-renders as it loads/refreshes. `null` spaceId yields an idle, empty entry. */
+ *  re-renders as it loads/refreshes. `null` spaceId yields an idle, empty entry.
+ *
+ *  Backed by `useSyncExternalStore`, NOT a subscribe-in-effect + `tick`. The entry can
+ *  flip to `loaded` in the gap between this consumer's render and its subscription:
+ *  the open room's `useRoom` (or any sibling consumer) reads the SAME shared registry
+ *  first, so by the time we subscribe, `ensure` resolves cached and fires no notify —
+ *  the old hand-rolled store then stuck forever on its first (skeleton) render.
+ *  `useSyncExternalStore` re-reads the snapshot right after subscribing and re-renders
+ *  if it changed, so a registry already loaded by another reader shows immediately. */
 export function useRoomsRegistry(spaceId: string | null): RoomsRegistryEntry {
   const actions = useRegistryActions();
-  const [, tick] = useState(0);
-  useEffect(() => {
-    if (!spaceId) return;
-    return actions.subscribe(spaceId, () => tick((n) => n + 1));
-  }, [actions, spaceId]);
-  return spaceId ? actions.get(spaceId) : IDLE;
+  const subscribe = useCallback(
+    (onChange: () => void) => (spaceId ? actions.subscribe(spaceId, onChange) : () => {}),
+    [actions, spaceId],
+  );
+  const getSnapshot = useCallback(
+    () => (spaceId ? actions.get(spaceId) : IDLE),
+    [actions, spaceId],
+  );
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
