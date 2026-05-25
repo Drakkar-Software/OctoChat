@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
@@ -47,11 +47,6 @@ export function RoomCategorySection({
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const isStream = kind === 'stream';
-  // Pressing a kind toggle blurs the (possibly empty) name input, which would
-  // otherwise auto-close the add box before the toggle's onPress runs. This flag
-  // (set on pointer-down, cleared after the toggle handler) tells onBlur to keep
-  // the box open — so we only close on a genuine outside click of an empty input.
-  const interactingWithToggle = useRef(false);
 
   const submit = async () => {
     const n = name.trim();
@@ -115,16 +110,7 @@ export function RoomCategorySection({
                   key={k}
                   accessibilityRole="button"
                   accessibilityState={{ selected: on }}
-                  onPressIn={() => {
-                    interactingWithToggle.current = true;
-                  }}
-                  onPress={() => {
-                    setKind(k);
-                    // Clear after the blur that this press triggered has run.
-                    setTimeout(() => {
-                      interactingWithToggle.current = false;
-                    }, 0);
-                  }}
+                  onPress={() => setKind(k)}
                   style={[styles.kindOption, { backgroundColor: on ? colors.accentSoft : 'transparent' }]}
                 >
                   <Icon name={k === 'stream' ? 'stream' : 'hash'} size={12} color={on ? colors.accentInk : colors.inkMuted} />
@@ -140,8 +126,11 @@ export function RoomCategorySection({
             value={name}
             onChangeText={setName}
             onSubmitEditing={submit}
-            onBlur={() => {
-              if (!name.trim() && !interactingWithToggle.current) setAdding(false);
+            onKeyPress={(e) => {
+              // Escape cancels the add box (web). The header +/× toggle also closes it;
+              // we deliberately DON'T close on blur — that fired on every internal click
+              // (kind toggle, field icon, padding) and dismissed the box mid-interaction.
+              if (e.nativeEvent.key === 'Escape') setAdding(false);
             }}
             placeholder={isStream ? 'new-stream' : 'new-channel'}
             autoFocus
