@@ -31,6 +31,17 @@ export const spaceIdFromRoomId = (roomId: string) => roomId.split('-').slice(0, 
 export const roomPull = (roomId: string) => pull(`spaces/${spaceIdFromRoomId(roomId)}/chat/rooms/${roomId}`);
 export const roomPush = (roomId: string) => push(`spaces/${spaceIdFromRoomId(roomId)}/chat/rooms/${roomId}`);
 
+// ── Stream rooms (private/E2EE): append-only log, one doc per stream room ─────
+// Distinct `streams/` subtree (not under chat/rooms) so a stream-room id can be a
+// leaf document without colliding with the chat/rooms or attachments subtrees.
+// Covered by the same `spaces/{spaceId}/**` member cap as the chat collection;
+// gated `space:member` server-side. Writers APPEND (no pull/merge). Keep the path
+// in sync with the `streamchat` collection in apps/server (+ Infra collections.py).
+export const streamRoomName = (roomId: string) =>
+  `spaces/${spaceIdFromRoomId(roomId)}/streams/${roomId}`;
+export const streamRoomPull = (roomId: string) => pull(streamRoomName(roomId));
+export const streamRoomPush = (roomId: string) => push(streamRoomName(roomId));
+
 // ── Space-wide keyring (one per space, shared by all its channels) ────────────
 export const keyringName = (spaceId: string) => `spaces/${spaceId}`;
 export const keyringPull = (spaceId: string) => pull(`${keyringName(spaceId)}/_keyring`);
@@ -76,6 +87,18 @@ export const pubspaceRoomPull = (ownerId: string, spaceId: string, roomId: strin
   pull(pubspaceRoomName(ownerId, spaceId, roomId));
 export const pubspaceRoomPush = (ownerId: string, spaceId: string, roomId: string) =>
   push(pubspaceRoomName(ownerId, spaceId, roomId));
+
+// ── Public stream rooms (plaintext, append-only) ──────────────────────────────
+// A public space's stream rooms live in a `streams/` subtree under the owner's
+// space, in the append-only `pubstream` collection. A bot posts by APPENDING here
+// (POST /push, no pull/merge), authorized by a `createPublicLink` audience cap (see
+// stream-bots.ts). Keep in sync with the `pubstream` collection in apps/server.
+export const pubstreamRoomName = (ownerId: string, spaceId: string, roomId: string) =>
+  `pubspaces/${ownerId}/${spaceId}/streams/${roomId}`;
+export const pubstreamRoomPull = (ownerId: string, spaceId: string, roomId: string) =>
+  pull(pubstreamRoomName(ownerId, spaceId, roomId));
+export const pubstreamRoomPush = (ownerId: string, spaceId: string, roomId: string) =>
+  push(pubstreamRoomName(ownerId, spaceId, roomId));
 
 // ── Cap scopes ────────────────────────────────────────────────────────────────
 /** Full owner/device access to every space the identity owns. */
@@ -138,6 +161,24 @@ export function pubspaceScope(ownerId: string, spaceId: string, canWrite = false
     ops,
     collections: ['pubspace'],
     paths: [`pubspaces/${ownerId}/${spaceId}/**`],
+  };
+}
+
+/**
+ * Bot scope for ONE public stream room — the scope of the `createPublicLink`
+ * audience cap an owner mints so a bot/integration can APPEND to that room's log.
+ * Pinned to the single room's storage path (least privilege: a leaked link can
+ * only append to this one stream, nothing else in the space). `collections` is the
+ * bare `pubstream` name the audience-cap shape check keys off; the path is the real
+ * `pubspaces/{ownerId}/{spaceId}/streams/{roomId}` storage key (NOT `pubstream/…`),
+ * so — like `pubspaceScope` — it never matches `pubstream/_keyring`/`_members` and
+ * needs no deny rule. Read+list are kept so the bot can read back its own appends.
+ */
+export function pubstreamBotScope(ownerId: string, spaceId: string, roomId: string): ScopePreset {
+  return {
+    ops: ['read', 'list', 'write'],
+    collections: ['pubstream'],
+    paths: [`pubspaces/${ownerId}/${spaceId}/streams/${roomId}`],
   };
 }
 

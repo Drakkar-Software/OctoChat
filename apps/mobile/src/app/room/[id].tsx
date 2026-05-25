@@ -7,8 +7,10 @@ import { useSession } from '@/lib/session-context';
 import { roomDraftKey } from '@/lib/use-draft';
 import { useMessageEditing } from '@/lib/use-message-editing';
 import { useRoom } from '@/lib/use-room';
+import { useStreamRoom } from '@/lib/use-stream-room';
 import { useUnread } from '@/lib/unread-context';
 import { spaceIdFromRoomId } from '@/lib/starfish/paths';
+import { isPublicSpaceId, publicSpaceAuth } from '@/lib/starfish/pubspace';
 import type { RoomKind } from '@/lib/types';
 import { useTheme } from '@/lib/use-theme';
 import { AppBar } from '@/components/ui/AppBar';
@@ -22,6 +24,7 @@ import { Txt } from '@/components/ui/Txt';
 import { Composer } from '@/components/chat/Composer';
 import { DesktopChatTopbar } from '@/components/chat/DesktopChatTopbar';
 import { RoomConversation } from '@/components/chat/RoomConversation';
+import { StreamBotPanel } from '@/components/chat/StreamBotPanel';
 import { ThreadDigestPublisher } from '@/components/chat/ThreadDigestPublisher';
 
 export default function RoomScreen() {
@@ -32,9 +35,21 @@ export default function RoomScreen() {
   const { colors } = useTheme();
   const { session } = useSession();
   const { markRoomRead, lastReadAt, hydrated } = useUnread();
+  // A stream room is append-only (useStreamRoom); a channel/dm is a merge-doc room
+  // (useRoom). Both hooks are called unconditionally (React rules) but only the one
+  // matching `kind` is `enabled` and does any work; we pick its result here.
+  const isStream = kind === 'stream';
+  const channel = useRoom(id, { enabled: !isStream });
+  const stream = useStreamRoom(id, { enabled: isStream });
   const { store, opening, openError, syncError, send, toggleReaction, editMessage, deleteMessage, uploadAttachment, loadAttachment, canWrite } =
-    useRoom(id);
+    isStream ? stream : channel;
   const { editingId, setEditingId, editLast } = useMessageEditing(store, session?.userId ?? '');
+
+  // Owner-only "Connect a bot" panel for a PUBLIC stream room (mints a createPublicLink
+  // audience cap). Private streams enroll bots as keyring members instead, so no panel.
+  const spaceId = spaceIdFromRoomId(id);
+  const showBotPanel =
+    isStream && !!session && isPublicSpaceId(spaceId) && publicSpaceAuth(session, spaceId).ownerId === session.userId;
   const title = kind === 'dm' ? name : `#${name}`;
 
   // The room's last-read mark as it stood at the START of this visit — re-captured
@@ -124,6 +139,7 @@ export default function RoomScreen() {
               {syncError}
             </Callout>
           ) : null}
+          {showBotPanel ? <StreamBotPanel ownerId={session.userId} spaceId={spaceId} roomId={id} /> : null}
           <RoomConversation
             store={store}
             spaceId={spaceIdFromRoomId(id)}
@@ -139,8 +155,9 @@ export default function RoomScreen() {
             editingId={editingId}
             onEditingChange={setEditingId}
           />
-          {/* Publish this room's recent threads to the desktop sidebar (no UI). */}
-          <ThreadDigestPublisher store={store} roomId={id} readBefore={readBefore} />
+          {/* Publish this room's recent threads to the desktop sidebar (no UI). Stream
+              rooms are flat append-only logs (no threads), so skip it for them. */}
+          {!isStream ? <ThreadDigestPublisher store={store} roomId={id} readBefore={readBefore} /> : null}
         </>
       ) : (
         <EmptyState iconName="globe" title="Connecting…" />

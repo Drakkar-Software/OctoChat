@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 
-import type { Room } from '@/lib/types';
+import type { Room, RoomKind } from '@/lib/types';
 
 import { createRoom as createRoomDoc } from './starfish/registry';
 import { createPublicRoom, isPublicSpaceId } from './starfish/pubspace';
@@ -59,15 +59,15 @@ export function useRooms(spaceId: string | null) {
    * to ask the owner instead of the promise rejecting unhandled.
    */
   const createRoom = useCallback(
-    async (name: string, category?: string): Promise<string | null> => {
+    async (name: string, category?: string, kind: RoomKind = 'channel'): Promise<string | null> => {
       if (!session || !spaceId) return null;
       // Known non-owner: skip the doomed write and explain it directly.
       if (owner !== null && owner !== session.userId) return NOT_OWNER_MESSAGE;
       try {
         if (isPublicSpaceId(spaceId)) {
-          await createPublicRoom(session, spaceId, name, category);
+          await createPublicRoom(session, spaceId, name, category, kind);
         } else {
-          await createRoomDoc(session.accountClient, session.userId, spaceId, name, category);
+          await createRoomDoc(session.accountClient, session.userId, spaceId, name, category, kind);
         }
         await refresh(spaceId);
         return null;

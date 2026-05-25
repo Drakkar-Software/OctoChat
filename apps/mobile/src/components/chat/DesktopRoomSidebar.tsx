@@ -1,7 +1,7 @@
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { layout, radii, spacing } from '@/theme';
-import type { Room, Space } from '@/lib/types';
+import type { Room, RoomKind, Space } from '@/lib/types';
 import type { ThreadSummary } from '@/lib/threads';
 import type { RoomCategory } from '@/lib/use-rooms';
 import { useHover } from '@/lib/use-hover';
@@ -29,9 +29,9 @@ interface DesktopRoomSidebarProps {
   onJumpTo?: () => void;
   /** Open the space switcher / join surface (the header acts as a menu). */
   onOpenSpaceMenu?: () => void;
-  /** Create a channel in a category. Resolves to an error message to show, or
-   *  `null`/void on success. */
-  onCreateRoom?: (category: string, name: string) => Promise<string | null> | void;
+  /** Create a room in a category. `kind` is `'channel'` or `'stream'` (append-only).
+   *  Resolves to an error message to show, or `null`/void on success. */
+  onCreateRoom?: (category: string, name: string, kind: RoomKind) => Promise<string | null> | void;
   loading?: boolean;
 }
 

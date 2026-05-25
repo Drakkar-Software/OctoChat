@@ -15,7 +15,7 @@ import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 import { mintMemberCap } from '@drakkar.software/starfish-sharing';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { Room, Space } from '@/lib/types';
+import type { Room, RoomKind, Space } from '@/lib/types';
 
 import { makeClient } from './client';
 import type { Session } from './identity';
@@ -245,6 +245,7 @@ export async function createPublicRoom(
   spaceId: string,
   name: string,
   category = 'CHANNELS',
+  kind: RoomKind = 'channel',
 ): Promise<Room> {
   const client = session.accountClient;
   const { rooms, name: spaceName, image, hash } = await readPublicRoomsDoc(client, session.userId, spaceId);
@@ -253,7 +254,7 @@ export async function createPublicRoom(
     spaceId,
     category,
     name,
-    kind: 'channel',
+    kind,
   };
   // Preserve the shared name/image so adding a channel never drops the space identity.
   const doc: PublicRoomsDoc = {
@@ -263,7 +264,12 @@ export async function createPublicRoom(
     ...(image ? { image } : {}),
   };
   await client.push(pubspaceRoomsPush(session.userId, spaceId), doc as unknown as Record<string, unknown>, hash);
-  await client.push(pubspaceRoomPush(session.userId, spaceId, room.id), emptyRoomDoc(), null);
+  // A 'channel' is a merge-doc room → seed its empty doc so a reader's first pull
+  // finds it. A 'stream' is an append-only log (the `pubstream` collection) → no
+  // seeding: an empty log simply pulls as []. (Its first element is the first append.)
+  if (kind !== 'stream') {
+    await client.push(pubspaceRoomPush(session.userId, spaceId, room.id), emptyRoomDoc(), null);
+  }
   return room;
 }
 

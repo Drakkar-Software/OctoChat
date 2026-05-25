@@ -15,6 +15,7 @@ type IconDef = { lib: IconLib; n: string };
  */
 const ICONS = {
   hash: { lib: Feather, n: 'hash' },
+  stream: { lib: Feather, n: 'activity' },
   lock: { lib: Feather, n: 'lock' },
   unlock: { lib: Feather, n: 'unlock' },
   plus: { lib: Feather, n: 'plus' },

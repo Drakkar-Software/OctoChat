@@ -40,7 +40,10 @@ export interface Space {
   write?: boolean;
 }
 
-export type RoomKind = 'channel' | 'private' | 'dm';
+/** `stream` is an append-only room (a "Stream room"): writers append to a log —
+ *  no pull/merge/hash — so bots/integrations can post without the sync protocol.
+ *  Its encryption follows the space (E2EE private / plaintext public). */
+export type RoomKind = 'channel' | 'private' | 'dm' | 'stream';
 
 export interface Room {
   id: ID;

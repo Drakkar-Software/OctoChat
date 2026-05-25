@@ -70,7 +70,7 @@ export default function RoomsScreen() {
             key={cat.name}
             category={cat}
             onOpenRoom={openRoom}
-            onCreateRoom={(category, name) => createRoom(name, category)}
+            onCreateRoom={(category, name, kind) => createRoom(name, category, kind)}
           />
         ))
       )}

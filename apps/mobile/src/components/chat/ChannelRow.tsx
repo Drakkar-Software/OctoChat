@@ -37,7 +37,7 @@ export function ChannelRow({ room, active = false, onPress }: ChannelRowProps) {
         <Avatar label={room.avatar ?? '??'} size={22} />
       ) : (
         <Icon
-          name={room.kind === 'private' ? 'lock' : 'hash'}
+          name={room.kind === 'stream' ? 'stream' : room.kind === 'private' ? 'lock' : 'hash'}
           size={15}
           color={active ? colors.accent : emphasized ? colors.ink : colors.inkMuted}
         />

@@ -36,7 +36,10 @@ function randomId(): string {
  * MUST be called from a router screen: it gates its live pull on `useFocusEffect`,
  * which needs a navigator context. Both callers (room/[id], thread/[id]) are screens.
  */
-export function useRoom(roomId: string) {
+export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
+  // `enabled` lets a screen call this AND useStreamRoom unconditionally (React hook
+  // rules) and pick one by the room's kind. When false this hook opens nothing.
+  const enabled = opts.enabled ?? true;
   const { session } = useSession();
   const { ensure: ensureRegistry } = useRoomsRegistryActions();
   const spaceId = spaceIdFromRoomId(roomId);
@@ -53,7 +56,7 @@ export function useRoom(roomId: string) {
     setClient(null);
     setOpenError(null);
     setOpening(true);
-    if (!session) return;
+    if (!enabled || !session) return;
     (async () => {
       try {
         if (isPublic) {
@@ -90,10 +93,10 @@ export function useRoom(roomId: string) {
     return () => {
       cancelled = true;
     };
-  }, [session, roomId, spaceId, isPublic, ensureRegistry]);
+  }, [enabled, session, roomId, spaceId, isPublic, ensureRegistry]);
 
   const config = useMemo(() => {
-    if (!session || !client) return null;
+    if (!enabled || !session || !client) return null;
     if (isPublic) {
       // Plaintext sync: no `encryptor` (the SDK treats its absence as plaintext).
       const auth = publicSpaceAuth(session, spaceId);
@@ -120,7 +123,7 @@ export function useRoom(roomId: string) {
       storeName: `chat-${session.userId}-${roomId}`,
       storage: false as const,
     };
-  }, [session, client, encryptor, roomId, spaceId, isPublic]);
+  }, [enabled, session, client, encryptor, roomId, spaceId, isPublic]);
 
   const store = useSyncInit(config);
 
@@ -260,5 +263,5 @@ export function useRoom(roomId: string) {
     return isPublic ? publicSpaceAuth(session, spaceId).write : true;
   }, [session, isPublic, spaceId]);
 
-  return { store, opening, openError, syncError, send, toggleReaction, editMessage, deleteMessage, uploadAttachment, loadAttachment, canWrite };
+  return { store, opening: enabled ? opening : false, openError, syncError, send, toggleReaction, editMessage, deleteMessage, uploadAttachment, loadAttachment, canWrite };
 }

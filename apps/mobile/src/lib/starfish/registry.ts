@@ -6,7 +6,7 @@
 import { ConflictError, StarfishHttpError } from '@drakkar.software/starfish-client';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { CapMap, Room, Space } from '@/lib/types';
+import type { CapMap, Room, RoomKind, Space } from '@/lib/types';
 
 import {
   roomsRegistryPull,
@@ -247,13 +247,17 @@ export async function createSpace(client: StarfishClient, userId: string, name: 
   return space;
 }
 
-/** Append a new channel to a space's registry (owner-only write). */
+/** Append a new room to a space's registry (owner-only write). `kind` is
+ *  `'channel'` (default, a normal merge-doc room) or `'stream'` (an append-only
+ *  Stream room — only the registry entry differs; the storage collection is chosen
+ *  by the room hooks from this kind). */
 export async function createRoom(
   client: StarfishClient,
   userId: string,
   spaceId: string,
   name: string,
   category = 'CHANNELS',
+  kind: RoomKind = 'channel',
 ): Promise<Room> {
   const { rooms, owner, members, name: spaceName, image, hash } = await readRooms(client, spaceId);
   const room: Room = {
@@ -261,7 +265,7 @@ export async function createRoom(
     spaceId,
     category,
     name,
-    kind: 'channel',
+    kind,
   };
   await writeRooms(client, spaceId, [...rooms, room], owner ?? userId, members, hash, {
     name: spaceName,

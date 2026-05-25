@@ -22,7 +22,11 @@ export function DesktopChatTopbar({ name, kind = 'channel', onSearch }: DesktopC
   const { colors } = useTheme();
   return (
     <View style={[styles.bar, { height: layout.desktopTopbarHeight, backgroundColor: colors.paper, borderBottomColor: colors.lineSoft }]}>
-      <Icon name={kind === 'dm' ? 'people' : kind === 'private' ? 'lock' : 'hash'} size={16} color={colors.inkSoft} />
+      <Icon
+        name={kind === 'dm' ? 'people' : kind === 'stream' ? 'stream' : kind === 'private' ? 'lock' : 'hash'}
+        size={16}
+        color={colors.inkSoft}
+      />
       <Txt variant="subhead" weight="semibold" numberOfLines={1} style={styles.name}>
         {name}
       </Txt>

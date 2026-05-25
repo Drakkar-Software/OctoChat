@@ -56,6 +56,26 @@ export const config: SyncConfig = {
       maxBodyBytes: 11_534_336, // ~11 MB: ~10 MB plaintext + IV/tag/epoch overhead.
       allowedMimeTypes: ["application/octet-stream"],
     },
+    // STREAM rooms (private/E2EE): append-only message log, one document per stream
+    // room. Backed by an append-only `by_timestamp` collection so a writer just
+    // appends (POST /push with `{data}`) — no pull/merge/hash/conflict — which is
+    // what lets bots/integrations post without implementing the read-modify-write
+    // sync protocol. Encryption is "delegated" (same as `chat`): each appended
+    // element is sealed with the space keyring CEK, opaque to the server. Read/write
+    // gated on `space:member` via makeSpaceRoleEnricher (collection-agnostic, keyed
+    // on {spaceId}), so the same `spaces/{spaceId}/**` member cap already covers it.
+    // Distinct `streams/` subtree (not under chat/rooms) avoids the file-vs-directory
+    // collision noted on `attachments`. Keep in sync with streamRoom* in apps/mobile.
+    {
+      name: "streamchat",
+      storagePath: "spaces/{spaceId}/streams/{roomId}",
+      readRoles: ["space:member"],
+      writeRoles: ["space:member"],
+      encryption: "delegated",
+      appendOnly: { type: "by_timestamp" },
+      maxBodyBytes: 262_144,
+      allowedMimeTypes: JSON_ONLY,
+    },
     // Public-readable profile; only the self-signed root device may write.
     // 64 KB holds the pseudo plus a downscaled avatar inlined as a JPEG data URI
     // (~160-192 px square); see uploadAvatar/avatar-image in apps/mobile.
@@ -117,6 +137,24 @@ export const config: SyncConfig = {
       readRoles: ["pubspace:reader"],
       writeRoles: ["pubspace:owner", "pubspace:writer"],
       encryption: "none",
+      maxBodyBytes: 262_144,
+      allowedMimeTypes: JSON_ONLY,
+    },
+    // STREAM rooms (public/plaintext): append-only message log in a public space's
+    // subtree. Same append-only model as `streamchat` but plaintext (`none`), so an
+    // external bot/integration can post with NO keyring and NO encryption — just a
+    // signed append. Read gated on `pubspace:reader`, write on `pubspace:owner`/
+    // `pubspace:writer` (issuer-bound) via makePubspaceRoleEnricher, which now covers
+    // this collection too. The bot credential is a `createPublicLink` audience cap
+    // scoped here (no embedded secret; the bot signs with its own key). Keep in sync
+    // with pubstreamRoom* in apps/mobile.
+    {
+      name: "pubstream",
+      storagePath: "pubspaces/{ownerId}/{spaceId}/streams/{roomId}",
+      readRoles: ["pubspace:reader"],
+      writeRoles: ["pubspace:owner", "pubspace:writer"],
+      encryption: "none",
+      appendOnly: { type: "by_timestamp" },
       maxBodyBytes: 262_144,
       allowedMimeTypes: JSON_ONLY,
     },

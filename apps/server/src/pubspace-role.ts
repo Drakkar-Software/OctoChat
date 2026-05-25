@@ -47,12 +47,24 @@ export function makePubspaceRoleEnricher(): RoleEnricher {
     // Grant reader too — a device cap has no `delegated:` role, so without this the
     // owner couldn't read their own public space.
     if (auth.identity === ownerId) roles.push(PUBSPACE_OWNER_ROLE, PUBSPACE_READER_ROLE);
-    // Link-bearer: a member cap the owner SIGNED → read. The `delegated:<iss>:pubspace`
-    // role is the only request-time signal tying the grant back to the issuer.
-    if (auth.roles.includes(`delegated:${ownerId}:pubspace`)) {
+    // Link-bearer: a member OR audience cap the owner SIGNED → read. The
+    // `delegated:<iss>:<col>` role (emitted for BOTH member and audience caps — see
+    // cap-resolver `synthesizeRoles`) is the only request-time signal tying the grant
+    // back to the issuer. We admit both the `pubspace` collection (a public-space
+    // join link) and the `pubstream` collection (a stream-room bot link minted via
+    // `createPublicLink`). The cap's own `scope.paths` still confines it (a bot link
+    // pinned to `…/streams/**` gets these roles but can only reach the stream subtree).
+    const delegatedByOwner =
+      auth.roles.includes(`delegated:${ownerId}:pubspace`) ||
+      auth.roles.includes(`delegated:${ownerId}:pubstream`);
+    if (delegatedByOwner) {
       roles.push(PUBSPACE_READER_ROLE);
-      // …and write room docs (NOT the `_rooms` registry) if the cap carries write.
-      if (docId !== "_rooms" && auth.roles.includes("cap:write:pubspace")) {
+      // …and write room/stream docs (NOT the `_rooms` registry) if the cap carries
+      // write. A stream append carries `{roomId}` (not `{docId}`), so the `_rooms`
+      // owner-only guard is a no-op for it — only the pubspace `_rooms` doc is withheld.
+      const canWrite =
+        auth.roles.includes("cap:write:pubspace") || auth.roles.includes("cap:write:pubstream");
+      if (docId !== "_rooms" && canWrite) {
         roles.push(PUBSPACE_WRITER_ROLE);
       }
     }
