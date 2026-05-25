@@ -11,12 +11,9 @@
  * in-memory map so reads stay synchronous for the hooks that consume them during
  * render (`useRoom`).
  */
-import type { StarfishClient } from '@drakkar.software/starfish-client';
-
 import type { CapMap } from '@/lib/types';
 
 import { kvGet, kvRemove, kvSet } from './kv';
-import { readSpaces } from './registry';
 
 /** Pre-multi-account global blob; adopted once by the first user that hydrates. */
 const LEGACY_KEY = 'octochat.membercaps.v1';
@@ -30,13 +27,16 @@ let activeKey: string | null = null;
  * sign-in and on every account switch, before opening rooms. Re-hydrating for the
  * same user is a no-op.
  *
- * Two-tier load: the local kv first (fast, offline), then the user's own synced
- * `_spaces` doc merged OVER it (durable source of truth). Merging server-over-local
- * is what makes a fresh device — empty kv, same seed — recover its caps and a
- * re-issued cap take precedence. A server failure (offline / unreachable) keeps the
- * local-only cache, so the common online-device case is unaffected.
+ * Two-tier load: the local kv first (fast, offline), then the caps from the user's
+ * own synced `_spaces` doc merged OVER it (the durable source of truth). The caller
+ * (session-context) reads that doc once and passes its `caps` in — so this module
+ * stays pure cap-storage and the doc isn't pulled twice at startup. Merging
+ * server-over-local is what makes a fresh device — empty kv, same seed — recover its
+ * caps and a re-issued cap take precedence. Empty `serverCaps` (e.g. an unreachable
+ * read, which degrades to `{}` upstream) leaves the local-only cache intact, so the
+ * common online-device case is unaffected.
  */
-export async function hydrateMemberCaps(userId: string, accountClient: StarfishClient): Promise<void> {
+export async function hydrateMemberCaps(userId: string, serverCaps: CapMap): Promise<void> {
   const key = keyFor(userId);
   if (activeKey === key) return;
   activeKey = key;
@@ -60,16 +60,10 @@ export async function hydrateMemberCaps(userId: string, accountClient: StarfishC
       cache = {};
     }
   }
-  // 2. Server doc wins — recovers caps a fresh device's kv never had. Keep the
-  //    local cache on any failure (offline / unreachable server).
-  try {
-    const { caps } = await readSpaces(accountClient, userId);
-    if (Object.keys(caps).length > 0) {
-      cache = { ...cache, ...caps };
-      await kvSet(key, JSON.stringify(cache)); // warm kv for the next offline open
-    }
-  } catch {
-    // Unreachable: the local cache from step 1 stands.
+  // 2. Server caps win — recover caps a fresh device's kv never had.
+  if (Object.keys(serverCaps).length > 0) {
+    cache = { ...cache, ...serverCaps };
+    await kvSet(key, JSON.stringify(cache)); // warm kv for the next offline open
   }
 }
 
@@ -96,7 +90,10 @@ export function removeMemberCap(spaceId: string): void {
 }
 
 /** Drop the in-memory caps (on account switch / sign-out); leaves disk untouched so
- *  the next {@link hydrateMemberCaps} reloads the new (or re-added) user's set. */
+ *  the next {@link hydrateMemberCaps} reloads the new (or re-added) user's set. Must
+ *  be paired with `clearSpaceEncryptors()` (see space-encryptor.ts) — both are wired
+ *  into session-context.resetAccountScopedState — so a cached owner-branch encryptor
+ *  can't outlive the cap context it was opened under. */
 export function clearMemberCaps(): void {
   cache = {};
   activeKey = null;

@@ -10,6 +10,8 @@ import {
 } from './starfish/identity';
 import { clearMemberCaps, hydrateMemberCaps } from './starfish/member-caps';
 import { clearPubspaceCaps, hydratePubspaceCaps } from './starfish/pubspace-caps';
+import { readSpaces } from './starfish/registry';
+import { clearSpaceEncryptors } from './starfish/space-encryptor';
 import { passkeyEnrollable } from './starfish/passkey';
 import {
   clearVault,
@@ -20,7 +22,8 @@ import {
 } from './starfish/storage';
 import type { PersistedSession, SeedLock, UnlockMethod, Vault } from './starfish/storage-types';
 import { clearRoomEventsBus } from './room-events-bus';
-import { clearPseudoCache } from './use-pseudos';
+import { clearPrimedSpaces, primeSpaces } from './spaces-prime';
+import { clearPseudoCache, primeProfile } from './use-pseudos';
 
 /** One row in the account switcher — enough to render and target a switch/logout. */
 export interface AccountSummary {
@@ -88,14 +91,26 @@ function resetAccountScopedState(): void {
   clearPubspaceCaps();
   clearAttachmentCache();
   clearPseudoCache();
+  clearSpaceEncryptors();
+  clearPrimedSpaces();
   clearRoomEventsBus();
 }
 
 async function hydrateCapsFor(session: Session): Promise<void> {
-  // Member caps hydrate from the user's own synced `_spaces` doc (durable) over the
-  // local kv cache, so pass the seed-authenticated accountClient.
-  await hydrateMemberCaps(session.userId, session.accountClient);
+  // Single read of the user's own `_spaces` doc — session-context is the one place
+  // that pulls it at startup. It carries BOTH the durable member caps (which gate
+  // E2EE access) and the space list, so we feed the caps to the member-cap cache and
+  // prime SpacesProvider with the list; neither then re-reads the identical doc. Pass
+  // the seed-authenticated accountClient (readSpaces degrades to empty on failure,
+  // which leaves the local cap cache intact).
+  const { spaces, caps } = await readSpaces(session.accountClient, session.userId);
+  await hydrateMemberCaps(session.userId, caps);
   await hydratePubspaceCaps(session.userId);
+  primeSpaces(session.userId, spaces);
+  // Seed the shared public-profile cache with our own pseudo so `use-pseudos`
+  // (message authors, sidebar) never fires a separate fetch for self — the editable
+  // copy is loaded once by ProfileProvider, which also primes the avatar.
+  primeProfile(session.userId, { pseudo: session.name });
 }
 
 // Rebuild a live session from a persisted one. Prefer the cached root identity

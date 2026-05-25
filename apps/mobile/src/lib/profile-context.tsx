@@ -76,6 +76,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       if (pseudo) setName(pseudo);
       setAvatar(loaded);
       setLoading(false);
+      // Share our own pseudo + avatar with the read-only `use-pseudos` cache so the
+      // message stream / sidebar resolve self from this single load (no second fetch).
+      primeProfile(session.userId, { pseudo: pseudo ?? undefined, avatar: loaded });
     })();
     return () => {
       cancelled = true;

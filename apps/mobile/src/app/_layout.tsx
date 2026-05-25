@@ -5,6 +5,7 @@ import { registerServiceWorker } from '@/lib/pwa';
 import { registerBackgroundPushHandler } from '@/lib/push/fcm';
 import { NotificationSettingsProvider } from '@/lib/notification-settings-context';
 import { ProfileProvider } from '@/lib/profile-context';
+import { RoomsRegistryProvider } from '@/lib/rooms-registry-context';
 import { SessionProvider } from '@/lib/session-context';
 import { SpacesProvider } from '@/lib/spaces-context';
 import { ThreadDigestProvider } from '@/lib/thread-digest-context';
@@ -55,24 +56,29 @@ export default function RootLayout() {
           {/* NotificationSettingsProvider sits above UnreadProvider (which reads the
               master toggle to gate push + web toasts) and below the session it loads
               per-identity settings from. SpacesProvider sits above UnreadProvider too:
-              the latter reads the space set from it. ProfileProvider only needs the
+              the latter reads the space set from it. RoomsRegistryProvider sits between
+              them — it reads the known-spaces snapshot (SpacesProvider) for its
+              reconcile fast-path, and the live unread overlay is applied in the
+              `useRooms` consumer, below UnreadProvider. ProfileProvider only needs the
               session. */}
           <NotificationSettingsProvider>
             <SpacesProvider>
-              <UnreadProvider>
-                <ProfileProvider>
-                  <ThreadDigestProvider>
-                    <AppFrame>
-                      <Stack
-                        screenOptions={{
-                          headerShown: false,
-                          contentStyle: { backgroundColor: palette.canvas },
-                        }}
-                      />
-                    </AppFrame>
-                  </ThreadDigestProvider>
-                </ProfileProvider>
-              </UnreadProvider>
+              <RoomsRegistryProvider>
+                <UnreadProvider>
+                  <ProfileProvider>
+                    <ThreadDigestProvider>
+                      <AppFrame>
+                        <Stack
+                          screenOptions={{
+                            headerShown: false,
+                            contentStyle: { backgroundColor: palette.canvas },
+                          }}
+                        />
+                      </AppFrame>
+                    </ThreadDigestProvider>
+                  </ProfileProvider>
+                </UnreadProvider>
+              </RoomsRegistryProvider>
             </SpacesProvider>
           </NotificationSettingsProvider>
         </SessionProvider>

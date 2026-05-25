@@ -25,6 +25,7 @@ import type { Space } from '@/lib/types';
 
 import { createSpace as createSpaceDoc, onSpaceMeta, readSpaces } from './starfish/registry';
 import { createPublicSpace } from './starfish/pubspace';
+import { consumePrimedSpaces } from './spaces-prime';
 import { useSession } from './session-context';
 
 interface SpacesContextValue {
@@ -60,6 +61,16 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     if (!session) {
       setSpaces([]);
       setActiveId(null);
+      setLoading(false);
+      return;
+    }
+    // Adopt the `_spaces` doc already read during session setup (member-cap
+    // hydration) instead of pulling the identical doc again on first paint. Falls
+    // back to a read when no fresh stash exists (e.g. a later in-app refresh).
+    const primed = consumePrimedSpaces(session.userId);
+    if (primed) {
+      setSpaces(primed);
+      setActiveId((prev) => prev ?? primed[0]?.id ?? null);
       setLoading(false);
       return;
     }

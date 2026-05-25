@@ -8,7 +8,6 @@ import type { StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { CapMap, Room, Space } from '@/lib/types';
 
-import { dedupe, invalidate } from './inflight';
 import {
   roomsRegistryPull,
   roomsRegistryPush,
@@ -77,20 +76,15 @@ export async function readSpaces(
   client: StarfishClient,
   userId: string,
 ): Promise<SpacesDoc> {
-  // Deduped: several mounted consumers (desktop nav, routed page, unread ctx,
-  // reconcile) read this same doc in one tick. NOT used for the CAS read inside
-  // updateSpacesDoc, which must see fresh state on each attempt.
-  return dedupe(`spaces:${userId}`, async () => {
-    try {
-      return await pullSpacesDoc(client, userId);
-    } catch (err) {
-      // Don't collapse a reachability/auth failure into "no spaces" silently —
-      // that reads as an empty account (e.g. a desktop build baked against an
-      // unreachable server). Surface it; the caller still degrades to empty.
-      console.error('[readSpaces] failed to pull spaces registry', err);
-      return { spaces: [], caps: {}, hash: null };
-    }
-  });
+  try {
+    return await pullSpacesDoc(client, userId);
+  } catch (err) {
+    // Don't collapse a reachability/auth failure into "no spaces" silently — that
+    // reads as an empty account (e.g. a desktop build baked against an unreachable
+    // server). Surface it; the caller still degrades to empty.
+    console.error('[readSpaces] failed to pull spaces registry', err);
+    return { spaces: [], caps: {}, hash: null };
+  }
 }
 
 /**
@@ -114,7 +108,6 @@ export async function updateSpacesDoc(
     if (next === cur) return; // no-op mutation (e.g. already joined) — skip the write
     try {
       await client.push(spacesPush(userId), { v: 1, spaces: next.spaces, caps: next.caps }, hash);
-      invalidate(`spaces:${userId}`); // a refresh after this must re-read, not join a pre-write read
       return;
     } catch (err) {
       if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
@@ -156,24 +149,20 @@ export async function readRooms(
   image: string | null;
   hash: string | null;
 }> {
-  // Deduped: the desktop nav, the routed rooms page and each ActivityFeed
-  // SpaceSection can all read a space's registry in the same tick.
-  return dedupe(`rooms:${spaceId}`, async () => {
-    const res = await client.pull(roomsRegistryPull(spaceId)).catch(() => null);
-    const data = res?.data as
-      | { rooms?: Room[]; owner?: string; members?: unknown[]; name?: string; image?: string }
-      | undefined;
-    return {
-      rooms: Array.isArray(data?.rooms) ? data!.rooms! : [],
-      owner: typeof data?.owner === 'string' ? data.owner : null,
-      members: Array.isArray(data?.members)
-        ? data!.members!.filter((m): m is string => typeof m === 'string')
-        : [],
-      name: typeof data?.name === 'string' ? data.name : null,
-      image: typeof data?.image === 'string' ? data.image : null,
-      hash: res?.hash ?? null,
-    };
-  });
+  const res = await client.pull(roomsRegistryPull(spaceId)).catch(() => null);
+  const data = res?.data as
+    | { rooms?: Room[]; owner?: string; members?: unknown[]; name?: string; image?: string }
+    | undefined;
+  return {
+    rooms: Array.isArray(data?.rooms) ? data!.rooms! : [],
+    owner: typeof data?.owner === 'string' ? data.owner : null,
+    members: Array.isArray(data?.members)
+      ? data!.members!.filter((m): m is string => typeof m === 'string')
+      : [],
+    name: typeof data?.name === 'string' ? data.name : null,
+    image: typeof data?.image === 'string' ? data.image : null,
+    hash: res?.hash ?? null,
+  };
 }
 
 export async function writeRooms(
@@ -198,7 +187,6 @@ export async function writeRooms(
     { v: 1, owner, members, rooms, ...(name ? { name } : {}), ...(image ? { image } : {}) },
     hash,
   );
-  invalidate(`rooms:${spaceId}`); // a refresh after this must re-read, not join a pre-write read
 }
 
 /** Owner-side: add an invitee's userId to the space roster → grants them

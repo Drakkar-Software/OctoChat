@@ -10,7 +10,6 @@ import { signRequest, stableStringify } from '@drakkar.software/starfish-protoco
 import type { SignableMethod } from '@drakkar.software/starfish-protocol';
 
 import { SYNC_BASE, SYNC_PREFIX } from './config';
-import { dedupe, invalidate } from './inflight';
 import { keyringPull, keyringPush, profilePull, profilePush, roomPull, roomPush } from './paths';
 
 export interface DeviceKeys {
@@ -73,9 +72,10 @@ export async function openEncryptor(
   spaceId: string,
   trustedAdders: string[],
 ): Promise<Encryptor> {
-  // Deduped: a room open and a strict-mode/double-mounted effect can both pull
-  // the same space keyring in one tick (the `_keyring × 2` burst).
-  const res = await dedupe(`keyring:${spaceId}`, () => client.pull(keyringPull(spaceId))).catch(() => {
+  // The room/thread `_keyring × 2` burst this used to dedupe is now collapsed one
+  // level up by the per-space encryptor cache (space-encryptor.ts), which opens each
+  // space keyring once and shares it across the room screen and its threads.
+  const res = await client.pull(keyringPull(spaceId)).catch(() => {
     throw new Error('Could not reach the server to fetch space keys.');
   });
   const keyring = res?.data as unknown as Keyring | undefined;
@@ -114,7 +114,7 @@ export async function ownerEnsureKeyring(
   keys: DeviceKeys,
   spaceId: string,
 ): Promise<Encryptor> {
-  const krRes = await dedupe(`keyring:${spaceId}`, () => client.pull(keyringPull(spaceId))).catch(() => null);
+  const krRes = await client.pull(keyringPull(spaceId)).catch(() => null);
   let keyring = krRes?.data as unknown as Keyring | undefined;
   if (!keyring || !keyring.epochs) {
     const created = await createKeyring({ edPrivHex: keys.edPriv, edPubHex: keys.edPub }, [
@@ -122,7 +122,6 @@ export async function ownerEnsureKeyring(
     ]);
     keyring = created.keyring;
     await client.push(keyringPush(spaceId), keyring as unknown as Record<string, unknown>, krRes?.hash ?? null);
-    invalidate(`keyring:${spaceId}`); // next opener must read the just-created keyring
   }
   const enc = await createKeyringEncryptor(
     keyring,
@@ -153,22 +152,21 @@ export interface PublicProfile {
 
 /** Read any user's public profile — pseudo and the inlined avatar data URI. */
 export async function readProfile(userId: string): Promise<PublicProfile> {
-  // Deduped: the sidebar, the /you screen and the pseudo primer can request the
-  // same profile concurrently.
-  return dedupe(`profile:${userId}`, async () => {
-    try {
-      const r = await fetch(`${SYNC_BASE}${profilePull(userId)}`);
-      if (!r.ok) return { pseudo: null, avatar: null };
-      const body = await r.json();
-      const data = body?.data as { pseudo?: unknown; avatar?: unknown } | undefined;
-      return {
-        pseudo: typeof data?.pseudo === 'string' ? data.pseudo : null,
-        avatar: typeof data?.avatar === 'string' ? data.avatar : null,
-      };
-    } catch {
-      return { pseudo: null, avatar: null };
-    }
-  });
+  // The concurrent callers this used to dedupe are now resolved by one owner each:
+  // self by ProfileProvider (which primes the shared cache), and other users by the
+  // `use-pseudos` cache (which fetches a given id at most once).
+  try {
+    const r = await fetch(`${SYNC_BASE}${profilePull(userId)}`);
+    if (!r.ok) return { pseudo: null, avatar: null };
+    const body = await r.json();
+    const data = body?.data as { pseudo?: unknown; avatar?: unknown } | undefined;
+    return {
+      pseudo: typeof data?.pseudo === 'string' ? data.pseudo : null,
+      avatar: typeof data?.avatar === 'string' ? data.avatar : null,
+    };
+  } catch {
+    return { pseudo: null, avatar: null };
+  }
 }
 
 /** Read any user's public profile pseudo. */
@@ -192,7 +190,6 @@ export async function writeProfile(
   const next: Record<string, unknown> = { ...base, ...patch, v: 1 };
   if (next.avatar == null) delete next.avatar; // null/undefined ⇒ remove the key
   await client.push(profilePush(userId), next, current?.hash ?? null);
-  invalidate(`profile:${userId}`); // a re-read after this must not join a pre-write read
 }
 
 /** Write the caller's own profile pseudo, preserving any other profile fields. */

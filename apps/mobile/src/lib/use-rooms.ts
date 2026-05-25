@@ -1,17 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import type { Room } from '@/lib/types';
 
-import { createRoom as createRoomDoc, readRooms, reconcileSpaceMeta } from './starfish/registry';
-import {
-  createPublicRoom,
-  isPublicSpaceId,
-  publicSpaceAuth,
-  publicSpaceClient,
-  readPublicRoomsDoc,
-} from './starfish/pubspace';
+import { createRoom as createRoomDoc } from './starfish/registry';
+import { createPublicRoom, isPublicSpaceId } from './starfish/pubspace';
+import { useRoomsRegistry, useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
-import { useSpacesContext } from './spaces-context';
 import { useUnread } from './unread-context';
 
 export interface RoomCategory {
@@ -24,94 +18,24 @@ export interface RoomCategory {
 const NOT_OWNER_MESSAGE = 'Only the space owner can create channels — ask the owner to add this one.';
 const CREATE_FAILED_MESSAGE = "Couldn't create the channel. Please try again.";
 
-/** Rooms of a space, grouped by category, with an owner-gated creator action. */
+/**
+ * Rooms of a space, grouped by category, with an owner-gated creator action. Thin
+ * consumer over {@link RoomsRegistryProvider}: the registry is fetched once by the
+ * provider; this hook overlays live unread counts and shapes it for the UI.
+ */
 export function useRooms(spaceId: string | null) {
   const { session } = useSession();
   const { unreadByRoom } = useUnread();
-  const { spaces } = useSpacesContext();
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [owner, setOwner] = useState<string | null>(null);
-  const [members, setMembers] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { refresh } = useRoomsRegistryActions();
+  const { rooms, owner, members, loading, loaded } = useRoomsRegistry(spaceId);
   const isPublic = !!spaceId && isPublicSpaceId(spaceId);
 
-  // Snapshot the known spaces for reconcileSpaceMeta's fast path, via a ref so it
-  // doesn't pull `spaces` into `refresh`'s deps (which would refetch rooms on every
-  // space-list change). When the snapshot already matches, reconcile skips its read.
-  const spacesRef = useRef(spaces);
-  // Sync after each render (not during — writing a ref in render trips
-  // react-hooks/refs); `refresh` reads it from later effects / user actions.
-  useEffect(() => {
-    spacesRef.current = spaces;
-  });
-
-  // Overlay live unread counts onto the registry rooms so `ChannelRow`'s Badge
-  // and emphasis light up without the row components touching the provider.
+  // Overlay live unread counts onto the registry rooms so `ChannelRow`'s Badge and
+  // emphasis light up without the row components touching the provider.
   const roomsWithUnread = useMemo<Room[]>(
     () => rooms.map((r) => ({ ...r, unread: unreadByRoom[r.id] ?? 0 })),
     [rooms, unreadByRoom],
   );
-
-  const refresh = useCallback(async () => {
-    if (!session || !spaceId) return;
-    if (isPublicSpaceId(spaceId)) {
-      const auth = publicSpaceAuth(session, spaceId);
-      const { rooms: list, name, image } = await readPublicRoomsDoc(
-        publicSpaceClient(session, spaceId),
-        auth.ownerId,
-        spaceId,
-      );
-      setRooms(list);
-      setOwner(auth.ownerId); // only the path owner may add channels
-      setMembers([]); // public spaces have no roster (access is by cap, not membership)
-      // Fold the owner's shared name/image into our own _spaces cache (best-effort;
-      // the known-spaces snapshot lets it skip the read when already in sync).
-      void reconcileSpaceMeta(
-        session.accountClient,
-        session.userId,
-        spaceId,
-        { name, image },
-        spacesRef.current,
-      ).catch(() => {});
-      return;
-    }
-    const { rooms: list, owner: o, members: roster, name, image } = await readRooms(session.accountClient, spaceId);
-    setRooms(list);
-    setOwner(o);
-    setMembers(roster);
-    void reconcileSpaceMeta(
-      session.accountClient,
-      session.userId,
-      spaceId,
-      { name, image },
-      spacesRef.current,
-    ).catch(() => {});
-  }, [session, spaceId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: show loading while (re)reading rooms on space/session change
-    setLoading(true);
-    if (!session || !spaceId) {
-      setRooms([]);
-      setOwner(null);
-      setMembers([]);
-      setLoading(false);
-      return;
-    }
-    (async () => {
-      try {
-        await refresh();
-      } catch {
-        /* leave empty on error */
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [session, spaceId, refresh]);
 
   const categories = useMemo<RoomCategory[]>(() => {
     const map = new Map<string, Room[]>();
@@ -130,9 +54,9 @@ export function useRooms(spaceId: string | null) {
   const memberCount = isPublic ? null : 1 + members.length;
 
   /**
-   * Create a channel. Resolves to `null` on success, or a user-facing message
-   * to surface when it can't — chiefly the owner-only registry write: a member
-   * is told to ask the owner instead of the promise rejecting unhandled.
+   * Create a channel. Resolves to `null` on success, or a user-facing message to
+   * surface when it can't — chiefly the owner-only registry write: a member is told
+   * to ask the owner instead of the promise rejecting unhandled.
    */
   const createRoom = useCallback(
     async (name: string, category?: string): Promise<string | null> => {
@@ -145,7 +69,7 @@ export function useRooms(spaceId: string | null) {
         } else {
           await createRoomDoc(session.accountClient, session.userId, spaceId, name, category);
         }
-        await refresh();
+        await refresh(spaceId);
         return null;
       } catch (e) {
         // The registry write is owner-gated; a 403 means we aren't it.
@@ -156,5 +80,6 @@ export function useRooms(spaceId: string | null) {
     [session, spaceId, owner, refresh],
   );
 
-  return { categories, rooms: roomsWithUnread, loading, isOwner, isPublic, memberCount, createRoom };
+  // `loading` only while no cached entry exists yet; a null space is never loading.
+  return { categories, rooms: roomsWithUnread, loading: !!spaceId && loading && !loaded, isOwner, isPublic, memberCount, createRoom };
 }

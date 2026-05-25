@@ -59,10 +59,12 @@ function fetchProfile(userId: string): Promise<void> {
     // via fetch (only via primeProfile on the editing client) until the cache is
     // re-initialized (a web refresh). Acceptable for now.
     const next: CachedProfile = { pseudo: pseudo ?? prev.pseudo, avatar: avatar ?? prev.avatar };
-    if (prev.pseudo !== next.pseudo || prev.avatar !== next.avatar) {
-      cache.set(userId, next);
-      notify();
-    }
+    // Always record the entry — even an empty one for a user with no profile doc yet —
+    // so `useProfileSync` won't re-fetch it on every id-set tick. Only notify when a
+    // value actually changed.
+    const changed = prev.pseudo !== next.pseudo || prev.avatar !== next.avatar;
+    cache.set(userId, next);
+    if (changed) notify();
   })().finally(() => inflight.delete(userId));
   inflight.set(userId, p);
   return p;
@@ -87,7 +89,14 @@ function useProfileSync(userIds: string[]): void {
   // effect against fresh-array identity and round-trips back to the id list.
   const key = userIds.join(',');
   useEffect(() => {
-    for (const id of key ? key.split(',') : []) void fetchProfile(id);
+    // Fetch each profile ONCE — skip ids already in the shared cache. This is what
+    // stops the message stream from re-pulling every author's profile each time its
+    // id set ticks. Trade-off: a profile edited on ANOTHER client won't propagate
+    // here until the cache clears (account switch / web reload); our own edits do, via
+    // primeProfile. Acceptable — display names/avatars are low-churn.
+    for (const id of key ? key.split(',') : []) {
+      if (!cache.has(id)) void fetchProfile(id);
+    }
   }, [key]);
 }
 

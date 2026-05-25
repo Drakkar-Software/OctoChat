@@ -1,17 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { createUnionMerge } from '@drakkar.software/starfish-client';
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 import { useSyncInit } from '@drakkar.software/starfish-client/zustand';
 
 import { SYNC_BASE } from './starfish/config';
-import {
-  capProviderFor,
-  ensureRoomInitialized,
-  makeClient,
-  openEncryptor,
-  ownerEnsureKeyring,
-} from './starfish/client';
+import { capProviderFor, ensureRoomInitialized, makeClient } from './starfish/client';
 import { registerPull, onSseStatus } from './room-events-bus';
 import {
   loadAttachment as loadAttachmentDoc,
@@ -20,10 +14,11 @@ import {
   type ByteSealer,
 } from './starfish/attachments';
 import { getMemberCap } from './starfish/member-caps';
-import { readRooms } from './starfish/registry';
+import { getSpaceEncryptor } from './starfish/space-encryptor';
 import { isPublicSpaceId, publicSpaceAuth } from './starfish/pubspace';
 import { pubspaceRoomPull, pubspaceRoomPush, roomPull, roomPush, spaceIdFromRoomId } from './starfish/paths';
 import type { MessageEditEvent, ReactionEvent } from './types';
+import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
 
 function randomId(): string {
@@ -43,6 +38,7 @@ function randomId(): string {
  */
 export function useRoom(roomId: string) {
   const { session } = useSession();
+  const { ensure: ensureRegistry } = useRoomsRegistryActions();
   const spaceId = spaceIdFromRoomId(roomId);
   const isPublic = isPublicSpaceId(spaceId);
   const [encryptor, setEncryptor] = useState<Encryptor | null>(null);
@@ -71,36 +67,14 @@ export function useRoom(roomId: string) {
           }
           return;
         }
-        // PRIVATE: the keyring is space-wide; the room doc is per-room. A joined
-        // space's cap is stored by spaceId, so look it up by the room's space.
-        const memberCap = getMemberCap(spaceId);
-        let enc: Encryptor;
-        let roomClient: StarfishClient;
-        if (memberCap) {
-          // Joined space: open as a keyring recipient; the cap's issuer is the
-          // trusted keyring adder.
-          const cap = JSON.parse(memberCap) as { iss?: string };
-          roomClient = makeClient(cap, session.keys.edPriv);
-          enc = await openEncryptor(roomClient, session.keys, spaceId, cap.iss ? [cap.iss] : []);
-        } else {
-          // No local cap. Only the genuine OWNER may create/own the space keyring. A
-          // member whose cap hasn't hydrated must NOT fall into the owner branch — that
-          // would fail the keyring's trustedAdders check with a confusing "no wrapped
-          // key" error and could re-create the keyring, locking everyone out. Decide
-          // from the authoritative registry owner (null ⇒ legacy/unreadable: treat as
-          // owner, as before). The cap normally self-heals via the synced `_spaces` doc.
-          const { owner, members } = await readRooms(session.accountClient, spaceId);
-          if (owner !== null && owner !== session.userId) {
-            throw new Error(
-              members.includes(session.userId)
-                ? "You're a member of this space, but its key isn't on this device yet — reconnect, or ask the owner to re-invite."
-                : "You don't have access to this space.",
-            );
-          }
-          roomClient = session.chatClient;
-          enc = await ownerEnsureKeyring(session.chatClient, session.keys, spaceId);
-          await ensureRoomInitialized(session.chatClient, enc, roomId);
-        }
+        // PRIVATE: the keyring is space-wide (cached per space; see getSpaceEncryptor),
+        // the room doc is per-room. With no stored member cap we need the registry
+        // owner for the owner-vs-no-access decision — read it once via the SHARED rooms
+        // registry rather than a private `readRooms`, so the room screen and sidebar
+        // don't each pull it. `ensureRoomInitialized` is per-ROOM, so it runs here.
+        const reg = getMemberCap(spaceId) ? null : await ensureRegistry(spaceId);
+        const { encryptor: enc, client: roomClient, isOwnerOpen } = await getSpaceEncryptor(spaceId, session, reg);
+        if (isOwnerOpen) await ensureRoomInitialized(session.chatClient, enc, roomId);
         if (!cancelled) {
           setEncryptor(enc);
           setClient(roomClient);
@@ -116,7 +90,7 @@ export function useRoom(roomId: string) {
     return () => {
       cancelled = true;
     };
-  }, [session, roomId, spaceId, isPublic]);
+  }, [session, roomId, spaceId, isPublic, ensureRegistry]);
 
   const config = useMemo(() => {
     if (!session || !client) return null;
@@ -176,10 +150,17 @@ export function useRoom(roomId: string) {
   // we unregister so a backgrounded room accrues unread like any unopened one.
   // Tradeoff: a backgrounded room no longer live-updates its (invisible) message
   // store — the pull-on-focus refresh covers re-entry. This is intentional.
+  // The sync store already pulls once when it's created (SDK `useSyncInit`), so skip
+  // the duplicate pull on the FIRST focus right after a store appears; re-focus
+  // (returning from a thread, or re-entering the room) still pulls to catch up.
+  // Keyed by store identity so a fresh store (room switch / reopen) also skips its own
+  // init-pull's first focus.
+  const initPulledStore = useRef<unknown>(null);
   useFocusEffect(
     useCallback(() => {
       if (!store) { setSyncError(null); return; }
-      pull();
+      if (initPulledStore.current === store) pull();
+      else initPulledStore.current = store;
       return registerPull(roomId, pull);
     }, [store, roomId, pull]),
   );

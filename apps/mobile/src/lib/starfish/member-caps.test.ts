@@ -15,16 +15,11 @@ vi.mock('./kv', () => {
   };
 });
 
-// Control the durable server tier. Mocking ./registry also avoids loading ./paths → ./config.
-const readSpaces = vi.fn();
-vi.mock('./registry', () => ({ readSpaces: (...args: unknown[]) => readSpaces(...args) }));
-
 import { clearMemberCaps, getMemberCap, hydrateMemberCaps } from './member-caps';
 import * as kv from './kv';
 
 const store = (kv as unknown as { __store: Map<string, string> }).__store;
 const KEY = (u: string) => `octochat.membercaps.${u}`;
-const client = {} as never; // readSpaces is mocked, so the client is unused
 
 beforeEach(() => {
   clearMemberCaps();
@@ -33,38 +28,35 @@ beforeEach(() => {
 });
 
 describe('hydrateMemberCaps', () => {
+  // The durable server caps now come from the caller (session-context reads the
+  // `_spaces` doc once); this module merges them over the local kv cache.
   it('lets server caps win over the local cache, keeping local-only entries', async () => {
     store.set(KEY('u1'), JSON.stringify({ 'sp-a': 'LOCAL', 'sp-c': 'LOCAL-C' }));
-    readSpaces.mockResolvedValue({ spaces: [], caps: { 'sp-a': 'SERVER', 'sp-b': 'SERVER-B' }, hash: 'h' });
-    await hydrateMemberCaps('u1', client);
+    await hydrateMemberCaps('u1', { 'sp-a': 'SERVER', 'sp-b': 'SERVER-B' });
     expect(getMemberCap('sp-a')).toBe('SERVER'); // server overrides local
     expect(getMemberCap('sp-b')).toBe('SERVER-B'); // server-only
     expect(getMemberCap('sp-c')).toBe('LOCAL-C'); // local-only retained
   });
 
   it('recovers caps from the server on a fresh device (empty kv)', async () => {
-    readSpaces.mockResolvedValue({ spaces: [], caps: { 'sp-a': 'SERVER' }, hash: 'h' });
-    await hydrateMemberCaps('u2', client);
+    await hydrateMemberCaps('u2', { 'sp-a': 'SERVER' });
     expect(getMemberCap('sp-a')).toBe('SERVER');
   });
 
-  it('falls back to the local kv when the server is unreachable', async () => {
+  it('keeps the local kv when no server caps are supplied (unreachable read)', async () => {
     store.set(KEY('u3'), JSON.stringify({ 'sp-a': 'LOCAL' }));
-    readSpaces.mockRejectedValue(new Error('offline'));
-    await hydrateMemberCaps('u3', client);
+    await hydrateMemberCaps('u3', {});
     expect(getMemberCap('sp-a')).toBe('LOCAL');
   });
 
   it('warms the local kv with the merged set for the next offline open', async () => {
     store.set(KEY('u4'), JSON.stringify({ 'sp-a': 'LOCAL' }));
-    readSpaces.mockResolvedValue({ spaces: [], caps: { 'sp-b': 'SERVER-B' }, hash: 'h' });
-    await hydrateMemberCaps('u4', client);
+    await hydrateMemberCaps('u4', { 'sp-b': 'SERVER-B' });
     expect(JSON.parse(store.get(KEY('u4'))!)).toEqual({ 'sp-a': 'LOCAL', 'sp-b': 'SERVER-B' });
   });
 
   it('returns null for an unknown space', async () => {
-    readSpaces.mockResolvedValue({ spaces: [], caps: {}, hash: null });
-    await hydrateMemberCaps('u5', client);
+    await hydrateMemberCaps('u5', {});
     expect(getMemberCap('nope')).toBeNull();
   });
 });
