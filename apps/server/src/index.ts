@@ -29,6 +29,14 @@ const CORS_ALLOW = (process.env.STARFISH_CORS_ORIGINS ?? "")
   .map((s) => s.trim())
   .filter(Boolean);
 
+if (CORS_ALLOW.length === 0 && process.env.NODE_ENV === "production") {
+  console.warn(
+    "[OctoChat] SECURITY: STARFISH_CORS_ORIGINS is unset in production — CORS echoes any " +
+      "Origin and any requested headers. Set it to your app's origin allowlist " +
+      "(e.g. https://app.example.com) so a hostile page can't drive this API.",
+  );
+}
+
 function allowOrigin(reqOrigin: string | undefined): string {
   if (CORS_ALLOW.length === 0) return reqOrigin ?? "*"; // permissive dev default
   if (reqOrigin && CORS_ALLOW.includes(reqOrigin)) return reqOrigin;
@@ -42,7 +50,10 @@ const store = new FilesystemObjectStore({ baseDir: DATA_DIR });
 // revocation store is file-backed so revokes survive a restart.
 // Both are constructed separately so the /events route can share them (same nonce
 // namespace for replay protection across all authenticated endpoints).
-const nonceCache = createInMemoryNonceCache({ windowMs: 5 * 60_000, maxEntries: 100_000 });
+// windowMs MUST be >= 2x the accepted clock-skew (DEFAULT_MAX_SKEW_MS = 5 min) per the
+// SDK contract: a request is accepted across [ts - skew, ts + skew], so the nonce must
+// be remembered for the full 2x skew or a replay slot re-opens. So 10 min, not 5.
+const nonceCache = createInMemoryNonceCache({ windowMs: 10 * 60_000, maxEntries: 100_000 });
 const revocationStore = createFileRevocationStore(`${DATA_DIR}/_revocations.json`);
 const roleResolver = createCapCertRoleResolver({
   nonceCache,

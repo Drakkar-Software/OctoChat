@@ -182,13 +182,19 @@ export function pubstreamBotScope(ownerId: string, spaceId: string, roomId: stri
   };
 }
 
-/** Extract the space id a member cap is scoped to (from its `spaces/<id>/**`). */
+/** Extract the single space id a member cap is scoped to (from its `spaces/<id>/**`).
+ *  Returns null if the cap names no space path OR more than one distinct space — a
+ *  member cap is expected to be scoped to exactly one space, so an ambiguous
+ *  multi-space cap is rejected rather than silently read as just its first match. */
 export function spaceIdFromCap(cap: { scope?: { paths?: string[] } }): string | null {
+  let found: string | null = null;
   for (const p of cap.scope?.paths ?? []) {
     const m = /^spaces\/([^/]+)\//.exec(p);
-    if (m) return m[1]!;
+    if (!m) continue;
+    if (found !== null && found !== m[1]) return null; // ambiguous multi-space cap
+    found = m[1]!;
   }
-  return null;
+  return found;
 }
 
 export function bytesToHex(b: Uint8Array): string {

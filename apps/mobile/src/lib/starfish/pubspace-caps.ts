@@ -54,7 +54,12 @@ export async function hydratePubspaceCaps(userId: string): Promise<void> {
   if (raw) {
     try {
       cache = JSON.parse(raw) as AccessMap;
-    } catch {
+    } catch (e) {
+      // Surface, don't swallow: pubspace access has NO durable server copy, so a
+      // corrupt blob is unrecoverable without the original invite link. Only the
+      // in-memory cache is reset here (persist() runs on next save), so the raw blob
+      // stays on disk for diagnosis until then.
+      console.error('[OctoChat] pubspace-caps: corrupt cache blob, resetting in-memory:', e);
       cache = {};
     }
   }

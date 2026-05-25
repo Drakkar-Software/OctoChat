@@ -103,9 +103,13 @@ export async function inviteToSpace(
  */
 export async function acceptSpaceInvite(session: Session, inviteJson: string): Promise<Space> {
   const inv = JSON.parse(inviteJson) as Partial<SpaceInvite>;
-  const cap = inv.cap as { sub?: string; iss?: string } | undefined;
+  const cap = inv.cap as { kind?: string; sub?: string; iss?: string } | undefined;
   if (!cap || !inv.spaceId) throw new Error('That is not a valid space invite.');
-  if (cap.sub && cap.sub !== session.keys.edPub) {
+  // Fail closed: a space invite MUST be a member cap bound to THIS identity. The
+  // server also rejects a malformed/sub-less cap, but the client should not trust an
+  // invite blob enough to open the keyring for it before checking the binding.
+  if (cap.kind !== 'member') throw new Error('That is not a valid space invite.');
+  if (!cap.sub || cap.sub !== session.keys.edPub) {
     throw new Error('This invite was issued for a different identity.');
   }
   if (!cap.iss) throw new Error('This invite is missing its issuer.');

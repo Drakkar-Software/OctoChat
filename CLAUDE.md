@@ -18,7 +18,7 @@ pnpm workspace. `pnpm-workspace.yaml` sets `nodeLinker: hoisted` because React
 Native / Metro resolve dependencies best with a flat `node_modules`
 (see https://docs.expo.dev/guides/monorepos/). The
 `@drakkar.software/starfish-*` SDK is consumed as pinned npm deps
-(`3.0.0-alpha.0`). `apps/mobile/metro.config.js` extends the SDK 56 default to
+(`3.0.0-alpha.4`). `apps/mobile/metro.config.js` extends the SDK 56 default to
 watch the workspace root, enable package `exports`, and block the Node-only
 `apps/server` from the app bundle.
 

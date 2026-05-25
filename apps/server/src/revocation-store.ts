@@ -10,7 +10,7 @@
  * fresh in-memory store on load re-verifies every signature and generation, so
  * a tampered file can't inject or roll back revocations.
  */
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import {
   createInMemoryRevocationStore,
@@ -38,21 +38,32 @@ export function createFileRevocationStore(
   }
 
   function persist(): void {
-    try {
-      mkdirSync(dirname(filePath), { recursive: true });
-      writeFileSync(filePath, JSON.stringify([...lists.values()]));
-    } catch (e) {
-      console.warn(`[OctoChat] revocation-store: failed to persist ${filePath}:`, e);
-    }
+    // Atomic: write a temp file then rename, so a crash mid-write can never leave a
+    // truncated ledger that fails to parse on the next boot — which would silently
+    // un-revoke everyone, the exact regression this store exists to prevent.
+    mkdirSync(dirname(filePath), { recursive: true });
+    const tmp = `${filePath}.tmp`;
+    writeFileSync(tmp, JSON.stringify([...lists.values()]));
+    renameSync(tmp, filePath);
   }
 
   return {
     isRevoked: (iss, capSub, capNonce) => inner.isRevoked(iss, capSub, capNonce),
     acceptList: (list) => {
       const res = inner.acceptList(list);
-      if (res.ok) {
-        lists.set(list.iss, list);
+      if (!res.ok) return res;
+      lists.set(list.iss, list);
+      try {
         persist();
+      } catch (e) {
+        // The revoke IS enforced in-memory for this process; what failed is durability
+        // across a restart. We keep the entry in `lists` (so the next acceptList
+        // re-attempts the write) and do NOT flip the result to ok:false — the SDK
+        // requires each issuer's list generation to strictly increase, so a caller
+        // "retrying" the same list would be rejected. Escalate to error so the
+        // operational alarm fires; the atomic write above removes the corruption case,
+        // leaving only a hard disk/permission failure here.
+        console.error(`[OctoChat] revocation-store: failed to persist ${filePath}:`, e);
       }
       return res;
     },

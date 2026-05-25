@@ -1,7 +1,10 @@
 /**
  * Async key/value persistence — web (localStorage). Native uses `kv.native.ts`
- * (AsyncStorage). Used for non-secret state (joined-room member caps, the
- * revocation ledger); the recovery seed lives in `storage*.ts` instead.
+ * (AsyncStorage). Holds account-scoped state: joined-space member caps and the
+ * pubspace access map. NOTE: the pubspace map includes a throwaway ephemeral
+ * Ed25519 PRIVATE key (the public-link bearer secret, also shipped in the invite
+ * link), so this store is NOT strictly secret-free. The recovery seed — the only
+ * high-value secret — lives in `storage*.ts` (Keychain/secure-store), never here.
  */
 function ls(): Storage | undefined {
   return (globalThis as { localStorage?: Storage }).localStorage;

@@ -15,6 +15,8 @@
 import { getBase64 } from '@drakkar.software/starfish-protocol';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
+import { randomId } from '../ids';
+
 import { kvGet, kvRemove, kvSet } from './kv';
 import { attachmentName, attachmentPull, attachmentPush } from './paths';
 
@@ -42,7 +44,9 @@ export interface AttachmentRef {
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 function randomBlobId(): string {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  // CSPRNG: the blob id is the storage-path leaf AND the seal AAD, so a
+  // predictable/collidable id would allow a same-path overwrite (see `@/lib/ids`).
+  return randomId();
 }
 
 /**

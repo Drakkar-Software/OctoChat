@@ -20,10 +20,7 @@ import { pubspaceRoomPull, pubspaceRoomPush, roomPull, roomPush, spaceIdFromRoom
 import type { MessageEditEvent, ReactionEvent } from './types';
 import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
-
-function randomId(): string {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
+import { randomId } from './ids';
 
 /**
  * Opens a room and builds a synced Zustand store. Two modes by the room's space:

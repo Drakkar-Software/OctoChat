@@ -17,6 +17,8 @@ import type { StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { Room, RoomKind, Space } from '@/lib/types';
 
+import { randomId } from '../ids';
+
 import { makeClient } from './client';
 import type { Session } from './identity';
 import { bytesToHex, pubspaceRoomPush, pubspaceRoomsPull, pubspaceRoomsPush, pubspaceScope } from './paths';
@@ -80,9 +82,10 @@ export function decodePublicInvite(fragment: string): PublicInviteToken {
   };
 }
 
-/** Opaque public-space id; ownership is recorded by the `{ownerId}` storage path. */
+/** Opaque public-space id; ownership is recorded by the `{ownerId}` storage path.
+ *  CSPRNG-backed so it can't be predicted (see `@/lib/ids`). */
 function newPublicSpaceId(): string {
-  return `psp-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+  return `psp-${randomId()}`;
 }
 
 const monogram = (name: string) => name.trim().slice(0, 2).toUpperCase() || 'PS';

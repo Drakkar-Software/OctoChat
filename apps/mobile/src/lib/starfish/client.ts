@@ -32,8 +32,9 @@ export function makeClient(cap: unknown, devEdPrivHex: string): StarfishClient {
 }
 
 /**
- * Wrap a client so SDK helpers that build their OWN `/pull/…` `/push/…` action
- * paths (e.g. starfish-keyring's `addCollectionRecipient`) get `SYNC_PREFIX`
+ * Wrap a client so SDK helpers that build their OWN unprefixed action paths
+ * (`/pull`, `/push`, `/append`, blob — e.g. starfish-keyring's
+ * `addCollectionRecipient`) get `SYNC_PREFIX`
  * applied. Those helpers are namespace-unaware: on the deployed `/v1/octochat`
  * server an unprefixed `/sync/pull/…` misses every nginx location and hits the
  * catch-all → 404 with no CORS headers, which the browser surfaces as
@@ -42,11 +43,17 @@ export function makeClient(cap: unknown, devEdPrivHex: string): StarfishClient {
  * (the SDK signs the path we hand it), which the server requires. No-op when
  * `SYNC_PREFIX` is empty (local dev) — which is why this only bites the deploy.
  */
+/** StarfishClient methods whose FIRST argument is a path the SDK builds unprefixed.
+ *  All of pull/push/append/pullBlob/pushBlob take the path first, so prefixing arg0
+ *  is correct for each — forwarding only pull/push would let the next blob/append
+ *  helper 404 on the deployed `/v1/octochat` server exactly like the bug this fixes. */
+const PREFIXED_PATH_METHODS = new Set(['pull', 'push', 'append', 'pullBlob', 'pushBlob']);
+
 export function prefixedClient(client: StarfishClient): StarfishClient {
   if (!SYNC_PREFIX) return client;
   return new Proxy(client, {
     get(target, prop, receiver) {
-      if (prop === 'pull' || prop === 'push') {
+      if (typeof prop === 'string' && PREFIXED_PATH_METHODS.has(prop)) {
         const orig = Reflect.get(target, prop, target) as (path: string, ...rest: unknown[]) => unknown;
         return (path: string, ...rest: unknown[]) => orig.call(target, `${SYNC_PREFIX}${path}`, ...rest);
       }
@@ -243,14 +250,37 @@ export async function buildAuthHeaders(
 }
 
 /**
+ * Read the caller's OWN pseudo for the seed decision in {@link ensurePseudo},
+ * distinguishing a confirmed-empty profile (404 / present-but-no-pseudo → safe to
+ * seed) from a transient read failure (network / 5xx → must NOT seed). `readProfile`
+ * collapses both to null — fine for displaying someone else's name, but unsafe as a
+ * write trigger, since seeding on a transient failure overwrites a real pseudo set
+ * on another device.
+ */
+async function readOwnPseudo(userId: string): Promise<{ read: boolean; pseudo: string | null }> {
+  try {
+    const r = await fetch(`${SYNC_BASE}${profilePull(userId)}`);
+    if (r.status === 404) return { read: true, pseudo: null }; // confirmed: no profile yet
+    if (!r.ok) return { read: false, pseudo: null }; // transient/server error — don't seed
+    const body = await r.json();
+    const data = body?.data as { pseudo?: unknown } | undefined;
+    return { read: true, pseudo: typeof data?.pseudo === 'string' ? data.pseudo : null };
+  } catch {
+    return { read: false, pseudo: null }; // network error — don't seed
+  }
+}
+
+/**
  * Seed the caller's profile pseudo only if none exists yet, returning the
  * authoritative server value. Used on every session derivation so reopening an
  * identity — here or on another device — adopts the stored pseudo instead of
- * clobbering an edit back to the bootstrap default.
+ * clobbering an edit back to the bootstrap default. A transient read failure returns
+ * `fallback` for DISPLAY only and writes nothing — never overwrite on a blip.
  */
 export async function ensurePseudo(client: StarfishClient, userId: string, fallback: string): Promise<string> {
-  const existing = (await readProfile(userId)).pseudo;
-  if (existing && existing.trim()) return existing;
+  const { read, pseudo } = await readOwnPseudo(userId);
+  if (pseudo && pseudo.trim()) return pseudo;
+  if (!read) return fallback; // read failed — show fallback but DON'T persist (no clobber)
   await writeProfile(client, userId, { pseudo: fallback });
   return fallback;
 }

@@ -1,8 +1,9 @@
 /**
- * Async key/value persistence — native (AsyncStorage). Mirrors `kv.ts`. Member
- * caps and the revocation ledger are public (no private keys), so plain
- * AsyncStorage is appropriate; the recovery seed uses Keychain via
- * `storage.native.ts` instead.
+ * Async key/value persistence — native (AsyncStorage). Mirrors `kv.ts`. Holds
+ * account-scoped state (joined-space member caps, the pubspace access map). NOTE:
+ * the pubspace map includes a throwaway ephemeral Ed25519 PRIVATE key (the
+ * public-link bearer secret), so this is NOT strictly secret-free; the recovery
+ * seed — the only high-value secret — uses Keychain via `storage.native.ts`.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 

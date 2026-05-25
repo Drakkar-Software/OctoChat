@@ -18,6 +18,7 @@ import {
 import type { AttachmentRef } from './starfish/attachments';
 import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
+import { randomId } from './ids';
 import type { ConversationStore } from './use-conversation-data';
 import type { StoredMsg } from './message-view';
 import type { MessageEditEvent, ReactionEvent } from './types';
@@ -38,10 +39,6 @@ import type { MessageEditEvent, ReactionEvent } from './types';
  * `enabled` lets the screen call this AND `useRoom` unconditionally (React hook rules)
  * and pick one — when false this hook does no network and holds no store.
  */
-function randomId(): string {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
-
 /** One append-log element: a typed envelope so a single log carries messages,
  *  reactions and edits. `t` discriminates; `e` is the payload (a StoredMsg /
  *  ReactionEvent / MessageEditEvent). Sealed as a whole for private streams. */

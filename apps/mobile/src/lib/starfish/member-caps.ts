@@ -56,7 +56,10 @@ export async function hydrateMemberCaps(userId: string, serverCaps: CapMap): Pro
   if (raw) {
     try {
       cache = JSON.parse(raw) as CapMap;
-    } catch {
+    } catch (e) {
+      // Don't fail silently: a corrupt blob drops every joined-space cap. The durable
+      // `_spaces` doc re-heals them below (step 2), but surface it so it's diagnosable.
+      console.error('[OctoChat] member-caps: corrupt cache blob, resetting:', e);
       cache = {};
     }
   }

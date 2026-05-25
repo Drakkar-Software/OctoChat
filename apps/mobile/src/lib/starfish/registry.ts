@@ -8,6 +8,8 @@ import type { StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { CapMap, Room, RoomKind, Space } from '@/lib/types';
 
+import { randomId } from '../ids';
+
 import {
   roomsRegistryPull,
   roomsRegistryPush,
@@ -133,9 +135,11 @@ export async function writeSpaces(
 }
 
 /** Opaque, dedicated space id — independent of any userId. Ownership is recorded
- *  in the registry doc's `owner` field, not derivable from the id. */
+ *  in the registry doc's `owner` field, not derivable from the id. Unguessable
+ *  (CSPRNG): the server grants the first writer of `spaces/<id>/_rooms` ownership,
+ *  so a predictable id would let an attacker pre-claim a not-yet-created space. */
 function newSpaceId(): string {
-  return `sp-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+  return `sp-${randomId()}`;
 }
 
 export async function readRooms(
