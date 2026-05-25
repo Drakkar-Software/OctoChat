@@ -57,9 +57,10 @@ export function StreamBotPanel({ ownerId, spaceId, roomId }: { ownerId: string; 
         <>
           <CopyField label="Bot link token" value={cred.token} lines={3} />
           <CopyField label="Append endpoint (POST)" value={cred.endpoint} lines={2} />
+          <CopyField label="Path to sign" value={cred.signPath} lines={1} />
           <Callout tone="info" iconName="info">
-            The bot redeems this token with its own key and appends events. It carries no secret and
-            expires in 30 days — generate again to rotate.
+            The bot redeems this token with its own key and appends events (see docs/stream-rooms.md).
+            It carries no secret and expires in 30 days — generate again to rotate.
           </Callout>
         </>
       ) : (
