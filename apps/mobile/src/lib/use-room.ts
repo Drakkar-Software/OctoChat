@@ -4,7 +4,7 @@ import { createUnionMerge } from '@drakkar.software/starfish-client';
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 import { useSyncInit } from '@drakkar.software/starfish-client/zustand';
 
-import { SYNC_BASE } from './starfish/config';
+import { SYNC_BASE, SYNC_NAMESPACE } from './starfish/config';
 import { capProviderFor, ensureRoomInitialized, makeClient } from './starfish/client';
 import { registerPull, onSseStatus } from './room-events-bus';
 import {
@@ -99,6 +99,7 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
       const auth = publicSpaceAuth(session, spaceId);
       return {
         serverUrl: SYNC_BASE,
+        namespace: SYNC_NAMESPACE,
         capProvider: capProviderFor(auth.cap, auth.signingKey),
         pullPath: pubspaceRoomPull(auth.ownerId, spaceId, roomId),
         pushPath: pubspaceRoomPush(auth.ownerId, spaceId, roomId),
@@ -112,6 +113,7 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
     const cap = memberCap ? JSON.parse(memberCap) : session.chatCap;
     return {
       serverUrl: SYNC_BASE,
+      namespace: SYNC_NAMESPACE,
       capProvider: capProviderFor(cap, session.keys.edPriv),
       pullPath: roomPull(roomId),
       pushPath: roomPush(roomId),
