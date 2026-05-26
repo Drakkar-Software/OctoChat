@@ -9,7 +9,7 @@ import type { Keyring } from '@drakkar.software/starfish-keyring';
 import { signRequest, stableStringify } from '@drakkar.software/starfish-protocol';
 import type { SignableMethod } from '@drakkar.software/starfish-protocol';
 
-import { SYNC_BASE, SYNC_NAMESPACE } from './config';
+import { SYNC_BASE, SYNC_NAMESPACE, SYNC_PREFIX } from './config';
 import { keyringPull, keyringPush, profilePull, profilePush, roomPull, roomPush } from './paths';
 
 export interface DeviceKeys {
@@ -140,7 +140,9 @@ export async function readProfile(userId: string): Promise<PublicProfile> {
   // self by ProfileProvider (which primes the shared cache), and other users by the
   // `use-pseudos` cache (which fetches a given id at most once).
   try {
-    const r = await fetch(`${SYNC_BASE}${profilePull(userId)}`);
+    // Raw unauthenticated GET (public profile) — bypasses the StarfishClient, so the
+    // `namespace` it would add is applied here via SYNC_PREFIX, same as EVENTS_URL.
+    const r = await fetch(`${SYNC_BASE}${SYNC_PREFIX}${profilePull(userId)}`);
     if (!r.ok) return { pseudo: null, avatar: null };
     const body = await r.json();
     const data = body?.data as { pseudo?: unknown; avatar?: unknown } | undefined;
@@ -236,7 +238,8 @@ export async function buildAuthHeaders(
  */
 async function readOwnPseudo(userId: string): Promise<{ read: boolean; pseudo: string | null }> {
   try {
-    const r = await fetch(`${SYNC_BASE}${profilePull(userId)}`);
+    // SYNC_PREFIX: raw fetch bypasses the client's namespace, like readProfile above.
+    const r = await fetch(`${SYNC_BASE}${SYNC_PREFIX}${profilePull(userId)}`);
     if (r.status === 404) return { read: true, pseudo: null }; // confirmed: no profile yet
     if (!r.ok) return { read: false, pseudo: null }; // transient/server error — don't seed
     const body = await r.json();
