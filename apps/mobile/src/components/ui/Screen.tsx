@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { StyleSheet, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { type Edge, SafeAreaView } from 'react-native-safe-area-context';
 
 import { layout } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
+
+import { DepthBackdrop } from './DepthBackdrop';
 
 interface ScreenProps {
   children: ReactNode;
@@ -27,13 +28,7 @@ export function Screen({ children, edges = ['top', 'bottom'], gradient = true, c
   const { colors } = useTheme();
   return (
     <View style={[styles.root, { backgroundColor: colors.canvas }]}>
-      {gradient ? (
-        <LinearGradient
-          colors={[colors.depthTop, colors.canvas, colors.depthBottom]}
-          locations={[0, 0.55, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-      ) : null}
+      {gradient ? <DepthBackdrop /> : null}
       <SafeAreaView edges={edges} style={styles.safe}>
         <View style={[styles.content, center && styles.centered, style]}>{children}</View>
       </SafeAreaView>

@@ -19,6 +19,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { Composer } from '@/components/chat/Composer';
+import { ConversationSkeleton } from '@/components/chat/ConversationSkeleton';
 import { DesktopChatTopbar } from '@/components/chat/DesktopChatTopbar';
 import { ReadOnlyFooter } from '@/components/chat/ReadOnlyFooter';
 import { RoomConversation } from '@/components/chat/RoomConversation';
@@ -121,7 +122,7 @@ export default function RoomScreen() {
       {!session ? (
         <SignInPrompt subtitle="Create an identity to open encrypted rooms." />
       ) : opening ? (
-        <EmptyState iconName="globe" title="Opening room…" subtitle="Fetching keys and decrypting messages." />
+        <ConversationSkeleton />
       ) : openError ? (
         <EmptyState iconName="alert" title="Couldn't open room" subtitle={openError} />
       ) : store ? (

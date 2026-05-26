@@ -7,6 +7,8 @@ import { layout } from '@/theme';
 import { useInShell } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
 
+import { DepthBackdrop } from './DepthBackdrop';
+
 interface StackScreenProps {
   /** Header node (usually <AppBar/>); its safe-area inset is painted paper. */
   header?: ReactNode;
@@ -43,6 +45,11 @@ export function StackScreen({
 
   return (
     <View style={[styles.root, { backgroundColor: bg }]}>
+      {/* Subaqua depth behind the conversation so the room/thread pane carries the
+          same atmosphere as the rest of the app. Only over `canvas` — a `paper`
+          surface is meant to read as a solid sheet. Header/footer paint opaque
+          paper on top, so the gradient shows through the message area only. */}
+      {background === 'canvas' ? <DepthBackdrop /> : null}
       {/* In the desktop shell the pane has no top inset — the header sits flush. */}
       {inShell ? (
         headerNode

@@ -5,7 +5,7 @@ import { radii, spacing } from '@/theme';
 import type { Message, Room, User } from '@/lib/types';
 import type { AttachmentRef } from '@/lib/starfish/attachments';
 import { plural } from '@/lib/format';
-import { useRowHover } from '@/lib/use-hover';
+import { useHover, useRowHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
@@ -54,6 +54,33 @@ interface MessageGroupProps {
 /** Avatar diameter; also the width of the gutter kept under continuation rows so
  *  their body stays aligned with the first message of the group. */
 const AVATAR_SIZE = 36;
+
+/** The "N replies" entry point under a message that anchors a thread. Lifts to an
+ *  accent tint + chevron nudge on hover so it reads as the tappable way in. */
+function ThreadReplyChip({ count, onPress }: { count: number; onPress: () => void }) {
+  const { colors } = useTheme();
+  const { hovered, hoverProps } = useHover();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      {...hoverProps}
+      style={[
+        styles.thread,
+        {
+          borderColor: hovered ? colors.accentBorder : colors.lineFaint,
+          backgroundColor: hovered ? colors.accentBg : colors.surface,
+        },
+      ]}
+    >
+      <Icon name="thread" size={13} color={colors.accent} />
+      <Txt variant="footnote" weight="semibold" tone="accent">
+        {plural(count, 'reply', 'replies')}
+      </Txt>
+      <Icon name="chev" size={13} color={hovered ? colors.accent : colors.inkMuted} />
+    </Pressable>
+  );
+}
 
 /** A single authored message block: avatar, header, body, media, reactions, thread. */
 export function MessageGroup({
@@ -180,17 +207,7 @@ export function MessageGroup({
               <ReactionBar reactions={message.reactions} onToggle={onToggleReaction} nameFor={nameFor} />
             ) : null}
             {onOpenThread && message.threadCount ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={onOpenThread}
-                style={[styles.thread, { borderColor: colors.lineFaint, backgroundColor: colors.surface }]}
-              >
-                <Icon name="thread" size={13} color={colors.accent} />
-                <Txt variant="footnote" weight="semibold" tone="accent">
-                  {plural(message.threadCount, 'reply', 'replies')}
-                </Txt>
-                <Icon name="chev" size={13} color={colors.inkMuted} />
-              </Pressable>
+              <ThreadReplyChip count={message.threadCount} onPress={onOpenThread} />
             ) : null}
           </>
         )}

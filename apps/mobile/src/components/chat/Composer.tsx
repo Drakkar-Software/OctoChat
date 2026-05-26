@@ -117,7 +117,9 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey }: Composer
 
       {pending ? (
         <View style={[styles.pending, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
-          <Icon name={pending.mime.startsWith('image/') ? 'image' : 'file'} size={15} color={colors.accent} />
+          <View style={[styles.pendingIcon, { backgroundColor: colors.accentBg, borderColor: colors.accentBorder }]}>
+            <Icon name={pending.mime.startsWith('image/') ? 'image' : 'file'} size={15} color={colors.accent} />
+          </View>
           <View style={styles.pendingText}>
             <Txt variant="footnote" weight="medium" numberOfLines={1}>
               {pending.name}
@@ -169,7 +171,12 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey }: Composer
           accessibilityLabel="Send"
           disabled={!hasContent || busy}
           onPress={submit}
-          style={[styles.send, { backgroundColor: colors.fill }, hasContent ? glowShadow(colors.glow, 0.3, 7) : null]}
+          style={({ pressed }) => [
+            styles.send,
+            { backgroundColor: colors.fill },
+            hasContent ? glowShadow(colors.glow, 0.3, 7) : null,
+            pressed && hasContent ? styles.sendPressed : null,
+          ]}
         >
           {hasContent ? (
             <LinearGradient colors={[colors.accentGradTop, colors.accentGradBottom]} style={[StyleSheet.absoluteFill, styles.sendFill]} />
@@ -221,6 +228,14 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     borderWidth: 1,
   },
+  pendingIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   pendingText: { flexShrink: 1, minWidth: 0 },
   bar: {
     flexDirection: 'row',
@@ -249,5 +264,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Tactile press dip on the send button (web + native), via Pressable's `pressed`.
+  sendPressed: { transform: [{ scale: 0.9 }] },
   sendFill: { borderRadius: 17 },
 });

@@ -15,6 +15,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { Composer } from '@/components/chat/Composer';
+import { ConversationSkeleton } from '@/components/chat/ConversationSkeleton';
 import { ReadOnlyFooter } from '@/components/chat/ReadOnlyFooter';
 import { ThreadConversation } from '@/components/chat/ThreadConversation';
 
@@ -58,7 +59,7 @@ export default function ThreadScreen() {
       {!session ? (
         <SignInPrompt />
       ) : opening ? (
-        <EmptyState iconName="globe" title="Opening thread…" />
+        <ConversationSkeleton />
       ) : openError ? (
         <EmptyState iconName="alert" title="Couldn't open thread" subtitle={openError} />
       ) : store ? (
