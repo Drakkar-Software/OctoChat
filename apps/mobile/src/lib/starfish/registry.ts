@@ -8,7 +8,7 @@ import type { StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { CapMap, Room, RoomKind, Space } from '@/lib/types';
 
-import { randomId } from '../ids';
+import { randomId, roomSlug } from '../ids';
 
 import {
   roomsRegistryPull,
@@ -265,7 +265,7 @@ export async function createRoom(
 ): Promise<Room> {
   const { rooms, owner, members, name: spaceName, image, hash } = await readRooms(client, spaceId);
   const room: Room = {
-    id: `${spaceId}-${name.toLowerCase().replace(/\s+/g, '-')}-${Date.now().toString(36)}`,
+    id: `${spaceId}-${roomSlug(name)}-${Date.now().toString(36)}`,
     spaceId,
     category,
     name,

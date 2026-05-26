@@ -17,3 +17,26 @@ export function randomId(): string {
   for (const b of bytes) s += b.toString(16).padStart(2, '0');
   return s;
 }
+
+/**
+ * Slug for the human part of a room id (`<spaceId>-<slug>-<ts>`). A room id is
+ * BOTH a URL path segment (`/room/[id]`) AND a server storage-path leaf, and the
+ * server's FilesystemObjectStore rejects any key outside `[a-zA-Z0-9._:@/-]`
+ * (and any `..` segment) with "Invalid storage key". So a raw name like `Q&A`,
+ * `C++`, `café` or `日本語` — only lower-cased + whitespace-collapsed before —
+ * produced an id the server refused, leaving a room that showed in the registry
+ * but 400'd on every message push. Restrict to URL-clean `[a-z0-9-]`: lower-case,
+ * map every other run to a single `-`, trim edge hyphens, cap length (the id is
+ * already `sp-`+32hex+`-`…+`-`+ts, so keep the slug bounded), and fall back to
+ * `room` when a name strips to nothing. The room's DISPLAY name is stored raw
+ * elsewhere — only the id leaf is slugged.
+ */
+export function roomSlug(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || 'room'
+  );
+}

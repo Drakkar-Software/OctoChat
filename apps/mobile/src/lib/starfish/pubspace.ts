@@ -17,7 +17,7 @@ import type { StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { Room, RoomKind, Space } from '@/lib/types';
 
-import { randomId } from '../ids';
+import { randomId, roomSlug } from '../ids';
 
 import { makeClient } from './client';
 import type { Session } from './identity';
@@ -253,7 +253,7 @@ export async function createPublicRoom(
   const client = session.accountClient;
   const { rooms, name: spaceName, image, hash } = await readPublicRoomsDoc(client, session.userId, spaceId);
   const room: Room = {
-    id: `${spaceId}-${name.toLowerCase().replace(/\s+/g, '-')}-${Date.now().toString(36)}`,
+    id: `${spaceId}-${roomSlug(name)}-${Date.now().toString(36)}`,
     spaceId,
     category,
     name,
