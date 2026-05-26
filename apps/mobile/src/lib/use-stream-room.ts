@@ -205,19 +205,19 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
 
   // Live updates: pull on focus + on the shared SSE bus, with a poll fallback while the
   // SSE stream is down (and always for public spaces, which aren't on the SSE gate).
-  // Mirrors useRoom — duplicated rather than shared so useRoom's unread-critical focus
-  // logic stays untouched. Skip the store's own absence (disabled / not opened yet).
+  // Unlike useRoom, we pull on EVERY focus including the first: useRoom skips its first
+  // focus only because the SDK's useSyncInit store self-pulls on creation, but this
+  // synthetic store's `pull` is a no-op — so without a first-focus pull, opening a
+  // stream room would show nothing until an SSE push or a re-focus.
   const [sseUp, setSseUp] = useState(false);
   useEffect(() => onSseStatus(setSseUp), []);
-  const initPulled = useRef<unknown>(null);
   useFocusEffect(
     useCallback(() => {
       if (!store || !client) {
         setSyncError(null);
         return;
       }
-      if (initPulled.current === store) void pull();
-      else initPulled.current = store;
+      void pull();
       return registerPull(roomId, () => void pull());
     }, [store, client, roomId, pull]),
   );
