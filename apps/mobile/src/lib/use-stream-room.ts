@@ -203,8 +203,9 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
     [client, route, encryptor, pull],
   );
 
-  // Live updates: pull on focus + on the shared SSE bus, with a poll fallback while the
-  // SSE stream is down (and always for public spaces, which aren't on the SSE gate).
+  // Live updates: pull on focus + on the shared SSE bus, with a poll fallback only
+  // while the SSE stream is down. Public streams now ride /events too (the proxy
+  // open-gates `psp-` spaces), so they no longer poll on every tick.
   // Unlike useRoom, we pull on EVERY focus including the first: useRoom skips its first
   // focus only because the SDK's useSyncInit store self-pulls on creation, but this
   // synthetic store's `pull` is a no-op — so without a first-focus pull, opening a
@@ -222,10 +223,10 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
     }, [store, client, roomId, pull]),
   );
   useEffect(() => {
-    if (!store || !client || (sseUp && !isPublic)) return;
+    if (!store || !client || sseUp) return;
     const id = setInterval(() => void pull(), 4000);
     return () => clearInterval(id);
-  }, [store, client, sseUp, isPublic, pull]);
+  }, [store, client, sseUp, pull]);
 
   // Signature matches useRoom's `send` so a screen can consume either hook by `kind`
   // (the union call-site stays type-clean). `attachment` is ignored — stream rooms

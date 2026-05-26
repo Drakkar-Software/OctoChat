@@ -17,6 +17,11 @@
  *
  * Because chat docs are E2E-encrypted, an event can only carry the roomId (+ doc
  * hash + timestamp) — never a message id or author.
+ *
+ * Routing by collection: `chat`/`streamchat`/`pubstream` carry `params.roomId`.
+ * Public channels (`pubspace`) instead carry `params.docId` (the room id, or
+ * `_rooms` for the public room registry) — we route on that and SKIP `_rooms`,
+ * which is a registry write, not a room.
  */
 import { EVENTS_URL, SYNC_BASE } from './starfish/config';
 
@@ -28,7 +33,8 @@ export interface RoomChange {
 }
 
 interface QueueMessageish {
-  params?: { roomId?: string; spaceId?: string };
+  collection?: string;
+  params?: { roomId?: string; docId?: string; spaceId?: string };
   hash?: string;
   timestamp?: number;
 }
@@ -39,7 +45,17 @@ export function parseRoomChange(data: string): RoomChange | null {
   try {
     const d = JSON.parse(data) as QueueMessageish & { rawPayload?: QueueMessageish };
     const msg = d.params ? d : (d.rawPayload ?? d);
-    const roomId = msg.params?.roomId;
+    // Public channels (`pubspace`) key the changed doc as `docId`, not `roomId`;
+    // `docId === '_rooms'` is the room-registry write (not a room) and must NOT
+    // route a pull or bump a phantom unread. Every other publisher uses `roomId`.
+    let roomId: string | undefined;
+    if (msg.collection === 'pubspace') {
+      const docId = msg.params?.docId;
+      if (!docId || docId === '_rooms') return null;
+      roomId = docId;
+    } else {
+      roomId = msg.params?.roomId;
+    }
     if (!roomId) return null;
     return { roomId, spaceId: msg.params?.spaceId, hash: msg.hash, ts: msg.timestamp };
   } catch {

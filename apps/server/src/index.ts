@@ -72,10 +72,12 @@ const roleResolver = createCapCertRoleResolver({
 // collections (params {spaceId,roomId} only — content stays E2E-encrypted).
 // Whistlers consumes NATS and re-serves these as SSE. See
 // `apps/server/docs/notifications-sse.md`. `streamchat`/`pubstream` (append-only
-// stream rooms) publish on the SAME `octochat.chat.changed` topic so an append
-// emits `octochat.chat.changed.<spaceId>` — the existing per-space SSE
-// subscription + /events proxy drive stream rooms live with no client change.
+// stream rooms) and `pubspace` (public channels) publish on the SAME
+// `octochat.chat.changed` topic so a write emits `octochat.chat.changed.<spaceId>`
+// — the per-space SSE subscription + /events proxy drive every room kind live.
 // (Appends fire the queue plugin's afterWrite just like a push — alpha.2 changelog.)
+// NOTE: `pubspace` events carry `params.docId` (the room id, or `_rooms` for the
+// public room registry) rather than `roomId` — the client routes on that.
 const { queue, nc } = await createNatsQueue();
 const queuing = createQueuingServerPlugin({
   queue,
@@ -83,6 +85,7 @@ const queuing = createQueuingServerPlugin({
     chat: { topic: "octochat.chat.changed", includeParams: true },
     streamchat: { topic: "octochat.chat.changed", includeParams: true },
     pubstream: { topic: "octochat.chat.changed", includeParams: true },
+    pubspace: { topic: "octochat.chat.changed", includeParams: true },
   },
 });
 

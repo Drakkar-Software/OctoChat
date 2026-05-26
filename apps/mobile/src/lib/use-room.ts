@@ -168,13 +168,14 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
   );
 
   // Fallback: poll only while the SSE stream is unreachable/disconnected, so a
-  // client without the gateway still receives new messages. Public spaces aren't
-  // covered by the space SSE gate, so they rely on this poll for live updates.
+  // client without the gateway still receives new messages. Public rooms now ride
+  // the same /events stream as private ones (the proxy open-gates `psp-` spaces),
+  // so they poll only when SSE is down — no longer on every tick.
   useEffect(() => {
-    if (!store || (sseUp && !isPublic)) return;
+    if (!store || sseUp) return;
     const id = setInterval(pull, 4000);
     return () => clearInterval(id);
-  }, [store, sseUp, isPublic, pull]);
+  }, [store, sseUp, pull]);
 
   const send = useCallback(
     (text: string, parentId?: string, attachment?: AttachmentRef) => {
