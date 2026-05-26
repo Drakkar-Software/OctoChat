@@ -46,6 +46,27 @@ server set `STARFISH_URL=https://dev-sync.drakkar.software/sync` and
 The append (post) half only needs the **sync server** running — there is no
 `/events` / Whistlers bridge dependency here.
 
+## Give the bot a display name
+
+By default the app shows the bot's post under a truncated hex author id (a bot has
+no profile). Set **`BOT_NAME`** and the script publishes its **public profile**
+`{ pseudo }` *before* posting, so the message renders under that friendly name:
+
+```bash
+BOT_NAME=Reef Keeper
+```
+
+The `profile` collection is public-**read** but write-gated on the `device:root`
+role, granted **only** to a self-signed device cap (`iss === sub`). The bot mints
+one over its *own* keypair — the same key it signs the append with — so the server
+admits it as `device:root`, and the doc path `user/{identity}/profile` binds to
+that key's user id (the `authorId` on the message). Because each run mints a fresh
+key, it writes a new profile each run; the example has no stable-identity option
+(*Pinning the bot* only allow-lists who may redeem the token — it does not fix the
+key), so persist the generated keypair yourself for one profile that survives
+restarts. Implemented in both `publish.ts` (`publishProfile`) and `publish.py`
+(`publish_profile`).
+
 ## Run — TypeScript
 
 ```bash

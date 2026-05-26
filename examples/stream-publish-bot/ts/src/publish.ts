@@ -24,7 +24,9 @@
  */
 import { join } from 'node:path';
 
-import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
+import { generateDeviceKeys, mintDeviceCap } from '@drakkar.software/starfish-identities';
+import { signRequest, stableStringify } from '@drakkar.software/starfish-protocol';
+import type { SignableMethod } from '@drakkar.software/starfish-protocol';
 import { parsePublicLink, redeemPublicLink } from '@drakkar.software/starfish-sharing';
 
 // Load the example's shared `.env` (Node ≥20.12), resolved at the example root
@@ -42,6 +44,7 @@ interface Config {
   botToken: string; // stream-bot audience-cap token ("Bot link token")
   signPath: string; // panel "Path to sign", un-namespaced
   message: string; // the text to publish
+  name: string; // optional display name to publish as the bot's profile ('' = none)
 }
 
 /** Read + validate config. Called from `main`, so a missing var surfaces as a
@@ -58,6 +61,7 @@ function loadConfig(): Config {
     botToken: required('OCTOCHAT_BOT_TOKEN'),
     signPath: required('OCTOCHAT_BOT_SIGN_PATH'),
     message: process.env.MESSAGE?.trim() || 'Hello from the OctoChat publish example 🐙',
+    name: process.env.BOT_NAME?.trim() || '',
   };
 }
 
@@ -67,6 +71,53 @@ async function userIdFromEdPub(edPubHex: string): Promise<string> {
   const bytes = Uint8Array.from(edPubHex.match(/../g)!.map((h) => parseInt(h, 16)));
   const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+}
+
+/**
+ * Publish the bot's PUBLIC PROFILE `{ pseudo }` so the app shows a friendly name
+ * instead of the hex author-id prefix. The `profile` collection is public-read
+ * but write-gated on `device:root`, granted ONLY to a SELF-SIGNED device cap
+ * (`iss === sub`). So the bot mints a device cap over its OWN key (issuer ===
+ * subject), which the server admits as `device:root`; the path
+ * `user/<authorId>/profile` binds `{identity}` to that same key's user id — the
+ * `authorId` it stamps on its message. One signed POST, same wire format as the
+ * append below (`{ data, baseHash }`); a fresh per-run key means the doc never
+ * exists yet, so `baseHash: null` is a first write.
+ */
+async function publishProfile(cfg: Config, keys: ReturnType<typeof generateDeviceKeys>, authorId: string): Promise<void> {
+  const cap = await mintDeviceCap(
+    keys.edPriv,
+    keys.edPub,
+    { edPubHex: keys.edPub, kemPubHex: keys.kemPub },
+    { ops: ['read', 'write', 'list'], collections: ['profile'], paths: [`user/${authorId}/profile`] },
+  );
+  const actionPath = (cfg.namespace ? `/v1/${cfg.namespace}` : '') + `/push/user/${authorId}/profile`;
+  const url = `${cfg.serverUrl.replace(/\/+$/, '')}${actionPath}`;
+  const host = new URL(cfg.serverUrl).host;
+  const body = JSON.stringify({ data: { pseudo: cfg.name }, baseHash: null });
+
+  const { alg, sig, ts, nonce } = await signRequest(
+    { method: 'POST' as SignableMethod, pathAndQuery: actionPath, host, body },
+    keys.edPriv,
+  );
+  const capB64 = Buffer.from(stableStringify(cap as unknown as Record<string, unknown>), 'utf-8').toString('base64');
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Cap ${capB64}`,
+      'X-Starfish-Sig': sig,
+      'X-Starfish-Ts': String(ts),
+      'X-Starfish-Nonce': nonce,
+      'X-Starfish-Alg': alg,
+    },
+    body,
+  });
+  if (!res.ok) {
+    throw new Error(`profile write failed: ${res.status} ${await res.text().catch(() => '')}`);
+  }
 }
 
 async function main(): Promise<void> {
@@ -110,6 +161,15 @@ async function main(): Promise<void> {
   console.log('[publish] OctoChat stream publish');
   console.log(`[publish] server   ${cfg.serverUrl}${cfg.namespace ? `  (namespace ${cfg.namespace})` : '  (local, no namespace)'}`);
   console.log(`[publish] identity ${keys.edPub}  (allow-list this edPub to pin the bot)`);
+
+  // Optional display name: publish the bot's profile pseudo first so the message
+  // below renders under a friendly name (not the hex id). Fresh keys per run mean
+  // a new profile each run; persist the keypair externally for one identity that
+  // survives restarts (the example has no built-in stable-key option).
+  if (cfg.name) {
+    await publishProfile(cfg, keys, authorId);
+    console.log(`[publish] profile  set display name → "${cfg.name}"`);
+  }
 
   const res = await fetch(url, {
     method: 'POST',

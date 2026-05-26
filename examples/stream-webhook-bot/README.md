@@ -92,6 +92,31 @@ changed"), so the default just posts an activity line. To do real work, pull the
 changed room there (the member cap can read public channels), call an external API,
 etc., then `appendToStream(...)` to post the result back.
 
+## Give the bot a display name
+
+By default the app shows the bot's posts under a truncated hex author id (a bot
+has no profile). Set **`BOT_NAME`** and the bot publishes its **public profile**
+`{ pseudo }` at startup, so the app renders that friendly name wherever the bot
+appears:
+
+```bash
+BOT_NAME=Reef Keeper
+```
+
+How it works: the `profile` collection is public-**read** but write-gated on the
+`device:root` role, which the server grants **only** to a self-signed device cap
+(`iss === sub`). The bot mints one over its *own* keypair — the same key it signs
+appends with — so the server admits it as `device:root`, and the doc path
+`user/{identity}/profile` binds to that key's user id (the very `authorId` the bot
+stamps on its messages). See [`src/profile.ts`](./src/profile.ts).
+
+> **Per-run identity.** The bot mints a fresh keypair each run, so each run writes
+> a new profile under a new author id. The name shows for that run's posts. The
+> example has no stable-identity option (*Pinning the bot* only allow-lists who may
+> redeem the token — it does not fix the key), so persist the generated keypair
+> yourself if you want one profile that survives restarts. A bad `BOT_NAME` write
+> is fatal at startup — a named bot never silently falls back to a hex id.
+
 ## Answer with an LLM (OpenAI / NVIDIA NIM)
 
 By default the bot posts a 🔔 activity line. Set **`LLM_API_KEY`** and it instead

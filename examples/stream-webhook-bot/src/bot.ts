@@ -20,6 +20,7 @@ import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 import { subscribeRoomChanges, type RoomChange } from './subscribe.js';
 import { appendToStream, pullOwnStream, type AppendOptions, type Redeemer, type StreamElement } from './append.js';
 import { resolveLlmConfig, createLlmReplier, buildHistory, type LlmConfig } from './llm.js';
+import { writeBotProfile } from './profile.js';
 
 /** Loop-guard strategy — how the bot avoids reacting to its own appends:
  *  - `skip-room`  : never react to ANY change in its own target room. Stateless,
@@ -50,6 +51,7 @@ interface BotConfig {
   watchRoom: string; // optional source-room filter ('' = all)
   loopGuard: LoopGuard; // how to avoid reacting to the bot's own posts
   llm: LlmConfig | null; // OpenAI/NIM settings, or null = plain "echo" mode
+  botName: string; // optional display name to publish as the bot's profile ('' = none)
 }
 
 // ── Optional LLM env vars (set LLM_API_KEY to turn the bot into a chat assistant) ──
@@ -63,6 +65,10 @@ interface BotConfig {
 //   LLM_HISTORY        how many recent turns to feed as context (default 16)
 // LLM mode reads message TEXT from the target stream room, so it requires
 // LOOP_GUARD=skip-author (skip-room ignores that room → fatal at startup).
+//
+// ── Optional display name ───────────────────────────────────────────────────────
+//   BOT_NAME           publish this as the bot's profile pseudo so the app shows a
+//                      friendly name instead of the hex author-id prefix (see profile.ts).
 
 /** Read + validate config. Called from `main`, so a missing var surfaces as a
  *  clean `[bot] fatal: …` line rather than an uncaught module-eval throw. */
@@ -94,6 +100,7 @@ function loadConfig(): BotConfig {
     watchRoom: process.env.WATCH_ROOM?.trim() || '',
     loopGuard: guard,
     llm,
+    botName: process.env.BOT_NAME?.trim() || '',
   };
 }
 
@@ -277,6 +284,19 @@ async function main(): Promise<void> {
   console.log(`[bot] loop guard ${cfg.loopGuard}${cfg.loopGuard === 'skip-author' ? '  (reacts to others’ posts in the target room too)' : '  (ignores the target room entirely)'}`);
   console.log(`[bot] reply mode ${cfg.llm ? `llm — ${cfg.llm.model} via ${cfg.llm.baseUrl}` : 'echo — posts an activity line'}`);
   console.log(`[bot] identity   ${keys.edPub}  (allow-list this edPub to pin the bot)`);
+
+  // Optional display name: publish the bot's profile pseudo so its posts render
+  // under a friendly name (not the hex id). Fail-fast — an operator who named the
+  // bot shouldn't have it silently fall back to a hex prefix. Fresh keys per run
+  // mean a new profile each run; persist the keypair externally for one identity
+  // that survives restarts (the example has no built-in stable-key option).
+  if (cfg.botName) {
+    await writeBotProfile(
+      { serverUrl: cfg.serverUrl, namespace: cfg.namespace, edPubHex: keys.edPub, edPrivHex: keys.edPriv, kemPubHex: keys.kemPub, userId: botAuthorId },
+      cfg.botName,
+    );
+    console.log(`[bot] profile    set display name → "${cfg.botName}"`);
+  }
 
   const unsubscribe = subscribeRoomChanges({
     serverUrl: cfg.serverUrl,

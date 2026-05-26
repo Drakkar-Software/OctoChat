@@ -25,6 +25,7 @@ source checkout (see ``../README.md``). Then:
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
@@ -35,7 +36,8 @@ import uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from starfish_identities import generate_device_keys
+from starfish_identities import generate_device_keys, mint_device_cap
+from starfish_protocol import sign_request, stable_stringify
 from starfish_sharing import parse_public_link, redeem_public_link
 
 
@@ -75,6 +77,56 @@ def user_id_from_ed_pub(ed_pub_hex: str) -> str:
     return hashlib.sha256(bytes.fromhex(ed_pub_hex)).hexdigest()[:32]
 
 
+def publish_profile(
+    server_url: str,
+    namespace: str,
+    keys: dict[str, str],
+    author_id: str,
+    pseudo: str,
+) -> None:
+    """Publish the bot's PUBLIC PROFILE {pseudo} so the app shows a friendly name
+    instead of the hex author-id prefix. The ``profile`` collection is public-read
+    but write-gated on ``device:root``, granted ONLY to a SELF-SIGNED device cap
+    (``iss === sub``). So the bot mints a device cap over its OWN key (issuer ===
+    subject), admitted as ``device:root``; the path ``user/<authorId>/profile``
+    binds ``{identity}`` to that same key's user id — the ``authorId`` it stamps on
+    its message. One signed POST, same wire format as the append below
+    (``{data, baseHash}``); a fresh per-run key means the doc never exists yet, so
+    ``baseHash=None`` is a first write. Line-for-line mirror of the TS sibling's
+    ``publishProfile``."""
+    cap = mint_device_cap(
+        keys["edPriv"],
+        keys["edPub"],
+        {"edPubHex": keys["edPub"], "kemPubHex": keys["kemPub"]},
+        {"ops": ["read", "write", "list"], "collections": ["profile"], "paths": [f"user/{author_id}/profile"]},
+    )
+    action_path = (f"/v1/{namespace}" if namespace else "") + f"/push/user/{author_id}/profile"
+    url = server_url.rstrip("/") + action_path
+    host = urlsplit(server_url).netloc
+    body = json.dumps({"data": {"pseudo": pseudo}, "baseHash": None}, separators=(",", ":")).encode("utf-8")
+
+    signature = sign_request("POST", action_path, body, keys["edPriv"], host=host)
+    cap_b64 = base64.b64encode(stable_stringify(cap).encode("utf-8")).decode("ascii")
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": f"Cap {cap_b64}",
+        "X-Starfish-Sig": signature.sig,
+        "X-Starfish-Ts": str(signature.ts),
+        "X-Starfish-Nonce": signature.nonce,
+        "X-Starfish-Alg": signature.alg,
+    }
+    request = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(request) as response:
+            response.read()
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")
+        raise SystemExit(f"[publish] fatal: profile write failed: {exc.code} {detail}")
+    except urllib.error.URLError as exc:
+        raise SystemExit(f"[publish] fatal: {exc.reason}")
+
+
 def main() -> None:
     # Load the example's shared `.env` at the example root (one level up from here).
     load_env_file(Path(__file__).resolve().parent.parent / ".env")
@@ -84,6 +136,7 @@ def main() -> None:
     bot_token = required("OCTOCHAT_BOT_TOKEN")
     sign_path = required("OCTOCHAT_BOT_SIGN_PATH")
     message = (os.environ.get("MESSAGE") or "").strip() or "Hello from the OctoChat publish example 🐙"
+    name = (os.environ.get("BOT_NAME") or "").strip()
 
     # The bot's own keypair redeems the audience-cap token. Fresh per run is fine:
     # the "Connect a bot" panel mints with no allowed identities, so any key may
@@ -126,6 +179,14 @@ def main() -> None:
     print("[publish] OctoChat stream publish")
     print(f"[publish] server   {server_url}" + (f"  (namespace {namespace})" if namespace else "  (local, no namespace)"))
     print(f"[publish] identity {keys['edPub']}  (allow-list this edPub to pin the bot)")
+
+    # Optional display name: publish the bot's profile pseudo first so the message
+    # below renders under a friendly name (not the hex id). Fresh keys per run mean
+    # a new profile each run; persist the keypair externally for one identity that
+    # survives restarts (the example has no built-in stable-key option).
+    if name:
+        publish_profile(server_url, namespace, keys, author_id, name)
+        print(f'[publish] profile  set display name → "{name}"')
 
     request = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
