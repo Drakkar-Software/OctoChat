@@ -77,11 +77,11 @@ trigger won't fire. The **append** half is unaffected.
 
 ### What's been checked
 
-This example is **typechecked** (`pnpm typecheck`) and its `/events` auth + append
-wire format mirror the app's working code and the compiled SDK exactly. It has
-**not** been run against a live server here — that needs the sync server + Whistlers
-bridge running and the two credentials minted from the app (above). The credential
-plumbing is the part to watch when you first wire it up.
+**Confirmed end-to-end against the deployed server** (`dev-sync.drakkar.software`):
+the bot connected to `/events`, a post in a watched channel triggered it live, and it
+appended back to the stream room. Also `pnpm typecheck`-clean. (The first run looked
+silent only because nothing was posted during its window — SSE is live-only and the
+bot ignores heartbeats.)
 
 ## Customize the handler
 
@@ -91,13 +91,47 @@ changed"), so the default just posts an activity line. To do real work, pull the
 changed room there (the member cap can read public channels), call an external API,
 etc., then `appendToStream(...)` to post the result back.
 
+## Loop guard (two modes, set via `LOOP_GUARD`)
+
+A `pubstream` append re-emits the same `octochat.chat.changed.<spaceId>` topic, so a
+bot that reacts to its own posts loops forever. `/events` frames carry **no author**,
+so the bot can't tell its own append from anyone else's by the event alone. Two ways
+to handle it:
+
+- **`skip-room`** (default) — never react to *any* change in the bot's own target
+  room. Stateless and impossible to loop, but the bot can't react to others' posts in
+  that room. (This is why posting in the *same* room the bot writes to does nothing.)
+- **`skip-author`** — on a target-room change, the bot **pulls the new posts** (its
+  token grants `read` on that room) and reacts only to those **not authored by it**,
+  tracked by a checkpoint. Now it can watch *and* post in the same room. Costs one
+  pull per change and a little state.
+
+Either way, `WATCH_ROOM` can pin a single source room.
+
+### Authorship proof — a known limitation
+
+`skip-author` decides "is this mine?" by reading the post's **self-declared**
+`authorId` field. That's a **trust assumption, not proof**: any writer can put your
+bot's `authorId` in their post to suppress a reaction, and nothing cryptographically
+binds the stored element to the key that wrote it. (The append *request* is signed —
+the bot's `X-Starfish-Pub`, which the server verifies — but that verified identity
+isn't stamped onto the stored element a reader sees.)
+
+**The fix belongs in the Starfish SDK, not here.** The canonical format already
+exists — `authorPubkey` + `authorSignature` (Ed25519 over the stable-stringified
+payload), produced by `SyncManager` for merge-doc pushes. The only gap is that
+`client.append` doesn't thread the same `SyncSigner`, so stream elements go unsigned.
+Closing it (sign on append + an exported verify helper) makes authorship verifiable
+for *every* reader and stays consistent with merge docs — reimplementing it in this
+example would fork a security primitive and still wouldn't help until the app signs
+its own stream posts too. **Today this example trusts `authorId`; when the SDK exposes
+signed appends, the author check switches to verifying `authorPubkey`/`authorSignature`
+and comparing public keys.**
+
 ## Notes
 
-- **Loop guard.** The bot never reacts to changes in its **own** stream room — its
-  append re-emits the same `octochat.chat.changed.<spaceId>` topic, so reacting
-  would loop forever. Use `WATCH_ROOM` to also pin a single source room.
 - **Pinning the bot.** The token from the panel lets *any* key redeem it. The bot
   logs its `edPub` on startup; to restrict, mint a credential allow-listing that key.
 - **Files.** [`subscribe.ts`](./src/subscribe.ts) (the SSE trigger),
-  [`append.ts`](./src/append.ts) (the audience-cap append), [`bot.ts`](./src/bot.ts)
-  (config + wiring + handler).
+  [`append.ts`](./src/append.ts) (the audience-cap append + bot-authed pull),
+  [`bot.ts`](./src/bot.ts) (config + wiring + handler).

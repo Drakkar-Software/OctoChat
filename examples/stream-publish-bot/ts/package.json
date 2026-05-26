@@ -1,0 +1,23 @@
+{
+  "name": "octochat-stream-publish-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Example: publish one message into an OctoChat public stream room as a bot (audience-cap createPublicLink → redeemPublicLink). No /events.",
+  "engines": {
+    "node": ">=20.12"
+  },
+  "scripts": {
+    "start": "tsx src/publish.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@drakkar.software/starfish-identities": "3.0.0-alpha.7",
+    "@drakkar.software/starfish-sharing": "3.0.0-alpha.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
