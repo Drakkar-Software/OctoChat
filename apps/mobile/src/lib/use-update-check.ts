@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 
-import { desktopVersion } from './desktop';
+import { checkDesktopUpdate, desktopVersion, isDesktop } from './desktop';
 import { useAppUpdate } from './use-app-update';
 import { useDesktopUpdate } from './use-desktop-update';
 
@@ -29,15 +29,19 @@ interface UpdateCheck {
 }
 
 /**
- * Manual "check for updates" for the settings screen. Wraps expo-updates'
- * check + fetch: a downloaded update flips `isUpdatePending`, which surfaces the
- * global DesktopUpdateBanner (with its Restart action) at the top of the app —
- * so this hook reports the check *result* and never applies the update itself.
+ * Manual "check for updates" for the settings screen.
  *
- * expo-updates is disabled on web, in the Electron renderer and in dev clients
- * (`Updates.isEnabled` is false), where `checkForUpdateAsync` throws
- * ERR_UPDATES_DISABLED. Desktop runs its own auto-updater, so on those platforms
- * we report the benign `unavailable` state rather than an error.
+ * - Desktop (Electron): expo-updates is disabled in the renderer, so the check
+ *   is routed through the `window.octochat` bridge to the main-process OTA
+ *   updater. A staged bundle surfaces the global DesktopUpdateBanner (with its
+ *   Restart) via the separate `update-ready` push.
+ * - Native (real EAS build): wraps expo-updates' check + fetch; a downloaded
+ *   update flips `isUpdatePending`, surfacing the same banner.
+ * - Web and dev clients: expo-updates is disabled (`Updates.isEnabled` false, so
+ *   `checkForUpdateAsync` throws ERR_UPDATES_DISABLED), so we report the benign
+ *   `unavailable` state rather than an error.
+ *
+ * Either way this hook reports the check *result* and never applies the update.
  */
 export function useUpdateCheck(): UpdateCheck {
   const [status, setStatus] = useState<UpdateStatus>('idle');
@@ -50,6 +54,25 @@ export function useUpdateCheck(): UpdateCheck {
   const pending = updateReady || !!desktopStaged;
 
   const check = async () => {
+    // Desktop runs its own OTA updater in the Electron main process; expo-updates
+    // is disabled in the renderer (Updates.isEnabled === false), so route the
+    // button through the bridge instead of reporting "unavailable". The await
+    // covers the download, so the button stays in its loading state until the
+    // bundle is staged; a found update also flips `pending` via the push.
+    if (isDesktop()) {
+      setStatus('checking');
+      const result = await checkDesktopUpdate();
+      setStatus(
+        result === 'updated'
+          ? 'downloaded'
+          : result === 'current'
+            ? 'current'
+            : result === 'error'
+              ? 'error'
+              : 'unavailable',
+      );
+      return;
+    }
     if (!Updates.isEnabled) {
       setStatus('unavailable');
       return;

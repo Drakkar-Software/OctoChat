@@ -27,6 +27,12 @@ contextBridge.exposeInMainWorld('octochat', {
   // before onUpdateReady was wired (the push above isn't buffered). Null if none.
   getPendingUpdate: () =>
     ipcRenderer.invoke('octochat:get-pending-update') as Promise<string | null>,
+  // Run the OTA update check on demand (in-app "Check for updates" button).
+  // Resolves to the outcome: 'updated' | 'current' | 'error' | 'unavailable'.
+  checkForUpdates: () =>
+    ipcRenderer.invoke('octochat:check-for-updates') as Promise<
+      'updated' | 'current' | 'error' | 'unavailable'
+    >,
   // Relaunch the app to apply a staged OTA bundle.
   relaunch: () => ipcRenderer.invoke('octochat:relaunch'),
 });

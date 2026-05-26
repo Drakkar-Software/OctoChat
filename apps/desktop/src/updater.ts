@@ -10,7 +10,8 @@
  *
  * This mirrors expo-updates' apply-on-next-launch model: the running session is
  * never disrupted, and the embedded resources/web serves as the offline fallback.
- * All errors are swallowed — a failed check never breaks the app.
+ * A failed check never breaks the app — it just resolves to 'error' so the in-app
+ * button can report it (the boot/menu callers ignore the result).
  */
 
 import { app, BrowserWindow, net } from 'electron';
@@ -39,6 +40,9 @@ interface UpdateManifest {
   generatedAt: string;
   files: ManifestFile[];
 }
+
+/** Outcome of a manual update check, reported back to the renderer button. */
+export type UpdateCheckResult = 'updated' | 'current' | 'error' | 'unavailable';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -146,17 +150,33 @@ export function getPendingUpdateVersion(): string | null {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
+/** A check in flight this session, shared by overlapping callers (see below). */
+let inFlight: Promise<UpdateCheckResult> | null = null;
+
 /**
  * Check EAS Hosting for a newer web bundle, download and verify it in the
  * background, then write the apply-on-next-launch pointer.
  *
  * - Only runs in a packaged (production) build.
- * - Errors are caught and logged; the app always loads normally.
- * - Safe to call concurrently — a second overlapping call is a no-op (the .tmp
- *   dir won't be renamed because the target already exists after the first run).
+ * - A failed check resolves to 'error'; the app always loads normally.
+ *
+ * Returns the outcome so the in-app "Check for updates" button can report it
+ * deterministically; the boot and Help-menu callers ignore the return value.
+ *
+ * De-duplicated: a call that arrives while another is still running (e.g. the
+ * in-app button clicked during the boot check) joins the same promise rather
+ * than starting a second download that would race the first's temp dir.
  */
-export async function checkForUpdates(): Promise<void> {
-  if (!app.isPackaged) return;
+export function checkForUpdates(): Promise<UpdateCheckResult> {
+  inFlight ??= runCheck().finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
+}
+
+/** One actual check + staging pass. Serialized by `checkForUpdates`. */
+async function runCheck(): Promise<UpdateCheckResult> {
+  if (!app.isPackaged) return 'unavailable';
 
   try {
     // Cache-bust the manifest fetch so CDN edge caches don't hide new versions.
@@ -166,7 +186,7 @@ export async function checkForUpdates(): Promise<void> {
     const activeVersion = getActiveVersion();
     if (remote.version === activeVersion) {
       console.log('[ota] Up to date:', remote.version);
-      return;
+      return 'current';
     }
 
     const root = updatesRoot();
@@ -222,7 +242,9 @@ export async function checkForUpdates(): Promise<void> {
     if (win && !win.isDestroyed()) {
       win.webContents.send('octochat:update-ready', remote.version);
     }
+    return 'updated';
   } catch (err) {
     console.error('[ota] Update check failed (will retry on next launch):', err);
+    return 'error';
   }
 }

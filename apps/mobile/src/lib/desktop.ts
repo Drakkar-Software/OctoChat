@@ -7,6 +7,9 @@
  * The renderer is sandboxed and can't focus its own OS window or set the dock /
  * taskbar badge; those go through IPC to the Electron main process.
  */
+/** Outcome of an on-demand desktop OTA check (mirror of the main-process type). */
+export type DesktopUpdateResult = 'updated' | 'current' | 'error' | 'unavailable';
+
 declare global {
   interface Window {
     octochat?: {
@@ -19,6 +22,8 @@ declare global {
       onUpdateReady?: (cb: (version: string) => void) => void;
       /** Pull an already-staged update version on mount (push isn't buffered). */
       getPendingUpdate?: () => Promise<string | null>;
+      /** Run the OTA check on demand; resolves to the outcome. */
+      checkForUpdates?: () => Promise<DesktopUpdateResult>;
       /** Relaunch the app to apply a staged OTA bundle. */
       relaunch?: () => void;
     };
@@ -70,6 +75,17 @@ export function onDesktopUpdateReady(cb: (version: string) => void): void {
  */
 export async function getDesktopPendingUpdate(): Promise<string | null> {
   return (await globalThis.window?.octochat?.getPendingUpdate?.()) ?? null;
+}
+
+/**
+ * Trigger the desktop OTA check on demand (the in-app "Check for updates"
+ * button). Resolves to the outcome, or null off-desktop. A returned 'updated'
+ * means a bundle was staged — the `onDesktopUpdateReady` push fires in parallel,
+ * so the global restart banner surfaces too.
+ */
+export async function checkDesktopUpdate(): Promise<DesktopUpdateResult | null> {
+  const fn = globalThis.window?.octochat?.checkForUpdates;
+  return fn ? await fn() : null;
 }
 
 /**

@@ -109,6 +109,11 @@ function registerIpc(): void {
   // it registered its `octochat:update-ready` listener (the push isn't buffered).
   ipcMain.handle('octochat:get-pending-update', () => getPendingUpdateVersion());
 
+  // Run the OTA check on demand (the in-app "Check for updates" button). The
+  // renderer can't run the updater itself — expo-updates is disabled there — so
+  // it invokes this and gets back the outcome (downloaded / current / error).
+  ipcMain.handle('octochat:check-for-updates', () => checkForUpdates());
+
   // Relaunch the app to apply a staged OTA bundle (called from the renderer
   // when the user accepts the "update ready" prompt).
   ipcMain.handle('octochat:relaunch', () => {
