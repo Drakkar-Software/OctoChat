@@ -14,7 +14,8 @@
   "dependencies": {
     "@drakkar.software/starfish-identities": "3.0.0-alpha.7",
     "@drakkar.software/starfish-protocol": "3.0.0-alpha.7",
-    "@drakkar.software/starfish-sharing": "3.0.0-alpha.7"
+    "@drakkar.software/starfish-sharing": "3.0.0-alpha.7",
+    "openai": "^4.77.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

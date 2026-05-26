@@ -19,6 +19,7 @@ import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 
 import { subscribeRoomChanges, type RoomChange } from './subscribe.js';
 import { appendToStream, pullOwnStream, type AppendOptions, type Redeemer, type StreamElement } from './append.js';
+import { resolveLlmConfig, createLlmReplier, buildHistory, type LlmConfig } from './llm.js';
 
 /** Loop-guard strategy — how the bot avoids reacting to its own appends:
  *  - `skip-room`  : never react to ANY change in its own target room. Stateless,
@@ -48,7 +49,20 @@ interface BotConfig {
   botSignPath: string; // panel "Path to sign"
   watchRoom: string; // optional source-room filter ('' = all)
   loopGuard: LoopGuard; // how to avoid reacting to the bot's own posts
+  llm: LlmConfig | null; // OpenAI/NIM settings, or null = plain "echo" mode
 }
+
+// ── Optional LLM env vars (set LLM_API_KEY to turn the bot into a chat assistant) ──
+//   LLM_PROVIDER       openai (default) | nvidia — picks the default baseURL + model
+//   LLM_API_KEY        your provider key (REQUIRED to enable LLM mode; unset = echo)
+//   LLM_BASE_URL       override the baseURL (e.g. a self-hosted NIM: http://host:8000/v1)
+//   LLM_MODEL          override the model (e.g. gpt-4o-mini, meta/llama-3.1-8b-instruct)
+//   LLM_SYSTEM_PROMPT  override the assistant's persona/instructions
+//   LLM_TEMPERATURE    sampling temperature (default 0.7)
+//   LLM_MAX_TOKENS     max reply length (default 512)
+//   LLM_HISTORY        how many recent turns to feed as context (default 16)
+// LLM mode reads message TEXT from the target stream room, so it requires
+// LOOP_GUARD=skip-author (skip-room ignores that room → fatal at startup).
 
 /** Read + validate config. Called from `main`, so a missing var surfaces as a
  *  clean `[bot] fatal: …` line rather than an uncaught module-eval throw. */
@@ -62,6 +76,15 @@ function loadConfig(): BotConfig {
   if (guard !== 'skip-room' && guard !== 'skip-author') {
     throw new Error(`LOOP_GUARD must be "skip-room" or "skip-author", got "${guard}"`);
   }
+  const llm = resolveLlmConfig();
+  // Fail fast rather than silently flipping the guard the user is actively tuning:
+  // the LLM answers by reading the target room's text, which skip-room never pulls.
+  if (llm && guard === 'skip-room') {
+    throw new Error(
+      'LLM mode reads message text from the target stream room, which LOOP_GUARD=skip-room ignores. ' +
+        'Set LOOP_GUARD=skip-author and restart.',
+    );
+  }
   return {
     serverUrl: process.env.STARFISH_URL?.trim() || 'http://localhost:8787',
     namespace: process.env.STARFISH_NAMESPACE?.trim() || '',
@@ -70,6 +93,7 @@ function loadConfig(): BotConfig {
     botSignPath: required('OCTOCHAT_BOT_SIGN_PATH'),
     watchRoom: process.env.WATCH_ROOM?.trim() || '',
     loopGuard: guard,
+    llm,
   };
 }
 
@@ -113,18 +137,27 @@ async function userIdFromEdPub(edPubHex: string): Promise<string> {
 const MAX_APPENDS = 8;
 const APPEND_WINDOW_MS = 10_000;
 
+/** A reply strategy turns a trigger — and, for the bot's own room, the pulled stream
+ *  log — into the text to post, or `null` to stay silent. `echo` ignores content and
+ *  posts an activity line; `llm` reads the log and answers it (both built in `main`). */
+type ReplyStrategy = (change: RoomChange, items?: StreamElement[]) => Promise<string | null>;
+
 /**
- * Called once per room-change trigger. THIS is where a real integration does its
- * work: pull the changed room (the member cap can read public channels), call an
- * external API, transform, etc. `/events` carries no message content — only that
- * room X changed — so the default below just posts an activity line. Swap the body
- * of `onTrigger` for your logic; keep the `append` call to post back to the stream.
+ * Wrap a reply strategy with the append + circuit-breaker plumbing. Called once per
+ * trigger: if the strategy returns text, it's appended to the stream as a bot
+ * message. The breaker counts only ACTUAL appends, so a strategy that declines —
+ * e.g. an LLM error or rate-limit returns `null` — can never trip it; only a genuine
+ * append loop can. Swap the strategy (in `main`) for your own logic; this plumbing
+ * and the `append` call back to the stream stay the same.
  */
-function makeHandler(appendOpts: AppendOptions, botAuthorId: string) {
+function makeHandler(appendOpts: AppendOptions, botAuthorId: string, reply: ReplyStrategy) {
   const recent: number[] = [];
   let tripped = false;
-  return async function onTrigger(change: RoomChange): Promise<void> {
+  return async function onTrigger(change: RoomChange, items?: StreamElement[]): Promise<void> {
     if (tripped) return;
+    const text = await reply(change, items);
+    if (!text) return; // strategy declined (no content to answer, or LLM error)
+
     const now = Date.now();
     while (recent.length && now - recent[0]! > APPEND_WINDOW_MS) recent.shift();
     if (recent.length >= MAX_APPENDS) {
@@ -137,16 +170,14 @@ function makeHandler(appendOpts: AppendOptions, botAuthorId: string) {
     }
     recent.push(now);
 
-    const when = change.ts ? new Date(change.ts).toISOString() : new Date().toISOString();
-    const hash = change.hash ? ` (doc ${change.hash.slice(0, 8)}…)` : '';
-    const text = `🔔 activity in ${change.roomId}${hash} at ${when}`;
     // The OctoChat chat UI reads a typed envelope; a message is `{ t:'msg', e: StoredMsg }`.
     const element = {
       t: 'msg',
       e: { id: globalThis.crypto.randomUUID(), authorId: botAuthorId, ts: Date.now(), text },
     };
     await appendToStream(appendOpts, element);
-    console.log(`[bot] appended → ${text}`);
+    const preview = text.length > 80 ? `${text.slice(0, 80)}…` : text;
+    console.log(`[bot] appended → ${preview}`);
   };
 }
 
@@ -177,7 +208,26 @@ async function main(): Promise<void> {
   // roomId and silently defeat the guard.)
   const targetRoom = new URL(cfg.botSignPath, 'http://_').pathname.split('/').filter(Boolean).pop() ?? '';
 
-  const handler = makeHandler(appendOpts, botAuthorId);
+  // Two reply strategies. `echo` (no LLM configured) posts a plain activity line.
+  // `llm` answers the room: it only fires where the bot can READ content — its own
+  // stream room, whose log `checkTargetRoom` pulls and hands in as `items` — so for
+  // any other room (no `items`) it returns null and the bot stays silent.
+  const llm = cfg.llm ? createLlmReplier(cfg.llm) : null;
+  const echoReply: ReplyStrategy = async (change) => {
+    const when = change.ts ? new Date(change.ts).toISOString() : new Date().toISOString();
+    const hash = change.hash ? ` (doc ${change.hash.slice(0, 8)}…)` : '';
+    return `🔔 activity in ${change.roomId}${hash} at ${when}`;
+  };
+  const llmReply: ReplyStrategy = async (_change, items) => {
+    if (!items?.length) return null; // no readable content (not the bot's own room)
+    const history = buildHistory(items, botAuthorId, {
+      systemPrompt: cfg.llm!.systemPrompt,
+      maxTurns: cfg.llm!.historyTurns,
+    });
+    if (history.length <= 1) return null; // system prompt only → nothing to answer
+    return llm!(history);
+  };
+  const handler = makeHandler(appendOpts, botAuthorId, cfg.llm ? llmReply : echoReply);
 
   // skip-author state. We dedupe by message id with a `seen` set SEEDED at startup:
   // every post that already exists is baselined as seen (reacted to: none), then the
@@ -210,9 +260,10 @@ async function main(): Promise<void> {
   const checkTargetRoom = (change: RoomChange) => {
     chain = chain
       .then(async () => {
-        if (ingestNewPosts(await pullOwnStream(appendOpts, {}), true)) {
+        const items = await pullOwnStream(appendOpts, {});
+        if (ingestNewPosts(items, true)) {
           console.log('[bot] new post by someone else in target room — reacting');
-          await handler(change);
+          await handler(change, items); // hand the log to the strategy (LLM context)
         }
       })
       .catch((e) => console.error('[bot] author-check error:', (e as Error).message));
@@ -224,6 +275,7 @@ async function main(): Promise<void> {
   console.log(`[bot] posts to   ${targetRoom}`);
   console.log(`[bot] watching   ${cfg.watchRoom || 'all rooms in the space'}`);
   console.log(`[bot] loop guard ${cfg.loopGuard}${cfg.loopGuard === 'skip-author' ? '  (reacts to others’ posts in the target room too)' : '  (ignores the target room entirely)'}`);
+  console.log(`[bot] reply mode ${cfg.llm ? `llm — ${cfg.llm.model} via ${cfg.llm.baseUrl}` : 'echo — posts an activity line'}`);
   console.log(`[bot] identity   ${keys.edPub}  (allow-list this edPub to pin the bot)`);
 
   const unsubscribe = subscribeRoomChanges({

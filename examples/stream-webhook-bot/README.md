@@ -70,10 +70,11 @@ and the line shows up in the stream room in the app.
 ### Against the deployed server
 
 Set `STARFISH_URL=https://dev-sync.drakkar.software/sync` and
-`STARFISH_NAMESPACE=octochat`. **Caveat:** the deployed Whistler→SSE bridge is
-currently not delivering live events (it connects but pushes nothing — known
-upstream issue), so against the deploy the bot connects to `/events` but its
-trigger won't fire. The **append** half is unaffected.
+`STARFISH_NAMESPACE=octochat`. The deployed Whistler→SSE bridge **does** deliver live
+events (verified: a raw `/events` capture showed each post arriving as a `pubstream`
+change), so the trigger fires against the deploy. If a run looks silent, check that
+`WATCH_ROOM`/`LOOP_GUARD` actually let the changed room through (SSE is live-only and
+heartbeats are ignored), not that the bridge is down.
 
 ### What's been checked
 
@@ -90,6 +91,54 @@ you'd normally change. `/events` carries **no message content** (only "room X
 changed"), so the default just posts an activity line. To do real work, pull the
 changed room there (the member cap can read public channels), call an external API,
 etc., then `appendToStream(...)` to post the result back.
+
+## Answer with an LLM (OpenAI / NVIDIA NIM)
+
+By default the bot posts a 🔔 activity line. Set **`LLM_API_KEY`** and it instead
+**answers the room with an LLM** — reading the recent messages and appending the
+model's reply as a bot post.
+
+Both providers speak the **same** OpenAI chat-completions wire format, so one client
+(`openai`) drives both — only the `baseURL` / key / model differ:
+
+| Provider | `LLM_PROVIDER` | Default base URL | Example model |
+| --- | --- | --- | --- |
+| OpenAI standard | `openai` (default) | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| NVIDIA NIM (hosted) | `nvidia` | `https://integrate.api.nvidia.com/v1` | `google/gemma-4-31b-it` |
+| NVIDIA NIM (self-hosted) | `nvidia` + `LLM_BASE_URL` | `http://localhost:8000/v1` | whatever the container serves |
+
+Add to your `.env` (only `LLM_API_KEY` is required — its presence is what flips the
+bot from echo to LLM mode):
+
+```bash
+LLM_PROVIDER=openai      # or: nvidia — picks the default base URL + model
+LLM_API_KEY=sk-…         # REQUIRED to enable LLM mode (unset ⇒ echo mode)
+# Optional overrides:
+# LLM_BASE_URL=http://localhost:8000/v1     # self-hosted NIM, or any OpenAI-compatible endpoint
+# LLM_MODEL=gpt-4o-mini
+# LLM_SYSTEM_PROMPT=You are a helpful marine-biology tutor.
+# LLM_TEMPERATURE=0.7
+# LLM_MAX_TOKENS=512
+# LLM_HISTORY=16                            # how many recent turns to feed as context
+```
+
+Two requirements specific to LLM mode:
+
+- **Use the standalone install (option A).** `openai` is a dependency of *this*
+  example, not of the workspace, so the zero-install option B can't resolve it.
+- **`LOOP_GUARD=skip-author` is required.** The LLM answers by reading the target
+  room's text, which `skip-room` never pulls — so LLM mode + `skip-room` exits at
+  startup with a one-line hint. Point `WATCH_ROOM` at the bot's own stream room (the
+  last path segment of the sign path) and it answers every human post there.
+
+The bot's own replies carry its `authorId`, so they map to `assistant` turns and
+never re-trigger it; an LLM/network error simply skips that one reply (no append, so
+it can't crash the bot or trip the circuit breaker). The LLM only fires in the room
+it can read (its own stream room) — for any other watched room it stays silent.
+
+**Answer only when @-mentioned?** The default answers every human post. For a busier
+channel, gate it in `llmReply` (bot.ts) — e.g. proceed only when the newest user turn
+starts with `@octo`.
 
 ## Loop guard (two modes, set via `LOOP_GUARD`)
 
