@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
@@ -12,17 +12,15 @@ import { useUnread } from '@/lib/unread-context';
 import { spaceIdFromRoomId } from '@/lib/starfish/paths';
 import { isPublicSpaceId, publicSpaceAuth } from '@/lib/starfish/pubspace';
 import type { RoomKind } from '@/lib/types';
-import { useTheme } from '@/lib/use-theme';
 import { AppBar } from '@/components/ui/AppBar';
 import { Callout } from '@/components/ui/Callout';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
-import { Txt } from '@/components/ui/Txt';
 import { Composer } from '@/components/chat/Composer';
 import { DesktopChatTopbar } from '@/components/chat/DesktopChatTopbar';
+import { ReadOnlyFooter } from '@/components/chat/ReadOnlyFooter';
 import { RoomConversation } from '@/components/chat/RoomConversation';
 import { StreamBotPanel } from '@/components/chat/StreamBotPanel';
 import { ThreadDigestPublisher } from '@/components/chat/ThreadDigestPublisher';
@@ -32,7 +30,6 @@ export default function RoomScreen() {
   const id = params.id;
   const name = params.name ?? id;
   const kind = (params.kind ?? 'channel') as RoomKind;
-  const { colors } = useTheme();
   const { session } = useSession();
   const { markRoomRead, lastReadAt, hydrated } = useUnread();
   // A stream room is append-only (useStreamRoom); a channel/dm is a merge-doc room
@@ -84,7 +81,7 @@ export default function RoomScreen() {
   );
 
   const openThread = (msgId: string) =>
-    router.push({ pathname: '/thread/[id]', params: { id: msgId, roomId: id, roomName: name } });
+    router.push({ pathname: '/thread/[id]', params: { id: msgId, roomId: id, roomName: name, kind } });
   const openMembers = () => router.push({ pathname: '/space/[id]', params: { id: spaceIdFromRoomId(id) } });
   const openSearch = () => router.push('/(tabs)/search');
   const openProfile = (userId: string) => router.push({ pathname: '/profile/[id]', params: { id: userId } });
@@ -117,12 +114,7 @@ export default function RoomScreen() {
             onEditLast={editLast}
           />
         ) : (
-          <View style={[styles.readonly, { borderTopColor: colors.lineSoft }]}>
-            <Icon name="eye" size={14} color={colors.inkMuted} />
-            <Txt variant="footnote" tone="inkMuted">
-              Read-only — this invitation link can’t post here.
-            </Txt>
-          </View>
+          <ReadOnlyFooter />
         )
       }
     >
@@ -155,9 +147,10 @@ export default function RoomScreen() {
             editingId={editingId}
             onEditingChange={setEditingId}
           />
-          {/* Publish this room's recent threads to the desktop sidebar (no UI). Stream
-              rooms are flat append-only logs (no threads), so skip it for them. */}
-          {!isStream ? <ThreadDigestPublisher store={store} roomId={id} readBefore={readBefore} /> : null}
+          {/* Publish this room's recent threads to the desktop sidebar (no UI).
+              Stream rooms support threads too (replies are appended with a parentId),
+              so this runs for every kind. */}
+          <ThreadDigestPublisher store={store} roomId={id} readBefore={readBefore} />
         </>
       ) : (
         <EmptyState iconName="globe" title="Connecting…" />
@@ -168,13 +161,4 @@ export default function RoomScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingTop: spacing.xs, paddingBottom: spacing.md },
-  readonly: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.screenX,
-    borderTopWidth: 1,
-  },
 });

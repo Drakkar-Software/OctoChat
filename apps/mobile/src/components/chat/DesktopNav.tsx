@@ -54,7 +54,7 @@ export function DesktopNav() {
     if (!activeRoomId) return; // only reachable while a room (the digest's) is open
     router.push({
       pathname: '/thread/[id]',
-      params: { id: parentId, roomId: activeRoomId, roomName: activeRoom?.name ?? activeRoomId },
+      params: { id: parentId, roomId: activeRoomId, roomName: activeRoom?.name ?? activeRoomId, kind: activeRoom?.kind ?? 'channel' },
     });
   };
 
