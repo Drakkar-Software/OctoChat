@@ -1,0 +1,24 @@
+{
+  "name": "octochat-stream-webhook-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Example: an OctoChat bot that uses Starfish /events as a webhook trigger and appends to a public stream room.",
+  "engines": {
+    "node": ">=20.12"
+  },
+  "scripts": {
+    "start": "tsx src/bot.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@drakkar.software/starfish-identities": "3.0.0-alpha.7",
+    "@drakkar.software/starfish-protocol": "3.0.0-alpha.7",
+    "@drakkar.software/starfish-sharing": "3.0.0-alpha.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
