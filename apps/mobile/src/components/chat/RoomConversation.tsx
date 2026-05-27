@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import { LegendList } from '@legendapp/list/react-native';
 
@@ -65,6 +66,17 @@ export function RoomConversation({
   );
   const top = messages.filter((m) => !m.parentId);
 
+  // LegendList memoizes each row's render by `[itemKey, data, extraData]`, so a row only
+  // re-runs `toDisplayMessage` when its own message object changes. Reactions and edits
+  // live in SEPARATE arrays folded onto the message at render time, and `editingId` is
+  // room-level — none of them touch the message object. Without listing them here, a new
+  // reaction/edit (or opening a row's inline editor) would not re-render the target row.
+  // Merge-doc rooms hide this because every sync rebuilds message objects (fresh decrypt);
+  // stream rooms preserve message identity across delta pulls, so the row would only update
+  // on a full re-open (room switch) — hence reactions appearing to need a refresh. These
+  // refs change only when their content changes, so an idle pull triggers no re-render.
+  const extraData = useMemo(() => ({ editingId, reactions, edits }), [editingId, reactions, edits]);
+
   return (
     <LegendList
       style={styles.list}
@@ -72,10 +84,8 @@ export function RoomConversation({
       keyExtractor={(m) => m.id}
       recycleItems={false}
       estimatedItemSize={ESTIMATED_ROW_HEIGHT}
-      // Rows are memoized by item data, so a room-level editingId change alone
-      // wouldn't re-render the target row; extraData busts that memo so opening
-      // a row's inline editor (edit pencil / composer ArrowUp) actually shows.
-      extraData={editingId}
+      // Busts LegendList's per-row memo when reactions/edits/editingId change (see above).
+      extraData={extraData}
       initialScrollAtEnd
       alignItemsAtEnd
       maintainScrollAtEnd

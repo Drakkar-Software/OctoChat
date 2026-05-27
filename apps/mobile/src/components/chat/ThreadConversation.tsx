@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { LegendList } from '@legendapp/list/react-native';
 
@@ -50,6 +51,11 @@ export function ThreadConversation({
   );
   const parent = messages.find((m) => m.id === parentId);
   const replies = messages.filter((m) => m.parentId === parentId);
+  // LegendList memoizes each reply row by `[itemKey, data, extraData]`; reactions/edits
+  // are folded onto the message at render from separate arrays, so without listing them
+  // a new reaction/edit on a reply wouldn't re-render its row until a full re-open. Refs
+  // change only on content change, so idle pulls cause no re-render (mirrors RoomConversation).
+  const extraData = useMemo(() => ({ reactions, edits }), [reactions, edits]);
 
   return (
     <LegendList
@@ -59,6 +65,7 @@ export function ThreadConversation({
       // Rows hold per-row hover/edit/reveal state, so recycling them would leak it
       // across replies (mirrors RoomConversation).
       recycleItems={false}
+      extraData={extraData}
       estimatedItemSize={ESTIMATED_ROW_HEIGHT}
       ListHeaderComponent={
         <>
