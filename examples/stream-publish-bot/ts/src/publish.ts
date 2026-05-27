@@ -25,7 +25,7 @@
 import { join } from 'node:path';
 
 import { generateDeviceKeys, mintDeviceCap } from '@drakkar.software/starfish-identities';
-import { signRequest, stableStringify } from '@drakkar.software/starfish-protocol';
+import { signAppendAuthor, signRequest, stableStringify } from '@drakkar.software/starfish-protocol';
 import type { SignableMethod } from '@drakkar.software/starfish-protocol';
 import { parsePublicLink, redeemPublicLink } from '@drakkar.software/starfish-sharing';
 
@@ -145,9 +145,17 @@ async function main(): Promise<void> {
     e: { id: globalThis.crypto.randomUUID(), authorId, ts: Date.now(), text: cfg.message },
   };
 
-  // Exact `StarfishClient.append` body: the element wrapped as `{ data }`. Bind it
+  // Author proof (required by `requireAuthorSignature`, on by default since
+  // Starfish alpha.8): sign the element bound to the storage `documentKey` (the
+  // un-namespaced `signPath` minus `/push/`) with the redeemer key. `authorPubkey`
+  // is the redeemer (= the `X-Starfish-Pub` presenter), so the server's
+  // author==presenter check passes. Must precede the request signature below.
+  const documentKey = cfg.signPath.replace(/^\/push\//, '');
+  const author = signAppendAuthor(documentKey, element, keys.edPub, keys.edPriv);
+
+  // Exact `StarfishClient.append` body: `{ data }` plus the author proof. Bind it
   // ONCE so the signed bytes equal the bytes sent on the wire.
-  const body = JSON.stringify({ data: element });
+  const body = JSON.stringify({ data: element, ...author });
 
   const redeemHeaders = await redeemPublicLink(parsePublicLink(cfg.botToken), {
     redeemerEdPrivHex: keys.edPriv,

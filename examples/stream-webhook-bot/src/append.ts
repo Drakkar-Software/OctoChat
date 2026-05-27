@@ -15,6 +15,7 @@
  * `Content-Type: application/json`) so the server accepts it identically.
  */
 import { parsePublicLink, redeemPublicLink } from '@drakkar.software/starfish-sharing';
+import { signAppendAuthor } from '@drakkar.software/starfish-protocol';
 
 /** A fresh keypair the bot redeems the token with (hex Ed25519). */
 export interface Redeemer {
@@ -55,8 +56,17 @@ export async function appendToStream(opts: AppendOptions, element: Record<string
   const url = `${opts.serverUrl.replace(/\/+$/, '')}${actionPath}`;
   const host = new URL(opts.serverUrl).host;
 
-  // Exact `StarfishClient.append` body: the element wrapped as `{ data }`.
-  const body = JSON.stringify({ data: element });
+  // Author proof (required by `requireAuthorSignature`, on by default since
+  // Starfish alpha.8): sign the element bound to the storage `documentKey` (the
+  // un-namespaced `signPath` minus `/push/`) with the redeemer key. `authorPubkey`
+  // must be the redeemer (= the `X-Starfish-Pub` presenter), so the server's
+  // author==presenter check passes. Must be in the body BEFORE the request is
+  // signed, since `redeemPublicLink` signs the whole body.
+  const documentKey = opts.signPath.replace(/^\/push\//, '');
+  const author = signAppendAuthor(documentKey, element, opts.redeemer.edPubHex, opts.redeemer.edPrivHex);
+
+  // Exact `StarfishClient.append` body: `{ data }` plus the author proof.
+  const body = JSON.stringify({ data: element, ...author });
 
   const parsed = parsePublicLink(opts.botToken);
   const redeemHeaders = await redeemPublicLink(parsed, {
