@@ -51,20 +51,20 @@ importers:
   apps/mobile:
     dependencies:
       '@drakkar.software/starfish-client':
-        specifier: 3.0.0-alpha.10
-        version: 3.0.0-alpha.10(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
+        specifier: 3.0.0-alpha.11
+        version: 3.0.0-alpha.11(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
       '@drakkar.software/starfish-identities':
-        specifier: 3.0.0-alpha.10
-        version: 3.0.0-alpha.10(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
+        specifier: 3.0.0-alpha.11
+        version: 3.0.0-alpha.11(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
       '@drakkar.software/starfish-keyring':
-        specifier: 3.0.0-alpha.10
-        version: 3.0.0-alpha.10(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
+        specifier: 3.0.0-alpha.11
+        version: 3.0.0-alpha.11(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
       '@drakkar.software/starfish-protocol':
-        specifier: 3.0.0-alpha.10
-        version: 3.0.0-alpha.10
+        specifier: 3.0.0-alpha.11
+        version: 3.0.0-alpha.11
       '@drakkar.software/starfish-sharing':
-        specifier: 3.0.0-alpha.10
-        version: 3.0.0-alpha.10(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
+        specifier: 3.0.0-alpha.11
+        version: 3.0.0-alpha.11(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
       '@expo-google-fonts/bricolage-grotesque':
         specifier: ^0.4.1
         version: 0.4.1
@@ -241,20 +241,20 @@ importers:
   apps/server:
     dependencies:
       '@drakkar.software/starfish-identities':
-        specifier: 3.0.0-alpha.10
-        version: 3.0.0-alpha.10(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
+        specifier: 3.0.0-alpha.11
+        version: 3.0.0-alpha.11(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
       '@drakkar.software/starfish-protocol':
-        specifier: 3.0.0-alpha.10
-        version: 3.0.0-alpha.10
+        specifier: 3.0.0-alpha.11
+        version: 3.0.0-alpha.11
       '@drakkar.software/starfish-queuing':
-        specifier: 3.0.0-alpha.10
-        version: 3.0.0-alpha.10
+        specifier: 3.0.0-alpha.11
+        version: 3.0.0-alpha.11
       '@drakkar.software/starfish-server':
-        specifier: 3.0.0-alpha.10
-        version: 3.0.0-alpha.10
+        specifier: 3.0.0-alpha.11
+        version: 3.0.0-alpha.11
       '@drakkar.software/starfish-sharing':
-        specifier: 3.0.0-alpha.10
-        version: 3.0.0-alpha.10(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
+        specifier: 3.0.0-alpha.11
+        version: 3.0.0-alpha.11(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
       '@hono/node-server':
         specifier: ^1.13.0
         version: 1.19.14(hono@4.12.21)
@@ -680,8 +680,8 @@ packages:
     resolution: {integrity: sha512-0cp4PsWQ/9avqTVMCtZ+GirikIA36ikvjtHweU4/j8yLtgObI0+JUPhYFScgwlteveGB1rt3Cm8UhN04XayDig==}
     engines: {node: '>= 8.9.0'}
 
-  '@drakkar.software/starfish-client@3.0.0-alpha.10':
-    resolution: {integrity: sha512-uHpvxCFs856LqxxybLD9TCvjAvnUtsGdY7hOakKpSfs49+i8URIPqmg04o+QdlPoc+T4jH0q8b9Jhiv8BaJ2ng==}
+  '@drakkar.software/starfish-client@3.0.0-alpha.11':
+    resolution: {integrity: sha512-JTJnP0qr75HZdTWdzL1EdAh0N+Nwqtyawk+P0XRB6vqOMF3DxMGalGiTt1yK6Nv1vcgi2Wg+SaATsugVlubqXg==}
     peerDependencies:
       '@legendapp/state': '>=2.0.0'
       immer: '>=9.0.0'
@@ -697,20 +697,20 @@ packages:
       zustand:
         optional: true
 
-  '@drakkar.software/starfish-identities@3.0.0-alpha.10':
-    resolution: {integrity: sha512-t15I7nHGi7CF5cr7VfKvwbc8RIjN5d22p+MHDonHxP/4Rng3ARdgkStCIWHq2hL9iduWq2YA4nxCFRG9Zp/UFA==}
+  '@drakkar.software/starfish-identities@3.0.0-alpha.11':
+    resolution: {integrity: sha512-Fw1KF49aKQmtdBQxqAnEv26MIbROpcDmYq5F/+EYn13QE6CAZ8ectGmdwt53nN2MMzLwudbU5lUAX79SyvzFlw==}
 
-  '@drakkar.software/starfish-keyring@3.0.0-alpha.10':
-    resolution: {integrity: sha512-lVujj/m9pHOQIFy2k8bev54gNT7831fWd8e3Lnfi+/3ZvwEIt2EE/tee/I/eVBBr0XOHD/E9bCXkTVn/9EyIfQ==}
+  '@drakkar.software/starfish-keyring@3.0.0-alpha.11':
+    resolution: {integrity: sha512-Fmmmpjt70p4rfJBfTSa2uoUJG9jXA/OM2BmL6CMToXms5Xw5IYXW6GYFWu7m3bKvzxSINMhpTF5Yrz5a7zhbjA==}
 
-  '@drakkar.software/starfish-protocol@3.0.0-alpha.10':
-    resolution: {integrity: sha512-HzfIaOnoCm9CueiQqjCPnYgzHGVT1AMmvlBk2VTv0UR+beyC6DGAhv53/IRyguku/FOrnCzO4eINjCH7gq+lTQ==}
+  '@drakkar.software/starfish-protocol@3.0.0-alpha.11':
+    resolution: {integrity: sha512-KXhtQFLyO8+Y3l+8cKpfEusuiMxR3rpEivygeLBU6z8JfBCSgq4N3Z0TLS3Yun1QLw3dTjeIvmf19xt10TWfcQ==}
 
-  '@drakkar.software/starfish-queuing@3.0.0-alpha.10':
-    resolution: {integrity: sha512-kpR5wV4DETLy6smG8NzA2erMML1M70rN8Gd44i5urx4thNLT2qpaQhC5PbaufzB7PF3S18icezJtAyCbkzqjPg==}
+  '@drakkar.software/starfish-queuing@3.0.0-alpha.11':
+    resolution: {integrity: sha512-TBP+j4we1FeU9bT7vVzLARkTFtBswtTdFQ0C4iKgnukSCmFo+uOEtPdWg+TxvB9rvUYri6g41ee6KPNArbNVaQ==}
 
-  '@drakkar.software/starfish-server@3.0.0-alpha.10':
-    resolution: {integrity: sha512-bTZmWmykHk6gmVJzdHDyzg4OQJi5KfwwRfqY6tdcgv4Ta84IC0h5FjIm44Qa+Uz1x+6sDeMsUD7+Oa22BOOeYg==}
+  '@drakkar.software/starfish-server@3.0.0-alpha.11':
+    resolution: {integrity: sha512-LMbQp3oZG69yBgGyQkUp4ylWGnOqkZvJ8er/mIIgWOPLJtaVUHZT98omcSoZKhXqdTzNaDHgS8VH5IDPA51/Jw==}
     peerDependencies:
       '@aws-sdk/client-s3': '>=3.0.0'
       ajv: '>=8.0.0'
@@ -720,8 +720,8 @@ packages:
       ajv:
         optional: true
 
-  '@drakkar.software/starfish-sharing@3.0.0-alpha.10':
-    resolution: {integrity: sha512-LtEDpDJc9Dt6ZLO7sQaqYY27ijONyYBvUAeq84Vg9aj33+ApWVsvbzk1Ap8Yeoct8cgh33o5f67T7WFL3h1yBg==}
+  '@drakkar.software/starfish-sharing@3.0.0-alpha.11':
+    resolution: {integrity: sha512-QVmiiJdbu8kpLcsd1L5C7yJ8ZcRAMaO3Y7zkKx9/HLhKGqbnpj/Z4APpqk4J2KrPzWIpm9qzTIGoToWakOPX7g==}
 
   '@drakkar.software/whistlers@0.6.0':
     resolution: {integrity: sha512-TtGLJGpIaaBqMPtYlp+DedFB9pGk5y3DXlmXrdhmw7Iv3o6qow6EbXOpPCh7WFhM3r7M6A+wkSiqfhSslvDD8Q==}
@@ -6254,19 +6254,19 @@ snapshots:
       ajv: 6.15.0
       ajv-keywords: 3.5.2(ajv@6.15.0)
 
-  '@drakkar.software/starfish-client@3.0.0-alpha.10(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))':
+  '@drakkar.software/starfish-client@3.0.0-alpha.11(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))':
     dependencies:
-      '@drakkar.software/starfish-protocol': 3.0.0-alpha.10
+      '@drakkar.software/starfish-protocol': 3.0.0-alpha.11
     optionalDependencies:
       immer: 10.2.0
       react: 19.2.3
       zustand: 5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3))
 
-  '@drakkar.software/starfish-identities@3.0.0-alpha.10(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))':
+  '@drakkar.software/starfish-identities@3.0.0-alpha.11(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))':
     dependencies:
-      '@drakkar.software/starfish-client': 3.0.0-alpha.10(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
-      '@drakkar.software/starfish-keyring': 3.0.0-alpha.10(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
-      '@drakkar.software/starfish-protocol': 3.0.0-alpha.10
+      '@drakkar.software/starfish-client': 3.0.0-alpha.11(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
+      '@drakkar.software/starfish-keyring': 3.0.0-alpha.11(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
+      '@drakkar.software/starfish-protocol': 3.0.0-alpha.11
       '@noble/curves': 2.2.0
       hash-wasm: 4.12.0
     transitivePeerDependencies:
@@ -6275,10 +6275,10 @@ snapshots:
       - react
       - zustand
 
-  '@drakkar.software/starfish-keyring@3.0.0-alpha.10(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))':
+  '@drakkar.software/starfish-keyring@3.0.0-alpha.11(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))':
     dependencies:
-      '@drakkar.software/starfish-client': 3.0.0-alpha.10(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
-      '@drakkar.software/starfish-protocol': 3.0.0-alpha.10
+      '@drakkar.software/starfish-client': 3.0.0-alpha.11(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
+      '@drakkar.software/starfish-protocol': 3.0.0-alpha.11
       '@noble/curves': 2.2.0
     transitivePeerDependencies:
       - '@legendapp/state'
@@ -6286,28 +6286,28 @@ snapshots:
       - react
       - zustand
 
-  '@drakkar.software/starfish-protocol@3.0.0-alpha.10':
+  '@drakkar.software/starfish-protocol@3.0.0-alpha.11':
     dependencies:
       '@noble/curves': 2.2.0
       '@noble/hashes': 2.2.0
       hash-wasm: 4.12.0
 
-  '@drakkar.software/starfish-queuing@3.0.0-alpha.10':
+  '@drakkar.software/starfish-queuing@3.0.0-alpha.11':
     dependencies:
-      '@drakkar.software/starfish-protocol': 3.0.0-alpha.10
+      '@drakkar.software/starfish-protocol': 3.0.0-alpha.11
 
-  '@drakkar.software/starfish-server@3.0.0-alpha.10':
+  '@drakkar.software/starfish-server@3.0.0-alpha.11':
     dependencies:
-      '@drakkar.software/starfish-protocol': 3.0.0-alpha.10
+      '@drakkar.software/starfish-protocol': 3.0.0-alpha.11
       '@noble/curves': 2.2.0
       '@noble/hashes': 2.2.0
       hono: 4.12.21
 
-  '@drakkar.software/starfish-sharing@3.0.0-alpha.10(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))':
+  '@drakkar.software/starfish-sharing@3.0.0-alpha.11(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))':
     dependencies:
-      '@drakkar.software/starfish-client': 3.0.0-alpha.10(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
-      '@drakkar.software/starfish-keyring': 3.0.0-alpha.10(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
-      '@drakkar.software/starfish-protocol': 3.0.0-alpha.10
+      '@drakkar.software/starfish-client': 3.0.0-alpha.11(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
+      '@drakkar.software/starfish-keyring': 3.0.0-alpha.11(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
+      '@drakkar.software/starfish-protocol': 3.0.0-alpha.11
     transitivePeerDependencies:
       - '@legendapp/state'
       - immer
