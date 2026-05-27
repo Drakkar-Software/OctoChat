@@ -45,7 +45,7 @@ export interface LlmConfig {
  *  container or a non-default model is just two env vars). */
 const PROVIDER_DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
   openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
-  nvidia: { baseUrl: 'https://integrate.api.nvidia.com/v1', model: 'google/gemma-4-31b-it' },
+  nvidia: { baseUrl: 'https://integrate.api.nvidia.com/v1', model: 'deepseek-ai/deepseek-v4-flash' },
 };
 
 const DEFAULT_SYSTEM_PROMPT =
@@ -140,7 +140,13 @@ export function createLlmReplier(cfg: LlmConfig): (history: ChatMessage[]) => Pr
           temperature: cfg.temperature,
           max_tokens: cfg.maxTokens,
           stream: true,
-        },
+          // Disable the model's "thinking"/reasoning phase. Hybrid-reasoning models
+          // (the NVIDIA NIM default deepseek-v4-flash, and Qwen3-style models) expose
+          // this toggle via `chat_template_kwargs`; non-reasoning models ignore the
+          // unknown field. Keeps replies fast and free of <think> blocks in the
+          // streamed `content`.
+          chat_template_kwargs: { thinking: false },
+        } as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming,
         { signal: AbortSignal.timeout(cfg.timeoutMs) },
       );
       let text = '';
