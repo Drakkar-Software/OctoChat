@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { createStore } from 'zustand';
-import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
+import { AppendLogCursor } from '@drakkar.software/starfish-client';
+import type { AppendElement, Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
 import { makeClient } from './starfish/client';
 import { getSpaceEncryptor } from './starfish/space-encryptor';
 import { getMemberCap } from './starfish/member-caps';
 import { isPublicSpaceId, publicSpaceAuth } from './starfish/pubspace';
+import { kvGet, kvSet } from './starfish/kv';
 import { registerPull, onSseStatus } from './room-events-bus';
 import {
   pubstreamRoomPull,
@@ -70,6 +72,48 @@ function concatDedupById<T extends { id: string }>(existing: T[], incoming: T[])
   return added.length === 0 ? existing : [...existing, ...added];
 }
 
+/** Cross-restart persistence key for a room's append log. Versioned so a future
+ *  envelope/shape change can bump `v1` rather than mis-read stale blobs. NOT
+ *  user-scoped: the persisted blob is `cursor.getItems()` — the CIPHERTEXT envelopes
+ *  for a private room (E2EE-safe at rest, decryptable only by a keyring holder) and
+ *  already-public plaintext for a public room — so the roomId alone namespaces it. */
+const streamLogKey = (roomId: string) => `octochat.streamlog.v1.${roomId}`;
+
+/** Tolerant load of a persisted append log — bad/absent/wrong-shaped JSON yields `[]`
+ *  (a corrupt blob must never brick the room; the next `pull` just refetches the log).
+ *  These envelopes warm-start the cursor as `initialItems` so history paints instantly
+ *  on open before any network round-trip. */
+async function loadStreamLog(roomId: string): Promise<AppendElement[]> {
+  const raw = await kvGet(streamLogKey(roomId));
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as AppendElement[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Fan a batch of DECRYPTED append elements into the three typed arrays the chat store
+ *  holds. Each element's `data` is a {@link StreamEnvelope} (the cursor already decrypted
+ *  it and applied the skip policy, so no per-element try/catch here); `t` discriminates
+ *  msg/reaction/edit. The server-assigned `ts` is the authoritative order/time, so stamp
+ *  it onto any payload that didn't carry its own. Shared by the warm-start hydrate (full
+ *  persisted log) and the delta merge (just the new `pull` batch). */
+function fanOut(items: AppendElement[]): StreamData {
+  const messages: StoredMsg[] = [];
+  const reactions: ReactionEvent[] = [];
+  const edits: MessageEditEvent[] = [];
+  for (const item of items) {
+    const env = item.data as unknown as StreamEnvelope;
+    if (!env) continue;
+    if (env.t === 'msg') messages.push({ ...env.e, ts: env.e.ts || item.ts });
+    else if (env.t === 'reaction') reactions.push({ ...env.e, ts: env.e.ts || item.ts });
+    else if (env.t === 'edit') edits.push({ ...env.e, ts: env.e.ts || item.ts });
+  }
+  return { messages, reactions, edits };
+}
+
 /** A minimal zustand store whose `.data` the chat UI reads via `useStarfishData`.
  *  Only `data` is consumed; the StarfishStore action/flag fields are inert stubs to
  *  satisfy the `ConversationStore` type without pulling in the SDK's sync machinery. */
@@ -100,17 +144,25 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
   const [opening, setOpening] = useState(true);
   const [openError, setOpenError] = useState<string | null>(null);
 
-  // The synthetic store + its pull checkpoint live for this room's lifetime, keyed by
-  // roomId so a room switch (the screen stays mounted) starts fresh rather than flashing
-  // the previous room's log. `checkpoint` is the newest server `ts` we've merged in; it
-  // resets to 0 in lockstep with the store so the first pull is a full snapshot and every
-  // later pull asks only for elements stamped after it (see `pull`).
-  const roomStateRef = useRef<{ id: string; store: ConversationStore; checkpoint: number } | null>(null);
+  // The synthetic store lives for this room's lifetime, keyed by roomId so a room switch
+  // (the screen stays mounted) starts fresh rather than flashing the previous room's log.
+  // The incremental checkpoint no longer lives here — it's owned by the `AppendLogCursor`
+  // (see `cursorRef`), which also persists the log across restarts so re-opening a room
+  // paints history instantly instead of re-fetching the whole log from scratch.
+  const roomStateRef = useRef<{ id: string; store: ConversationStore } | null>(null);
   if (!roomStateRef.current || roomStateRef.current.id !== roomId) {
-    roomStateRef.current = { id: roomId, store: makeStreamStore(), checkpoint: 0 };
+    roomStateRef.current = { id: roomId, store: makeStreamStore() };
   }
   const roomState = enabled ? roomStateRef.current : null;
   const store = roomState?.store ?? null;
+
+  // The per-room append-log cursor. It owns the checkpoint, the accumulated ciphertext
+  // envelopes (for persistence) and the per-element skip policy (`onElementError:'skip'`),
+  // replacing the hand-rolled `since`/decrypt-try/catch/maxTs loop. Built async once
+  // `client` + (private) `encryptor` + the route resolve, seeded with the persisted log;
+  // recreated on room switch — same lifetime as the store above. Held in a ref so `pull`
+  // reads the latest without re-subscribing every callback.
+  const cursorRef = useRef<{ id: string; cursor: AppendLogCursor } | null>(null);
 
   // Open: resolve the sync client (+ encryptor for a private space). Mirrors useRoom's
   // open branches — public spaces authorize with the invite/account cap and carry no
@@ -168,71 +220,83 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
     return { pull: streamRoomPull(roomId), push: streamRoomPush(roomId), canWrite: true };
   }, [session, isPublic, spaceId, roomId]);
 
-  // Pull the append log and fan it into the store's {messages,reactions,edits}.
-  // Each element is a {ts,data} envelope; `data` is the sealed payload (private) or
-  // the plain envelope (public). A decrypt failure on one element skips just that one.
+  // Merge a DECRYPTED batch into the store's {messages,reactions,edits}, appending onto
+  // what the store already holds and de-duping by id. Skip the write entirely when nothing
+  // new survives the dedup, so an idle poll / a focus+SSE double-pull never churns a
+  // re-render (the cursor serializes pulls and dedups by `ts`, but `concatDedupById` is
+  // still the cheap belt-and-braces guard against re-rendering an unchanged list).
+  const mergeIntoStore = useCallback((store: ConversationStore, batch: StreamData) => {
+    if (!batch.messages.length && !batch.reactions.length && !batch.edits.length) return;
+    const cur = (store.getState() as unknown as { data: StreamData }).data;
+    const messages = concatDedupById(cur.messages, batch.messages);
+    const reactions = concatDedupById(cur.reactions, batch.reactions);
+    const edits = concatDedupById(cur.edits, batch.edits);
+    if (messages === cur.messages && reactions === cur.reactions && edits === cur.edits) return;
+    store.setState({ data: { messages, reactions, edits } } as never);
+  }, []);
+
+  // Pull the append log and fan the NEW batch into the store. The cursor owns the
+  // checkpoint and the incremental window: `pull()` fetches only elements newer than the
+  // last it holds, decrypts them (private) / passes them through (public), drops any that
+  // fail under `onElementError:'skip'`, and returns ONLY that new batch — so we never
+  // re-fetch + rebuild the whole room on every focus / SSE push / poll tick. The seeded
+  // `initialItems` (warm-started history) are NOT returned by `pull()`; they're painted
+  // once on open via `getDecryptedItems()` in the build effect below.
   //
-  // Incremental: only the FIRST pull (checkpoint 0) fetches the whole log; after that we
-  // pass `since: checkpoint` (the newest server `ts` we hold) so the server returns only
-  // elements appended after it (`?checkpoint=`), and we MERGE that delta in — rather than
-  // re-fetching + rebuilding the entire room on every focus / SSE push / poll tick.
+  // After a non-empty pull, persist the cursor's CIPHERTEXT envelopes back to storage so
+  // the next open paints this history instantly; an idle (empty) pull writes nothing.
   const [syncError, setSyncError] = useState<string | null>(null);
   const pull = useCallback(async () => {
-    if (!client || !route || !roomState) return;
-    const checkpoint = roomState.checkpoint;
+    const cur = cursorRef.current;
+    if (!cur || cur.id !== roomId || !roomState) return;
     try {
-      const items = (await client.pull<{ ts: number; data: Record<string, unknown> }>(route.pull, {
-        appendField: 'items',
-        ...(checkpoint > 0 ? { since: checkpoint } : {}),
-      })) as { ts: number; data: Record<string, unknown> }[];
-      const messages: StoredMsg[] = [];
-      const reactions: ReactionEvent[] = [];
-      const edits: MessageEditEvent[] = [];
-      let maxTs = checkpoint;
-      for (const item of items ?? []) {
-        // Advance the checkpoint past EVERY element we saw — even an undecryptable one —
-        // so it is never re-fetched on the next delta pull.
-        if (item.ts > maxTs) maxTs = item.ts;
-        let env: StreamEnvelope | null = null;
-        try {
-          const payload = encryptor
-            ? ((await (encryptor as unknown as { decrypt: (d: Record<string, unknown>) => Promise<unknown> }).decrypt(
-                item.data,
-              )) as StreamEnvelope)
-            : (item.data as unknown as StreamEnvelope);
-          env = payload;
-        } catch {
-          continue; // a single undecryptable element must not blank the whole room
-        }
-        if (!env) continue;
-        // Server-assigned `ts` is the authoritative order/time; stamp it onto the element.
-        if (env.t === 'msg') messages.push({ ...env.e, ts: env.e.ts || item.ts });
-        else if (env.t === 'reaction') reactions.push({ ...env.e, ts: env.e.ts || item.ts });
-        else if (env.t === 'edit') edits.push({ ...env.e, ts: env.e.ts || item.ts });
+      const batch = await cur.cursor.pull();
+      if (batch.length) {
+        mergeIntoStore(roomState.store, fanOut(batch));
+        void kvSet(streamLogKey(roomId), JSON.stringify(cur.cursor.getItems()));
       }
-      if (checkpoint > 0) {
-        // Delta merge: append the new envelopes onto what the store already holds. Skip the
-        // write entirely when nothing new arrived so an idle poll never churns a re-render.
-        if (messages.length || reactions.length || edits.length) {
-          const cur = (roomState.store.getState() as unknown as { data: StreamData }).data;
-          roomState.store.setState({
-            data: {
-              messages: concatDedupById(cur.messages, messages),
-              reactions: concatDedupById(cur.reactions, reactions),
-              edits: concatDedupById(cur.edits, edits),
-            },
-          } as never);
-        }
-      } else {
-        // First pull: the full snapshot replaces the empty store.
-        roomState.store.setState({ data: { messages, reactions, edits } } as never);
-      }
-      roomState.checkpoint = maxTs;
       setSyncError((prev) => (prev === null ? prev : null));
     } catch {
       setSyncError('Reconnecting… messages may be out of date.');
     }
-  }, [client, route, roomState, encryptor]);
+  }, [roomId, roomState, mergeIntoStore]);
+
+  // Build the per-room cursor once `client` + (private) `encryptor` + the route resolve.
+  // Async, because the warm-start seed is loaded from KV: load the persisted CIPHERTEXT
+  // envelopes → construct the cursor with them as `initialItems` (so its checkpoint starts
+  // past them and the first `pull` fetches only the delta) → paint that persisted history
+  // immediately via `getDecryptedItems()` so the room shows without a network round-trip →
+  // then `pull()` to fetch anything newer. Recreated on room/client/encryptor change; a
+  // `cancelled` flag drops a stale build that resolves after a room switch. The cursor's
+  // `encryptor` decrypts on pull for a private room and is omitted for a public (plaintext)
+  // one — replacing the hand-rolled per-element decrypt/try-catch with the cursor's policy.
+  useEffect(() => {
+    if (!enabled || !client || !route || !roomState) return;
+    let cancelled = false;
+    (async () => {
+      const initialItems = await loadStreamLog(roomId);
+      if (cancelled) return;
+      const cursor = new AppendLogCursor({
+        client,
+        pullPath: route.pull,
+        appendField: 'items',
+        ...(encryptor ? { encryptor } : {}),
+        onElementError: 'skip',
+        initialItems,
+      });
+      cursorRef.current = { id: roomId, cursor };
+      if (initialItems.length) {
+        const history = await cursor.getDecryptedItems();
+        if (cancelled) return;
+        roomState.store.setState({ data: fanOut(history) } as never);
+      }
+      if (cancelled) return;
+      void pull();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, client, encryptor, route, roomId, roomState, pull]);
 
   // Append one envelope: seal it for a private stream, send it plain for a public one.
   // No client-supplied ts → the server assigns a strictly-monotonic one (no 409 on
