@@ -19,7 +19,7 @@ import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 
 import { subscribeRoomChanges, type RoomChange } from './subscribe.js';
 import { appendToStream, pullOwnStream, type AppendOptions, type Redeemer, type StreamElement } from './append.js';
-import { resolveLlmConfig, createLlmReplier, buildHistory, type LlmConfig } from './llm.js';
+import { resolveLlmConfig, createLlmReplier, buildHistory, scopeToThread, type LlmConfig } from './llm.js';
 import { writeBotProfile } from './profile.js';
 
 /** Loop-guard strategy — how the bot avoids reacting to its own appends:
@@ -146,10 +146,21 @@ async function userIdFromEdPub(edPubHex: string): Promise<string> {
 const MAX_APPENDS = 8;
 const APPEND_WINDOW_MS = 10_000;
 
+/** The fields the loop guard + thread routing read off a stream message's payload (the
+ *  `e` inside a `{ t:'msg', e }` envelope): its `id` (dedupe), self-declared `authorId`
+ *  (loop guard) and `parentId` — the thread it belongs to, if any. */
+interface TriggerMsg {
+  id: string;
+  authorId?: string;
+  parentId?: string;
+}
+
 /** A reply strategy turns a trigger — and, for the bot's own room, the pulled stream
  *  log — into the text to post, or `null` to stay silent. `echo` ignores content and
- *  posts an activity line; `llm` reads the log and answers it (both built in `main`). */
-type ReplyStrategy = (change: RoomChange, items?: StreamElement[]) => Promise<string | null>;
+ *  posts an activity line; `llm` reads the log and answers it (both built in `main`).
+ *  The optional `trigger` is the newest foreign message that prompted the reply; its
+ *  `parentId` is what routes the answer into the right thread. */
+type ReplyStrategy = (change: RoomChange, items?: StreamElement[], trigger?: TriggerMsg) => Promise<string | null>;
 
 /**
  * Wrap a reply strategy with the append + circuit-breaker plumbing. Called once per
@@ -162,9 +173,9 @@ type ReplyStrategy = (change: RoomChange, items?: StreamElement[]) => Promise<st
 function makeHandler(appendOpts: AppendOptions, botAuthorId: string, reply: ReplyStrategy) {
   const recent: number[] = [];
   let tripped = false;
-  return async function onTrigger(change: RoomChange, items?: StreamElement[]): Promise<void> {
+  return async function onTrigger(change: RoomChange, items?: StreamElement[], trigger?: TriggerMsg): Promise<void> {
     if (tripped) return;
-    const text = await reply(change, items);
+    const text = await reply(change, items, trigger);
     if (!text) return; // strategy declined (no content to answer, or LLM error)
 
     const now = Date.now();
@@ -180,10 +191,17 @@ function makeHandler(appendOpts: AppendOptions, botAuthorId: string, reply: Repl
     recent.push(now);
 
     // The OctoChat chat UI reads a typed envelope; a message is `{ t:'msg', e: StoredMsg }`.
-    const element = {
-      t: 'msg',
-      e: { id: globalThis.crypto.randomUUID(), authorId: botAuthorId, ts: Date.now(), text },
+    // Answer in the SAME thread the trigger was posted in: echo its `parentId` (the
+    // thread's anchor id) so the reply lands in that thread. A top-level trigger has no
+    // `parentId`, so the reply stays top-level — "answer in a thread iff the question was".
+    const e: { id: string; authorId: string; ts: number; text: string; parentId?: string } = {
+      id: globalThis.crypto.randomUUID(),
+      authorId: botAuthorId,
+      ts: Date.now(),
+      text,
     };
+    if (trigger?.parentId) e.parentId = trigger.parentId;
+    const element = { t: 'msg', e };
     await appendToStream(appendOpts, element);
     const preview = text.length > 80 ? `${text.slice(0, 80)}…` : text;
     console.log(`[bot] appended → ${preview}`);
@@ -227,9 +245,13 @@ async function main(): Promise<void> {
     const hash = change.hash ? ` (doc ${change.hash.slice(0, 8)}…)` : '';
     return `🔔 activity in ${change.roomId}${hash} at ${when}`;
   };
-  const llmReply: ReplyStrategy = async (_change, items) => {
+  const llmReply: ReplyStrategy = async (_change, items, trigger) => {
     if (!items?.length) return null; // no readable content (not the bot's own room)
-    const history = buildHistory(items, botAuthorId, {
+    // Answer with the context of the conversation the question was in: a thread reply
+    // (trigger.parentId set) sees that thread's messages; a top-level question sees the
+    // channel's top-level posts. The bot's own reply is routed to match (see makeHandler).
+    const scoped = scopeToThread(items, trigger?.parentId ?? null);
+    const history = buildHistory(scoped, botAuthorId, {
       systemPrompt: cfg.llm!.systemPrompt,
       maxTurns: cfg.llm!.historyTurns,
     });
@@ -247,17 +269,19 @@ async function main(): Promise<void> {
   // run through a promise chain so `seen` mutates consistently under overlapping events.
   const seen = new Set<string>();
   let chain = Promise.resolve();
-  /** Record new message ids; return true if any NEWLY-seen post is by someone else.
+  /** Record new message ids; return the NEWEST newly-seen post authored by someone other
+   *  than the bot — the one to react to — or null if there is none. Items arrive in
+   *  append (server-`ts`) order, so the LAST new foreign message seen is the newest.
    *  `react=false` (startup baseline) ingests without ever signalling a reaction. */
-  const ingestNewPosts = (items: StreamElement[], react: boolean): boolean => {
-    let foreign = false;
+  const ingestNewPosts = (items: StreamElement[], react: boolean): TriggerMsg | null => {
+    let trigger: TriggerMsg | null = null;
     for (const i of items) {
-      const env = i.data as { t?: string; e?: { id?: string; authorId?: string } };
+      const env = i.data as { t?: string; e?: TriggerMsg };
       if (env?.t !== 'msg' || !env.e?.id || seen.has(env.e.id)) continue;
       seen.add(env.e.id);
-      if (react && env.e.authorId !== botAuthorId) foreign = true;
+      if (react && env.e.authorId !== botAuthorId) trigger = env.e; // newest wins (append order)
     }
-    return foreign;
+    return trigger;
   };
   if (cfg.loopGuard === 'skip-author') {
     ingestNewPosts(await pullOwnStream(appendOpts, {}).catch(() => []), false); // baseline existing posts
@@ -270,9 +294,11 @@ async function main(): Promise<void> {
     chain = chain
       .then(async () => {
         const items = await pullOwnStream(appendOpts, {});
-        if (ingestNewPosts(items, true)) {
-          console.log('[bot] new post by someone else in target room — reacting');
-          await handler(change, items); // hand the log to the strategy (LLM context)
+        const trigger = ingestNewPosts(items, true);
+        if (trigger) {
+          const where = trigger.parentId ? `thread ${trigger.parentId.slice(0, 8)}…` : 'the channel';
+          console.log(`[bot] new post by someone else in ${where} — reacting`);
+          await handler(change, items, trigger); // hand the log + trigger to the strategy
         }
       })
       .catch((e) => console.error('[bot] author-check error:', (e as Error).message));

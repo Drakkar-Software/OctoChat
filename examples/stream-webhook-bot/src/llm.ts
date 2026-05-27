@@ -12,7 +12,9 @@
  * `/events` carries no message content, so the bot can only answer in a room it can
  * READ — its own stream room, via the audience-token `pullOwnStream` (see bot.ts,
  * `skip-author` mode). `buildHistory` turns that pulled log into chat turns; the
- * bot's own posts become `assistant`, everyone else `user`.
+ * bot's own posts become `assistant`, everyone else `user`. When the question is a
+ * thread reply, `scopeToThread` first narrows that log to the one thread so the answer
+ * stays on-topic — and the bot routes its reply back into that thread (see bot.ts).
  */
 import OpenAI from 'openai';
 
@@ -108,6 +110,26 @@ export function buildHistory(
     turns.push({ role: isBot ? 'assistant' : 'user', content });
   }
   return [{ role: 'system', content: opts.systemPrompt }, ...turns.slice(-opts.maxTurns)];
+}
+
+/**
+ * Narrow a pulled stream log to ONE conversation scope, so the LLM answers a thread
+ * with that thread's context — and only that:
+ *   - `rootId` set  → the thread anchored at `rootId`: the anchor message (`e.id === rootId`)
+ *                     plus every reply to it (`e.parentId === rootId`).
+ *   - `rootId` null → the channel's top-level posts (no `parentId`) — so a reply to a
+ *                     NON-threaded message sees the channel, not other threads' contents.
+ * Non-`msg` envelopes are passed through (the only consumer, `buildHistory`, drops them
+ * anyway). In a channel with NO threads every post is top-level, so `rootId: null`
+ * returns the whole log unchanged — identical to the old "feed the whole room" behaviour.
+ */
+export function scopeToThread<T extends StreamItemish>(items: T[], rootId: string | null): T[] {
+  return items.filter((it) => {
+    const env = it.data as { t?: string; e?: { id?: string; parentId?: string } };
+    if (env?.t !== 'msg') return true; // not a message — buildHistory ignores it regardless
+    const e = env.e ?? {};
+    return rootId ? e.id === rootId || e.parentId === rootId : !e.parentId;
+  });
 }
 
 /**

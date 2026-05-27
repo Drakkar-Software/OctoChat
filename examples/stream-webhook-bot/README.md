@@ -175,6 +175,16 @@ it can read (its own stream room) — for any other watched room it stays silent
 channel, gate it in `llmReply` (bot.ts) — e.g. proceed only when the newest user turn
 starts with `@octo`.
 
+**Threads — answer in-thread.** If the question is a **thread reply** (the post
+carries a `parentId`), the bot replies **in that same thread**, and feeds the LLM
+**only that thread's messages** (the anchor post + its replies) as context. A
+**top-level** question gets a top-level answer, with the channel's top-level posts as
+context. This is automatic — no env var. The scope is deliberate: when answering a
+top-level post the bot does **not** see thread chatter, and a thread answer does not
+see the rest of the channel, so each reply stays on its own conversation. (In a
+channel with no threads every post is top-level, so the bot sees the whole log exactly
+as it did before — behaviour is unchanged there.)
+
 ## Loop guard (two modes, set via `LOOP_GUARD`)
 
 A `pubstream` append re-emits the same `octochat.chat.changed.<spaceId>` topic, so a
@@ -211,6 +221,12 @@ example would fork a security primitive and still wouldn't help until the app si
 its own stream posts too. **Today this example trusts `authorId`; when the SDK exposes
 signed appends, the author check switches to verifying `authorPubkey`/`authorSignature`
 and comparing public keys.**
+
+The same trust assumption extends to **thread routing**: the bot reads a post's
+self-declared `parentId` to decide which thread to answer in, so a peer could spoof
+`parentId` to steer a reply into another thread. Low-impact — the worst case is a reply
+in the wrong thread of the *same* room (it can't escape the room) — and it closes with
+the same signed-append fix.
 
 ## Notes
 
