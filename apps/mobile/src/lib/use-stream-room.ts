@@ -53,6 +53,23 @@ interface StreamData {
   edits: MessageEditEvent[];
 }
 
+/** Append `incoming` after `existing`, dropping any element whose `id` is already
+ *  present. Preserves order (existing first, then the new tail) so the message list
+ *  stays in append (ts-ascending) order, and returns `existing` unchanged when nothing
+ *  new is added so an idle delta pull triggers no re-render. This dedup is the guard for
+ *  a focus+SSE double-pull racing on the same checkpoint — no in-flight lock needed. */
+function concatDedupById<T extends { id: string }>(existing: T[], incoming: T[]): T[] {
+  if (incoming.length === 0) return existing;
+  const seen = new Set(existing.map((x) => x.id));
+  const added: T[] = [];
+  for (const x of incoming) {
+    if (seen.has(x.id)) continue;
+    seen.add(x.id);
+    added.push(x);
+  }
+  return added.length === 0 ? existing : [...existing, ...added];
+}
+
 /** A minimal zustand store whose `.data` the chat UI reads via `useStarfishData`.
  *  Only `data` is consumed; the StarfishStore action/flag fields are inert stubs to
  *  satisfy the `ConversationStore` type without pulling in the SDK's sync machinery. */
@@ -83,14 +100,17 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
   const [opening, setOpening] = useState(true);
   const [openError, setOpenError] = useState<string | null>(null);
 
-  // The synthetic store is created once and shared for this room's lifetime; pulls
-  // replace its `data`. Keyed by roomId so a room switch (the screen stays mounted)
-  // starts a fresh, empty store rather than flashing the previous room's log.
-  const storeRef = useRef<{ id: string; store: ConversationStore } | null>(null);
-  if (!storeRef.current || storeRef.current.id !== roomId) {
-    storeRef.current = { id: roomId, store: makeStreamStore() };
+  // The synthetic store + its pull checkpoint live for this room's lifetime, keyed by
+  // roomId so a room switch (the screen stays mounted) starts fresh rather than flashing
+  // the previous room's log. `checkpoint` is the newest server `ts` we've merged in; it
+  // resets to 0 in lockstep with the store so the first pull is a full snapshot and every
+  // later pull asks only for elements stamped after it (see `pull`).
+  const roomStateRef = useRef<{ id: string; store: ConversationStore; checkpoint: number } | null>(null);
+  if (!roomStateRef.current || roomStateRef.current.id !== roomId) {
+    roomStateRef.current = { id: roomId, store: makeStreamStore(), checkpoint: 0 };
   }
-  const store = enabled ? storeRef.current.store : null;
+  const roomState = enabled ? roomStateRef.current : null;
+  const store = roomState?.store ?? null;
 
   // Open: resolve the sync client (+ encryptor for a private space). Mirrors useRoom's
   // open branches — public spaces authorize with the invite/account cap and carry no
@@ -151,17 +171,28 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
   // Pull the append log and fan it into the store's {messages,reactions,edits}.
   // Each element is a {ts,data} envelope; `data` is the sealed payload (private) or
   // the plain envelope (public). A decrypt failure on one element skips just that one.
+  //
+  // Incremental: only the FIRST pull (checkpoint 0) fetches the whole log; after that we
+  // pass `since: checkpoint` (the newest server `ts` we hold) so the server returns only
+  // elements appended after it (`?checkpoint=`), and we MERGE that delta in — rather than
+  // re-fetching + rebuilding the entire room on every focus / SSE push / poll tick.
   const [syncError, setSyncError] = useState<string | null>(null);
   const pull = useCallback(async () => {
-    if (!client || !route || !store) return;
+    if (!client || !route || !roomState) return;
+    const checkpoint = roomState.checkpoint;
     try {
       const items = (await client.pull<{ ts: number; data: Record<string, unknown> }>(route.pull, {
         appendField: 'items',
+        ...(checkpoint > 0 ? { since: checkpoint } : {}),
       })) as { ts: number; data: Record<string, unknown> }[];
       const messages: StoredMsg[] = [];
       const reactions: ReactionEvent[] = [];
       const edits: MessageEditEvent[] = [];
+      let maxTs = checkpoint;
       for (const item of items ?? []) {
+        // Advance the checkpoint past EVERY element we saw — even an undecryptable one —
+        // so it is never re-fetched on the next delta pull.
+        if (item.ts > maxTs) maxTs = item.ts;
         let env: StreamEnvelope | null = null;
         try {
           const payload = encryptor
@@ -179,12 +210,29 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
         else if (env.t === 'reaction') reactions.push({ ...env.e, ts: env.e.ts || item.ts });
         else if (env.t === 'edit') edits.push({ ...env.e, ts: env.e.ts || item.ts });
       }
-      store.setState({ data: { messages, reactions, edits } } as never);
+      if (checkpoint > 0) {
+        // Delta merge: append the new envelopes onto what the store already holds. Skip the
+        // write entirely when nothing new arrived so an idle poll never churns a re-render.
+        if (messages.length || reactions.length || edits.length) {
+          const cur = (roomState.store.getState() as unknown as { data: StreamData }).data;
+          roomState.store.setState({
+            data: {
+              messages: concatDedupById(cur.messages, messages),
+              reactions: concatDedupById(cur.reactions, reactions),
+              edits: concatDedupById(cur.edits, edits),
+            },
+          } as never);
+        }
+      } else {
+        // First pull: the full snapshot replaces the empty store.
+        roomState.store.setState({ data: { messages, reactions, edits } } as never);
+      }
+      roomState.checkpoint = maxTs;
       setSyncError((prev) => (prev === null ? prev : null));
     } catch {
       setSyncError('Reconnecting… messages may be out of date.');
     }
-  }, [client, route, store, encryptor]);
+  }, [client, route, roomState, encryptor]);
 
   // Append one envelope: seal it for a private stream, send it plain for a public one.
   // No client-supplied ts → the server assigns a strictly-monotonic one (no 409 on
