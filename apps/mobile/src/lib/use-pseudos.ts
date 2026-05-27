@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { readProfile } from './starfish/client';
+import { readProfiles } from './starfish/client';
 
 // Public profiles (pseudo + avatar) keyed by userId, shared across every consumer
 // so the same author resolved in the message stream, a thread and a search result
@@ -47,27 +47,41 @@ export function primeProfile(userId: string, profile: { pseudo?: string; avatar?
   notify();
 }
 
-function fetchProfile(userId: string): Promise<void> {
-  const pending = inflight.get(userId);
-  if (pending) return pending;
+/**
+ * Fetch every still-unknown id in `userIds` in ONE batched round-trip per chunk
+ * (via {@link readProfiles}), instead of a request per user. Skips ids already
+ * cached or already in flight, and tracks the shared promise per-id so concurrent
+ * consumers with overlapping id sets don't double-fetch.
+ */
+function fetchProfiles(userIds: string[]): void {
+  const todo = userIds.filter((id) => !cache.has(id) && !inflight.has(id));
+  if (todo.length === 0) return;
   const p = (async () => {
-    const { pseudo, avatar } = await readProfile(userId);
-    const prev = cache.get(userId) ?? {};
-    // Keep prior values when a field comes back null: readProfile also returns
-    // null on a network error, and a blip shouldn't wipe a known name/avatar.
-    // Trade-off: a *removed* avatar therefore won't propagate to other clients
-    // via fetch (only via primeProfile on the editing client) until the cache is
-    // re-initialized (a web refresh). Acceptable for now.
-    const next: CachedProfile = { pseudo: pseudo ?? prev.pseudo, avatar: avatar ?? prev.avatar };
-    // Always record the entry — even an empty one for a user with no profile doc yet —
-    // so `useProfileSync` won't re-fetch it on every id-set tick. Only notify when a
-    // value actually changed.
-    const changed = prev.pseudo !== next.pseudo || prev.avatar !== next.avatar;
-    cache.set(userId, next);
+    const profiles = await readProfiles(todo);
+    let changed = false;
+    for (const id of todo) {
+      const got = profiles.get(id); // undefined ⇒ this id's read failed/was unresolved
+      const prev = cache.get(id) ?? {};
+      // Keep prior values when a field comes back null: a removed/absent value or a
+      // blip shouldn't wipe a known name/avatar. An id missing from the map (a
+      // transient failure) leaves `got` undefined, so prev is preserved.
+      // Trade-off: a *removed* avatar won't propagate to other clients via fetch
+      // (only via primeProfile on the editing client) until the cache is
+      // re-initialized (a web refresh). Acceptable for now.
+      const next: CachedProfile = { pseudo: got?.pseudo ?? prev.pseudo, avatar: got?.avatar ?? prev.avatar };
+      // Record an entry for every RESOLVED id — even an empty one for a user with no
+      // profile doc yet — so `useProfileSync` won't re-fetch it on every id-set tick.
+      // An UNRESOLVED id (absent from the map) is left uncached so a later tick retries.
+      if (got !== undefined) {
+        if (prev.pseudo !== next.pseudo || prev.avatar !== next.avatar) changed = true;
+        cache.set(id, next);
+      }
+    }
     if (changed) notify();
-  })().finally(() => inflight.delete(userId));
-  inflight.set(userId, p);
-  return p;
+  })().finally(() => {
+    for (const id of todo) inflight.delete(id);
+  });
+  for (const id of todo) inflight.set(id, p);
 }
 
 /**
@@ -89,14 +103,13 @@ function useProfileSync(userIds: string[]): void {
   // effect against fresh-array identity and round-trips back to the id list.
   const key = userIds.join(',');
   useEffect(() => {
-    // Fetch each profile ONCE — skip ids already in the shared cache. This is what
-    // stops the message stream from re-pulling every author's profile each time its
-    // id set ticks. Trade-off: a profile edited on ANOTHER client won't propagate
-    // here until the cache clears (account switch / web reload); our own edits do, via
+    // Batch every still-unknown id into one /batch/pull round-trip per chunk
+    // (fetchProfiles skips ids already cached or in flight). This is what collapses
+    // the message stream's author profiles into a few requests instead of one per
+    // user. Trade-off: a profile edited on ANOTHER client won't propagate here until
+    // the cache clears (account switch / web reload); our own edits do, via
     // primeProfile. Acceptable — display names/avatars are low-churn.
-    for (const id of key ? key.split(',') : []) {
-      if (!cache.has(id)) void fetchProfile(id);
-    }
+    fetchProfiles(key ? key.split(',') : []);
   }, [key]);
 }
 

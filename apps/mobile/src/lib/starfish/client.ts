@@ -3,7 +3,7 @@
  * (ported from the satellite chat example, adapted to OctoChat).
  */
 import { StarfishClient } from '@drakkar.software/starfish-client';
-import type { Encryptor, StarfishCapProvider } from '@drakkar.software/starfish-client';
+import type { BatchPullEntry, Encryptor, StarfishCapProvider } from '@drakkar.software/starfish-client';
 import { createKeyring, createKeyringEncryptor } from '@drakkar.software/starfish-keyring';
 import type { Keyring } from '@drakkar.software/starfish-keyring';
 import { signRequest, stableStringify } from '@drakkar.software/starfish-protocol';
@@ -158,6 +158,56 @@ export async function readProfile(userId: string): Promise<PublicProfile> {
 /** Read any user's public profile pseudo. */
 export async function readPseudo(userId: string): Promise<string | null> {
   return (await readProfile(userId)).pseudo;
+}
+
+// Anonymous client for the public-read `profile` collection — mirrors readProfile's
+// raw unauthenticated fetch (no cap ⇒ no auth headers), but routed through
+// StarfishClient so it gets namespacing AND batch fan-in via /batch/pull. Built once.
+let profileBatchClient: StarfishClient | undefined;
+function getProfileBatchClient(): StarfishClient {
+  if (!profileBatchClient) {
+    profileBatchClient = new StarfishClient({ baseUrl: SYNC_BASE, namespace: SYNC_NAMESPACE });
+  }
+  return profileBatchClient;
+}
+
+// Cap each /batch/pull query well under nginx's ~8KB header limit: userIds are
+// 64-hex-char SHA-256 ids, so 24 of them as `params` JSON stays a few KB.
+const PROFILE_BATCH_CHUNK = 24;
+
+/**
+ * Read MANY users' public profiles in one /batch/pull round-trip per
+ * {@link PROFILE_BATCH_CHUNK} ids — the fan-in that replaces one request per user.
+ * Returns a map keyed by userId; an id ABSENT from the map means its read failed
+ * (a per-entry error or a whole-chunk network failure), so the caller should keep
+ * any value it already had rather than wiping it. A present-but-empty profile doc
+ * maps to `{pseudo: null, avatar: null}` so the caller can cache it and stop
+ * re-fetching. `profile` is public-read, so the anonymous client resolves any id.
+ */
+export async function readProfiles(ids: string[]): Promise<Map<string, PublicProfile>> {
+  const out = new Map<string, PublicProfile>();
+  const client = getProfileBatchClient();
+  for (let i = 0; i < ids.length; i += PROFILE_BATCH_CHUNK) {
+    const chunk = ids.slice(i, i + PROFILE_BATCH_CHUNK);
+    let entries: BatchPullEntry[];
+    try {
+      // The `profile` collection's path is `user/{identity}/profile`; the server
+      // keeps an explicitly supplied identity, so this resolves each user's doc.
+      entries = await client.batchPullMany('profile', chunk.map((id) => ({ identity: id })));
+    } catch {
+      continue; // network/5xx for this chunk — leave its ids unresolved (caller keeps prior)
+    }
+    chunk.forEach((id, j) => {
+      const entry = entries[j];
+      if (!entry || entry.error) return; // unresolved → omit from map (no wipe, may retry)
+      const data = (entry.data ?? null) as { pseudo?: unknown; avatar?: unknown } | null;
+      out.set(id, {
+        pseudo: typeof data?.pseudo === 'string' ? data.pseudo : null,
+        avatar: typeof data?.avatar === 'string' ? data.avatar : null,
+      });
+    });
+  }
+  return out;
 }
 
 /**
