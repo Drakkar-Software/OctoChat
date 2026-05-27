@@ -63,6 +63,8 @@ interface BotConfig {
 //   LLM_TEMPERATURE    sampling temperature (default 0.7)
 //   LLM_MAX_TOKENS     max reply length (default 512)
 //   LLM_HISTORY        how many recent turns to feed as context (default 16)
+//   LLM_TIMEOUT_MS     per-call timeout (default 60000); bounds a hung/slow endpoint
+//                      so it can't wedge the bot's serialized event chain
 // LLM mode reads message TEXT from the target stream room, so it requires
 // LOOP_GUARD=skip-author (skip-room ignores that room → fatal at startup).
 //

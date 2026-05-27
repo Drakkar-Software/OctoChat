@@ -145,7 +145,17 @@ LLM_API_KEY=sk-…         # REQUIRED to enable LLM mode (unset ⇒ echo mode)
 # LLM_TEMPERATURE=0.7
 # LLM_MAX_TOKENS=512
 # LLM_HISTORY=16                            # how many recent turns to feed as context
+# LLM_TIMEOUT_MS=60000                      # per-call timeout; lower it to bound a slow/hung endpoint
 ```
+
+The reply is **streamed to the console** — tokens print live (in a `┊`-guttered
+block) between `[bot] LLM → <model> …` and `[bot] LLM ← <ms> · <chars>`, so you can
+watch generation and tell a slow endpoint from a hung one. The whole call is capped
+by `LLM_TIMEOUT_MS` (default 60 s, hard ceiling via an abort signal) with a single
+retry: the bot reacts to its target room through one **serialized** chain, so an
+unbounded call (the SDK default is a 10-min timeout) would wedge *every* later event
+behind it. A timed-out/aborted call is logged (`[bot] LLM error after …ms`) and
+skipped, keeping the bot live.
 
 Two requirements specific to LLM mode:
 

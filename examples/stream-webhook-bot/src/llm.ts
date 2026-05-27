@@ -33,6 +33,11 @@ export interface LlmConfig {
   /** How many of the most-recent stream turns to feed as context (NIM models often
    *  have smaller context windows than gpt-4o, so keep this conservative). */
   historyTurns: number;
+  /** Per-attempt request timeout (ms). Bounds how long ONE LLM call can take before
+   *  it's abandoned — without it the OpenAI SDK waits up to 10 min, and because the
+   *  bot processes target-room events through a single serialized promise chain, one
+   *  hung call wedges the whole bot. A timeout turns a hang into a logged error. */
+  timeoutMs: number;
 }
 
 /** Per-provider defaults. `LLM_PROVIDER` only picks the baseURL + a sane default
@@ -73,6 +78,7 @@ export function resolveLlmConfig(env: NodeJS.ProcessEnv = process.env): LlmConfi
     temperature: num(env.LLM_TEMPERATURE, 0.7),
     maxTokens: num(env.LLM_MAX_TOKENS, 512),
     historyTurns: Math.max(1, Math.trunc(num(env.LLM_HISTORY, 16))),
+    timeoutMs: Math.max(1_000, num(env.LLM_TIMEOUT_MS, 60_000)),
   };
 }
 
@@ -107,22 +113,55 @@ export function buildHistory(
 /**
  * Build the LLM caller. Returns a function that takes a chat history and resolves to
  * the assistant's reply text, or `null` on ANY failure (network, rate limit, 4xx,
- * empty completion) — the bot then simply doesn't append, so a transient LLM error
- * never crashes it nor (since no append happens) trips the append circuit breaker.
+ * timeout, empty completion) — the bot then simply doesn't append, so a transient
+ * LLM error never crashes it nor (since no append happens) trips the append circuit
+ * breaker.
+ *
+ * The reply is STREAMED: tokens are written to the console as they arrive (between
+ * the `LLM →` / `LLM ←` log lines) so you can follow generation live, then the full
+ * text is returned for the single append. A streaming call can otherwise run
+ * UNBOUNDED (the client `timeout` covers the initial response, not the open stream),
+ * so the whole call is also capped by an `AbortSignal.timeout(timeoutMs)` — the hard
+ * ceiling that matters here because the bot reacts through ONE serialized promise
+ * chain, where a hung call wedges every later event behind it. An abort/timeout
+ * throws, is caught, logged, and returns `null`, keeping the bot live.
  */
 export function createLlmReplier(cfg: LlmConfig): (history: ChatMessage[]) => Promise<string | null> {
-  const client = new OpenAI({ baseURL: cfg.baseUrl, apiKey: cfg.apiKey });
+  const client = new OpenAI({ baseURL: cfg.baseUrl, apiKey: cfg.apiKey, timeout: cfg.timeoutMs, maxRetries: 1 });
   return async (history) => {
+    const started = Date.now();
+    console.log(`[bot] LLM → ${cfg.model} (streaming, timeout ${Math.round(cfg.timeoutMs / 1000)}s)…`);
+    let printed = false;
     try {
-      const completion = await client.chat.completions.create({
-        model: cfg.model,
-        messages: history as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        temperature: cfg.temperature,
-        max_tokens: cfg.maxTokens,
-      });
-      return completion.choices[0]?.message?.content?.trim() || null;
+      const stream = await client.chat.completions.create(
+        {
+          model: cfg.model,
+          messages: history as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+          temperature: cfg.temperature,
+          max_tokens: cfg.maxTokens,
+          stream: true,
+        },
+        { signal: AbortSignal.timeout(cfg.timeoutMs) },
+      );
+      let text = '';
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta?.content ?? '';
+        if (!delta) continue;
+        if (!printed) {
+          process.stdout.write('       ┊ ');
+          printed = true;
+        }
+        // Keep the gutter prefix on each new line so the streamed reply stays visually
+        // distinct from the bot's `[bot] …` log lines.
+        process.stdout.write(delta.replace(/\n/g, '\n       ┊ '));
+        text += delta;
+      }
+      if (printed) process.stdout.write('\n');
+      console.log(`[bot] LLM ← ${Date.now() - started}ms · ${text.length} chars`);
+      return text.trim() || null;
     } catch (e) {
-      console.error('[bot] LLM error:', (e as Error).message);
+      if (printed) process.stdout.write('\n');
+      console.error(`[bot] LLM error after ${Date.now() - started}ms:`, (e as Error).message);
       return null;
     }
   };
