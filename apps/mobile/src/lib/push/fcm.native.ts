@@ -45,11 +45,42 @@ export async function ensurePushPermission(): Promise<boolean> {
   return granted;
 }
 
-export const subscribeSpacePush = (spaceId: string): Promise<void> =>
-  messaging().subscribeToTopic(pushTopicForSpace(spaceId));
+/**
+ * Module-level register of currently-subscribed space ids. Mirrors the live
+ * Firebase topic subscriptions so the settings DIAGNOSTICS card can show the
+ * count without re-asking Firebase (which has no listing API).
+ */
+const subscribedSpaces = new Set<string>();
+const topicCountListeners = new Set<(count: number) => void>();
+const emitTopicCount = (): void => {
+  const n = subscribedSpaces.size;
+  for (const fn of topicCountListeners) fn(n);
+};
 
-export const unsubscribeSpacePush = (spaceId: string): Promise<void> =>
-  messaging().unsubscribeFromTopic(pushTopicForSpace(spaceId));
+export const subscribeSpacePush = async (spaceId: string): Promise<void> => {
+  await messaging().subscribeToTopic(pushTopicForSpace(spaceId));
+  if (!subscribedSpaces.has(spaceId)) {
+    subscribedSpaces.add(spaceId);
+    emitTopicCount();
+  }
+};
+
+export const unsubscribeSpacePush = async (spaceId: string): Promise<void> => {
+  await messaging().unsubscribeFromTopic(pushTopicForSpace(spaceId));
+  if (subscribedSpaces.delete(spaceId)) emitTopicCount();
+};
+
+export function getFcmTopicCount(): number {
+  return subscribedSpaces.size;
+}
+
+export function subscribeFcmTopicCount(fn: (count: number) => void): () => void {
+  topicCountListeners.add(fn);
+  fn(subscribedSpaces.size);
+  return () => {
+    topicCountListeners.delete(fn);
+  };
+}
 
 /**
  * Required by RN-Firebase even though our pushes carry a `notification` block (the

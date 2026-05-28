@@ -6,6 +6,7 @@ import { useProfile } from '@/lib/profile-context';
 import { useSession } from '@/lib/session-context';
 import { useTheme } from '@/lib/use-theme';
 import { AccountSwitcher } from '@/components/account/AccountSwitcher';
+import { DebugStatsCard } from '@/components/settings/DebugStatsCard';
 import { NotificationSettingsCard } from '@/components/settings/NotificationSettingsCard';
 import { UpdateSettingsCard } from '@/components/settings/UpdateSettingsCard';
 import { AppBar } from '@/components/ui/AppBar';
@@ -166,6 +167,8 @@ export default function YouScreen() {
       <NotificationSettingsCard />
 
       <UpdateSettingsCard />
+
+      <DebugStatsCard />
 
       {accounts.length > 1 ? (
         <Button

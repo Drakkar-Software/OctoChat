@@ -42,3 +42,13 @@ export function onForegroundPush(_cb: (data: PushData) => void): () => void {
 export function onPushOpenNavigate(): () => void {
   return () => {};
 }
+
+/** Number of spaces currently subscribed to via FCM topics. Always 0 on web. */
+export function getFcmTopicCount(): number {
+  return 0;
+}
+
+/** Subscribe to topic-count changes. Returns an unsubscribe fn. No-op on web. */
+export function subscribeFcmTopicCount(_fn: (count: number) => void): () => void {
+  return () => {};
+}
