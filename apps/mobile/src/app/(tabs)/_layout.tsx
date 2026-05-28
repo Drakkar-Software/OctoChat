@@ -1,4 +1,7 @@
 import { Tabs } from 'expo-router';
+// Pulled from expo-router's bundled bottom-tabs so the custom `tabBar` slot can
+// fall through to the default renderer while we stack the update banner above it.
+import { BottomTabBar } from 'expo-router/build/react-navigation/bottom-tabs';
 import { StyleSheet, View, type ColorValue } from 'react-native';
 
 import { fonts, radii, spacing } from '@/theme';
@@ -6,6 +9,7 @@ import { useResponsive } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
 import { useUnread } from '@/lib/unread-context';
 import { Icon, type IconName } from '@/components/ui/Icon';
+import { DesktopUpdateBanner } from '@/components/ui/DesktopUpdateBanner';
 
 /** Tab icon with a Material-style accent pill behind the active tab. */
 function TabBarIcon({ name, color, size, focused }: { name: IconName; color: string; size: number; focused: boolean }) {
@@ -44,6 +48,15 @@ export default function TabsLayout() {
         tabBarLabelStyle: { fontFamily: fonts.bodyMedium, fontSize: 10 },
         tabBarIconStyle: { marginTop: 2 },
       }}
+      // Wraps the default tab bar so the update banner sits just above it on
+      // mobile. On wide screens the bar is hidden anyway and AppFrame renders the
+      // banner at the top instead.
+      tabBar={(props) => (
+        <View>
+          {!isWide ? <DesktopUpdateBanner /> : null}
+          <BottomTabBar {...props} />
+        </View>
+      )}
     >
       <Tabs.Screen name="rooms" options={{ title: 'Rooms', tabBarIcon: tabIcon('hash') }} />
       {/* Search is reachable from the rooms header and the desktop nav — no bottom tab. */}

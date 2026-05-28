@@ -15,8 +15,9 @@ import { DesktopUpdateBanner } from './DesktopUpdateBanner';
  * onboarding stack or before sign-in — it renders the routes untouched so the
  * mobile bottom-tab layout stands on its own.
  *
- * The DesktopUpdateBanner sits at the top of both layouts so it is visible
- * regardless of which route is active.
+ * On wide layouts the DesktopUpdateBanner sits at the top so it stays visible
+ * over the persistent sidebar; on phones the tabs layout renders it just above
+ * the bottom tab bar instead (see `(tabs)/_layout.tsx`).
  */
 export function AppFrame({ children }: { children: ReactNode }) {
   const { colors } = useTheme();
@@ -36,7 +37,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
           ]}
         />
       ) : null}
-      <DesktopUpdateBanner />
+      {inShell ? <DesktopUpdateBanner /> : null}
       {inShell ? (
         <View style={[styles.row, { backgroundColor: colors.canvas }]}>
           <DesktopNav />
