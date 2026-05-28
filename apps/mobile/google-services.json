@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "384156104201",
+    "project_id": "octochat-45a92",
+    "storage_bucket": "octochat-45a92.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:384156104201:android:d2f153a0618b384f8d2ad8",
+        "android_client_info": {
+          "package_name": "com.drakkarsoftware.octochat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCjSwdTjT6wTNgh5xYFrhpOk4mA31l32NE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

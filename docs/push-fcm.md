@@ -39,7 +39,8 @@ These were chosen up front; the steps assume them.
   uninstall/unsubscribe. Acceptable here only because payloads are content-free
   (below). If you later need revocation parity with the SSE proxy, switch to
   token-addressed (register device tokens with drakkar-sync, fan out
-  `spaceId → members → tokens`).
+  `spaceId → members → tokens`). *(Re-examined: we chose not to add revocation
+  parity — see "Why we don't gate FCM the way SSE does" below.)*
 - **Native only (iOS + Android).** Web push is a separate stack (Firebase JS SDK
   + VAPID + service worker in `src/lib/pwa.ts`) and is out of scope here.
 - **Generic notification text — non-negotiable (E2EE).** The push shows a fixed
@@ -55,6 +56,37 @@ These were chosen up front; the steps assume them.
 - **Topic subscription needs `@react-native-firebase/messaging`.**
   `expo-notifications` alone cannot subscribe a device to an FCM topic, so the
   client needs RN-Firebase + a **development/EAS build** (not Expo Go).
+
+## Why we don't gate FCM the way SSE does
+
+SSE has a server-side membership gate (`/v1/octochat/events` filters `?spaces=…`
+by `spaces/{spaceId}/_rooms` membership on every connect). FCM topic subscribe
+does NOT. A removed member who knows `<spaceId>` can subscribe to
+`octochat-octochat-chat-changed-<spaceId>` via Firebase directly and keep
+receiving wake-pings until they uninstall/unsubscribe.
+
+We considered closing this gap and explicitly chose not to. The constraint set
+(no token registry, no FCM tokens transiting the backend, client-driven
+topic-subscribe only) leaves exactly one mechanical option: make the topic name
+itself a member-only secret derived from the active room CEK, and rotate it
+whenever the keyring rotates. That option was rejected because:
+
+- It costs ~4-repo plumbing (a `deriveSecret` API in the keyring SDK, a meta
+  side-channel through the queueing plugin, a `topicResolver` in Whistler's
+  `FirebaseDestination`, and a new `kickMemberFromSpace` flow in OctoChat —
+  the current client never calls `removeRecipient`/`rotateEpoch`, so today
+  the keyring does not rotate on member removal either).
+- It protects metadata only. Payloads are already content-free (E2EE — see
+  below). A removed ex-member learns at most "space X changed" with no
+  decryptable content.
+- It still leaks in-flight pushes published before the rotation lands.
+
+The accepted residual: **a removed member keeps getting generic wake-pings
+until they unsubscribe or uninstall.** They decrypt nothing. If you ever need
+true revocation, the only honest path is to switch to token-addressed delivery
+(register device tokens with drakkar-sync, fan out `spaceId → members → tokens`)
+— that requires accepting server-side token state, which we have explicitly
+declined.
 
 ## How it fits what already exists
 
@@ -417,9 +449,11 @@ eas build --profile development --platform all
 
 ## Known caveats (call these out before shipping)
 
-- **No revocation (topic model).** A removed member keeps getting wake-pings
-  until they unsubscribe/uninstall. They learn only "space X changed" and can
-  decrypt nothing. Switch to token-addressed if that's unacceptable.
+- **No revocation (topic model) — decided, not a TODO.** A removed member
+  keeps getting generic wake-pings until they unsubscribe or uninstall. They
+  decrypt nothing (E2EE). See "Why we don't gate FCM the way SSE does" above
+  for the rationale and the path we'd take (token-addressed) if that ever
+  stops being acceptable.
 - **Generic notification text (the iOS-fix trade-off).** Delivery is now a
   **visible alert** push (`apns-push-type: alert`, priority 10 / Android high), so
   iOS shows it reliably **even when force-quit** — but the body is generic ("New
