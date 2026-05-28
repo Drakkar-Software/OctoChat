@@ -46,7 +46,8 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="rooms" options={{ title: 'Rooms', tabBarIcon: tabIcon('hash') }} />
-      <Tabs.Screen name="search" options={{ title: 'Search', tabBarIcon: tabIcon('search') }} />
+      {/* Search is reachable from the rooms header and the desktop nav — no bottom tab. */}
+      <Tabs.Screen name="search" options={{ href: null }} />
       <Tabs.Screen
         name="activity"
         options={{
@@ -56,7 +57,7 @@ export default function TabsLayout() {
           tabBarBadgeStyle: { backgroundColor: colors.unread, fontFamily: fonts.bodyMedium, fontSize: 10 },
         }}
       />
-      <Tabs.Screen name="you" options={{ title: 'You', tabBarIcon: tabIcon('people') }} />
+      <Tabs.Screen name="you" options={{ title: 'You', tabBarIcon: tabIcon('user') }} />
     </Tabs>
   );
 }

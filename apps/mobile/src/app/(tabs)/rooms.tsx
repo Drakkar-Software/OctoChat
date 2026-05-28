@@ -51,6 +51,7 @@ export default function RoomsScreen() {
             isPublic={isPublic}
             memberCount={memberCount}
             onSelectSpace={setActiveId}
+            onAddSpace={() => router.push('/join')}
             onSearch={() => router.push('/(tabs)/search')}
             onOpenSpace={() => router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
             onMenu={() => router.push('/join')}

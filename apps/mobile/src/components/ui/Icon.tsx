@@ -48,6 +48,7 @@ const ICONS = {
   'arrow-r': { lib: Feather, n: 'arrow-right' },
   shield: { lib: Feather, n: 'shield' },
   people: { lib: Feather, n: 'users' },
+  user: { lib: Feather, n: 'user' },
   dots: { lib: Feather, n: 'more-horizontal' },
   'dots-v': { lib: Feather, n: 'more-vertical' },
   camera: { lib: Feather, n: 'camera' },

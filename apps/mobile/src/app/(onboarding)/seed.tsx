@@ -4,6 +4,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { generateSeedWords } from '@/lib/starfish/identity';
+import { useArgon2Progress } from '@/lib/starfish/hash-wasm-shim';
 import { useSession } from '@/lib/session-context';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
@@ -16,6 +17,7 @@ export default function SeedScreen() {
   const words = useMemo(() => generateSeedWords(), []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const argon2 = useArgon2Progress();
 
   // Already signed in: this screen creates the FIRST account, so running signIn here
   // would replace the whole vault. Adding accounts goes through /account/* instead.
@@ -56,7 +58,13 @@ export default function SeedScreen() {
       footer={
         <View style={styles.footer}>
           <Button
-            label={busy ? 'Creating identity…' : "I've written it down  →"}
+            label={
+              busy
+                ? argon2 != null
+                  ? `Creating identity… ${Math.round(argon2 * 100)}%`
+                  : 'Creating identity…'
+                : "I've written it down  →"
+            }
             variant="primary"
             size="lg"
             full

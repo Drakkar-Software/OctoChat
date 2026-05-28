@@ -58,7 +58,7 @@ export function SpaceHeader({
           </View>
         </Pressable>
         <IconButton name="search" onPress={onSearch} accessibilityLabel="Search" />
-        <IconButton name="dots" onPress={onMenu} accessibilityLabel="Space menu" />
+        <IconButton name="plus" onPress={onMenu} accessibilityLabel="Join or create a space" />
       </View>
       <SpaceRail spaces={spaces} activeId={activeId} onSelect={onSelectSpace} onAdd={onAddSpace} />
     </View>

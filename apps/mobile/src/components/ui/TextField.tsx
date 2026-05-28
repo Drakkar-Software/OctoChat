@@ -78,6 +78,12 @@ export function TextField({
           {...rest}
           multiline={multiline}
           placeholderTextColor={colors.inkMuted}
+          // Android's TextInput otherwise inherits the OS `textColorPrimary`
+          // for the cursor/selection — invisible against the dark paperAlt in
+          // dark mode and off-brand in light mode.
+          selectionColor={colors.accent}
+          cursorColor={colors.accent}
+          underlineColorAndroid="transparent"
           onFocus={(e) => {
             setFocused(true);
             onFocus?.(e);
@@ -86,7 +92,11 @@ export function TextField({
             setFocused(false);
             onBlur?.(e);
           }}
-          style={[styles.input, mono ? styles.mono : styles.sans, { color: colors.ink }, multiline && styles.multiline, WEB_OUTLINE_RESET]}
+          // Keep `color` LAST in the array: on Android, any earlier `color`
+          // (e.g. from `styles.input` / `styles.sans`) wins under the native
+          // style flattener, which made typed text render as the OS default
+          // and disappear against the paperAlt fill in dark mode.
+          style={[styles.input, mono ? styles.mono : styles.sans, multiline && styles.multiline, WEB_OUTLINE_RESET, { color: colors.ink }]}
         />
       </View>
     </View>
