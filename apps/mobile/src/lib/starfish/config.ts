@@ -41,3 +41,17 @@ export const SYNC_PREFIX = SYNC_NAMESPACE ? `/v1/${SYNC_NAMESPACE}` : '';
  * Whistler NATS→SSE stream. Override with EXPO_PUBLIC_EVENTS_URL.
  */
 export const EVENTS_URL = process.env.EXPO_PUBLIC_EVENTS_URL ?? `${SYNC_BASE}${SYNC_PREFIX}/events`;
+
+/**
+ * Public origin of the OctoChat web app — the host that serves shareable invite
+ * links and the universal-/App-Link association files. Set to the universal-links
+ * domain, e.g. `https://app.octochat.example`.
+ *
+ * On web, runtime link-building uses `window.location.origin` (the live origin);
+ * native has no `window`, so invite links fall back to this. Empty by default,
+ * which yields a host-less `/join#…` link on native — set it so native-created
+ * invites emit a full `https://<domain>/join#…` that opens the app (or the web
+ * fallback). The matching native config lives in `app.json`
+ * (`ios.associatedDomains` + Android `intentFilters`); see `docs/deep-links.md`.
+ */
+export const WEB_BASE = (process.env.EXPO_PUBLIC_WEB_URL ?? '').replace(/\/+$/, '');

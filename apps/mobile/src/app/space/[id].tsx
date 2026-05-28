@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
+import { WEB_BASE } from '@/lib/starfish/config';
 import { useSession } from '@/lib/session-context';
 import { useSpaces } from '@/lib/use-spaces';
 import { useSpaceSettings } from '@/lib/use-space-settings';
@@ -30,9 +31,12 @@ function copy(text: string) {
   }
 }
 
+/** Origin for shareable invite links: the live web origin on web, else the
+ *  configured universal-links domain (`WEB_BASE`) so native invites are full
+ *  `https://<domain>/join#…` URLs that open the app. '' yields a host-less link. */
 function webOrigin(): string {
   if (Platform.OS === 'web' && typeof window !== 'undefined') return window.location.origin;
-  return '';
+  return WEB_BASE;
 }
 
 export default function SpaceScreen() {
