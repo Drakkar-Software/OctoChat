@@ -41,38 +41,65 @@ export function TextField({
   const { colors } = useTheme();
   const [focused, setFocused] = useState(false);
 
+  // The focus glow lives on an absolutely-positioned sibling, not on the
+  // TextInput's parent View. On Android, adding `elevation` to a TextInput's
+  // ancestor during the focus commit creates a new native render layer in the
+  // same frame as focus and eats the focus event — keyboard flashes open then
+  // dismisses immediately. Keeping the parent's layout stable (only swapping
+  // borderColor, which is paint-only) avoids that.
   return (
     <View
       style={[
-        styles.field,
-        multiline ? { minHeight: minHeight ?? 72, alignItems: 'flex-start' } : null,
-        { backgroundColor: colors.paperAlt, borderColor: focused ? colors.accentBorder : colors.lineSoft },
-        focused ? glowShadow(colors.glow, 0.2, 12) : null,
+        styles.wrapper,
+        multiline ? { minHeight: minHeight ?? 72 } : null,
         containerStyle,
       ]}
     >
-      {leadingIcon ? (
-        <Icon name={leadingIcon} size={16} color={focused ? colors.accent : colors.inkMuted} />
-      ) : null}
-      <TextInput
-        {...rest}
-        multiline={multiline}
-        placeholderTextColor={colors.inkMuted}
-        onFocus={(e) => {
-          setFocused(true);
-          onFocus?.(e);
-        }}
-        onBlur={(e) => {
-          setFocused(false);
-          onBlur?.(e);
-        }}
-        style={[styles.input, mono ? styles.mono : styles.sans, { color: colors.ink }, multiline && styles.multiline, WEB_OUTLINE_RESET]}
+      <View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          styles.glowLayer,
+          { backgroundColor: colors.paperAlt },
+          focused ? glowShadow(colors.glow, 0.2, 12) : null,
+        ]}
       />
+      <View
+        style={[
+          styles.field,
+          multiline ? { alignItems: 'flex-start' } : null,
+          { borderColor: focused ? colors.accentBorder : colors.lineSoft },
+        ]}
+      >
+        {leadingIcon ? (
+          <Icon name={leadingIcon} size={16} color={focused ? colors.accent : colors.inkMuted} />
+        ) : null}
+        <TextInput
+          {...rest}
+          multiline={multiline}
+          placeholderTextColor={colors.inkMuted}
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            onBlur?.(e);
+          }}
+          style={[styles.input, mono ? styles.mono : styles.sans, { color: colors.ink }, multiline && styles.multiline, WEB_OUTLINE_RESET]}
+        />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    minHeight: spacing.controlMinHeight,
+  },
+  glowLayer: {
+    borderRadius: radii.md,
+  },
   field: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -81,6 +108,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderRadius: radii.md,
     borderWidth: 1,
+    backgroundColor: 'transparent',
   },
   input: {
     flex: 1,
