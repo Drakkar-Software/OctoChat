@@ -47,7 +47,9 @@ export async function startDevicePairing(session: Session, pin: string): Promise
   const blob = JSON.stringify({ v: 1, keys: deviceKeys, bundle });
   const sealed = await sealWithPassphrase(pin, new TextEncoder().encode(blob));
   const nonce = randomNonce();
+  console.log('[pairing] startDevicePairing pushing', { base: SYNC_BASE, namespace: SYNC_NAMESPACE, nonce });
   await anonClient().push(`/push/_pairing/${nonce}`, sealed as unknown as Record<string, unknown>, null);
+  console.log('[pairing] startDevicePairing push OK', { nonce });
   // Carry the root pubkey out-of-band in the QR so the new device can pin the
   // bundle to it (defence in depth on top of the PIN seal).
   return `${PAIR_PREFIX}${nonce}.${session.keys.edPub}`;
@@ -62,8 +64,15 @@ export interface PairResult {
 export async function completeDevicePairing(payload: string, pin: string): Promise<PairResult> {
   const body = (payload.startsWith(PAIR_PREFIX) ? payload.slice(PAIR_PREFIX.length) : payload).trim();
   const [nonce, expectedRootEdPub] = body.split('.');
-  const res = await anonClient().pull(`/pull/_pairing/${nonce}`).catch(() => null);
+  console.log('[pairing] completeDevicePairing pulling', { base: SYNC_BASE, namespace: SYNC_NAMESPACE, nonce, expectedRootEdPub });
+  const res = await anonClient()
+    .pull(`/pull/_pairing/${nonce}`)
+    .catch((e) => {
+      console.log('[pairing] pull threw', { nonce, error: String((e as Error)?.message ?? e) });
+      return null;
+    });
   const sealed = res?.data as Record<string, unknown> | undefined;
+  console.log('[pairing] pull result', { nonce, hasRes: !!res, hasData: !!sealed, sealedV: sealed?.v });
   if (!sealed || !sealed.v) throw new Error('Pairing code not found or expired.');
   let inner: Uint8Array;
   try {
