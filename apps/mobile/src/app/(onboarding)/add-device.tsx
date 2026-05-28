@@ -52,7 +52,12 @@ export default function AddDeviceScreen() {
     };
   }, [pin, session]);
 
-  const close = () => router.replace('/(tabs)/rooms');
+  // Entered from onboarding AND from the You tab → return where we came from
+  // when possible, falling back to the rooms tab for a fresh onboarding flow.
+  const close = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/rooms');
+  };
 
   if (stage === 'pin') {
     return (
