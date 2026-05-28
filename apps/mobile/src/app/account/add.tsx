@@ -46,6 +46,14 @@ export default function AddAccountScreen() {
           full
           onPress={() => router.push('/account/recover')}
         />
+        <Button
+          label="Scan QR from existing device"
+          variant="ghost"
+          size="md"
+          full
+          iconName="qr"
+          onPress={() => router.push('/pair')}
+        />
       </View>
     </StackScreen>
   );

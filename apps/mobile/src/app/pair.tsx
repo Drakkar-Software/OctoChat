@@ -49,7 +49,13 @@ export default function PairScreen() {
         <Callout tone="info" iconName="shield">
           Pairing handshake validated for identity {result.userId.slice(0, 8)}….
         </Callout>
-        <Button label="Back to start" variant="primary" size="lg" full onPress={() => router.replace('/(onboarding)/welcome')} />
+        <Button
+          label="Done"
+          variant="primary"
+          size="lg"
+          full
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(onboarding)/welcome'))}
+        />
       </StackScreen>
     );
   }
