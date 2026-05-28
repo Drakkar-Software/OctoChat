@@ -252,12 +252,9 @@ export async function buildAuthHeaders(
     host = new URL(SYNC_BASE).host;
   } catch { /* relative base — empty host, both sides agree */ }
 
-  // `signRequest` defaults to the ed25519 suite and now folds its name into the
-  // signed canonical input, returning it as `alg`; emit it as `X-Starfish-Alg` to
-  // mirror StarfishClient (which sends it on every request as of 3.0.0-alpha.4).
-  // For our device cap the server verifies against the cert's `subAlg`, so the
-  // header is informational here, but it keeps this hand-rolled mirror in lockstep.
-  const { alg, sig, ts, nonce } = await signRequest(
+  // alpha.12: one wire suite (Ed25519), no `alg` discriminator on signatures
+  // or in headers.
+  const { sig, ts, nonce } = await signRequest(
     { method: method as SignableMethod, pathAndQuery, host },
     devEdPrivHex,
   );
@@ -274,7 +271,6 @@ export async function buildAuthHeaders(
     'X-Starfish-Sig': sig,
     'X-Starfish-Ts': String(ts),
     'X-Starfish-Nonce': nonce,
-    'X-Starfish-Alg': alg,
   };
 }
 
