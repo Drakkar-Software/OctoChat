@@ -47,14 +47,12 @@ export function TextField({
   // same frame as focus and eats the focus event — keyboard flashes open then
   // dismisses immediately. Keeping the parent's layout stable (only swapping
   // borderColor, which is paint-only) avoids that.
+  // For multiline, grow the FIELD (not just the outer wrapper) so the bordered
+  // box covers the full glow area — otherwise the wrapper's paperAlt glow
+  // leaks below the bordered field as a darker strip.
+  const multilineMin = multiline ? { minHeight: minHeight ?? 72 } : null;
   return (
-    <View
-      style={[
-        styles.wrapper,
-        multiline ? { minHeight: minHeight ?? 72 } : null,
-        containerStyle,
-      ]}
-    >
+    <View style={[styles.wrapper, containerStyle]}>
       <View
         pointerEvents="none"
         style={[
@@ -67,6 +65,7 @@ export function TextField({
       <View
         style={[
           styles.field,
+          multilineMin,
           multiline ? { alignItems: 'flex-start' } : null,
           { borderColor: focused ? colors.accentBorder : colors.lineSoft },
         ]}
