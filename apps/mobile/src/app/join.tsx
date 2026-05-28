@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { acceptSpaceInvite, makeJoinRequest } from '@/lib/starfish/members';
 import { decodePublicInvite, joinPublicSpace } from '@/lib/starfish/pubspace';
+import { useInviteFragment } from '@/lib/use-invite-link';
 import { useSession } from '@/lib/session-context';
 import { useSpaces } from '@/lib/use-spaces';
 import { AppBar } from '@/components/ui/AppBar';
@@ -19,15 +20,14 @@ import { QrScanner } from '@/components/onboarding/QrScanner';
 
 type SpaceType = 'private' | 'public';
 
-/** Read an invitation-link fragment (`/join#<token>`) on web; empty otherwise. */
-function inviteFragment(): string {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return '';
-  return window.location.hash ?? '';
-}
-
 export default function JoinScreen() {
   const { session } = useSession();
   const { createSpace } = useSpaces();
+  const inviteFrag = useInviteFragment();
+  // The last fragment we auto-joined. Native re-delivers the same launch URL on
+  // remount (there's no address bar to clear, unlike web's `replaceState`), so
+  // this guards a given credential to a single join.
+  const consumed = useRef<string | null>(null);
   const myRequest = useMemo(() => (session ? makeJoinRequest(session) : ''), [session]);
   const [invite, setInvite] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -82,15 +82,18 @@ export default function JoinScreen() {
     }
   };
 
-  // Opening an invitation link (`/join#<token>`) auto-joins the public space, then
-  // clears the credential from the URL. Waits for a session (needed to register it).
+  // Opening an invitation link (`…/join#<token>`) auto-joins the public space.
+  // The fragment comes from the launch URL on web AND native (see
+  // `useInviteFragment`). Waits for a session (needed to register the join), and
+  // joins each credential once (web also clears it from the address bar).
   useEffect(() => {
-    const frag = inviteFragment();
-    if (!frag || frag === '#' || !session) return;
+    if (!inviteFrag || inviteFrag === '#' || !session) return;
+    if (consumed.current === inviteFrag) return;
+    consumed.current = inviteFrag;
     void (async () => {
       try {
-        const space = await joinPublicSpace(session, decodePublicInvite(frag));
-        if (typeof window !== 'undefined') {
+        const space = await joinPublicSpace(session, decodePublicInvite(inviteFrag));
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
         }
         enterSpace(space.id);
@@ -99,7 +102,7 @@ export default function JoinScreen() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session]);
+  }, [session, inviteFrag]);
 
   return (
     <StackScreen scroll contentStyle={styles.content} header={<AppBar title="Join or create" onBack={() => router.back()} />}>
