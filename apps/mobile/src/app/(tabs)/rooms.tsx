@@ -9,6 +9,7 @@ import { useSpaces } from '@/lib/use-spaces';
 import type { Room } from '@/lib/types';
 import { AppBar } from '@/components/ui/AppBar';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { IconButton } from '@/components/ui/IconButton';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { ChannelListSkeleton } from '@/components/chat/ChannelListSkeleton';
@@ -58,7 +59,23 @@ export default function RoomsScreen() {
             onMenu={() => router.push('/join')}
           />
         ) : (
-          <AppBar title="Rooms" />
+          <AppBar
+            title="Rooms"
+            right={
+              <>
+                <IconButton
+                  name="search"
+                  onPress={() => router.push('/(tabs)/search')}
+                  accessibilityLabel="Search"
+                />
+                <IconButton
+                  name="plus"
+                  onPress={() => router.push('/join')}
+                  accessibilityLabel="Join or create a space"
+                />
+              </>
+            }
+          />
         )
       }
     >
