@@ -7,6 +7,7 @@ import { useSession } from '@/lib/session-context';
 import { useRooms } from '@/lib/use-rooms';
 import { useSpaces } from '@/lib/use-spaces';
 import type { Room } from '@/lib/types';
+import { AppBar } from '@/components/ui/AppBar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
@@ -56,7 +57,9 @@ export default function RoomsScreen() {
             onOpenSpace={() => router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
             onMenu={() => router.push('/join')}
           />
-        ) : undefined
+        ) : (
+          <AppBar title="Rooms" />
+        )
       }
     >
       {!session ? (
