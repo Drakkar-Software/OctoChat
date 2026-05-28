@@ -7,16 +7,31 @@ import { AppBar } from '@/components/ui/AppBar';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { SeedLockSetup } from '@/components/onboarding/SeedLockSetup';
 
-/** Web set-lock step: seal the staged seed behind a PIN (+ optional passkey). */
+/** Web set-lock step: seal the staged identity (seed or Nostr-derived) behind a
+ *  PIN (+ optional passkey). One vault format covers both origins. */
 export default function LockScreen() {
-  const { pendingSeed, passkeyAvailable, signIn, session } = useSession();
+  const {
+    pendingSeed,
+    pendingNostrIdentity,
+    passkeyAvailable,
+    signIn,
+    signInWithRootIdentity,
+    session,
+  } = useSession();
 
   // Already signed in: this screen creates the FIRST account's app-lock, so running
   // signIn here would replace the whole vault. Adding accounts goes through
   // addAccount (no lock step), so bounce back into the app.
   if (session) return <Redirect href="/(tabs)/rooms" />;
-  // Reached without a staged seed (e.g. a direct reload) — restart onboarding.
-  if (!pendingSeed) return <Redirect href="/(onboarding)/welcome" />;
+  // Reached without anything staged (e.g. a direct reload) — restart onboarding.
+  // Branch order matches the staging order: the welcome handlers only set one of
+  // the two at a time, so checking nostr first is enough.
+  if (!pendingNostrIdentity && !pendingSeed) return <Redirect href="/(onboarding)/welcome" />;
+
+  const onSubmit = pendingNostrIdentity
+    ? (lock: Parameters<typeof signInWithRootIdentity>[2]) =>
+        signInWithRootIdentity(pendingNostrIdentity.root, pendingNostrIdentity.name, lock)
+    : (lock: Parameters<typeof signIn>[2]) => signIn(pendingSeed!.words, pendingSeed!.name, lock);
 
   return (
     <StackScreen
@@ -26,7 +41,7 @@ export default function LockScreen() {
     >
       <SeedLockSetup
         passkeyAvailable={passkeyAvailable}
-        onSubmit={(lock) => signIn(pendingSeed.words, pendingSeed.name, lock)}
+        onSubmit={onSubmit}
         onDone={() => router.replace('/(tabs)/rooms')}
       />
     </StackScreen>

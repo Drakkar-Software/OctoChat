@@ -5,6 +5,7 @@ import { Platform, StyleSheet } from 'react-native';
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
 import { AppBar } from '@/components/ui/AppBar';
+import { Callout } from '@/components/ui/Callout';
 import { IconButton } from '@/components/ui/IconButton';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { Txt } from '@/components/ui/Txt';
@@ -13,16 +14,20 @@ import { SeedUnlock } from '@/components/onboarding/SeedUnlock';
 
 /** View / back up the active account's recovery seed. Web gates the reveal behind a
  *  fresh PIN/passkey check (the seed is only pulled into state after it passes);
- *  native has no app-lock, so it shows straight away (concealed-by-default). */
+ *  native has no app-lock, so it shows straight away (concealed-by-default).
+ *  Nostr-derived accounts have no seed at all — show an explanation instead. */
 export default function BackupSeedScreen() {
-  const { session, getActiveSeed, lockMethods, verifyLock } = useSession();
+  const { session, getActiveSeed, lockMethods, verifyLock, activeBootstrapOrigin } = useSession();
   const gated = Platform.OS === 'web';
   const [seed, setSeed] = useState<string[] | null>(() => (gated ? null : getActiveSeed()));
   const methods = useMemo(() => lockMethods(), [lockMethods]);
+  const nostrLinked = activeBootstrapOrigin?.kind === 'secp256k1';
 
-  // Reached without an unlocked vault, or no seed to reveal and no gate to show
-  // (native edge: a stale activeId) — nothing to do here.
-  if (!session || (!gated && !seed)) return <Redirect href="/" />;
+  // Reached without an unlocked vault — nothing to do here. Nostr accounts have no
+  // seed, so the no-gate-no-seed early redirect from the seed-only flow doesn't fit
+  // them; they bypass it and render the explanatory Callout below.
+  if (!session) return <Redirect href="/" />;
+  if (!gated && !seed && !nostrLinked) return <Redirect href="/" />;
 
   return (
     <StackScreen
@@ -31,13 +36,20 @@ export default function BackupSeedScreen() {
       header={
         <AppBar
           title="Recovery seed"
-          subtitle={seed ? 'Back up this account' : 'Confirm it’s you'}
+          subtitle={nostrLinked ? 'Linked to Nostr' : seed ? 'Back up this account' : 'Confirm it’s you'}
           onBack={() => router.back()}
           right={<IconButton name="x" onPress={() => router.back()} accessibilityLabel="Close" />}
         />
       }
     >
-      {seed ? (
+      {nostrLinked ? (
+        <Callout tone="info" iconName="key" title="No recovery seed for this account">
+          <Txt variant="body" tone="inkSoft">
+            This account was created from your Nostr extension. To recover or sign in on another
+            device, use the same Nostr key with “Login with Nostr extension”.
+          </Txt>
+        </Callout>
+      ) : seed ? (
         <SeedBackup
           words={seed}
           intro={

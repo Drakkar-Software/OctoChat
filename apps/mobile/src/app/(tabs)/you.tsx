@@ -22,7 +22,8 @@ import { Txt } from '@/components/ui/Txt';
 
 export default function YouScreen() {
   const { colors } = useTheme();
-  const { fullSignOut, accounts } = useSession();
+  const { fullSignOut, accounts, activeBootstrapOrigin } = useSession();
+  const nostrPubHex = activeBootstrapOrigin?.kind === 'secp256k1' ? activeBootstrapOrigin.pubHex : null;
   const { profile, draft, setDraft, dirty, save, saving, avatarDraft, pickAvatar, removeAvatar, avatarError } =
     useProfile();
   const verified = verificationColor(colors, 'verified');
@@ -136,12 +137,21 @@ export default function YouScreen() {
       </Card>
 
       <Card title="SECURITY">
-        <Row
-          iconName="shield"
-          title="Recovery seed"
-          detail="12 words · view or back up"
-          onPress={() => router.push('/account/backup')}
-        />
+        {nostrPubHex ? (
+          <Row
+            iconName="key"
+            title="Linked to Nostr"
+            detail={`${nostrPubHex.slice(0, 8)}…${nostrPubHex.slice(-8)} · sign in with the same extension`}
+            detailMono
+          />
+        ) : (
+          <Row
+            iconName="shield"
+            title="Recovery seed"
+            detail="12 words · view or back up"
+            onPress={() => router.push('/account/backup')}
+          />
+        )}
         <Divider style={styles.divider} />
         <Row
           iconName="devices"

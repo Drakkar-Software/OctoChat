@@ -3,6 +3,8 @@
  * (`storage.ts` web, `storage.native.ts` native) implement the same contract so
  * `session-context` stays platform-agnostic.
  */
+import type { BootstrapOrigin } from '@drakkar.software/starfish-identities';
+
 import type { DeviceKeys } from './client';
 
 /**
@@ -19,13 +21,26 @@ export interface DerivedIdentity {
 
 /** The recovery seed + display name — the minimum needed to re-derive an identity. */
 export interface PersistedSession {
-  seed: string[];
+  /**
+   * BIP-39 recovery seed. Absent for non-seed origins (e.g. Nostr-derived
+   * identities, where the secp256k1 root lives in the extension and re-login
+   * is the recovery path). When absent, `derived` MUST be present — restore
+   * has no fallback path.
+   */
+  seed?: string[];
   name: string;
   /**
    * Cached root identity so restore skips the bootstrap Argon2id. Optional: if
    * absent (or corrupt) the consumer falls back to re-deriving from `seed`.
+   * Required when `seed` is absent.
    */
   derived?: DerivedIdentity;
+  /**
+   * How this identity was bootstrapped. Absent for seed-derived identities;
+   * present (e.g. `{ kind: 'secp256k1', pubHex }`) for Nostr-derived ones.
+   * Purely cosmetic — drives UI like the You-tab security card; never on the wire.
+   */
+  bootstrapOrigin?: BootstrapOrigin;
 }
 
 /**

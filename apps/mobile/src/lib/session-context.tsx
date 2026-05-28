@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
+import type { BootstrapOrigin, RootIdentity } from '@drakkar.software/starfish-identities';
+
 import { clearAttachmentCache } from './starfish/attachments';
 import {
   buildSession,
@@ -51,12 +53,21 @@ interface SessionContextValue {
   activeUserId: string | null;
   /** Seed staged by an onboarding screen, consumed by the lock-setup screen (web). */
   pendingSeed: { words: string[]; name?: string } | null;
+  /** Nostr-derived root identity staged by the welcome screen, consumed by the
+   *  lock-setup screen (web). Mirrors {@link pendingSeed} for the NIP-07 flow. */
+  pendingNostrIdentity: { root: RootIdentity; name?: string } | null;
   /** Stage a seed for the lock-setup screen (web onboarding). */
   prepareSignIn: (seedWords: string[], name?: string) => void;
+  /** Stage a Nostr-derived root identity for the lock-setup screen (web onboarding). */
+  prepareNostrSignIn: (root: RootIdentity, name?: string) => void;
   /** Create the FIRST identity from a 12-word seed and persist it (web requires `lock`). */
   signIn: (seedWords: string[], name?: string, lock?: SeedLock) => Promise<void>;
+  /** Create the FIRST identity from a Nostr-derived root identity and persist it (web requires `lock`). */
+  signInWithRootIdentity: (root: RootIdentity, name?: string, lock?: SeedLock) => Promise<void>;
   /** Add another identity to the already-unlocked vault and make it active (no lock prompt). */
   addAccount: (seedWords: string[], name?: string) => Promise<void>;
+  /** Add another Nostr-derived identity to the already-unlocked vault (no lock prompt). */
+  addAccountWithRootIdentity: (root: RootIdentity, name?: string) => Promise<void>;
   /** Make a held account active, tearing down and rebuilding account-scoped state. */
   switchAccount: (userId: string) => Promise<void>;
   /** Remove one account from this device; falls to another, or to welcome if it was the last. */
@@ -65,8 +76,12 @@ interface SessionContextValue {
   unlock: (method: UnlockMethod, pin?: string) => Promise<void>;
   /** Sign out of every account and forget the local vault. */
   fullSignOut: () => Promise<void>;
-  /** The active account's 12-word seed from the in-memory vault, or null. */
+  /** The active account's 12-word seed from the in-memory vault, or null
+   *  (no active account, or a non-seed origin like Nostr). */
   getActiveSeed: () => string[] | null;
+  /** Bootstrap origin of the active account (e.g. Nostr secp256k1 root). Null
+   *  when the account is plain seed-derived or there is no active account. */
+  activeBootstrapOrigin: BootstrapOrigin | null;
   /** Re-check the app-lock (web) without rebuilding the session; throws on a wrong PIN/passkey. */
   verifyLock: (method: UnlockMethod, pin?: string) => Promise<void>;
   /** Enrolled lock methods for the active (unlocked) vault — for a re-auth prompt (web). */
@@ -115,7 +130,8 @@ async function hydrateCapsFor(session: Session): Promise<void> {
 
 // Rebuild a live session from a persisted one. Prefer the cached root identity
 // (skips the heavy bootstrap Argon2id); fall back to re-deriving from the seed if
-// it's missing or unusable (older blob / corruption).
+// it's missing or unusable (older blob / corruption). Nostr-derived accounts have
+// no seed — they MUST have a usable `derived`, so a failure there is terminal.
 async function sessionFromPersisted(p: PersistedSession): Promise<Session> {
   if (p.derived) {
     try {
@@ -124,7 +140,8 @@ async function sessionFromPersisted(p: PersistedSession): Promise<Session> {
       /* cached keys unusable — fall through to a full re-derive from the seed */
     }
   }
-  return deriveSession(p.seed, p.name);
+  if (p.seed) return deriveSession(p.seed, p.name);
+  throw new Error('Persisted account has neither usable derived keys nor a recovery seed.');
 }
 
 /** The active account in a vault: the one matching `activeId`, else the first. */
@@ -149,6 +166,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // sessionStorage) keeps them off disk. A reload mid-onboarding drops it and routes
   // back to welcome — an acceptable cost for not persisting the phrase.
   const [pendingSeed, setPendingSeed] = useState<{ words: string[]; name?: string } | null>(null);
+  // Same rationale for the Nostr-derived root identity: the device keys here are
+  // private-key-equivalent (HKDF'd from the secp256k1 signature), so they stay in
+  // memory until the lock-setup screen seals them under the PIN.
+  const [pendingNostrIdentity, setPendingNostrIdentity] = useState<{ root: RootIdentity; name?: string } | null>(null);
   // The decrypted vault. Mirrored into a ref so the async ops always read the latest
   // value without relying on closure freshness across awaits.
   const [vault, setVaultState] = useState<Vault | null>(null);
@@ -210,11 +231,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   // Seed of the active account. Resolved via activeAccountOf — the SAME selector the
   // live session is built from — so the seed always matches the current session, even
-  // when activeId has fallen back to the first account. Null only when the vault is empty.
+  // when activeId has fallen back to the first account. Null when the vault is empty
+  // OR when the active account has no seed (e.g. Nostr-derived).
   const getActiveSeed = useCallback((): string[] | null => {
     const v = vaultRef.current;
     return v ? activeAccountOf(v)?.seed ?? null : null;
   }, []);
+
+  // The active account's bootstrap origin, recomputed when the vault changes so
+  // the You-tab security card can switch between "Recovery seed" and "Linked to
+  // Nostr" reactively. Re-read from vaultRef would not trigger a re-render.
+  const activeBootstrapOrigin: BootstrapOrigin | null = useMemo(
+    () => (vault ? activeAccountOf(vault)?.bootstrapOrigin ?? null : null),
+    [vault],
+  );
 
   // Re-check the app-lock WITHOUT rebuilding the session (web). unlockVault re-derives
   // the same VMK and returns the vault with no disk write / no other state mutation; it
@@ -235,7 +265,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       accounts,
       activeUserId: session?.userId ?? null,
       pendingSeed,
+      pendingNostrIdentity,
       prepareSignIn: (seedWords, name) => setPendingSeed({ words: seedWords, name }),
+      prepareNostrSignIn: (root, name) => setPendingNostrIdentity({ root, name }),
       signIn: async (seedWords, name, lock) => {
         await yieldToPaint();
         const s = await deriveSession(seedWords, name);
@@ -246,6 +278,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         await saveVault(next, lock);
         commitVault(next);
         setPendingSeed(null);
+        await hydrateCapsFor(s);
+        setSession(s);
+        setStatus('ready');
+      },
+      signInWithRootIdentity: async (root, name, lock) => {
+        await yieldToPaint();
+        // No Argon2id here — the root identity is already derived from the
+        // secp256k1 signature. buildSession only mints caps + ensures the pseudo.
+        const s = await buildSession({ userId: root.userId, keys: root.keys }, name);
+        // No seed: re-login uses the same Nostr extension. `derived` is required
+        // for restore (sessionFromPersisted has no seed fallback for this branch).
+        const persisted: PersistedSession = {
+          name: s.name,
+          derived: rootIdentityOf(s),
+          bootstrapOrigin: root.bootstrapOrigin,
+        };
+        const next: Vault = { accounts: [persisted], activeId: s.userId };
+        await saveVault(next, lock);
+        commitVault(next);
+        setPendingNostrIdentity(null);
         await hydrateCapsFor(s);
         setSession(s);
         setStatus('ready');
@@ -271,6 +323,33 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         } finally {
           // Always leave 'switching' (clears the overlay) — the old session stays
           // intact on failure since setSession only runs on success.
+          opRef.current = false;
+          setStatus('ready');
+        }
+      },
+      addAccountWithRootIdentity: async (root, name) => {
+        if (opRef.current) return;
+        opRef.current = true;
+        setStatus('switching');
+        try {
+          await yieldToPaint();
+          const s = await buildSession({ userId: root.userId, keys: root.keys }, name);
+          const persisted: PersistedSession = {
+            name: s.name,
+            derived: rootIdentityOf(s),
+            bootstrapOrigin: root.bootstrapOrigin,
+          };
+          const cur = vaultRef.current ?? { accounts: [], activeId: '' };
+          // Re-adding the same Nostr root replaces its entry rather than duplicating it.
+          const others = cur.accounts.filter((a) => a.derived?.userId !== s.userId);
+          const next: Vault = { accounts: [...others, persisted], activeId: s.userId };
+          await saveVault(next);
+          commitVault(next);
+          setPendingNostrIdentity(null);
+          resetAccountScopedState();
+          await hydrateCapsFor(s);
+          setSession(s);
+        } finally {
           opRef.current = false;
           setStatus('ready');
         }
@@ -358,10 +437,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setStatus('ready');
       },
       getActiveSeed,
+      activeBootstrapOrigin,
       verifyLock,
       lockMethods,
     }),
-    [session, status, unlockMethods, passkeyAvailable, accounts, pendingSeed, getActiveSeed, verifyLock, lockMethods],
+    [
+      session,
+      status,
+      unlockMethods,
+      passkeyAvailable,
+      accounts,
+      pendingSeed,
+      pendingNostrIdentity,
+      getActiveSeed,
+      activeBootstrapOrigin,
+      verifyLock,
+      lockMethods,
+    ],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
