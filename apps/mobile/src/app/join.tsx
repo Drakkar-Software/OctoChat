@@ -15,6 +15,7 @@ import { CopyField } from '@/components/ui/CopyField';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
+import { QrScanner } from '@/components/onboarding/QrScanner';
 
 type SpaceType = 'private' | 'public';
 
@@ -31,6 +32,10 @@ export default function JoinScreen() {
   const [invite, setInvite] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Native-only: scan a public-space invitation QR with the camera. The web
+  // platform has no QrScanner (the shim returns null), so the button is hidden.
+  const canScan = Platform.OS !== 'web';
+  const [scanning, setScanning] = useState(false);
   const [spaceName, setSpaceName] = useState('');
   const [spaceType, setSpaceType] = useState<SpaceType>('private');
   const [creating, setCreating] = useState(false);
@@ -168,7 +173,35 @@ export default function JoinScreen() {
           autoCapitalize="none"
           autoCorrect={false}
         />
-        <Button label={busy ? 'Joining…' : 'Join space'} variant="primary" size="md" disabled={busy} onPress={() => join(invite)} />
+        {scanning ? (
+          <QrScanner
+            onScan={(data) => {
+              setScanning(false);
+              setInvite(data);
+              void join(data);
+            }}
+          />
+        ) : null}
+        <View style={styles.actionRow}>
+          <Button
+            label={busy ? 'Joining…' : 'Join space'}
+            variant="primary"
+            size="md"
+            style={styles.actionBtn}
+            disabled={busy}
+            onPress={() => join(invite)}
+          />
+          {canScan ? (
+            <Button
+              label={scanning ? 'Cancel scan' : 'Scan invite'}
+              variant="secondary"
+              size="md"
+              iconName={scanning ? 'x' : 'qr-scan'}
+              style={styles.actionBtn}
+              onPress={() => setScanning((s) => !s)}
+            />
+          ) : null}
+        </View>
         {error ? (
           <Callout tone="danger" iconName="alert">
             {error}
@@ -182,4 +215,6 @@ export default function JoinScreen() {
 const styles = StyleSheet.create({
   content: { padding: spacing.screenX, gap: spacing.lg },
   typeRow: { flexDirection: 'row', gap: spacing.sm },
+  actionRow: { flexDirection: 'row', gap: spacing.sm },
+  actionBtn: { flex: 1 },
 });
