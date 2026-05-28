@@ -2,6 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
 import { fonts } from '@/theme';
+import { useResponsive } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
 import { useUnread } from '@/lib/unread-context';
 
@@ -23,10 +24,16 @@ import { useUnread } from '@/lib/unread-context';
  */
 export default function NativeTabsLayout() {
   const { colors } = useTheme();
+  const { isWide } = useResponsive();
   const { totalUnread } = useUnread();
   const badge = totalUnread > 0 ? (totalUnread > 99 ? '99+' : String(totalUnread)) : undefined;
   return (
     <NativeTabs
+      // On wide native layouts (iPad / foldable) the AppFrame desktop sidebar
+      // replaces the bottom bar, so hide it here. Crossing the breakpoint
+      // (rotation / multitasking resize) remounts the navigator and resets tab
+      // state — acceptable since the whole layout reflows at that point anyway.
+      hidden={isWide}
       // Active icon + label resolve to `tintColor`; inactive fall back to the
       // muted defaults below — mirroring the JS-Tabs active/inactive tints.
       tintColor={colors.accent}

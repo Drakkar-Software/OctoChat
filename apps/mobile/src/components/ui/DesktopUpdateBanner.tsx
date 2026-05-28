@@ -1,4 +1,5 @@
 import { StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { spacing } from '@/theme';
 import { relaunchDesktop } from '@/lib/desktop';
@@ -20,10 +21,16 @@ import { Txt } from './Txt';
  * Only one source is ever active at a time. Renders nothing when no update is
  * pending and on platforms where neither mechanism fires.
  */
-export function DesktopUpdateBanner() {
+/**
+ * @param topInset When the banner sits at the very top of the app (the native
+ * top-of-app placement), clear the status bar / notch. Off for the in-shell and
+ * above-bottom-bar placements, which already sit below a safe edge.
+ */
+export function DesktopUpdateBanner({ topInset = false }: { topInset?: boolean }) {
   const desktopVersion = useDesktopUpdate();
   const { updateReady: mobileUpdateReady, applyUpdate } = useAppUpdate();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const pending = !!desktopVersion || mobileUpdateReady;
   const restart = desktopVersion
@@ -40,6 +47,7 @@ export function DesktopUpdateBanner() {
           backgroundColor: colors.accentBg,
           borderBottomColor: colors.accentBorder,
         },
+        topInset && { paddingTop: spacing.xs + insets.top },
       ]}
     >
       <Icon name="chevron-up" size={15} color={colors.accent} />

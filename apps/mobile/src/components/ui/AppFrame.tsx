@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 
 import { isMacDesktop } from '@/lib/desktop';
 import { useInShell } from '@/lib/use-responsive';
@@ -37,7 +37,15 @@ export function AppFrame({ children }: { children: ReactNode }) {
           ]}
         />
       ) : null}
-      {inShell ? <DesktopUpdateBanner /> : null}
+      {/* Render the update banner at the top of the app in the desktop shell
+          (web/tablet) and on every native screen — NativeTabs can't host a
+          custom view above the tab bar, so native loses the above-bar slot (see
+          (tabs)/_layout.native.tsx). On native the banner is the topmost view,
+          so it clears the status bar / notch. On mobile web the (tabs) layout
+          renders it above the bottom bar instead, so skip it here. */}
+      {inShell || Platform.OS !== 'web' ? (
+        <DesktopUpdateBanner topInset={Platform.OS !== 'web'} />
+      ) : null}
       {inShell ? (
         <View style={[styles.row, { backgroundColor: colors.canvas }]}>
           <DesktopNav />
