@@ -87,7 +87,7 @@ export function DesktopNav() {
             threads={activeThreads}
             onOpenRoom={openRoom}
             onOpenThread={openThread}
-            onJumpTo={() => router.push('/(tabs)/search')}
+            onJumpTo={() => router.push('/search')}
             onOpenSpaceMenu={() => router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
             onCreateRoom={(category, name, kind) => createRoom(name, category, kind)}
             loading={roomsLoading}

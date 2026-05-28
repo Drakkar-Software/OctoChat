@@ -59,8 +59,6 @@ export default function TabsLayout() {
       )}
     >
       <Tabs.Screen name="rooms" options={{ title: 'Rooms', tabBarIcon: tabIcon('hash') }} />
-      {/* Search is reachable from the rooms header and the desktop nav — no bottom tab. */}
-      <Tabs.Screen name="search" options={{ href: null }} />
       <Tabs.Screen
         name="activity"
         options={{

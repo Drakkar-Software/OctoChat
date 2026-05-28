@@ -54,7 +54,7 @@ export default function RoomsScreen() {
             memberCount={memberCount}
             onSelectSpace={setActiveId}
             onAddSpace={() => router.push('/join')}
-            onSearch={() => router.push('/(tabs)/search')}
+            onSearch={() => router.push('/search')}
             onOpenSpace={() => router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
             onMenu={() => router.push('/join')}
           />
@@ -65,7 +65,7 @@ export default function RoomsScreen() {
               <>
                 <IconButton
                   name="search"
-                  onPress={() => router.push('/(tabs)/search')}
+                  onPress={() => router.push('/search')}
                   accessibilityLabel="Search"
                 />
                 <IconButton

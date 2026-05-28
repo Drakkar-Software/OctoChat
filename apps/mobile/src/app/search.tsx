@@ -26,7 +26,7 @@ export default function SearchScreen() {
     router.push({ pathname: '/room/[id]', params: { id: r.room.id, name: r.room.name, kind: r.room.kind } });
 
   return (
-    <StackScreen inTabs header={<AppBar title="Search" />} contentStyle={styles.content}>
+    <StackScreen header={<AppBar title="Search" />} contentStyle={styles.content}>
       <TextField
         leadingIcon="search"
         value={query}

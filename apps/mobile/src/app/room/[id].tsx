@@ -84,7 +84,7 @@ export default function RoomScreen() {
   const openThread = (msgId: string) =>
     router.push({ pathname: '/thread/[id]', params: { id: msgId, roomId: id, roomName: name, kind } });
   const openMembers = () => router.push({ pathname: '/space/[id]', params: { id: spaceIdFromRoomId(id) } });
-  const openSearch = () => router.push('/(tabs)/search');
+  const openSearch = () => router.push('/search');
   const openProfile = (userId: string) => router.push({ pathname: '/profile/[id]', params: { id: userId } });
 
   return (
