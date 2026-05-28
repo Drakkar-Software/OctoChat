@@ -1,12 +1,13 @@
 /**
- * Web drop-in for the slice of `hash-wasm` the Starfish SDK uses.
+ * Drop-in for the slice of `hash-wasm` the Starfish SDK uses.
  *
  * `@drakkar.software/starfish-identities` derives the root identity and seal
  * keys with Argon2id from `hash-wasm`, which hard-requires a `WebAssembly`
  * global and throws "WebAssembly is not supported in this environment!" when it
- * is missing — surfaced in onboarding as "Couldn't create identity". Metro
- * redirects `hash-wasm` to this module on the `web` platform (see
- * metro.config.js) so the web bundle uses a pure-JS Argon2id instead.
+ * is missing — surfaced in onboarding as "Couldn't create identity". Hermes on
+ * iOS/Android does not ship WebAssembly any more than the web JS fallback
+ * does, so Metro redirects `hash-wasm` to this module on every platform (see
+ * metro.config.js) and the bundle uses a pure-JS Argon2id instead.
  *
  * `@noble/hashes/argon2` is already a dependency and produces byte-identical
  * output for our locked params (verified against hash-wasm), so existing

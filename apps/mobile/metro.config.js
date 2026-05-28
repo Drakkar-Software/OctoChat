@@ -23,12 +23,15 @@ config.resolver.unstable_enablePackageExports = true;
 // Never bundle the Node-only server package or its server deps into the app.
 config.resolver.blockList = [/\/apps\/server\//, /\/@hono\/node-server\//];
 
-// On web, redirect `hash-wasm` (used by starfish-identities for Argon2id) to a
-// pure-JS shim. hash-wasm requires a `WebAssembly` global and otherwise fails
-// identity creation; see src/lib/starfish/hash-wasm-shim.ts.
+// Redirect `hash-wasm` (used by starfish-identities for Argon2id) to a pure-JS
+// shim on every platform. hash-wasm requires a `WebAssembly` global and throws
+// "WebAssembly is not supported in this environment" otherwise — Hermes on
+// iOS/Android does not ship WebAssembly any more than the web fallback path
+// does, so identity creation fails on native too without the alias. See
+// src/lib/starfish/hash-wasm-shim.ts.
 const defaultResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  if (platform === 'web' && moduleName === 'hash-wasm') {
+  if (moduleName === 'hash-wasm') {
     return {
       type: 'sourceFile',
       filePath: path.resolve(projectRoot, 'src/lib/starfish/hash-wasm-shim.ts'),
