@@ -148,7 +148,17 @@ export default function AddDeviceScreen() {
 }
 
 const styles = StyleSheet.create({
-  pinContent: { padding: spacing.screenX, gap: spacing.xl, justifyContent: 'center' },
+  // Centered narrow column so the PIN pad doesn't blow up to the full desktop
+  // pane width (the onboarding screens hit this naturally via the pre-shell
+  // layout; here we're inside the desktop shell as a signed-in user).
+  pinContent: {
+    padding: spacing.screenX,
+    gap: spacing.xl,
+    justifyContent: 'center',
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 360,
+  },
   pinBlock: { gap: spacing.md },
   qrContent: { padding: spacing.screenX, gap: spacing.xl, alignItems: 'center', justifyContent: 'center' },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
