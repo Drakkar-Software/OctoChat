@@ -132,61 +132,75 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey }: Composer
         </View>
       ) : null}
 
-      <View
-        style={[
-          styles.bar,
-          { backgroundColor: colors.paperAlt, borderColor: focused ? colors.accentBorder : colors.lineSoft },
-          focused ? glowShadow(colors.glow, 0.22, 12) : null,
-        ]}
-      >
-        <IconButton name="plus" size={18} color={colors.inkSoft} accessibilityLabel="Attach a file" onPress={attach} />
-        <TextInput
-          ref={setInputRef}
-          value={text}
-          onChangeText={setText}
-          onSelectionChange={emoji.onSelectionChange}
-          placeholder={placeholder}
-          placeholderTextColor={colors.inkMuted}
-          style={[styles.input, { color: colors.ink }, WEB_OUTLINE_RESET]}
-          multiline
-          numberOfLines={1}
-          editable={!busy}
-          onKeyPress={handleKeyPress}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+      {/* Glow lives on an absolutely-positioned sibling, not on the TextInput's
+          ancestor. On Android, flipping `elevation` on an ancestor during the
+          focus commit creates a new native render layer and eats the focus event
+          — the keyboard opens and dismisses immediately. Same fix as TextField. */}
+      <View style={styles.barWrap}>
+        <View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            styles.barGlow,
+            { backgroundColor: colors.paperAlt },
+            focused ? glowShadow(colors.glow, 0.22, 12) : null,
+          ]}
         />
-        <IconButton
-          name="smile"
-          size={18}
-          color={emojiOpen ? colors.accent : colors.inkSoft}
-          accessibilityLabel="Insert emoji"
-          onPress={() => {
-            tapFeedback();
-            setEmojiOpen((v) => !v);
-          }}
-        />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled: !hasContent || busy }}
-          accessibilityLabel="Send"
-          disabled={!hasContent || busy}
-          onPress={submit}
-          style={({ pressed }) => [
-            styles.send,
-            { backgroundColor: colors.fill },
-            hasContent ? glowShadow(colors.glow, 0.3, 7) : null,
-            pressed && hasContent ? styles.sendPressed : null,
+        <View
+          style={[
+            styles.bar,
+            { borderColor: focused ? colors.accentBorder : colors.lineSoft },
           ]}
         >
-          {hasContent ? (
-            <LinearGradient colors={[colors.accentGradTop, colors.accentGradBottom]} style={[StyleSheet.absoluteFill, styles.sendFill]} />
-          ) : null}
-          {busy ? (
-            <ActivityIndicator size="small" color={colors.onAccent} />
-          ) : (
-            <Icon name="send" size={15} color={hasContent ? colors.onAccent : colors.inkMuted} />
-          )}
-        </Pressable>
+          <IconButton name="plus" size={18} color={colors.inkSoft} accessibilityLabel="Attach a file" onPress={attach} />
+          <TextInput
+            ref={setInputRef}
+            value={text}
+            onChangeText={setText}
+            onSelectionChange={emoji.onSelectionChange}
+            placeholder={placeholder}
+            placeholderTextColor={colors.inkMuted}
+            style={[styles.input, { color: colors.ink }, WEB_OUTLINE_RESET]}
+            multiline
+            numberOfLines={1}
+            editable={!busy}
+            onKeyPress={handleKeyPress}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+          />
+          <IconButton
+            name="smile"
+            size={18}
+            color={emojiOpen ? colors.accent : colors.inkSoft}
+            accessibilityLabel="Insert emoji"
+            onPress={() => {
+              tapFeedback();
+              setEmojiOpen((v) => !v);
+            }}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !hasContent || busy }}
+            accessibilityLabel="Send"
+            disabled={!hasContent || busy}
+            onPress={submit}
+            style={({ pressed }) => [
+              styles.send,
+              { backgroundColor: colors.fill },
+              hasContent ? glowShadow(colors.glow, 0.3, 7) : null,
+              pressed && hasContent ? styles.sendPressed : null,
+            ]}
+          >
+            {hasContent ? (
+              <LinearGradient colors={[colors.accentGradTop, colors.accentGradBottom]} style={[StyleSheet.absoluteFill, styles.sendFill]} />
+            ) : null}
+            {busy ? (
+              <ActivityIndicator size="small" color={colors.onAccent} />
+            ) : (
+              <Icon name="send" size={15} color={hasContent ? colors.onAccent : colors.inkMuted} />
+            )}
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -237,6 +251,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pendingText: { flexShrink: 1, minWidth: 0 },
+  barWrap: {},
+  barGlow: { borderRadius: radii.sheet },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -246,6 +262,7 @@ const styles = StyleSheet.create({
     paddingRight: 6,
     borderRadius: radii.sheet,
     borderWidth: 1,
+    backgroundColor: 'transparent',
   },
   input: {
     flex: 1,
