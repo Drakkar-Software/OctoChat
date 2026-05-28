@@ -249,8 +249,13 @@ export default function SpaceScreen() {
                       <Txt variant="footnote" weight="semibold" center>
                         {link.write ? 'Read & write link' : 'Read-only link'}
                       </Txt>
+                      {/* Public-invite links pack ~1.3 KB (member cap + ephemeral key + space id)
+                          into the URL fragment — at the pairing QR's defaults (small render,
+                          ecl="M", 22% center mark) the modules end up sub-2px and the logo blots
+                          out the dense center, so no scanner can read it. Render bigger, drop the
+                          mark, and use ecl="L" so the picked QR version stays low (bigger modules). */}
                       <View style={styles.qr}>
-                        <QrCode value={link.url} size={196} />
+                        <QrCode value={link.url} size={280} ecl="L" hideMark />
                       </View>
                       <CopyField label="Invitation link" value={link.url} copyLabel="Copy link" lines={3} />
                     </View>

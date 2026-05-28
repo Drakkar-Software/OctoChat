@@ -41,8 +41,24 @@ function makeMatrix(seed: number): boolean[][] {
 /**
  * QR with the octopus mark at its center. When `value` is given it renders a
  * REAL scannable code (react-native-qrcode-svg); otherwise a decorative matrix.
+ *
+ * For dense payloads (public-space invite links can be ~1.3 KB) pass `hideMark`
+ * and a lower `ecl` so the QR picks a smaller version — bigger modules at the
+ * same render size — and the central logo doesn't black out a chunk of an
+ * already-cramped code. Tiny payloads (pairing codes) work fine on the
+ * defaults: M ecl + center mark.
  */
-export function QrCode({ size = 200, value }: { size?: number; value?: string }) {
+export function QrCode({
+  size = 200,
+  value,
+  ecl = 'M',
+  hideMark = false,
+}: {
+  size?: number;
+  value?: string;
+  ecl?: 'L' | 'M' | 'Q' | 'H';
+  hideMark?: boolean;
+}) {
   const { colors } = useTheme();
   const grid = useMemo(() => makeMatrix(1337), []);
   const m = size / N;
@@ -51,7 +67,7 @@ export function QrCode({ size = 200, value }: { size?: number; value?: string })
   return (
     <View style={[styles.wrap, { width: size, height: size, backgroundColor: colors.paper, borderColor: colors.accent }]}>
       {value ? (
-        <QRCode value={value} size={size - 22} color={colors.ink} backgroundColor={colors.paper} ecl="M" />
+        <QRCode value={value} size={size - 22} color={colors.ink} backgroundColor={colors.paper} ecl={ecl} />
       ) : (
         <Svg width={size} height={size}>
           {grid.flatMap((row, r) =>
@@ -63,9 +79,11 @@ export function QrCode({ size = 200, value }: { size?: number; value?: string })
           )}
         </Svg>
       )}
-      <View style={[styles.logo, { width: logo, height: logo, backgroundColor: colors.paper, borderRadius: radii.md }]}>
-        <Octopus size={logo * 0.74} />
-      </View>
+      {hideMark ? null : (
+        <View style={[styles.logo, { width: logo, height: logo, backgroundColor: colors.paper, borderRadius: radii.md }]}>
+          <Octopus size={logo * 0.74} />
+        </View>
+      )}
     </View>
   );
 }
