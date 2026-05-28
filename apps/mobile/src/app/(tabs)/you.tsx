@@ -147,7 +147,7 @@ export default function YouScreen() {
           iconName="devices"
           title="Add a device"
           detail="Show pairing QR · PIN-sealed"
-          onPress={() => router.push('/(onboarding)/add-device')}
+          onPress={() => router.push('/account/add-device')}
         />
         <Divider style={styles.divider} />
         <Row iconName="key" title="Identity fingerprint" detail={profile.fingerprint} detailMono right={check} />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
@@ -20,10 +20,11 @@ import { QrCode } from '@/components/onboarding/QrCode';
 
 const PIN_LENGTH = 6;
 
-/** Step 1: confirm device PIN → Step 2: a real, PIN-sealed pairing QR to scan. */
+/** Step 1: confirm device PIN → Step 2: a real, PIN-sealed pairing QR to scan.
+ *  Lives under `account/` (not `(onboarding)/`) — entered only from settings on
+ *  an already-unlocked vault, so it must not be gated by the onboarding stack. */
 export default function AddDeviceScreen() {
   const { session } = useSession();
-  const fingerprint = session?.fingerprint ?? '— · — · —';
   const [pin, setPin] = useState('');
   const [stage, setStage] = useState<'pin' | 'qr'>('pin');
   const [payload, setPayload] = useState<string | null>(null);
@@ -52,12 +53,12 @@ export default function AddDeviceScreen() {
     };
   }, [pin, session]);
 
-  // Entered from onboarding AND from the You tab → return where we came from
-  // when possible, falling back to the rooms tab for a fresh onboarding flow.
-  const close = () => {
-    if (router.canGoBack()) router.back();
-    else router.replace('/(tabs)/rooms');
-  };
+  // Settings-only flow: bail to the root (which redirects to onboarding) if we
+  // somehow land here without an unlocked vault.
+  if (!session) return <Redirect href="/" />;
+
+  const fingerprint = session.fingerprint;
+  const close = () => router.back();
 
   if (stage === 'pin') {
     return (
