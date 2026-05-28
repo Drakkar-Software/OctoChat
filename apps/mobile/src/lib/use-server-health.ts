@@ -1,8 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { SYNC_BASE, SYNC_PREFIX } from './starfish/config';
+import { SYNC_BASE, SYNC_NAMESPACE } from './starfish/config';
 
-const HEALTH_URL = `${SYNC_BASE}${SYNC_PREFIX}/health`;
+// Reachability probe URL. Local dev (no namespace): the apps/server mounts the
+// sync router at root and always exposes `/health`, with permissive CORS. The
+// deployed drakkar-sync, however, fronts Starfish with an nginx that ONLY routes
+// the specific `/sync/v1/<ns>/{push,pull,list,events,batch/pull}` subpaths and
+// `= /sync/v1/config`; every other path (including the backend's real
+// `/v1/<ns>/health`) falls through to nginx's catch-all `return 404`, and the
+// bare host `/health` carries no CORS headers. So on the deployed multi-tenant
+// host we probe `/v1/config` instead — it is nginx-routed, CORS-enabled, and a
+// 200 confirms the sync backend is reachable. (Shared across namespaces, which
+// is fine for a liveness signal.)
+const HEALTH_URL = SYNC_NAMESPACE ? `${SYNC_BASE}/v1/config` : `${SYNC_BASE}/health`;
 const POLL_MS = 15_000;
 const TIMEOUT_MS = 4_000;
 
@@ -19,7 +29,8 @@ export interface ServerHealth {
 }
 
 /**
- * Polls the Starfish `/health` endpoint and returns the current reachability.
+ * Polls a Starfish reachability endpoint (see {@link HEALTH_URL}) and returns the
+ * current reachability.
  *
  * Used by the settings DIAGNOSTICS card. Re-runs every 15 s while mounted; the
  * card also exposes a manual refresh through `recheck`. Aborts in-flight probes
