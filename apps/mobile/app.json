@@ -20,13 +20,23 @@
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.drakkarsoftware.octochat",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "https", "host": "oc.drakkar.software", "pathPrefix": "/join" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "ios": {
       "bundleIdentifier": "com.drakkarsoftware.octochat",
       "googleServicesFile": "./GoogleService-Info.plist",
+      "associatedDomains": ["applinks:oc.drakkar.software"],
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": ["remote-notification"],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "web": {
@@ -61,7 +71,10 @@
       [
         "expo-build-properties",
         {
-          "ios": { "useFrameworks": "static" }
+          "ios": {
+            "useFrameworks": "static",
+            "forceStaticLinking": ["RNFBApp", "RNFBMessaging"]
+          }
         }
       ],
       "@react-native-firebase/app",
