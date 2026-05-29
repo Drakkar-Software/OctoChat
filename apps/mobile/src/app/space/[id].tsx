@@ -77,6 +77,10 @@ export default function SpaceScreen() {
   // per-button "Generating…" spinner so the keygen wait reads as working.
   const [genWrite, setGenWrite] = useState<boolean | null>(null);
   const [inviteCap, setInviteCap] = useState<string | null>(null);
+  // Private-invite QR is collapsed by default — the cap text is the source of
+  // truth (copy/paste always works); the QR is a convenience for a second device
+  // physically present. Re-collapses whenever a new cap is minted.
+  const [showQr, setShowQr] = useState(false);
   const [link, setLink] = useState<{ url: string; write: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
@@ -98,6 +102,7 @@ export default function SpaceScreen() {
     setError(null);
     try {
       setInviteCap(await invite(request.trim()));
+      setShowQr(false);
       setRequest('');
     } catch (e) {
       setError(String((e as Error)?.message ?? e));
@@ -304,8 +309,35 @@ export default function SpaceScreen() {
                       <Txt variant="caption" mono tone="inkSoft" numberOfLines={4}>
                         {inviteCap}
                       </Txt>
-                      {Platform.OS === 'web' ? (
-                        <Button label="Copy invite" variant="secondary" size="sm" iconName="copy" onPress={() => copy(inviteCap)} />
+                      <View style={styles.typeRow}>
+                        {Platform.OS === 'web' ? (
+                          <Button label="Copy invite" variant="secondary" size="sm" iconName="copy" onPress={() => copy(inviteCap)} />
+                        ) : null}
+                        <Button
+                          label={showQr ? 'Hide QR' : 'Show QR'}
+                          variant="secondary"
+                          size="sm"
+                          iconName="qr-scan"
+                          onPress={() => setShowQr((s) => !s)}
+                        />
+                      </View>
+                      {showQr ? (
+                        inviteCap.length > 2500 ? (
+                          // react-native-qrcode-svg at ecl="L" tops out around 2953 bytes
+                          // (Version 40 binary capacity); private-invite JSON carries a hex
+                          // Kyber pubkey + Ed25519 sig and can sit on that edge. Fall back
+                          // to copy/paste instead of rendering a code scanners can't read.
+                          <Callout tone="warning" iconName="alert" title="Invite too large for a QR">
+                            Copy/paste the invite instead — scanners can&apos;t read codes this dense.
+                          </Callout>
+                        ) : (
+                          // Same size class as the public-invite QR above — render bigger,
+                          // drop the center mark, and use ecl="L" so the picked QR version
+                          // stays low (bigger modules) and stays scannable.
+                          <View style={styles.qr}>
+                            <QrCode value={inviteCap} size={280} ecl="L" hideMark />
+                          </View>
+                        )
                       ) : null}
                     </View>
                   ) : null}

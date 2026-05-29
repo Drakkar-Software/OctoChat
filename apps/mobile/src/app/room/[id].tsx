@@ -97,7 +97,7 @@ export default function RoomScreen() {
           right={
             <>
               <IconButton name="search" accessibilityLabel="Search in room" onPress={openSearch} />
-              <IconButton name="people" accessibilityLabel="Members" onPress={openMembers} />
+              <IconButton name="info" accessibilityLabel="Space details" onPress={openMembers} />
             </>
           }
         />
