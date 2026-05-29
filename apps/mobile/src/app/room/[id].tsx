@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { BackHandler, StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
@@ -81,6 +81,26 @@ export default function RoomScreen() {
     }, [session, hydrated, id, lastReadAt, markRoomRead]),
   );
 
+  // Cold-start entries (FCM tap, universal link, SSE toast click) push straight to
+  // `/room/[id]` with no parent in the stack, so `router.back()` would no-op and the
+  // arrow appears broken. Fall through to `/rooms` only when there's nothing to pop.
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/rooms'));
+
+  // Android hardware back: same rule as the AppBar arrow — let RN pop normally
+  // when a parent screen exists; otherwise redirect to `/rooms` and consume the
+  // event so the OS doesn't background the app. Gated on focus so it only runs
+  // when THIS room is the foreground screen. iOS has no hardware back, and on web
+  // BackHandler is a no-op stub; both are fine, the listener simply never fires.
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (router.canGoBack()) return false;
+        router.replace('/(tabs)/rooms');
+        return true;
+      });
+      return () => sub.remove();
+    }, []),
+  );
   const openThread = (msgId: string) =>
     router.push({ pathname: '/thread/[id]', params: { id: msgId, roomId: id, roomName: name, kind } });
   const openMembers = () => router.push({ pathname: '/space/[id]', params: { id: spaceIdFromRoomId(id) } });
@@ -93,7 +113,7 @@ export default function RoomScreen() {
       header={
         <AppBar
           title={title}
-          onBack={() => router.back()}
+          onBack={goBack}
           right={
             <>
               <IconButton name="search" accessibilityLabel="Search in room" onPress={openSearch} />

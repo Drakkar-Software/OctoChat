@@ -1,5 +1,6 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { useCallback } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { BackHandler, StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
@@ -37,10 +38,26 @@ export default function ThreadScreen() {
   const { store, opening, openError, send, toggleReaction, editMessage, deleteMessage, uploadAttachment, loadAttachment, canWrite } =
     isStream ? stream : channel;
 
+  // Mirror room/[id]: prefer the natural back action; fall through to `/rooms`
+  // only if the thread is somehow the only screen in the stack (no thread deep
+  // link today, but the guard costs one line and futureproofs). Same shape for
+  // the Android hardware back via useFocusEffect + BackHandler.
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/rooms'));
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (router.canGoBack()) return false;
+        router.replace('/(tabs)/rooms');
+        return true;
+      });
+      return () => sub.remove();
+    }, []),
+  );
+
   return (
     <StackScreen
       contentStyle={styles.content}
-      header={<AppBar title="Thread" subtitle={`#${roomName}`} onBack={() => router.back()} right={<IconButton name="dots" accessibilityLabel="Thread options" />} />}
+      header={<AppBar title="Thread" subtitle={`#${roomName}`} onBack={goBack} right={<IconButton name="dots" accessibilityLabel="Thread options" />} />}
       footer={
         canWrite ? (
           <Composer
