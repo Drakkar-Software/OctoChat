@@ -27,6 +27,7 @@ import { loadLatestMessagePreview } from '../notification-preview';
 import { configureStarfishPlatform } from '../starfish/platform';
 import { hydrateMemberCaps } from '../starfish/member-caps';
 import { spaceIdFromRoomId } from '../starfish/paths';
+import { hydratePubspaceCaps } from '../starfish/pubspace-caps';
 import { activeAccountOf, sessionFromPersisted } from '../starfish/session-restore';
 import { loadVault } from '../starfish/storage';
 
@@ -114,8 +115,11 @@ export async function handleBackgroundPush(data: PushData): Promise<void> {
     const session = await sessionFromPersisted(account);
     // Joined-space caps live only in the kv cache in a cold task; reload them (empty
     // server caps leaves the local cache intact, no network) so a JOINED space can open
-    // its keyring. Owned spaces don't need it.
+    // its keyring. Owned spaces don't need it. Likewise hydrate the JOINED public-space
+    // link caps so a public room can authorize its plaintext pull (owned public spaces
+    // use the account cap, no entry needed).
     await hydrateMemberCaps(userId, {});
+    await hydratePubspaceCaps(userId);
     const preview = await loadLatestMessagePreview(session, roomId).catch(() => null);
     if (!preview) return; // couldn't decrypt → leave the generic placeholder
 
