@@ -15,13 +15,16 @@
  */
 import messaging from '@react-native-firebase/messaging';
 import * as Notifications from 'expo-notifications';
-import { router } from 'expo-router';
 import { Platform } from 'react-native';
 
 export interface PushData {
   type?: string;
   spaceId?: string;
   roomId?: string;
+  // Public-space rooms (`pubspace`) carry the room id as `docId`, not `roomId`
+  // (server `config.ts` storagePath `pubspaces/{ownerId}/{spaceId}/{docId}`). We
+  // accept both so a public-channel push can resolve once the bridge forwards it.
+  docId?: string;
 }
 
 export const pushTopicForSpace = (spaceId: string): string =>
@@ -29,9 +32,36 @@ export const pushTopicForSpace = (spaceId: string): string =>
 
 const asStr = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
 
-// No client-side channel: the bridge sends no custom channelId, so Android uses
-// the FCM fallback channel (registered at app install) — the first post-install
-// push displays without the app having run first.
+/**
+ * Android notification channel id for chat pushes. Single source of truth:
+ * `ensureNotificationChannel` creates it, `app.json`'s `expo-notifications`
+ * `defaultChannel` routes the bridge's channel-less FCM messages to it, and it
+ * matches the bridge's documented `channelId` so it stays forward-compatible if
+ * the bridge ever sets one.
+ */
+const MESSAGES_CHANNEL_ID = 'messages';
+
+/**
+ * Create the high-importance "Messages" channel so chat pushes show a heads-up
+ * banner (the FCM auto-fallback channel is IMPORTANCE_DEFAULT — tray only, no
+ * heads-up) and get a user-controllable entry in Android notification settings.
+ *
+ * Must run unconditionally on every cold start (NOT gated on permission/sign-in)
+ * and BEFORE any background push renders: once `defaultChannel` points here, every
+ * channel-less push routes to this id, so the channel must already exist. The
+ * topic-subscribe model guarantees the app has run before any space push can
+ * arrive (a device only receives one after `subscribeToTopic`), so creating it at
+ * module-scope init is sufficient. `setNotificationChannelAsync` is idempotent.
+ * iOS has no notification channels — no-op there (and on web, via `fcm.ts`).
+ */
+export async function ensureNotificationChannel(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  await Notifications.setNotificationChannelAsync(MESSAGES_CHANNEL_ID, {
+    name: 'Messages',
+    importance: Notifications.AndroidImportance.HIGH,
+    showBadge: true,
+  });
+}
 
 export async function ensurePushPermission(): Promise<boolean> {
   // FCM authorization (iOS prompt; registers the APNs/FCM token).
@@ -103,18 +133,28 @@ export function onForegroundPush(cb: (data: PushData) => void): () => void {
   });
 }
 
-export function onPushOpenNavigate(): () => void {
-  const toRoom = (data?: { [key: string]: string | object }): void => {
-    const roomId = asStr(data?.roomId);
-    if (roomId) router.push({ pathname: '/room/[id]', params: { id: roomId } });
-  };
+/**
+ * Wire notification-tap navigation. Both the warm-tap and cold-start paths forward
+ * the push `data` to `onOpen` — the caller (in React context) resolves the room's
+ * real name/kind from the rooms registry and navigates (see `openRoomFromPush`).
+ * We deliberately do NOT navigate here: the tap can fire before the session is
+ * restored on cold start, and only the React side knows when it's safe to route.
+ */
+export function onPushOpenNavigate(onOpen: (data: PushData) => void): () => void {
+  const emit = (data?: { [key: string]: string | object }): void =>
+    onOpen({
+      type: asStr(data?.type),
+      spaceId: asStr(data?.spaceId),
+      roomId: asStr(data?.roomId),
+      docId: asStr(data?.docId),
+    });
   // Tap while the app is backgrounded.
-  const unsub = messaging().onNotificationOpenedApp((msg) => toRoom(msg.data));
+  const unsub = messaging().onNotificationOpenedApp((msg) => emit(msg.data));
   // Cold start: app opened by tapping the notification while quit.
   void messaging()
     .getInitialNotification()
     .then((msg) => {
-      if (msg) toRoom(msg.data);
+      if (msg) emit(msg.data);
     });
   return unsub;
 }

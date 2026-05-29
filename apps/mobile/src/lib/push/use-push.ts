@@ -1,14 +1,18 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { dispatchRoomChange } from '../room-events-bus';
+import { useRoomsRegistryActions } from '../rooms-registry-context';
+import { useSpacesContext } from '../spaces-context';
 import type { Session } from '../starfish/identity';
 import {
   ensurePushPermission,
   onForegroundPush,
   onPushOpenNavigate,
+  type PushData,
   subscribeSpacePush,
   unsubscribeSpacePush,
 } from './fcm';
+import { openRoomFromPush } from './open-room-from-push';
 
 /**
  * Subscribe the device to per-space FCM topics for the signed-in user's spaces,
@@ -29,17 +33,58 @@ export function usePush(session: Session | null, spaceIds: string[], enabled: bo
   const subscribed = useRef<Set<string>>(new Set());
   const spacesKey = [...spaceIds].sort().join(',');
 
+  // Notification-tap navigation resolves the room's real name/kind from the rooms
+  // registry and focuses its space (see `openRoomFromPush`). The handler is
+  // registered once, so the live deps it needs are read through refs.
+  const { setActiveId } = useSpacesContext();
+  const { ensure } = useRoomsRegistryActions();
+  const ensureRef = useRef(ensure);
+  const setActiveIdRef = useRef(setActiveId);
+  const sessionRef = useRef(session);
+  const pendingOpen = useRef<PushData | null>(null);
+  useEffect(() => {
+    ensureRef.current = ensure;
+    setActiveIdRef.current = setActiveId;
+    sessionRef.current = session;
+  });
+
+  const open = useCallback((data: PushData) => {
+    void openRoomFromPush(data, { ensure: ensureRef.current, setActiveId: setActiveIdRef.current });
+  }, []);
+
+  const handleOpen = useCallback(
+    (data: PushData) => {
+      // A cold-start tap can arrive before the session is restored — stash it and
+      // let the drain effect route once the session (and its spaces) are ready.
+      if (!sessionRef.current) {
+        pendingOpen.current = data;
+        return;
+      }
+      open(data);
+    },
+    [open],
+  );
+
   // Foreground delivery + notification-tap navigation — registered once.
   useEffect(() => {
     const offMessage = onForegroundPush((data) => {
       if (data.roomId) dispatchRoomChange(data.roomId);
     });
-    const offOpen = onPushOpenNavigate();
+    const offOpen = onPushOpenNavigate(handleOpen);
     return () => {
       offMessage();
       offOpen();
     };
-  }, []);
+  }, [handleOpen]);
+
+  // Drain a tap that arrived before the session was ready (cold start).
+  useEffect(() => {
+    if (session && pendingOpen.current) {
+      const data = pendingOpen.current;
+      pendingOpen.current = null;
+      open(data);
+    }
+  }, [session, open]);
 
   // Reconcile topic subscriptions with the user's current space set. Signing out
   // or turning notifications off drops every subscription.

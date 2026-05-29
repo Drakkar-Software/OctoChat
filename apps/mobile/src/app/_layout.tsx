@@ -2,7 +2,7 @@ import 'react-native-gesture-handler';
 
 import { configureStarfishPlatform } from '@/lib/starfish/platform';
 import { registerServiceWorker } from '@/lib/pwa';
-import { registerBackgroundPushHandler } from '@/lib/push/fcm';
+import { ensureNotificationChannel, registerBackgroundPushHandler } from '@/lib/push/fcm';
 import { NotificationSettingsProvider } from '@/lib/notification-settings-context';
 import { ProfileProvider } from '@/lib/profile-context';
 import { RoomsRegistryProvider } from '@/lib/rooms-registry-context';
@@ -32,6 +32,11 @@ registerServiceWorker();
 // Register the FCM background-message handler (native only; no-op on web). Must
 // run at module scope so it's installed before the first push arrives.
 registerBackgroundPushHandler();
+
+// Create the high-importance "Messages" Android channel (no-op on iOS/web). Must
+// run on every cold start before any background push renders — `defaultChannel`
+// routes channel-less pushes here, so the channel has to exist first.
+void ensureNotificationChannel();
 
 // Keep the native splash up until our fonts are ready (must run at module top).
 void SplashScreen.preventAutoHideAsync();

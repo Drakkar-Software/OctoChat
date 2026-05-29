@@ -13,6 +13,8 @@ export interface PushData {
   type?: string;
   spaceId?: string;
   roomId?: string;
+  /** Public-space rooms carry the room id here, not in `roomId` (see fcm.native.ts). */
+  docId?: string;
 }
 
 /**
@@ -33,13 +35,16 @@ export async function unsubscribeSpacePush(_spaceId: string): Promise<void> {}
 /** Register the FCM background-message handler. Call once at module scope. */
 export function registerBackgroundPushHandler(): void {}
 
+/** Create the Android chat-notification channel. No-op on web (Android-only concept). */
+export async function ensureNotificationChannel(): Promise<void> {}
+
 /** Subscribe to foreground pushes. Returns an unsubscribe fn. */
 export function onForegroundPush(_cb: (data: PushData) => void): () => void {
   return () => {};
 }
 
 /** Route to the room a tapped notification points at (incl. cold start). Returns cleanup. */
-export function onPushOpenNavigate(): () => void {
+export function onPushOpenNavigate(_onOpen: (data: PushData) => void): () => void {
   return () => {};
 }
 
