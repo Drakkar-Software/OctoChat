@@ -171,10 +171,6 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey }: Composer
             selectionColor={colors.accent}
             cursorColor={colors.accent}
             underlineColorAndroid="transparent"
-            // Keep `color` LAST in the array: on Android, any earlier `color`
-            // (e.g. from `styles.input`) wins under the native style flattener,
-            // which made typed text render as the OS default and disappear
-            // against the paperAlt fill in dark mode. Same fix as TextField.
             style={[styles.input, WEB_OUTLINE_RESET, { color: colors.ink }]}
             multiline
             numberOfLines={1}
@@ -278,6 +274,13 @@ const styles = StyleSheet.create({
     borderRadius: radii.sheet,
     borderWidth: 1,
     backgroundColor: 'transparent',
+    // On Android, elevation — not document order — decides which sibling draws
+    // on top. When focused, `barGlow` gains elevation 8 (its glow shadow) and
+    // would otherwise paint its opaque paperAlt fill OVER this bar, hiding the
+    // typed text (iOS ignores elevation, so it was fine there). A STATIC
+    // elevation above the glow's keeps the input on top; static (never toggled
+    // on focus) so it doesn't eat the focus event. No own shadow: bg is transparent.
+    elevation: 9,
   },
   input: {
     flex: 1,

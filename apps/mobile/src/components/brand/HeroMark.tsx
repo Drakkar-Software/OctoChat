@@ -57,6 +57,12 @@ export function HeroMark({ size = 128 }: HeroMarkProps) {
               borderTopColor: colors.hairlineHi,
             },
             glowShadow(colors.glow, 0.3, 24),
+            // Android renders the elevation shadow of this fully-rounded disc as a
+            // polygon (the rounded-rect outline shadow degrades to a hexagon/octagon
+            // at radius size/2) — the "weird shape" seen behind the mark. Web
+            // (boxShadow) and iOS (shadow* props) draw a clean bloom and ignore
+            // `elevation`, so zeroing it only strips Android's artifact. Same fix as EmptyState.
+            { elevation: 0 },
           ]}
         >
           <Octopus size={Math.round(size * 0.64)} />
