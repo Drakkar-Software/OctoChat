@@ -51,12 +51,18 @@ export function notifyNewMessage(roomId: string, body = GENERIC_BODY, options: N
   if (typeof document !== 'undefined' && document.hasFocus()) return;
   try {
     // Per-room tag so each room's latest toast stays distinct and clickable
-    // (a single shared tag would collapse them all into one).
+    // (a single shared tag would collapse them all into one). A repeat message in
+    // the same room reuses the tag, so the OS *replaces* the prior toast rather
+    // than stacking a duplicate — `renotify` re-alerts (sound/banner) on that
+    // replacement so a follow-up message isn't silently swapped in. This mirrors
+    // the per-room grouping the native push sets (`tag` on Android, `thread-id`
+    // on iOS); see docs/push-fcm.md "Notification grouping".
     const n = new Notification('OctoChat', {
       body,
       tag: `octochat-message-${roomId}`,
+      renotify: true,
       silent: options.silent,
-    });
+    } as NotificationOptions & { renotify: boolean });
     n.onclick = () => {
       focusDesktopWindow(); // no-op on web; brings the Electron window forward
       // Resolve name/kind + focus the space when deps are wired (same path as the

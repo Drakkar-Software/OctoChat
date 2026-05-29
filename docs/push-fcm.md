@@ -217,10 +217,16 @@ export function createOctochatFcmApp(app?: App): AppDefinition {
             // VISIBLE generic notification (E2EE-safe) — OS shows it even force-quit.
             notification: { title: "OctoChat", body: "New message in another room" },
             data: { type: "chat.changed", spaceId: p.spaceId ?? "", roomId: p.roomId ?? "" },
-            android: { priority: "high", notification: { channelId: "messages" } },
+            // Per-room grouping key (see "Notification grouping" below). On Android
+            // `tag` COLLAPSES — a repeat in the same room replaces the prior banner
+            // (one per room, latest wins). On iOS `thread-id` GROUPS — banners stack
+            // under one per-room header in Notification Center. Both keyed by roomId
+            // so a busy room never floods with identical generic banners.
+            android: { priority: "high", notification: { channelId: "messages", tag: p.roomId ?? "" } },
             apns: {
               headers: { "apns-push-type": "alert", "apns-priority": "10" },
-              payload: { aps: { sound: "default" } },
+              // firebase-admin `aps.threadId` serializes to APNs `thread-id`.
+              payload: { aps: { sound: "default", threadId: p.roomId ?? "" } },
             },
           }
         },
@@ -473,6 +479,69 @@ eas build --profile development --platform all
   unread count for that room isn't bumped until SSE redelivers or the user opens the
   room. (Pre-existing SSE behavior; the push doesn't change it.) Closing the gap
   would mean coupling push delivery into `unread-context` — deliberately out of scope.
+
+## Notification grouping (per room)
+
+Goal: when several messages land in the **same room**, don't show N identical
+generic banners — group/collapse them under that room. The grouping key is
+**`roomId`** (each room is its own group). *Alternative:* key on `spaceId` to
+stack a whole space's rooms together — but iOS `thread-id` is single-level, so
+it's one or the other; we chose per-room.
+
+### Phase 1 — shipped, server-only + a one-line web polish
+
+No native rebuild. The behaviour is **not uniform across platforms** — say so
+plainly:
+
+| Platform | Mechanism | Behaviour | Where |
+| --- | --- | --- | --- |
+| **iOS** | `aps.thread-id = roomId` | **True grouping** — banners stack under one per-room header in Notification Center; all preserved. | bridge formatter (B1) |
+| **Android** | `android.notification.tag = roomId` | **Collapse/replace** — a repeat in the same room *replaces* the prior banner; you see one per room (latest wins), earlier ones are gone. | bridge formatter (B1) |
+| **Web / desktop** | `tag` (already set) + `renotify` | **Collapse/replace** — same as Android; `renotify: true` re-alerts when a replacement lands. | `src/lib/notify.ts` |
+
+- The bridge change is the `tag` + `threadId` additions in the **B1 formatter**
+  above. It lives in **Infra** (`apps/octochat/index.ts`) — the diff there is
+  documented but **not applied/verified from this repo**; apply + deploy on the
+  Infra side (re-deploy the bridge image, Part B5).
+- The OctoChat client change is **done**: `notify.ts` adds `renotify: true`
+  (web was already collapsing via the per-room `tag`).
+- `notificationCount` is intentionally **omitted** — the server can't know
+  per-device unread, so a server-set count would be wrong. A real count needs
+  client-built notifications (Phase 2).
+- **Old clients are unaffected** — `tag`/`thread-id` are ignored by clients that
+  don't expect them, so the bridge change is deploy-order-safe.
+
+### Phase 2 — true bundled stacks on Android (needs a native release)
+
+Android's FCM `notification` block has **no group field** (`AndroidNotification`
+exposes only `tag`), so a real "OctoChat • 3 rooms" bundled stack with a group
+summary can't be done server-side. It requires the client to **build** the
+notification instead of letting the OS auto-display the FCM `notification`:
+
+1. **Add [notifee](https://notifee.app)** (`@notifee/react-native`).
+   `expo-notifications`' Android grouping is weaker; notifee exposes `groupId` +
+   `groupSummary` directly. New native dep → bump `app.json` `version` to fence
+   OTAs (per the mobile OTA-updates convention).
+2. **Switch the bridge to data-only** for Android (drop the `notification` block,
+   keep `data`) so the OS hands the message to the app instead of auto-displaying.
+   Keep iOS as a visible `alert` push (its `thread-id` grouping already works and
+   data-only is throttled/dropped on iOS — see the iOS caveat above).
+3. **Build the notification in the background handler** (today a no-op at
+   module scope in `src/app/_layout.tsx`): for each push, display a notifee
+   notification with `android.groupId = spaceId` (outer group), per-room
+   `android.tag = roomId`, plus a **group-summary** notification per space. This
+   yields the bundled stack: messages grouped by space, rooms distinct within.
+4. **Real counts become possible** — the client owns the displayed notifications
+   and already tracks unread via `room-events-bus` / `unread-context`, so it can
+   render "3 new messages" accurately (impossible in Phase 1).
+5. **Caveats to carry in:** the Android background handler must do real work now
+   (build + display), so keep it cheap and resilient; honour the same
+   notification-settings master toggle; and re-test force-quit delivery (the
+   reason iOS stays on visible-alert pushes).
+
+Web/desktop have no OS-level bundled-stack API beyond `tag` (the Web
+Notifications spec doesn't stack across notifications), so Phase 2 is
+Android-only; iOS already groups in Phase 1.
 
 ## Sources
 
