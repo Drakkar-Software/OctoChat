@@ -68,9 +68,12 @@ export function ThreadConversation({
       recycleItems={false}
       extraData={extraData}
       estimatedItemSize={ESTIMATED_ROW_HEIGHT}
-      // Follow new replies when near the bottom and hold the viewport steady on
-      // updates/prepends — mirrors RoomConversation. No `initialScrollAtEnd`: a
-      // thread opens at its parent (the header) so you read the context top-down.
+      // Open on the newest reply, then follow new ones near the bottom and hold the
+      // viewport steady on updates/prepends — mirrors RoomConversation. `initialScrollAtEnd`
+      // is required for the open-at-end jump (maintainScrollAtEnd alone misses it on
+      // web's initial mount); `alignItemsAtEnd` pins a short thread to the bottom.
+      initialScrollAtEnd
+      alignItemsAtEnd
       maintainScrollAtEnd
       maintainScrollAtEndThreshold={0.1}
       maintainVisibleContentPosition
