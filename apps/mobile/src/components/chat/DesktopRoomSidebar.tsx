@@ -31,6 +31,10 @@ interface DesktopRoomSidebarProps {
   onOpenThreads?: () => void;
   /** Highlight the Threads row as the current destination. */
   threadsActive?: boolean;
+  /** Open the space-wide Pinned view. Omit to hide the row (e.g. no pins yet). */
+  onOpenPinned?: () => void;
+  /** Highlight the Pinned row as the current destination. */
+  pinnedActive?: boolean;
   onJumpTo?: () => void;
   /** Open the space switcher / join surface (the header acts as a menu). */
   onOpenSpaceMenu?: () => void;
@@ -57,6 +61,8 @@ export function DesktopRoomSidebar({
   onOpenThread,
   onOpenThreads,
   threadsActive = false,
+  onOpenPinned,
+  pinnedActive = false,
   onJumpTo,
   onOpenSpaceMenu,
   onCreateRoom,
@@ -107,9 +113,14 @@ export function DesktopRoomSidebar({
             stack. Replaces the old tiny IconButton hidden at the foot of the
             spaces rail — a labeled row in the natural reading column is far
             more discoverable on wide web. */}
-        {onOpenThreads ? (
+        {onOpenThreads || onOpenPinned ? (
           <View style={styles.navGroup}>
-            <SidebarLinkRow iconName="thread" label="Threads" active={threadsActive} onPress={onOpenThreads} />
+            {onOpenThreads ? (
+              <SidebarLinkRow iconName="thread" label="Threads" active={threadsActive} onPress={onOpenThreads} />
+            ) : null}
+            {onOpenPinned ? (
+              <SidebarLinkRow iconName="pin" label="Pinned" active={pinnedActive} onPress={onOpenPinned} />
+            ) : null}
           </View>
         ) : null}
         {loading ? (

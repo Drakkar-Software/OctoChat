@@ -6,6 +6,7 @@ import type { Room } from '@/lib/types';
 import { useProfile } from '@/lib/profile-context';
 import { useRoomSidebarVisible } from '@/lib/use-responsive';
 import { useRooms } from '@/lib/use-rooms';
+import { useSpaceNav } from '@/lib/use-space-nav';
 import { useSpaces } from '@/lib/use-spaces';
 import { useTheme } from '@/lib/use-theme';
 import { useThreadDigest } from '@/lib/thread-digest-context';
@@ -29,6 +30,7 @@ export function DesktopNav() {
   const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
   const { categories, loading: roomsLoading, isPublic, memberCount, createRoom } = useRooms(activeId);
   const { digest } = useThreadDigest();
+  const { hasThreads, hasPins } = useSpaceNav(activeId);
   const showRoomSidebar = useRoomSidebarVisible();
 
   const space = spaces.find((s) => s.id === activeId) ?? spaces[0];
@@ -41,6 +43,7 @@ export function DesktopNav() {
   // The Threads tab lives at /threads (the (tabs) group is unwrapped in the URL).
   // Strict equality — `startsWith` would also match `/thread/<id>` (a single thread).
   const threadsActive = pathname === '/threads';
+  const pinnedActive = pathname.startsWith('/pinned');
   const meLabel = (profile?.name ?? '··').slice(0, 2).toUpperCase();
 
   // Recent threads of the open room, shown under its sidebar row. Only when the
@@ -86,8 +89,10 @@ export function DesktopNav() {
             threads={activeThreads}
             onOpenRoom={openRoom}
             onOpenThread={openThread}
-            onOpenThreads={() => router.push('/(tabs)/threads')}
+            onOpenThreads={hasThreads ? () => router.push('/(tabs)/threads') : undefined}
             threadsActive={threadsActive}
+            onOpenPinned={hasPins ? () => router.push({ pathname: '/pinned/[id]', params: { id: space.id } }) : undefined}
+            pinnedActive={pinnedActive}
             onJumpTo={() => router.push('/search')}
             onOpenSpaceMenu={() => router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
             onCreateRoom={(category, name, kind) => createRoom(name, category, kind)}
