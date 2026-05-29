@@ -17,7 +17,7 @@ export function Badge({ count = 0, mention = false }: BadgeProps) {
   const bg = mention ? colors.mention : colors.unread;
   return (
     <View style={[styles.badge, { backgroundColor: bg }]}>
-      <Txt variant="micro" weight="bold" mono color="#ffffff">
+      <Txt variant="micro" weight="bold" mono color={colors.onUnread}>
         {mention ? '@' : count > 99 ? '99+' : String(count)}
       </Txt>
     </View>

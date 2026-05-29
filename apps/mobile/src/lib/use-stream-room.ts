@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { createStore } from 'zustand';
 import { AppendLogCursor } from '@drakkar.software/starfish-client';
 import type { AppendElement, Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
@@ -21,7 +20,8 @@ import type { AttachmentRef } from './starfish/attachments';
 import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
 import { randomId } from './ids';
-import type { ConversationStore } from './use-conversation-data';
+import { makeEmptyConversationStore, type ConversationStore } from './use-conversation-data';
+import { useRoomOpenState } from './use-room-open';
 import type { StoredMsg } from './message-view';
 import type { MessageEditEvent, PinEvent, ReactionEvent } from './types';
 
@@ -118,24 +118,6 @@ function fanOut(items: AppendElement[]): StreamData {
   return { messages, reactions, edits, pins };
 }
 
-/** A minimal zustand store whose `.data` the chat UI reads via `useStarfishData`.
- *  Only `data` is consumed; the StarfishStore action/flag fields are inert stubs to
- *  satisfy the `ConversationStore` type without pulling in the SDK's sync machinery. */
-function makeStreamStore(): ConversationStore {
-  return createStore(() => ({
-    data: { messages: [], reactions: [], edits: [], pins: [] } as StreamData,
-    syncing: false,
-    online: true,
-    dirty: false,
-    error: null,
-    hash: null,
-    pull: async () => {},
-    set: () => {},
-    restore: () => {},
-    flush: async () => {},
-    setOnline: () => {},
-  })) as unknown as ConversationStore;
-}
 
 export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) {
   const enabled = opts.enabled ?? true;
@@ -145,12 +127,11 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
   const isPublic = isPublicSpaceId(spaceId);
   const [encryptor, setEncryptor] = useState<Encryptor | null>(null);
   const [client, setClient] = useState<StarfishClient | null>(null);
-  const [opening, setOpening] = useState(true);
-  const [openError, setOpenError] = useState<string | null>(null);
-  // Bumped by `reload()` to re-run the open effect after a timeout/error without
-  // leaving the screen — the rejected pull already cleared getSpaceEncryptor's cache.
-  const [reloadNonce, setReloadNonce] = useState(0);
-  const reload = useCallback(() => setReloadNonce((n) => n + 1), []);
+  // Shared open-state machine (offline-classification + reconnect re-open) — see
+  // {@link useRoomOpenState}. The synthetic store still renders offline (warm history +
+  // pending bubbles), so an unreachable open degrades to an offline shell, not an error.
+  const { opening, openError, offline, reloadNonce, reload, beginOpen, openReached, finishOpening, failOpen } =
+    useRoomOpenState();
 
   // The synthetic store lives for this room's lifetime, keyed by roomId so a room switch
   // (the screen stays mounted) starts fresh rather than flashing the previous room's log.
@@ -159,7 +140,7 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
   // paints history instantly instead of re-fetching the whole log from scratch.
   const roomStateRef = useRef<{ id: string; store: ConversationStore } | null>(null);
   if (!roomStateRef.current || roomStateRef.current.id !== roomId) {
-    roomStateRef.current = { id: roomId, store: makeStreamStore() };
+    roomStateRef.current = { id: roomId, store: makeEmptyConversationStore() };
   }
   const roomState = enabled ? roomStateRef.current : null;
   const store = roomState?.store ?? null;
@@ -180,8 +161,7 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset open state before reopening on room/session change
     setEncryptor(null);
     setClient(null);
-    setOpenError(null);
-    setOpening(true);
+    beginOpen();
     if (!enabled || !session) return;
     (async () => {
       try {
@@ -190,7 +170,7 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
           if (!cancelled) {
             setEncryptor(null);
             setClient(makeClient(auth.cap, auth.signingKey));
-            setOpening(false);
+            finishOpening(); // public open did no network call — proves no reachability
           }
           return;
         }
@@ -199,19 +179,17 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
         if (!cancelled) {
           setEncryptor(enc);
           setClient(roomClient);
-          setOpening(false);
+          openReached();
+          finishOpening();
         }
       } catch (e) {
-        if (!cancelled) {
-          setOpenError(String((e as Error)?.message ?? e));
-          setOpening(false);
-        }
+        if (!cancelled) failOpen(e);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [enabled, session, roomId, spaceId, isPublic, ensureRegistry, reloadNonce]);
+  }, [enabled, session, roomId, spaceId, isPublic, ensureRegistry, reloadNonce, beginOpen, openReached, finishOpening, failOpen]);
 
   // Auth + path for this stream room (owner/joiner cap on public; member/space cap on
   // private). `signingKey` is the request-signing key the cap is bound to.
@@ -428,6 +406,7 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
     store,
     opening: enabled ? opening : false,
     openError,
+    offline,
     reload,
     syncError,
     send,

@@ -21,6 +21,8 @@ import { pubspaceRoomPull, pubspaceRoomPush, roomPull, roomPush, spaceIdFromRoom
 import type { MessageEditEvent, PinEvent, ReactionEvent } from './types';
 import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
+import { makeEmptyConversationStore, type ConversationStore } from './use-conversation-data';
+import { useRoomOpenState } from './use-room-open';
 import { randomId } from './ids';
 
 /**
@@ -44,20 +46,19 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
   const isPublic = isPublicSpaceId(spaceId);
   const [encryptor, setEncryptor] = useState<Encryptor | null>(null);
   const [client, setClient] = useState<StarfishClient | null>(null);
-  const [opening, setOpening] = useState(true);
-  const [openError, setOpenError] = useState<string | null>(null);
-  // Bumped by `reload()` to re-run the open effect after a timeout/error without
-  // leaving the screen — the rejected pull already cleared getSpaceEncryptor's cache.
-  const [reloadNonce, setReloadNonce] = useState(0);
-  const reload = useCallback(() => setReloadNonce((n) => n + 1), []);
+  // Shared open-state machine (offline-classification + reconnect re-open) — see
+  // {@link useRoomOpenState}. While offline the SDK store can't build (no encryptor),
+  // so it stays null and we render the empty fallback store below; on reconnect the
+  // hook bumps `reloadNonce` to re-run the open effect and pull.
+  const { opening, openError, offline, reloadNonce, reload, beginOpen, openReached, finishOpening, failOpen } =
+    useRoomOpenState();
 
   useEffect(() => {
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: reset room crypto/open state before reopening when room or session changes
     setEncryptor(null);
     setClient(null);
-    setOpenError(null);
-    setOpening(true);
+    beginOpen();
     if (!enabled || !session) return;
     (async () => {
       try {
@@ -68,7 +69,7 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
           if (!cancelled) {
             setEncryptor(null);
             setClient(makeClient(auth.cap, auth.signingKey));
-            setOpening(false);
+            finishOpening(); // public open did no network call — proves no reachability
           }
           return;
         }
@@ -83,19 +84,17 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
         if (!cancelled) {
           setEncryptor(enc);
           setClient(roomClient);
-          setOpening(false);
+          openReached();
+          finishOpening();
         }
       } catch (e) {
-        if (!cancelled) {
-          setOpenError(String((e as Error)?.message ?? e));
-          setOpening(false);
-        }
+        if (!cancelled) failOpen(e);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [enabled, session, roomId, spaceId, isPublic, ensureRegistry, reloadNonce]);
+  }, [enabled, session, roomId, spaceId, isPublic, ensureRegistry, reloadNonce, beginOpen, openReached, finishOpening, failOpen]);
 
   const config = useMemo(() => {
     if (!enabled || !session || !client) return null;
@@ -132,6 +131,18 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
   }, [enabled, session, client, encryptor, roomId, spaceId, isPublic]);
 
   const store = useSyncInit(config);
+
+  // Offline fallback store. The SDK store can't build without the encryptor, so it's
+  // null while offline — hand the screen an EMPTY store instead so the conversation
+  // view (and the pending outbox bubbles merged into it) still renders rather than a
+  // hard error. Keyed by roomId so a room switch starts empty, not on the prior room.
+  // Only the RETURNED `store` falls back; the internal `store` (above) stays the real
+  // SDK one, so `send`/pull/etc. never write to this inert store.
+  const fallbackRef = useRef<{ id: string; store: ConversationStore } | null>(null);
+  if (!fallbackRef.current || fallbackRef.current.id !== roomId) {
+    fallbackRef.current = { id: roomId, store: makeEmptyConversationStore() };
+  }
+  const displayStore = store ?? (offline ? fallbackRef.current.store : null);
 
   // A pull that surfaces repeated sync failures as a banner, cleared on success.
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -187,10 +198,15 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
   // `id` lets a queued (offline) message reuse the id its pending bubble already
   // showed, so when it finally syncs it dedups against the bubble instead of
   // double-rendering (see outbox.ts). Live sends omit it and mint a fresh id.
+  // Returns whether the message was APPLIED to the synced store: `false` when there's
+  // no store yet (offline — the SDK store can't build without the encryptor) so the
+  // caller (use-room-send) diverts it to the offline outbox instead of dropping it.
+  // This makes queueing depend on the real send outcome, not on the (fallible) online
+  // flag — the bug where an offline send no-op'd into a null store and vanished.
   const send = useCallback(
-    (text: string, parentId?: string, attachment?: AttachmentRef, id?: string) => {
+    (text: string, parentId?: string, attachment?: AttachmentRef, id?: string): boolean => {
       const t = text.trim();
-      if (!store || !session || (!t && !attachment)) return;
+      if (!store || !session || (!t && !attachment)) return false;
       store.getState().set((d: Record<string, unknown>) => {
         const msgs = (d.messages as unknown[]) ?? [];
         const msg: Record<string, unknown> = { id: id ?? randomId(), authorId: session.userId, ts: Date.now() };
@@ -199,6 +215,7 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
         if (attachment) msg.attachment = attachment;
         return { ...d, messages: [...msgs, msg] };
       });
+      return true;
     },
     [store, session],
   );
@@ -291,5 +308,5 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
     return isPublic ? publicSpaceAuth(session, spaceId).write : true;
   }, [session, isPublic, spaceId]);
 
-  return { store, opening: enabled ? opening : false, openError, reload, syncError, send, toggleReaction, editMessage, deleteMessage, pinMessage, unpinMessage, uploadAttachment, loadAttachment, canWrite };
+  return { store: displayStore, opening: enabled ? opening : false, openError, offline, reload, syncError, send, toggleReaction, editMessage, deleteMessage, pinMessage, unpinMessage, uploadAttachment, loadAttachment, canWrite };
 }

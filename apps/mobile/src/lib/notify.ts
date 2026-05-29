@@ -22,6 +22,7 @@ import {
   openRoomFromNotification,
   type OpenRoomFromNotificationDeps,
 } from './notification-open-room';
+import { isMuted } from './mutes';
 import { getNotificationSettings } from './notification-settings';
 import { loadLatestMessagePreview } from './notification-preview';
 import type { Session } from './starfish/identity';
@@ -93,6 +94,9 @@ export async function notifyRoomChange(
 ): Promise<void> {
   const settings = getNotificationSettings();
   if (!settings.enabled) return;
+  // Silenced when the room (or its whole space) is muted. The SSE callback already
+  // gates this, but the check here keeps the module self-contained for any caller.
+  if (isMuted(roomId, spaceIdFromRoomId(roomId))) return;
   // Bail before the (async) preview fetch when no toast could be shown anyway.
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   if (typeof document !== 'undefined' && document.hasFocus()) return;

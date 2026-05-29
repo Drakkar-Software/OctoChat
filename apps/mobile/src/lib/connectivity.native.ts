@@ -40,6 +40,21 @@ onSseStatus((up) => {
   else downTimer = setTimeout(() => set(false), OFFLINE_GRACE_MS);
 });
 
+/** Report real request reachability — a Starfish request just succeeded (`true`) or
+ *  failed with a network error (`false`). This is the AUTHORITATIVE signal: native
+ *  has no `navigator.onLine`, and the SSE proxy starts optimistic-true and can miss a
+ *  clean down-edge (so it would otherwise stay "online" forever after a drop). A real
+ *  request outcome cuts through that — `true` clears any pending down-debounce and goes
+ *  online immediately; `false` goes offline immediately (no grace — a failed request is
+ *  a hard signal, unlike a momentary SSE reconnect). */
+export function reportReachability(up: boolean): void {
+  if (downTimer) {
+    clearTimeout(downTimer);
+    downTimer = null;
+  }
+  set(up);
+}
+
 /** Current best-effort online state. */
 export function getOnline(): boolean {
   return online;

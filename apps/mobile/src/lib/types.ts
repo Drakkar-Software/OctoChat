@@ -1,6 +1,7 @@
 /** Domain model for OctoChat. Frontend-only — these describe placeholder data. */
 
 import type { PresenceStatus, VerificationLevel } from '@/theme';
+import type { SealedBlob } from './starfish/account-seal';
 import type { AttachmentRef } from './starfish/attachments';
 
 export type ID = string;
@@ -9,6 +10,27 @@ export type ID = string;
  *  JSON). Persisted both in device-local kv (`member-caps.ts`) and, for durability,
  *  in the user's own synced `_spaces` doc so a fresh device re-hydrates it. */
 export type CapMap = Record<string, string>;
+
+/** Maps a joined PUBLIC space's id → its invitation credential (the owner-signed cap
+ *  plus the link's ephemeral private key) SEALED to the account's own key. Unlike a
+ *  member cap (safe in the clear — see {@link CapMap}), a public-join credential
+ *  embeds a bearer secret, so it is sealed before riding in the plaintext `_spaces`
+ *  doc. Recovered on any device with the same seed. See `account-seal.ts` and
+ *  `pubspace-caps.ts`. */
+export type PubAccessMap = Record<string, SealedBlob>;
+
+/** A mute entry. `true` = muted indefinitely; a number = muted UNTIL that epoch-ms
+ *  instant (the forward-compatible shape for a future "mute for 15 min" — read-
+ *  supported now, but the current UI only ever writes `true` or deletes the key). */
+export type MuteValue = true | number;
+
+/** Per-user mute preferences: which rooms and which whole spaces are silenced.
+ *  Synced across the user's devices (stored alongside `spaces`/`caps` in the
+ *  `user/<userId>/_spaces` doc) and mirrored to device-local kv (`mutes.ts`). */
+export interface MutePrefs {
+  rooms: Record<string, MuteValue>;
+  spaces: Record<string, MuteValue>;
+}
 
 export interface User {
   id: ID;

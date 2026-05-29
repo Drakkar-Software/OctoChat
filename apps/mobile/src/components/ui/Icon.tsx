@@ -42,6 +42,7 @@ const ICONS = {
   gear: { lib: Feather, n: 'settings' },
   bell: { lib: Feather, n: 'bell' },
   volume: { lib: Feather, n: 'volume-2' },
+  'volume-off': { lib: Feather, n: 'volume-x' },
   menu: { lib: Feather, n: 'menu' },
   x: { lib: Feather, n: 'x' },
   'arrow-l': { lib: Feather, n: 'arrow-left' },
@@ -66,6 +67,7 @@ const ICONS = {
   clock: { lib: Feather, n: 'clock' },
   refresh: { lib: Feather, n: 'refresh-cw' },
   globe: { lib: Ionicons, n: 'globe-outline' },
+  folder: { lib: Feather, n: 'folder' },
 } satisfies Record<string, IconDef>;
 
 export type IconName = keyof typeof ICONS;

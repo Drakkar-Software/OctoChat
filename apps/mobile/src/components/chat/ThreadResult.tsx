@@ -112,7 +112,7 @@ export function ThreadResult({ room, thread, currentUserId, onPress }: { room: R
           {thread.replyCount} {thread.replyCount === 1 ? 'reply' : 'replies'}
         </Txt>
         <View style={styles.spacer} />
-        {unread ? <Badge count={thread.unread} /> : null}
+        <Badge count={thread.unread} />
       </View>
     </Pressable>
   );

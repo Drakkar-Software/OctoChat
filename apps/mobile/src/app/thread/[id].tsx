@@ -19,6 +19,7 @@ import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { Composer } from '@/components/chat/Composer';
 import { ConversationSkeleton } from '@/components/chat/ConversationSkeleton';
+import { OfflineBanner } from '@/components/chat/OfflineBanner';
 import { ReadOnlyFooter } from '@/components/chat/ReadOnlyFooter';
 import { ThreadConversation } from '@/components/chat/ThreadConversation';
 
@@ -37,7 +38,7 @@ export default function ThreadScreen() {
   const isStream = kind === 'stream';
   const channel = useRoom(roomId, { enabled: !isStream });
   const stream = useStreamRoom(roomId, { enabled: isStream });
-  const { store, opening, openError, send, toggleReaction, editMessage, deleteMessage, pinMessage, unpinMessage, uploadAttachment, loadAttachment, canWrite } =
+  const { store, opening, openError, offline, send, toggleReaction, editMessage, deleteMessage, pinMessage, unpinMessage, uploadAttachment, loadAttachment, canWrite } =
     isStream ? stream : channel;
   // Owner gates the per-message pin affordance and is the only author whose pin events
   // count at fold time (resolvePinned) — read from the shared registry like room/[id].
@@ -95,8 +96,10 @@ export default function ThreadScreen() {
       ) : openError ? (
         <EmptyState iconName="alert" title="Couldn't open thread" subtitle={openError} />
       ) : store ? (
-        <ThreadConversation
-          store={store}
+        <>
+          {!online || offline ? <OfflineBanner subject="replies" /> : null}
+          <ThreadConversation
+            store={store}
           spaceId={spaceIdFromRoomId(roomId)}
           parentId={parentId}
           currentUserId={session.userId}
@@ -112,7 +115,8 @@ export default function ThreadScreen() {
           onLoadAttachment={loadAttachment}
           pending={pending}
           onRetry={retry}
-        />
+          />
+        </>
       ) : (
         <EmptyState iconName="globe" title="Connecting…" />
       )}

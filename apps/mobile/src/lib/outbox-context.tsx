@@ -25,7 +25,7 @@
  */
 import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 
-import { getOnline, subscribeOnline } from './connectivity';
+import { getOnline, reportReachability, subscribeOnline } from './connectivity';
 import { outboxStore, useOutboxHydration } from './outbox';
 import { sendQueued } from './outbox-send';
 import { dispatchRoomChange, onSseStatus } from './room-events-bus';
@@ -79,9 +79,17 @@ export function OutboxProvider({ children }: { children: ReactNode }) {
           if (!outboxStore.getState().claim(it.id)) continue; // already in flight
           try {
             await sendQueued(session, it);
+            // A confirmed send PROVES the server is reachable — flip the online signal
+            // true (it may be stuck false: the native flag is an SSE proxy, and the
+            // deployed bridge can reconnect-loop while REST is fine). This is what makes
+            // a room the user opened OFFLINE recover: the open hook's reconnect watcher
+            // re-opens over REST and pulls in this very message. Without it, the entry is
+            // removed here but the offline room's empty fallback store never refreshes,
+            // so the message would vanish until manual re-entry.
+            reportReachability(true);
             outboxStore.getState().remove(it.id);
-            // If the room is open, pull now so the real (synced) message replaces the
-            // pending bubble without waiting for the next SSE tick — no vanish-flash.
+            // If the room is already open with a live store, pull now so the real (synced)
+            // message replaces the pending bubble without waiting for the next SSE tick.
             dispatchRoomChange(it.roomId);
           } catch {
             // Believed-online failure escalates toward `failed`; an offline blip just

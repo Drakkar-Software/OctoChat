@@ -3,6 +3,7 @@ import 'react-native-gesture-handler';
 import { configureStarfishPlatform } from '@/lib/starfish/platform';
 import { registerServiceWorker } from '@/lib/pwa';
 import { ensureNotificationChannel, registerBackgroundPushHandler } from '@/lib/push/fcm';
+import { MutesProvider } from '@/lib/mutes-context';
 import { NotificationSettingsProvider } from '@/lib/notification-settings-context';
 import { OutboxProvider } from '@/lib/outbox-context';
 import { ProfileProvider } from '@/lib/profile-context';
@@ -78,6 +79,7 @@ export default function RootLayout() {
               `useRooms` consumer, below UnreadProvider. ProfileProvider only needs the
               session. */}
           <NotificationSettingsProvider>
+            <MutesProvider>
             <SpacesProvider>
               <RoomsRegistryProvider>
                 <UnreadProvider>
@@ -96,6 +98,7 @@ export default function RootLayout() {
                 </UnreadProvider>
               </RoomsRegistryProvider>
             </SpacesProvider>
+            </MutesProvider>
           </NotificationSettingsProvider>
           </OutboxProvider>
         </SessionProvider>

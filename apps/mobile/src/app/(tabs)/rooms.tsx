@@ -13,7 +13,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { ChannelListSkeleton } from '@/components/chat/ChannelListSkeleton';
-import { RoomCategorySection } from '@/components/chat/RoomCategorySection';
+import { RoomCategoryList } from '@/components/chat/RoomCategoryList';
 import { SidebarLinkRow } from '@/components/chat/SidebarLinkRow';
 import { SpaceHeader } from '@/components/chat/SpaceHeader';
 
@@ -21,7 +21,8 @@ export default function RoomsScreen() {
   const { session } = useSession();
   const inShell = useInShell();
   const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
-  const { categories, loading: roomsLoading, isPublic, memberCount, createRoom } = useRooms(activeId);
+  const { categories, loading: roomsLoading, isPublic, memberCount, isOwner, createRoom, createCategory, moveRoom } =
+    useRooms(activeId);
   const space = spaces.find((s) => s.id === activeId) ?? spaces[0];
 
   const openRoom = (room: Room) =>
@@ -84,7 +85,7 @@ export default function RoomsScreen() {
         <SignInPrompt subtitle="Create an identity to see your spaces." />
       ) : spacesLoading || roomsLoading ? (
         <ChannelListSkeleton />
-      ) : categories.length === 0 ? (
+      ) : categories.length === 0 && !isOwner ? (
         <EmptyState iconName="hash" title="No rooms yet" subtitle="Create a channel to get started." />
       ) : (
         <>
@@ -92,14 +93,15 @@ export default function RoomsScreen() {
               (DesktopRoomSidebar). The bottom tab is a global shortcut; this
               row anchors Threads inside the active space's room list. */}
           <SidebarLinkRow iconName="thread" label="Threads" onPress={() => router.push('/(tabs)/threads')} />
-          {categories.map((cat) => (
-            <RoomCategorySection
-              key={cat.name}
-              category={cat}
-              onOpenRoom={openRoom}
-              onCreateRoom={(category, name, kind) => createRoom(name, category, kind)}
-            />
-          ))}
+          <RoomCategoryList
+            categories={categories}
+            userId={session.userId}
+            spaceId={activeId ?? space?.id ?? ''}
+            onOpenRoom={openRoom}
+            onCreateRoom={(category, name, kind) => createRoom(name, category, kind)}
+            onMoveRoom={isOwner ? moveRoom : undefined}
+            onCreateCategory={isOwner ? createCategory : undefined}
+          />
         </>
       )}
     </StackScreen>

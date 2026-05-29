@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { StyleSheet, View } from 'react-native';
 
-import { radii, shadows, spacing } from '@/theme';
+import { paperBorder, radii, shadows, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
 
 import { Txt } from './Txt';
@@ -21,7 +21,7 @@ export function Card({ title, children, padded = true, style }: CardProps) {
     <View
       style={[
         styles.card,
-        { backgroundColor: colors.paper, borderColor: colors.lineSoft, borderTopColor: colors.hairlineHi },
+        paperBorder(colors),
         padded && styles.padded,
         shadows.sm,
         style,

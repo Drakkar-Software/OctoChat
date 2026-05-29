@@ -10,7 +10,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 
 import { ChannelListSkeleton } from './ChannelListSkeleton';
-import { RoomCategorySection } from './RoomCategorySection';
+import { RoomCategoryList } from './RoomCategoryList';
 import { SidebarLinkRow } from './SidebarLinkRow';
 import { SpaceMeta } from './SpaceMeta';
 
@@ -21,6 +21,8 @@ interface DesktopRoomSidebarProps {
   /** Owner + roster for private spaces; null for public (no roster). */
   memberCount?: number | null;
   categories: RoomCategory[];
+  /** Signed-in identity — the key (with the space) for persisted collapse state. */
+  userId: string;
   activeRoomId?: string;
   /** Recent threads of the active room, listed under its row. Omit to show none. */
   threads?: ThreadSummary[];
@@ -41,6 +43,10 @@ interface DesktopRoomSidebarProps {
   /** Create a room in a category. `kind` is `'channel'` or `'stream'` (append-only).
    *  Resolves to an error message to show, or `null`/void on success. */
   onCreateRoom?: (category: string, name: string, kind: RoomKind) => Promise<string | null> | void;
+  /** OWNER-ONLY: re-home a room into a category (drag-drop). Omit for non-owners. */
+  onMoveRoom?: (roomId: string, category: string) => Promise<string | null> | void;
+  /** OWNER-ONLY: create a category (shows the "New category" control). */
+  onCreateCategory?: (name: string) => Promise<string | null> | void;
   loading?: boolean;
 }
 
@@ -55,6 +61,7 @@ export function DesktopRoomSidebar({
   isPublic,
   memberCount,
   categories,
+  userId,
   activeRoomId,
   threads,
   onOpenRoom,
@@ -66,6 +73,8 @@ export function DesktopRoomSidebar({
   onJumpTo,
   onOpenSpaceMenu,
   onCreateRoom,
+  onMoveRoom,
+  onCreateCategory,
   loading = false,
 }: DesktopRoomSidebarProps) {
   const { colors } = useTheme();
@@ -125,22 +134,23 @@ export function DesktopRoomSidebar({
         ) : null}
         {loading ? (
           <ChannelListSkeleton />
-        ) : categories.length === 0 ? (
+        ) : categories.length === 0 && !onCreateCategory ? (
           <Txt variant="footnote" tone="inkMuted" style={styles.empty}>
             No rooms yet.
           </Txt>
         ) : (
-          categories.map((cat) => (
-            <RoomCategorySection
-              key={cat.name}
-              category={cat}
-              activeRoomId={activeRoomId}
-              threads={threads}
-              onOpenRoom={onOpenRoom}
-              onOpenThread={onOpenThread}
-              onCreateRoom={onCreateRoom}
-            />
-          ))
+          <RoomCategoryList
+            categories={categories}
+            userId={userId}
+            spaceId={space.id}
+            activeRoomId={activeRoomId}
+            threads={threads}
+            onOpenRoom={onOpenRoom}
+            onOpenThread={onOpenThread}
+            onCreateRoom={onCreateRoom}
+            onMoveRoom={onMoveRoom}
+            onCreateCategory={onCreateCategory}
+          />
         )}
       </ScrollView>
     </View>

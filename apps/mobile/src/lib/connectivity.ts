@@ -29,6 +29,15 @@ if (w?.addEventListener) {
   w.addEventListener('offline', () => set(false));
 }
 
+/** Report real request reachability — a Starfish request just succeeded (`true`) or
+ *  failed with a network error (`false`). Lets the room-open path correct the signal
+ *  from ACTUAL traffic, so "offline" reflects the server being unreachable even when
+ *  `navigator.onLine` is optimistically true (server down / unreachable). A later
+ *  window `online`/`offline` event or a successful request overrides it again. */
+export function reportReachability(up: boolean): void {
+  set(up);
+}
+
 /** Current best-effort online state. */
 export function getOnline(): boolean {
   return online;

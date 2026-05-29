@@ -144,11 +144,13 @@ export function useSpaceSettings(spaceId: string) {
       if (isPublic) {
         await updatePublicSpaceMeta(session, spaceId, { name: nextName, image: nextImage });
       } else {
-        const { rooms, owner, members: roster, hash } = await readRooms(session.accountClient, spaceId);
+        const { rooms, owner, members: roster, categories, hash } = await readRooms(session.accountClient, spaceId);
+        // Preserve `categories` — push replaces the whole `_rooms` doc, so a name/image
+        // save would otherwise drop the ordered category list.
         await writeRooms(session.accountClient, spaceId, rooms, owner ?? session.userId, roster, hash, {
           name: nextName,
           image: nextImage,
-        });
+        }, categories);
       }
       const short = nextName.slice(0, 2).toUpperCase();
       const { spaces, hash } = await readSpaces(session.accountClient, session.userId);
@@ -190,13 +192,16 @@ export function useSpaceSettings(spaceId: string) {
   /** Drop the space from your own list + forget its cap (member/joiner side). */
   const leave = useCallback(async () => {
     if (!session) return;
-    // Drop the space from the list AND forget its durable cap in one atomic doc write,
-    // so a leave never leaves a dangling cap (or vice-versa). Public spaces carry no
-    // member cap, so the caps map is untouched for them.
+    // Drop the space from the list AND forget its durable credential in one atomic doc
+    // write, so a leave never leaves a dangling cap (or vice-versa). A PRIVATE space
+    // drops its member cap; a PUBLIC space drops its sealed access entry. The untouched
+    // map for the other kind is preserved by the funnel.
     await updateSpacesDoc(session.accountClient, session.userId, (cur) => {
       const caps = { ...cur.caps };
       delete caps[spaceId];
-      return { spaces: cur.spaces.filter((s) => s.id !== spaceId), caps };
+      const pubAccess = { ...cur.pubAccess };
+      delete pubAccess[spaceId];
+      return { spaces: cur.spaces.filter((s) => s.id !== spaceId), caps, pubAccess };
     });
     if (isPublic) removePubspaceAccess(spaceId);
     else removeMemberCap(spaceId); // mirror the in-memory cache

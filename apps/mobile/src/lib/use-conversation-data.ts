@@ -1,3 +1,4 @@
+import { createStore } from 'zustand';
 import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 
 import { matchesUser } from './links';
@@ -8,6 +9,28 @@ import { useRoomMentions } from './use-room-mentions';
 
 /** A synced room store handle (the zustand store `useStarfishData` reads from). */
 export type ConversationStore = Parameters<typeof useStarfishData>[0];
+
+/** A minimal zustand store whose `.data` the chat UI reads via `useStarfishData`.
+ *  Only `data` is consumed; the StarfishStore action/flag fields are inert stubs to
+ *  satisfy the `ConversationStore` type without the SDK's sync machinery. Used as the
+ *  always-present store for STREAM rooms (append-only, no SDK store) and as the empty
+ *  OFFLINE FALLBACK for a merge-doc room whose SDK store can't open without the network
+ *  — so the conversation view (and its pending outbox bubbles) still renders offline. */
+export function makeEmptyConversationStore(): ConversationStore {
+  return createStore(() => ({
+    data: { messages: [], reactions: [], edits: [], pins: [] },
+    syncing: false,
+    online: true,
+    dirty: false,
+    error: null,
+    hash: null,
+    pull: async () => {},
+    set: () => {},
+    restore: () => {},
+    flush: async () => {},
+    setOnline: () => {},
+  })) as unknown as ConversationStore;
+}
 
 /**
  * Reads a room's synced message log and the lookups every conversation view needs

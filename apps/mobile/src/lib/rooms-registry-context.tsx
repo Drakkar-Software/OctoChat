@@ -49,6 +49,8 @@ export interface RoomsRegistryEntry {
   members: string[];
   name: string | null;
   image: string | null;
+  /** Ordered category list (stored, or derived from rooms — see normalizeCategories). */
+  categories: string[];
   hash: string | null;
   /** A read is in progress (true until the first read settles). */
   loading: boolean;
@@ -57,7 +59,7 @@ export interface RoomsRegistryEntry {
 }
 
 const PENDING: RoomsRegistryEntry = {
-  rooms: [], owner: null, members: [], name: null, image: null, hash: null, loading: true, loaded: false,
+  rooms: [], owner: null, members: [], name: null, image: null, categories: [], hash: null, loading: true, loaded: false,
 };
 const IDLE: RoomsRegistryEntry = { ...PENDING, loading: false };
 
@@ -112,13 +114,13 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
     if (!s) return IDLE;
     if (isPublicSpaceId(spaceId)) {
       const auth = publicSpaceAuth(s, spaceId);
-      const { rooms, name, image } = await readPublicRoomsDoc(publicSpaceClient(s, spaceId), auth.ownerId, spaceId);
+      const { rooms, name, image, categories } = await readPublicRoomsDoc(publicSpaceClient(s, spaceId), auth.ownerId, spaceId);
       void reconcileSpaceMeta(s.accountClient, s.userId, spaceId, { name, image }, spacesRef.current).catch(() => {});
-      return { rooms, owner: auth.ownerId, members: [], name, image, hash: null, loading: false, loaded: true };
+      return { rooms, owner: auth.ownerId, members: [], name, image, categories, hash: null, loading: false, loaded: true };
     }
-    const { rooms, owner, members, name, image, hash } = await readRooms(s.accountClient, spaceId);
+    const { rooms, owner, members, name, image, categories, hash } = await readRooms(s.accountClient, spaceId);
     void reconcileSpaceMeta(s.accountClient, s.userId, spaceId, { name, image }, spacesRef.current).catch(() => {});
-    return { rooms, owner, members, name, image, hash, loading: false, loaded: true };
+    return { rooms, owner, members, name, image, categories, hash, loading: false, loaded: true };
   }, []);
 
   // Run one read for a space, sharing the in-flight promise and publishing the

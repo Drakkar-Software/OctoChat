@@ -6,6 +6,7 @@ import {
   nativeImage,
   protocol,
   shell,
+  Tray,
   type MenuItemConstructorOptions,
 } from 'electron';
 import path from 'node:path';
@@ -41,6 +42,27 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
+// Closing the window HIDES it instead of destroying it, so the renderer — and
+// with it the live SSE stream and the in-memory unlock that decrypts message
+// previews — keeps running and background notifications keep firing (the same
+// real-content path the app uses while focused). A tray icon brings it back;
+// a real quit goes through the tray's Quit or the app/Cmd-Q menu, which sets
+// `isQuitting` first so the close handler lets the window go.
+let isQuitting = false;
+let tray: Tray | null = null;
+
+/** Restore + focus the main window, recreating it only if it was fully closed. */
+function showMainWindow(): void {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  } else {
+    createWindow();
+  }
+}
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1100,
@@ -56,11 +78,22 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      // Keep timers/JS running at full rate when the window is hidden in the
+      // tray, so the SSE stream and notification path don't get throttled.
+      backgroundThrottling: false,
       additionalArguments: [`--app-version=${app.getVersion()}`],
     },
   });
 
   win.once('ready-to-show', () => win.show());
+
+  // Hide to the tray on close (see `isQuitting` note above) rather than tearing
+  // down the renderer; a genuine quit has set `isQuitting` and falls through.
+  win.on('close', (event) => {
+    if (isQuitting) return;
+    event.preventDefault();
+    win.hide();
+  });
 
   // Open http(s) links (e.g. external URLs) in the OS browser, never in-app.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -136,6 +169,31 @@ function registerIpc(): void {
   });
 }
 
+// Tray icon: the way back to a window hidden on close, plus an explicit Quit.
+// The icon ships next to main.js (tsup `publicDir`) so it resolves in dev and
+// packaged alike; resized small for the menu bar / system tray.
+function createTray(): void {
+  const image = nativeImage.createFromPath(path.join(__dirname, 'tray.png'));
+  const icon = image.isEmpty() ? image : image.resize({ width: 18, height: 18 });
+  tray = new Tray(icon);
+  tray.setToolTip(APP_NAME);
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: `Show ${APP_NAME}`, click: showMainWindow },
+      { type: 'separator' },
+      {
+        label: 'Quit',
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]),
+  );
+  // Left-click the tray icon also reopens the window (Windows/Linux convention).
+  tray.on('click', showMainWindow);
+}
+
 function buildMenu(): void {
   const isMac = process.platform === 'darwin';
 
@@ -203,16 +261,26 @@ if (!gotLock) {
     registerIpc();
     buildMenu();
     createWindow();
+    createTray();
     // Check for a newer web bundle in the background after the window is up.
     // Errors are caught inside checkForUpdates — offline launch is always safe.
     if (!isDev) void checkForUpdates();
 
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow();
-    });
+    // Dock click (macOS) / relaunch: reveal the window the tray is holding hidden,
+    // not just the empty-windows case.
+    app.on('activate', showMainWindow);
   });
 
+  // A real quit (Cmd-Q, app menu, tray Quit, OS shutdown) must let the window's
+  // close handler through instead of hiding it.
+  app.on('before-quit', () => {
+    isQuitting = true;
+  });
+
+  // With hide-to-tray the window is rarely destroyed, so this seldom fires; keep
+  // it gated on `isQuitting` so a stray all-closed during teardown still exits and
+  // a hide never quits the app on Windows/Linux.
   app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit();
+    if (process.platform !== 'darwin' && isQuitting) app.quit();
   });
 }

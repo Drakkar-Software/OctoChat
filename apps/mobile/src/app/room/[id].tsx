@@ -24,6 +24,7 @@ import { StackScreen } from '@/components/ui/StackScreen';
 import { Composer } from '@/components/chat/Composer';
 import { ConversationSkeleton } from '@/components/chat/ConversationSkeleton';
 import { DesktopChatTopbar } from '@/components/chat/DesktopChatTopbar';
+import { OfflineBanner } from '@/components/chat/OfflineBanner';
 import { ReadOnlyFooter } from '@/components/chat/ReadOnlyFooter';
 import { RoomConversation } from '@/components/chat/RoomConversation';
 import { StreamBotPanelWhenEmpty } from '@/components/chat/StreamBotPanel';
@@ -42,7 +43,7 @@ export default function RoomScreen() {
   const isStream = kind === 'stream';
   const channel = useRoom(id, { enabled: !isStream });
   const stream = useStreamRoom(id, { enabled: isStream });
-  const { store, opening, openError, reload, syncError, send, toggleReaction, editMessage, deleteMessage, pinMessage, unpinMessage, uploadAttachment, loadAttachment, canWrite } =
+  const { store, opening, openError, offline, reload, syncError, send, toggleReaction, editMessage, deleteMessage, pinMessage, unpinMessage, uploadAttachment, loadAttachment, canWrite } =
     isStream ? stream : channel;
   const { editingId, setEditingId, editLast } = useMessageEditing(store, session?.userId ?? '');
   // Offline outbox: route text sends through the queue when offline / on failure,
@@ -124,7 +125,6 @@ export default function RoomScreen() {
   const openMembers = () =>
     router.push({ pathname: '/space/[id]', params: { id: spaceIdFromRoomId(id), roomId: id, roomKind: kind } });
   const openSearch = () => router.push('/search');
-  const openPinned = () => router.push({ pathname: '/pinned/[id]', params: { id: spaceId } });
   const openProfile = (userId: string) => router.push({ pathname: '/profile/[id]', params: { id: userId } });
 
   return (
@@ -136,7 +136,6 @@ export default function RoomScreen() {
           onBack={goBack}
           right={
             <>
-              <IconButton name="pin" accessibilityLabel="Pinned messages" onPress={openPinned} />
               <IconButton name="search" accessibilityLabel="Search in room" onPress={openSearch} />
               <IconButton name="info" accessibilityLabel="Space details" onPress={openMembers} />
             </>
@@ -177,10 +176,8 @@ export default function RoomScreen() {
         </EmptyState>
       ) : store ? (
         <>
-          {!online ? (
-            <Callout tone="warning" iconName="clock">
-              You’re offline — messages you send will go out when you reconnect.
-            </Callout>
+          {!online || offline ? (
+            <OfflineBanner />
           ) : syncError ? (
             <Callout tone="warning" iconName="alert">
               {syncError}

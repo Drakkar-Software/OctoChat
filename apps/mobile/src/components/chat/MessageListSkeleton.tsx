@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import { radii, spacing } from '@/theme';
+import { paperBorder, radii, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
 import { Skeleton } from '@/components/ui/Skeleton';
 
@@ -13,7 +13,7 @@ export function MessageListSkeleton({ count = 5 }: { count?: number }) {
       {Array.from({ length: count }).map((_, i) => (
         <View
           key={i}
-          style={[styles.row, { borderColor: colors.lineFaint, borderTopColor: colors.hairlineHi, backgroundColor: colors.paper }]}
+          style={[styles.row, paperBorder(colors, colors.lineFaint)]}
         >
           <Skeleton width={32} height={32} radius={16} />
           <View style={styles.body}>

@@ -30,6 +30,8 @@ import { subscribeRoomChanges } from './events';
 import { setDesktopBadge } from './desktop';
 import { setTabTitleBadge } from './tab-title';
 import { ensureNotifyPermission, notifyRoomChange } from './notify';
+import { isMuted } from './mutes';
+import { useMutes } from './mutes-context';
 import { useNotificationSettings } from './notification-settings-context';
 import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
@@ -107,11 +109,22 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   // Notification preferences (per identity) gate both push and web toasts.
   const { settings: notif } = useNotificationSettings();
 
-  // Native push: subscribe the device to per-space FCM topics, mirroring the SSE
-  // candidate set so backgrounded native apps still get notified. No-op on
-  // web/desktop (those rely on the live SSE stream + notify.ts). The master toggle
+  // Mute prefs: consumed here so the provider re-renders (and the push set below
+  // recomputes) the instant a space is muted/unmuted. The SSE candidate set stays
+  // UNFILTERED (see `subscribeRoomChanges` below) — dropping a muted space there
+  // would kill live updates for a muted room you're actively viewing.
+  const mutes = useMutes();
+
+  // Native push: subscribe the device to per-space FCM topics. A MUTED space is
+  // dropped from this set so its topic is unsubscribed — the only layer that stops a
+  // native banner (the OS renders the bridge's push before any JS runs). No-op on
+  // web/desktop (those rely on the live SSE stream + notify.ts); the master toggle
   // drops every subscription when off.
-  usePush(session, spaceIds, notif.enabled);
+  const pushSpaceIds = useMemo(
+    () => spaceIds.filter((id) => !mutes.isSpaceMuted(id)),
+    [spaceIds, mutes],
+  );
+  usePush(session, pushSpaceIds, notif.enabled);
 
   // Request browser-notification permission once notifications are enabled
   // (web/desktop; no-op on native). Re-asks when the user flips the toggle on.
@@ -186,6 +199,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
           // self-exclusion as the FCM push. Undefined identity (older server) falls
           // through and counts, preserving the previous behavior.
           if (e.identity && e.identity === userId) return;
+          // Unread is KEPT for muted rooms/spaces (silence-only) — bump it regardless.
           const m = mapRef.current;
           const next = { ...m, [e.roomId]: (m[e.roomId] ?? 0) + 1 };
           mapRef.current = next;
@@ -194,10 +208,14 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
           // web/desktop notification, honoring settings (no-op when focused, disabled,
           // or native). Decrypts a preview when the `preview` setting is on. The nav
           // deps let a click resolve the room's real name/kind + focus its space.
-          void notifyRoomChange(session, e.roomId, {
-            ensure: ensureRef.current,
-            setActiveId: setActiveIdRef.current,
-          });
+          // Skipped when the room (or its whole space) is muted — the sync mute cache
+          // reads correctly inside this long-lived SSE closure (no stale React state).
+          if (!isMuted(e.roomId, e.spaceId ?? spaceIdFromRoomId(e.roomId))) {
+            void notifyRoomChange(session, e.roomId, {
+              ensure: ensureRef.current,
+              setActiveId: setActiveIdRef.current,
+            });
+          }
         },
         {
           spaces: spaceIds,

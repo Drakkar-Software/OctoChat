@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { radii, shadows, spacing } from '@/theme';
+import { paperBorder, radii, shadows, spacing } from '@/theme';
 import { tapFeedback } from '@/lib/haptics';
 import { QUICK_REACTIONS } from '@/lib/reactions';
 import { useTheme } from '@/lib/use-theme';
@@ -55,7 +55,7 @@ export function MessageActions({ visible, onReact, onReply, onEdit, onDelete, on
     <View
       style={[
         styles.bar,
-        { backgroundColor: colors.paper, borderColor: colors.lineSoft, borderTopColor: colors.hairlineHi },
+        paperBorder(colors),
         shadows.sm,
       ]}
     >

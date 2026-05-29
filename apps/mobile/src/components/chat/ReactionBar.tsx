@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { radii, shadows } from '@/theme';
+import { paperBorder, radii, shadows } from '@/theme';
 import type { Reaction } from '@/lib/types';
 import { plural } from '@/lib/format';
 import { tapFeedback } from '@/lib/haptics';
@@ -49,7 +49,7 @@ function ReactionChip({ emoji, count, mine, userIds, nameFor, onPress }: Reactio
           pointerEvents="none"
           style={[
             styles.tooltip,
-            { backgroundColor: colors.paper, borderColor: colors.lineSoft, borderTopColor: colors.hairlineHi },
+            paperBorder(colors),
             shadows.sm,
           ]}
         >

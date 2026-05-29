@@ -19,6 +19,7 @@
  */
 import notifee, { AndroidImportance } from '@notifee/react-native';
 
+import { isMuteActive, loadMutesFromKv } from '../mutes';
 import { notificationTitle } from '../notification-format';
 import { loadNotificationLabels } from '../notification-labels';
 import { loadNotificationSettings } from '../notification-settings';
@@ -116,6 +117,19 @@ export async function handleBackgroundPush(data: PushData): Promise<void> {
     // banner and posting ours would duplicate it.
     const settings = await loadNotificationSettings(userId);
     if (!settings.enabled || !settings.preview) return;
+
+    // Muted room (or whole space): suppress the decrypted upgrade and best-effort
+    // cancel the OS placeholder so this room stays silent. Read from the kv copy the
+    // foreground app warms (no provider tree / server round-trip in this headless
+    // task). NOTE: a muted space normally never reaches here (its FCM topic is
+    // unsubscribed); a muted room in an UNMUTED space still receives the push, and
+    // FCM ordering means the generic placeholder may already be on screen — hence
+    // best-effort. (A muted space's own topic-drop is the reliable native layer.)
+    const muted = await loadMutesFromKv(userId);
+    if (isMuteActive(muted.rooms[roomId]) || isMuteActive(muted.spaces[spaceId])) {
+      await cancelPlaceholder(roomId);
+      return;
+    }
 
     const session = await sessionFromPersisted(account);
     // Joined-space caps live only in the kv cache in a cold task; reload them (empty
