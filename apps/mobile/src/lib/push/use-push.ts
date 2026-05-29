@@ -10,9 +10,11 @@ import {
   onPushOpenNavigate,
   type PushData,
   subscribeSpacePush,
+  subscribeUserPush,
   unsubscribeSpacePush,
+  unsubscribeUserPush,
 } from './fcm';
-import { openRoomFromPush } from './open-room-from-push';
+import { openRoomFromNotification } from '../notification-open-room';
 
 /**
  * Subscribe the device to per-space FCM topics for the signed-in user's spaces,
@@ -31,10 +33,14 @@ import { openRoomFromPush } from './open-room-from-push';
  */
 export function usePush(session: Session | null, spaceIds: string[], enabled: boolean): void {
   const subscribed = useRef<Set<string>>(new Set());
+  // The account's per-user topic we're currently subscribed to (self-exclusion),
+  // tracked so it can be dropped on sign-out / toggle-off even after the session
+  // (and its userId) is gone.
+  const subscribedUser = useRef<string | null>(null);
   const spacesKey = [...spaceIds].sort().join(',');
 
   // Notification-tap navigation resolves the room's real name/kind from the rooms
-  // registry and focuses its space (see `openRoomFromPush`). The handler is
+  // registry and focuses its space (see `openRoomFromNotification`). The handler is
   // registered once, so the live deps it needs are read through refs.
   const { setActiveId } = useSpacesContext();
   const { ensure } = useRoomsRegistryActions();
@@ -49,7 +55,7 @@ export function usePush(session: Session | null, spaceIds: string[], enabled: bo
   });
 
   const open = useCallback((data: PushData) => {
-    void openRoomFromPush(data, { ensure: ensureRef.current, setActiveId: setActiveIdRef.current });
+    void openRoomFromNotification(data, { ensure: ensureRef.current, setActiveId: setActiveIdRef.current });
   }, []);
 
   const handleOpen = useCallback(
@@ -93,11 +99,22 @@ export function usePush(session: Session | null, spaceIds: string[], enabled: bo
       const drop = subscribed.current;
       subscribed.current = new Set();
       for (const id of drop) void unsubscribeSpacePush(id);
+      const dropUser = subscribedUser.current;
+      subscribedUser.current = null;
+      if (dropUser) void unsubscribeUserPush(dropUser);
       return;
     }
     let active = true;
     void (async () => {
       if (!(await ensurePushPermission()) || !active) return;
+      // Self-exclusion: subscribe to this account's user-topic so the bridge can
+      // exclude our own devices from our own messages' pushes. Re-subscribe if the
+      // signed-in account changed (drop the previous user-topic first).
+      if (subscribedUser.current !== session.userId) {
+        if (subscribedUser.current) await unsubscribeUserPush(subscribedUser.current);
+        await subscribeUserPush(session.userId);
+        subscribedUser.current = session.userId;
+      }
       const next = new Set(spaceIds);
       for (const id of next) {
         if (!subscribed.current.has(id)) await subscribeSpacePush(id);

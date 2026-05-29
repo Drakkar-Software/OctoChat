@@ -160,7 +160,17 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey }: Composer
             onSelectionChange={emoji.onSelectionChange}
             placeholder={placeholder}
             placeholderTextColor={colors.inkMuted}
-            style={[styles.input, { color: colors.ink }, WEB_OUTLINE_RESET]}
+            // Android's TextInput otherwise inherits the OS `textColorPrimary`
+            // for the cursor/selection — invisible against the dark paperAlt in
+            // dark mode and off-brand in light mode.
+            selectionColor={colors.accent}
+            cursorColor={colors.accent}
+            underlineColorAndroid="transparent"
+            // Keep `color` LAST in the array: on Android, any earlier `color`
+            // (e.g. from `styles.input`) wins under the native style flattener,
+            // which made typed text render as the OS default and disappear
+            // against the paperAlt fill in dark mode. Same fix as TextField.
+            style={[styles.input, WEB_OUTLINE_RESET, { color: colors.ink }]}
             multiline
             numberOfLines={1}
             editable={!busy}

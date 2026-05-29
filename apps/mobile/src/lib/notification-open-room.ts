@@ -1,9 +1,12 @@
 /**
- * Resolve a tapped notification's `{ spaceId, roomId }` payload to a real room and
- * navigate to it. The push carries only ids (chat is E2EE — no name/kind on the
- * wire), so a bare `router.push({ id })` opened the room screen with `name = id`
- * (the AppBar title became the raw `sp-<rand>-<name>` id) and `kind = 'channel'`
- * (a stream room then loaded from the wrong storage path and came up empty).
+ * Resolve a notification's `{ spaceId, roomId }` payload to a real room and
+ * navigate to it. Shared by BOTH delivery paths: the native FCM tap handler
+ * (`push/use-push`) and the web/desktop SSE toast click (`notify`).
+ *
+ * The notification carries only ids (chat is E2EE — no name/kind on the wire), so
+ * a bare `router.push({ id })` opened the room screen with `name = id` (the AppBar
+ * title became the raw `sp-<rand>-<name>` id) and `kind = 'channel'` (a stream room
+ * then loaded from the wrong storage path and came up empty).
  *
  * Here we look the room up in the already-synced rooms registry to recover its real
  * `name` + `kind`, and set the active space so the rooms tab / back-navigation land
@@ -12,21 +15,22 @@
  */
 import { router } from 'expo-router';
 
-import type { RoomsRegistryEntry } from '../rooms-registry-context';
-import { spaceIdFromRoomId } from '../starfish/paths';
+import type { RoomsRegistryEntry } from './rooms-registry-context';
+import { spaceIdFromRoomId } from './starfish/paths';
 
-export interface OpenRoomFromPushDeps {
+export interface OpenRoomFromNotificationDeps {
   /** Read a space's rooms registry (shared cache); see RoomsRegistryActions.ensure. */
   ensure: (spaceId: string) => Promise<RoomsRegistryEntry>;
   /** Focus a space (rooms tab + back target). */
   setActiveId: (spaceId: string) => void;
 }
 
-export async function openRoomFromPush(
+export async function openRoomFromNotification(
   data: { spaceId?: string; roomId?: string; docId?: string },
-  deps: OpenRoomFromPushDeps,
+  deps: OpenRoomFromNotificationDeps,
 ): Promise<void> {
-  // Public-space rooms carry the room id as `docId`; accept either (see PushData).
+  // Native public-space pushes carry the room id as `docId`; accept either (the SSE
+  // toast path already normalizes pubspace docId into roomId, so it passes roomId).
   const roomId = data.roomId || data.docId || undefined;
   const spaceId = data.spaceId || (roomId ? spaceIdFromRoomId(roomId) : undefined);
   if (!spaceId && !roomId) return;

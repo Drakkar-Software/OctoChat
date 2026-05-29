@@ -78,14 +78,17 @@ const roleResolver = createCapCertRoleResolver({
 // (Appends fire the queue plugin's afterWrite just like a push — alpha.2 changelog.)
 // NOTE: `pubspace` events carry `params.docId` (the room id, or `_rooms` for the
 // public room registry) rather than `roomId` — the client routes on that.
+// `includeIdentity` forwards the writer's account userId so the FCM bridge can
+// exclude the author's own devices from the push (it never gets a notification
+// for its own message). Metadata-only — no content — and opt-in per collection.
 const { queue, nc } = await createNatsQueue();
 const queuing = createQueuingServerPlugin({
   queue,
   collections: {
-    chat: { topic: "octochat.chat.changed", includeParams: true },
-    streamchat: { topic: "octochat.chat.changed", includeParams: true },
-    pubstream: { topic: "octochat.chat.changed", includeParams: true },
-    pubspace: { topic: "octochat.chat.changed", includeParams: true },
+    chat: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
+    streamchat: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
+    pubstream: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
+    pubspace: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
   },
 });
 

@@ -24,6 +24,9 @@ export interface PushData {
 export const pushTopicForSpace = (spaceId: string): string =>
   `octochat-octochat-chat-changed-${spaceId}`;
 
+/** Per-user FCM topic for push self-exclusion. See `fcm.native.ts`. */
+export const pushTopicForUser = (userId: string): string => `octochat-user-${userId}`;
+
 export async function ensurePushPermission(): Promise<boolean> {
   return false;
 }
@@ -31,6 +34,10 @@ export async function ensurePushPermission(): Promise<boolean> {
 export async function subscribeSpacePush(_spaceId: string): Promise<void> {}
 
 export async function unsubscribeSpacePush(_spaceId: string): Promise<void> {}
+
+export async function subscribeUserPush(_userId: string): Promise<void> {}
+
+export async function unsubscribeUserPush(_userId: string): Promise<void> {}
 
 /** Register the FCM background-message handler. Call once at module scope. */
 export function registerBackgroundPushHandler(): void {}

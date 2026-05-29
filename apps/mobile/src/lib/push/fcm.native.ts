@@ -30,6 +30,18 @@ export interface PushData {
 export const pushTopicForSpace = (spaceId: string): string =>
   `octochat-octochat-chat-changed-${spaceId}`;
 
+/**
+ * Per-USER FCM topic. The device subscribes to its own account's user-topic so the
+ * Whistler bridge can address a chat push to an FCM CONDITION that EXCLUDES it
+ * (`'<space-topic>' in topics && !('<user-topic>' in topics)`) — the message author
+ * therefore never gets a push for their own message, on any of their devices. Only
+ * the author's devices subscribe to this topic, so the exclusion targets exactly
+ * them. MUST match the bridge's `octochat-user-<userId>` builder (see Infra
+ * `bridge/src/apps/octochat/format.ts`); `userId` is the account id the server
+ * reports as the write `identity` (sha256(edPub)[:16] — 32-char hex, topic-safe).
+ */
+export const pushTopicForUser = (userId: string): string => `octochat-user-${userId}`;
+
 const asStr = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
 
 /**
@@ -98,6 +110,19 @@ export const subscribeSpacePush = async (spaceId: string): Promise<void> => {
 export const unsubscribeSpacePush = async (spaceId: string): Promise<void> => {
   await messaging().unsubscribeFromTopic(pushTopicForSpace(spaceId));
   if (subscribedSpaces.delete(spaceId)) emitTopicCount();
+};
+
+/**
+ * Subscribe/unsubscribe the device to its account's per-user topic (self-exclusion;
+ * see {@link pushTopicForUser}). Not counted in the spaces diagnostics — it's a
+ * single account-scoped topic, not a per-space subscription.
+ */
+export const subscribeUserPush = async (userId: string): Promise<void> => {
+  await messaging().subscribeToTopic(pushTopicForUser(userId));
+};
+
+export const unsubscribeUserPush = async (userId: string): Promise<void> => {
+  await messaging().unsubscribeFromTopic(pushTopicForUser(userId));
 };
 
 export function getFcmTopicCount(): number {

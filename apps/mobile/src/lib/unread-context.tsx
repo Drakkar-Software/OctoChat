@@ -28,6 +28,7 @@ import { setDesktopBadge } from './desktop';
 import { setTabTitleBadge } from './tab-title';
 import { ensureNotifyPermission, notifyRoomChange } from './notify';
 import { useNotificationSettings } from './notification-settings-context';
+import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
 import { useSpacesContext } from './spaces-context';
 import { kvGet, kvSet } from './starfish/kv';
@@ -83,8 +84,19 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   // the shared SpacesProvider (which sits above this one), NOT via useSpaces():
   // that hook overlays unread state and would create a circular dep. The provider
   // already refreshes on navigation, so a join/create propagates here for free.
-  const { spaces } = useSpacesContext();
+  const { spaces, setActiveId } = useSpacesContext();
   const spaceIds = useMemo(() => spaces.map((s) => s.id), [spaces]);
+
+  // Deps for resolving a clicked toast's room name/kind + focusing its space (web/
+  // desktop; see `openRoomFromNotification`). Read through refs so the long-lived
+  // SSE subscription closure always calls the current functions, not stale ones.
+  const { ensure } = useRoomsRegistryActions();
+  const ensureRef = useRef(ensure);
+  const setActiveIdRef = useRef(setActiveId);
+  useEffect(() => {
+    ensureRef.current = ensure;
+    setActiveIdRef.current = setActiveId;
+  });
   // Stable sorted-join so the subscription effect only re-runs when the set changes,
   // not on every navigation that produces a new spaceIds array reference.
   const spacesKey = useMemo(() => [...spaceIds].sort().join(','), [spaceIds]);
@@ -172,8 +184,12 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
           setUnreadByRoom(next);
           void kvSet(persistKey(userId), JSON.stringify(next));
           // web/desktop notification, honoring settings (no-op when focused, disabled,
-          // or native). Decrypts a preview when the `preview` setting is on.
-          void notifyRoomChange(session, e.roomId);
+          // or native). Decrypts a preview when the `preview` setting is on. The nav
+          // deps let a click resolve the room's real name/kind + focus its space.
+          void notifyRoomChange(session, e.roomId, {
+            ensure: ensureRef.current,
+            setActiveId: setActiveIdRef.current,
+          });
         },
         {
           spaces: spaceIds,

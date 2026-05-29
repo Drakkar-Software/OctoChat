@@ -17,6 +17,10 @@
 import { router } from 'expo-router';
 
 import { focusDesktopWindow } from './desktop';
+import {
+  openRoomFromNotification,
+  type OpenRoomFromNotificationDeps,
+} from './notification-open-room';
 import { getNotificationSettings } from './notification-settings';
 import { loadLatestMessagePreview } from './notification-preview';
 import type { Session } from './starfish/identity';
@@ -33,6 +37,12 @@ export function ensureNotifyPermission(): void {
 interface NotifyOptions {
   /** When true the toast is shown without a sound. */
   silent?: boolean;
+  /**
+   * Registry/space deps for resolving the clicked room's real name/kind and
+   * focusing its space (see `openRoomFromNotification`). When omitted the click
+   * falls back to a bare `router.push({ id })` — never worse than before.
+   */
+  nav?: OpenRoomFromNotificationDeps;
 }
 
 export function notifyNewMessage(roomId: string, body = GENERIC_BODY, options: NotifyOptions = {}): void {
@@ -49,7 +59,10 @@ export function notifyNewMessage(roomId: string, body = GENERIC_BODY, options: N
     });
     n.onclick = () => {
       focusDesktopWindow(); // no-op on web; brings the Electron window forward
-      router.push({ pathname: '/room/[id]', params: { id: roomId } });
+      // Resolve name/kind + focus the space when deps are wired (same path as the
+      // native FCM tap); otherwise degrade to opening by bare id.
+      if (options.nav) void openRoomFromNotification({ roomId }, options.nav);
+      else router.push({ pathname: '/room/[id]', params: { id: roomId } });
     };
   } catch {
     /* notifications unavailable — ignore */
@@ -63,7 +76,11 @@ export function notifyNewMessage(roomId: string, body = GENERIC_BODY, options: N
  * a toast will actually be shown (granted + unfocused), so a disabled or
  * background-suppressed notification never triggers a needless pull + decrypt.
  */
-export async function notifyRoomChange(session: Session | null, roomId: string): Promise<void> {
+export async function notifyRoomChange(
+  session: Session | null,
+  roomId: string,
+  nav?: OpenRoomFromNotificationDeps,
+): Promise<void> {
   const settings = getNotificationSettings();
   if (!settings.enabled) return;
   // Bail before the (async) preview fetch when no toast could be shown anyway.
@@ -75,5 +92,5 @@ export async function notifyRoomChange(session: Session | null, roomId: string):
     const preview = await loadLatestMessagePreview(session, roomId).catch(() => null);
     if (preview) body = preview;
   }
-  notifyNewMessage(roomId, body, { silent: !settings.sound });
+  notifyNewMessage(roomId, body, { silent: !settings.sound, nav });
 }
