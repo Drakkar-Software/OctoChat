@@ -14,6 +14,7 @@ import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { ChannelListSkeleton } from '@/components/chat/ChannelListSkeleton';
 import { RoomCategorySection } from '@/components/chat/RoomCategorySection';
+import { SidebarLinkRow } from '@/components/chat/SidebarLinkRow';
 import { SpaceHeader } from '@/components/chat/SpaceHeader';
 
 export default function RoomsScreen() {
@@ -86,14 +87,20 @@ export default function RoomsScreen() {
       ) : categories.length === 0 ? (
         <EmptyState iconName="hash" title="No rooms yet" subtitle="Create a channel to get started." />
       ) : (
-        categories.map((cat) => (
-          <RoomCategorySection
-            key={cat.name}
-            category={cat}
-            onOpenRoom={openRoom}
-            onCreateRoom={(category, name, kind) => createRoom(name, category, kind)}
-          />
-        ))
+        <>
+          {/* Same per-space contextual Threads entry as the desktop sidebar
+              (DesktopRoomSidebar). The bottom tab is a global shortcut; this
+              row anchors Threads inside the active space's room list. */}
+          <SidebarLinkRow iconName="thread" label="Threads" onPress={() => router.push('/(tabs)/threads')} />
+          {categories.map((cat) => (
+            <RoomCategorySection
+              key={cat.name}
+              category={cat}
+              onOpenRoom={openRoom}
+              onCreateRoom={(category, name, kind) => createRoom(name, category, kind)}
+            />
+          ))}
+        </>
       )}
     </StackScreen>
   );

@@ -11,6 +11,7 @@ import { Txt } from '@/components/ui/Txt';
 
 import { ChannelListSkeleton } from './ChannelListSkeleton';
 import { RoomCategorySection } from './RoomCategorySection';
+import { SidebarLinkRow } from './SidebarLinkRow';
 import { SpaceMeta } from './SpaceMeta';
 
 interface DesktopRoomSidebarProps {
@@ -26,6 +27,10 @@ interface DesktopRoomSidebarProps {
   onOpenRoom: (room: Room) => void;
   /** Open one of the active room's threads (the reply target's message id). */
   onOpenThread?: (parentId: string) => void;
+  /** Open the Threads view (every thread in the active space). */
+  onOpenThreads?: () => void;
+  /** Highlight the Threads row as the current destination. */
+  threadsActive?: boolean;
   onJumpTo?: () => void;
   /** Open the space switcher / join surface (the header acts as a menu). */
   onOpenSpaceMenu?: () => void;
@@ -50,6 +55,8 @@ export function DesktopRoomSidebar({
   threads,
   onOpenRoom,
   onOpenThread,
+  onOpenThreads,
+  threadsActive = false,
   onJumpTo,
   onOpenSpaceMenu,
   onCreateRoom,
@@ -95,6 +102,16 @@ export function DesktopRoomSidebar({
       </Pressable>
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+        {/* Top-of-sidebar destinations (non-room): full-width labeled rows that
+            sit ABOVE the channel categories so the sidebar reads as one nav
+            stack. Replaces the old tiny IconButton hidden at the foot of the
+            spaces rail — a labeled row in the natural reading column is far
+            more discoverable on wide web. */}
+        {onOpenThreads ? (
+          <View style={styles.navGroup}>
+            <SidebarLinkRow iconName="thread" label="Threads" active={threadsActive} onPress={onOpenThreads} />
+          </View>
+        ) : null}
         {loading ? (
           <ChannelListSkeleton />
         ) : categories.length === 0 ? (
@@ -145,5 +162,6 @@ const styles = StyleSheet.create({
   jumpLabel: { flex: 1 },
   list: { flex: 1 },
   listContent: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.lg },
+  navGroup: { paddingBottom: spacing.sm },
   empty: { padding: spacing.md },
 });

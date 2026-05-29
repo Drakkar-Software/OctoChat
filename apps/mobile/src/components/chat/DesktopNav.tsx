@@ -35,9 +35,12 @@ export function DesktopNav() {
   const activeRoomId =
     pathname.startsWith('/room/') || pathname.startsWith('/members/')
       ? params.id
-      : pathname.startsWith('/thread')
+      : pathname.startsWith('/thread/')
         ? params.roomId
         : undefined;
+  // The Threads tab lives at /threads (the (tabs) group is unwrapped in the URL).
+  // Strict equality — `startsWith` would also match `/thread/<id>` (a single thread).
+  const threadsActive = pathname === '/threads';
   const meLabel = (profile?.name ?? '··').slice(0, 2).toUpperCase();
 
   // Recent threads of the open room, shown under its sidebar row. Only when the
@@ -68,7 +71,6 @@ export function DesktopNav() {
         activeId={activeId}
         onSelect={selectSpace}
         onAdd={() => router.push('/join')}
-        onOpenThreads={() => router.push('/(tabs)/threads')}
         meLabel={meLabel}
         meAvatar={profile?.avatar}
         onOpenProfile={() => router.push('/(tabs)/you')}
@@ -84,6 +86,8 @@ export function DesktopNav() {
             threads={activeThreads}
             onOpenRoom={openRoom}
             onOpenThread={openThread}
+            onOpenThreads={() => router.push('/(tabs)/threads')}
+            threadsActive={threadsActive}
             onJumpTo={() => router.push('/search')}
             onOpenSpaceMenu={() => router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
             onCreateRoom={(category, name, kind) => createRoom(name, category, kind)}
