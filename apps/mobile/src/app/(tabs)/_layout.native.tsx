@@ -4,7 +4,6 @@ import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { fonts } from '@/theme';
 import { useResponsive } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
-import { useUnread } from '@/lib/unread-context';
 
 /**
  * Native (iOS / Android) bottom tabs. Renders the real platform tab bar —
@@ -20,13 +19,11 @@ import { useUnread } from '@/lib/unread-context';
  *
  * Icons stay on the app's Feather line-art vocabulary (via `VectorIcon`) so the
  * tab glyphs match the rest of the UI; the native feel comes from the bar
- * itself. `totalUnread` drives the Activity badge.
+ * itself.
  */
 export default function NativeTabsLayout() {
   const { colors } = useTheme();
   const { isWide } = useResponsive();
-  const { totalUnread } = useUnread();
-  const badge = totalUnread > 0 ? (totalUnread > 99 ? '99+' : String(totalUnread)) : undefined;
   return (
     <NativeTabs
       // On wide native layouts (iPad / foldable) the AppFrame desktop sidebar
@@ -48,11 +45,6 @@ export default function NativeTabsLayout() {
       <NativeTabs.Trigger name="rooms">
         <NativeTabs.Trigger.Label>Rooms</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="hash" />} />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="activity">
-        <NativeTabs.Trigger.Label>Activity</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="bell" />} />
-        <NativeTabs.Trigger.Badge hidden={!badge}>{badge}</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="you">
         <NativeTabs.Trigger.Label>You</NativeTabs.Trigger.Label>

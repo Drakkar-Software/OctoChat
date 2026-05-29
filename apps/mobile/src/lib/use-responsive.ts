@@ -50,13 +50,13 @@ export function useInShell(): boolean {
 }
 
 /** Personal tabs that aren't scoped to a space, so they drop the room sidebar. */
-const PERSONAL_TABS = ['you', 'activity'];
+const PERSONAL_TABS = ['you'];
 
 /**
  * Whether the active route is a space view that warrants the room sidebar.
- * The personal tabs (`you`, `activity`) are global, not scoped to a space, so
- * they hide the sidebar and let the routed content use the full shell width.
- * Every other route (rooms, room, thread, space, members, search) keeps it.
+ * The personal tab (`you`) is global, not scoped to a space, so it hides the
+ * sidebar and lets the routed content use the full shell width. Every other
+ * route (rooms, room, thread, space, members, search) keeps it.
  */
 export function useRoomSidebarVisible(): boolean {
   const segments = useSegments() as string[];

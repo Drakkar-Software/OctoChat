@@ -7,7 +7,6 @@ import { StyleSheet, View, type ColorValue } from 'react-native';
 import { fonts, radii, spacing } from '@/theme';
 import { useResponsive } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
-import { useUnread } from '@/lib/unread-context';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { DesktopUpdateBanner } from '@/components/ui/DesktopUpdateBanner';
 
@@ -34,7 +33,6 @@ const tabIcon = (name: IconName) => {
 export default function TabsLayout() {
   const { colors } = useTheme();
   const { isWide } = useResponsive();
-  const { totalUnread } = useUnread();
   return (
     <Tabs
       screenOptions={{
@@ -59,15 +57,6 @@ export default function TabsLayout() {
       )}
     >
       <Tabs.Screen name="rooms" options={{ title: 'Rooms', tabBarIcon: tabIcon('hash') }} />
-      <Tabs.Screen
-        name="activity"
-        options={{
-          title: 'Activity',
-          tabBarIcon: tabIcon('bell'),
-          tabBarBadge: totalUnread > 0 ? (totalUnread > 99 ? '99+' : totalUnread) : undefined,
-          tabBarBadgeStyle: { backgroundColor: colors.unread, fontFamily: fonts.bodyMedium, fontSize: 10 },
-        }}
-      />
       <Tabs.Screen name="you" options={{ title: 'You', tabBarIcon: tabIcon('user') }} />
     </Tabs>
   );

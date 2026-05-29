@@ -9,7 +9,6 @@ import { useRooms } from '@/lib/use-rooms';
 import { useSpaces } from '@/lib/use-spaces';
 import { useTheme } from '@/lib/use-theme';
 import { useThreadDigest } from '@/lib/thread-digest-context';
-import { useUnread } from '@/lib/unread-context';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 
@@ -29,7 +28,6 @@ export function DesktopNav() {
   const { profile } = useProfile();
   const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
   const { categories, loading: roomsLoading, isPublic, memberCount, createRoom } = useRooms(activeId);
-  const { totalUnread } = useUnread();
   const { digest } = useThreadDigest();
   const showRoomSidebar = useRoomSidebarVisible();
 
@@ -70,8 +68,6 @@ export function DesktopNav() {
         activeId={activeId}
         onSelect={selectSpace}
         onAdd={() => router.push('/join')}
-        unread={totalUnread}
-        onOpenActivity={() => router.push('/(tabs)/activity')}
         meLabel={meLabel}
         meAvatar={profile?.avatar}
         onOpenProfile={() => router.push('/(tabs)/you')}
