@@ -36,7 +36,7 @@ interface RoomCategoryListProps {
 /** The space's rooms grouped into collapsible, drop-target categories, plus an
  *  owner-only "New category" control. Shared by the desktop sidebar and the mobile
  *  rooms tab so the list behaves identically on both. Collapse state is persisted
- *  per identity+space (categories are collapsed by default); the category holding the
+ *  per identity+space (categories are expanded by default); the category holding the
  *  active room is force-expanded so an open channel is never hidden. */
 export function RoomCategoryList({
   categories,
@@ -51,7 +51,7 @@ export function RoomCategoryList({
   onCreateCategory,
 }: RoomCategoryListProps) {
   const { colors } = useTheme();
-  const { isExpanded, toggle } = useCategoryCollapse(userId, spaceId);
+  const { isCollapsed, toggle } = useCategoryCollapse(userId, spaceId);
   const [moving, setMoving] = useState<Room | null>(null);
   const [addingCat, setAddingCat] = useState(false);
   const [catName, setCatName] = useState('');
@@ -71,7 +71,7 @@ export function RoomCategoryList({
     <View>
       {categories.map((cat) => {
         const containsActive = !!activeRoomId && cat.rooms.some((r) => r.id === activeRoomId);
-        const collapsed = !(isExpanded(cat.name) || containsActive);
+        const collapsed = isCollapsed(cat.name) && !containsActive;
         return (
           <RoomCategorySection
             key={cat.name}

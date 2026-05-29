@@ -1,12 +1,12 @@
 /**
  * Per-space, per-identity collapse state for channel categories. Categories are
- * **collapsed by default** (a name absent from the stored map reads as collapsed);
- * expanding one persists so it stays open across reloads. Storage goes through the
+ * **expanded by default** (a name absent from the stored map reads as expanded);
+ * collapsing one persists so it stays folded across reloads. Storage goes through the
  * cross-platform `kv` layer (localStorage on web, AsyncStorage on native), keyed per
  * identity + space so two accounts / two spaces never share collapse state — the same
  * hydrate-then-persist shape as {@link useDraft}.
  *
- * The stored value is a map of **expanded** category names → true. The consumer
+ * The stored value is a map of **collapsed** category names → true. The consumer
  * additionally force-expands the category holding the active room (see the sidebar),
  * so an open channel is never hidden behind a collapsed header.
  */
@@ -14,11 +14,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { kvGet, kvSet } from './starfish/kv';
 
-const collapseKey = (userId: string, spaceId: string) => `octochat.cat-collapse.${userId}.${spaceId}`;
+// `.v2`: the stored map flipped meaning (was expanded-names, now collapsed-names) when
+// the default became expanded — a fresh key avoids reinterpreting old maps backwards.
+const collapseKey = (userId: string, spaceId: string) => `octochat.cat-collapse.v2.${userId}.${spaceId}`;
 
 export function useCategoryCollapse(userId: string | undefined, spaceId: string | null) {
   const storageKey = userId && spaceId ? collapseKey(userId, spaceId) : undefined;
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   // The key whose stored value we've loaded — gates the persist effect so the
   // pre-hydration empty map never clobbers a stored one (mirrors useDraft).
   const hydratedKey = useRef<string | undefined>(undefined);
@@ -38,10 +40,10 @@ export function useCategoryCollapse(userId: string | undefined, spaceId: string 
           const parsed = JSON.parse(stored);
           if (parsed && typeof parsed === 'object') next = parsed as Record<string, boolean>;
         } catch {
-          /* corrupt value → default collapsed */
+          /* corrupt value → default expanded */
         }
       }
-      setExpanded(next);
+      setCollapsed(next);
     });
     return () => {
       cancelled = true;
@@ -50,14 +52,14 @@ export function useCategoryCollapse(userId: string | undefined, spaceId: string 
 
   useEffect(() => {
     if (!storageKey || hydratedKey.current !== storageKey) return;
-    void kvSet(storageKey, JSON.stringify(expanded));
-  }, [expanded, storageKey]);
+    void kvSet(storageKey, JSON.stringify(collapsed));
+  }, [collapsed, storageKey]);
 
-  const isExpanded = useCallback((name: string) => !!expanded[name], [expanded]);
+  const isCollapsed = useCallback((name: string) => !!collapsed[name], [collapsed]);
   const toggle = useCallback(
-    (name: string) => setExpanded((m) => ({ ...m, [name]: !m[name] })),
+    (name: string) => setCollapsed((m) => ({ ...m, [name]: !m[name] })),
     [],
   );
 
-  return { isExpanded, toggle };
+  return { isCollapsed, toggle };
 }
