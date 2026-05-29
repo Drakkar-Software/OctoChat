@@ -24,11 +24,13 @@ export function makeEmptyConversationStore(): ConversationStore {
     dirty: false,
     error: null,
     hash: null,
+    stale: false,
     pull: async () => {},
     set: () => {},
     restore: () => {},
     flush: async () => {},
     setOnline: () => {},
+    seed: async () => {},
   })) as unknown as ConversationStore;
 }
 

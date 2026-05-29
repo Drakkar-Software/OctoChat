@@ -9,6 +9,7 @@ import { getMemberCap } from './starfish/member-caps';
 import { isPublicSpaceId, publicSpaceAuth } from './starfish/pubspace';
 import { kvGet, kvSet } from './starfish/kv';
 import { registerPull, onSseStatus } from './room-events-bus';
+import { reportReachability } from './connectivity';
 import {
   pubstreamRoomPull,
   pubstreamRoomPush,
@@ -130,7 +131,11 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
   // Shared open-state machine (offline-classification + reconnect re-open) — see
   // {@link useRoomOpenState}. The synthetic store still renders offline (warm history +
   // pending bubbles), so an unreachable open degrades to an offline shell, not an error.
-  const { opening, openError, offline, reloadNonce, reload, beginOpen, openReached, finishOpening, failOpen } =
+  // Offline-first: the space keyring now comes from the SDK pull cache, so the
+  // encryptor builds offline and the warm-started log (persisted ciphertext) paints
+  // without the network. So building the encryptor no longer proves reachability —
+  // that's reported from a fresh cursor `pull()` below, not from `openReached`.
+  const { opening, openError, offline, reloadNonce, reload, beginOpen, finishOpening, failOpen } =
     useRoomOpenState();
 
   // The synthetic store lives for this room's lifetime, keyed by roomId so a room switch
@@ -179,7 +184,8 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
         if (!cancelled) {
           setEncryptor(enc);
           setClient(roomClient);
-          openReached();
+          // No openReached() — the keyring may have come from cache (offline). The
+          // cursor pull reports reachability (see `pull` below).
           finishOpening();
         }
       } catch (e) {
@@ -189,7 +195,7 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
     return () => {
       cancelled = true;
     };
-  }, [enabled, session, roomId, spaceId, isPublic, ensureRegistry, reloadNonce, beginOpen, openReached, finishOpening, failOpen]);
+  }, [enabled, session, roomId, spaceId, isPublic, ensureRegistry, reloadNonce, beginOpen, finishOpening, failOpen]);
 
   // Auth + path for this stream room (owner/joiner cap on public; member/space cap on
   // private). `signingKey` is the request-signing key the cap is bound to.
@@ -242,8 +248,12 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
         mergeIntoStore(roomState.store, fanOut(batch));
         void kvSet(streamLogKey(roomId), JSON.stringify(cur.cursor.getItems()));
       }
+      // A successful cursor pull is the real reachability signal (append-log pulls
+      // aren't served from the offline cache — they own their warm-start persistence).
+      reportReachability(true);
       setSyncError((prev) => (prev === null ? prev : null));
     } catch {
+      reportReachability(false);
       setSyncError('Reconnecting… messages may be out of date.');
     }
   }, [roomId, roomState, mergeIntoStore]);

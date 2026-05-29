@@ -68,7 +68,11 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     // hydration) instead of pulling the identical doc again on first paint. Falls
     // back to a read when no fresh stash exists (e.g. a later in-app refresh).
     const primed = consumePrimedSpaces(session.userId);
-    if (primed) {
+    // An EMPTY prime (`[]`) is truthy in JS — if we adopted it we'd short-circuit
+    // the refresh and show a blank rail. Offline that empty came from a failed
+    // `readSpaces`; the SDK pull cache now serves the last-synced `_spaces` doc on
+    // the refresh below, so fall through to it instead of locking in empty.
+    if (primed && primed.length > 0) {
       setSpaces(primed);
       setActiveId((prev) => prev ?? primed[0]?.id ?? null);
       setLoading(false);
