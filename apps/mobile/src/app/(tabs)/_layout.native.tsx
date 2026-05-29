@@ -4,6 +4,7 @@ import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { fonts } from '@/theme';
 import { useResponsive } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
+import { useUnread } from '@/lib/unread-context';
 
 /**
  * Native (iOS / Android) bottom tabs. Renders the real platform tab bar —
@@ -19,11 +20,15 @@ import { useTheme } from '@/lib/use-theme';
  *
  * Icons stay on the app's Feather line-art vocabulary (via `VectorIcon`) so the
  * tab glyphs match the rest of the UI; the native feel comes from the bar
- * itself.
+ * itself. `totalUnread` (every unread message across rooms — thread replies
+ * included, since a reply is a room message) badges the Rooms tab; web/desktop
+ * surfaces the same count on the space-rail tiles instead.
  */
 export default function NativeTabsLayout() {
   const { colors } = useTheme();
   const { isWide } = useResponsive();
+  const { totalUnread } = useUnread();
+  const badge = totalUnread > 0 ? (totalUnread > 99 ? '99+' : String(totalUnread)) : undefined;
   return (
     <NativeTabs
       // On wide native layouts (iPad / foldable) the AppFrame desktop sidebar
@@ -45,6 +50,7 @@ export default function NativeTabsLayout() {
       <NativeTabs.Trigger name="rooms">
         <NativeTabs.Trigger.Label>Rooms</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="hash" />} />
+        <NativeTabs.Trigger.Badge hidden={!badge}>{badge}</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="threads">
         <NativeTabs.Trigger.Label>Threads</NativeTabs.Trigger.Label>
