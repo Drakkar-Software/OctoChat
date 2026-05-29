@@ -11,6 +11,7 @@ import { tapFeedback } from '@/lib/haptics';
 import { pickFile, type PickedFile } from '@/lib/pick-file';
 import { QUICK_REACTIONS } from '@/lib/reactions';
 import { useEmojiAutocomplete } from '@/lib/use-emoji-autocomplete';
+import { useFileDrop } from '@/lib/use-file-drop';
 import { useImagePaste } from '@/lib/use-image-paste';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
@@ -44,6 +45,10 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey }: Composer
   const [focused, setFocused] = useState(false);
   // Web only: paste a clipboard image straight into the pending attachment slot.
   const pasteRef = useImagePaste((file) => setPending(file));
+  // Web only: drop ANY file onto the room/thread screen → pending attachment.
+  // Window-level; only active while a Composer is mounted, so navigating away
+  // from the room tears the listener down.
+  useFileDrop((file) => setPending(file));
   // `:shortcode:` emoji autocomplete — tracks the caret and swaps the typed token
   // for a glyph. Shares the same <TextInput> node as the paste listener.
   const emoji = useEmojiAutocomplete(text, setText);
