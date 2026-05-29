@@ -91,10 +91,6 @@ export function TextField({
             setFocused(false);
             onBlur?.(e);
           }}
-          // Keep `color` LAST in the array: on Android, any earlier `color`
-          // (e.g. from `styles.input` / `styles.sans`) wins under the native
-          // style flattener, which made typed text render as the OS default
-          // and disappear against the paperAlt fill in dark mode.
           style={[styles.input, mono ? styles.mono : styles.sans, multiline && styles.multiline, WEB_OUTLINE_RESET, { color: colors.ink }]}
         />
       </View>
@@ -118,6 +114,13 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     borderWidth: 1,
     backgroundColor: 'transparent',
+    // On Android, elevation — not document order — decides which sibling draws
+    // on top. When focused, `glowLayer` gains elevation 8 (its glow shadow) and
+    // would otherwise paint its opaque paperAlt fill OVER this field, hiding the
+    // typed text (iOS ignores elevation, so it was fine there). A STATIC
+    // elevation above the glow's keeps the input on top; static (never toggled
+    // on focus) so it doesn't eat the focus event. No own shadow: bg is transparent.
+    elevation: 9,
   },
   input: {
     flex: 1,
