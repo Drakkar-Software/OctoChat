@@ -14,6 +14,7 @@ import { UnreadProvider } from '@/lib/unread-context';
 import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -56,8 +57,13 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
-        <SessionProvider>
+        {/* Drives react-native-keyboard-controller's keyboard-tracking on iOS/Android
+            (no-op on web). Sits above the screens so any StackScreen with a Composer
+            footer can hand off keyboard-avoiding to KAV from the same library, which
+            handles Android edge-to-edge (RN 0.85 default) where RN's KAV is flaky. */}
+        <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
+          <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+          <SessionProvider>
           {/* NotificationSettingsProvider sits above UnreadProvider (which reads the
               master toggle to gate push + web toasts) and below the session it loads
               per-identity settings from. SpacesProvider sits above UnreadProvider too:
@@ -87,6 +93,7 @@ export default function RootLayout() {
             </SpacesProvider>
           </NotificationSettingsProvider>
         </SessionProvider>
+        </KeyboardProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { layout } from '@/theme';
@@ -8,6 +9,12 @@ import { useInShell } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
 
 import { DepthBackdrop } from './DepthBackdrop';
+
+// `KeyboardAvoidingView` from react-native-keyboard-controller is a drop-in for
+// RN's KAV that, unlike the stock one, works under Android edge-to-edge (the RN
+// 0.85 default). On web it's a passthrough; in the desktop shell the keyboard
+// never overlays the composer, so we use a plain `<View>` there too.
+const KAV = Platform.OS === 'web' ? View : KeyboardAvoidingView;
 
 interface StackScreenProps {
   /** Header node (usually <AppBar/>); its safe-area inset is painted paper. */
@@ -59,32 +66,44 @@ export function StackScreen({
         </SafeAreaView>
       )}
 
-      <View style={inShell ? styles.centerFull : styles.center}>
-        {scroll ? (
-          <ScrollView
-            style={styles.flex}
-            contentContainerStyle={[styles.scrollContent, contentStyle]}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {children}
-          </ScrollView>
-        ) : (
-          <View style={[styles.flex, contentStyle]}>{children}</View>
-        )}
-      </View>
+      {/* When a `footer` is present on native (room/thread Composer), wrap the
+          body+footer in a keyboard-controller KAV with `behavior="padding"` so the
+          composer lifts above the keyboard and the LegendList above it shrinks to
+          match. `automaticOffset` measures this view's screen position so we don't
+          have to compute a `keyboardVerticalOffset` for the AppBar/notch ourselves.
+          In the desktop shell or on web, KAV degrades to a plain View. */}
+      <KAV
+        style={styles.flex}
+        behavior={footer && Platform.OS !== 'web' && !inShell ? 'padding' : undefined}
+        automaticOffset={footer && Platform.OS !== 'web' && !inShell ? true : undefined}
+      >
+        <View style={inShell ? styles.centerFull : styles.center}>
+          {scroll ? (
+            <ScrollView
+              style={styles.flex}
+              contentContainerStyle={[styles.scrollContent, contentStyle]}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {children}
+            </ScrollView>
+          ) : (
+            <View style={[styles.flex, contentStyle]}>{children}</View>
+          )}
+        </View>
 
-      {footer ? (
-        inShell ? (
-          <View style={{ backgroundColor: colors.paper }}>{footer}</View>
-        ) : (
-          <SafeAreaView edges={['bottom']} style={{ backgroundColor: colors.paper }}>
-            {footer}
-          </SafeAreaView>
-        )
-      ) : !inTabs && !inShell ? (
-        <SafeAreaView edges={['bottom']} style={{ backgroundColor: bg }} />
-      ) : null}
+        {footer ? (
+          inShell ? (
+            <View style={{ backgroundColor: colors.paper }}>{footer}</View>
+          ) : (
+            <SafeAreaView edges={['bottom']} style={{ backgroundColor: colors.paper }}>
+              {footer}
+            </SafeAreaView>
+          )
+        ) : !inTabs && !inShell ? (
+          <SafeAreaView edges={['bottom']} style={{ backgroundColor: bg }} />
+        ) : null}
+      </KAV>
     </View>
   );
 }
