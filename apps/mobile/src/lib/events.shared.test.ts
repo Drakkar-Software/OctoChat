@@ -48,6 +48,20 @@ describe('parseRoomChange', () => {
     expect(parseRoomChange(frame(env))).toEqual({ roomId: 'psp-a-c2', spaceId: 'psp-a', hash: 'h2', ts: 9 });
   });
 
+  it('forwards the write author identity when present (raw + rawPayload)', () => {
+    const id = 'a'.repeat(32);
+    expect(parseRoomChange(frame({ collection: 'chat', params: { spaceId: 'sp-a', roomId: 'sp-a-r1' }, identity: id }))).toMatchObject({
+      roomId: 'sp-a-r1',
+      identity: id,
+    });
+    const env = { rawPayload: { collection: 'chat', params: { spaceId: 'sp-a', roomId: 'sp-a-r2' }, identity: id } };
+    expect(parseRoomChange(frame(env))).toMatchObject({ roomId: 'sp-a-r2', identity: id });
+  });
+
+  it('leaves identity undefined when the server omits it', () => {
+    expect(parseRoomChange(frame({ collection: 'chat', params: { spaceId: 'sp-a', roomId: 'sp-a-r1' } }))?.identity).toBeUndefined();
+  });
+
   it('returns null for a non-chat payload (no room/doc id) and for invalid JSON', () => {
     expect(parseRoomChange(frame({ collection: 'chat', params: { spaceId: 'sp-a' } }))).toBeNull();
     expect(parseRoomChange('not json')).toBeNull();

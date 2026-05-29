@@ -6,11 +6,14 @@
  * enables it, `notifyRoomChange` pulls + decrypts the changed room's latest message
  * to build the toast body; the count path stays pull-free.)
  *
- * Because chat is E2E-encrypted, the server can only tell us *which room*
- * changed — not the message id or author. "Don't count my own messages" is
- * handled by ignoring the room currently being viewed (you're inside a room
- * when you send). Counts are persisted to local kv per identity and restored on
- * reload; the SSE stream reconnects fresh (no replay).
+ * Because chat is E2E-encrypted, the server can't tell us the message id or text,
+ * but it does forward the write's author `identity` (account-level user id). We
+ * skip our own writes two ways: the room currently being viewed (you're inside it
+ * when you send on this device), and any event whose `identity` is ours (a send
+ * from ANOTHER device on the same account) — the same self-exclusion the FCM push
+ * uses, so the unread badge no longer counts messages you sent. Counts are persisted
+ * to local kv per identity and restored on reload; the SSE stream reconnects fresh
+ * (no replay).
  */
 import {
   createContext,
@@ -178,6 +181,11 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
         (e) => {
           // Active room view: pull fresh messages there, skip the unread bump.
           if (dispatchRoomChange(e.roomId)) return;
+          // My own write from another device on this account: the server forwards
+          // the author identity, so skip the bump (and the toast below) — same
+          // self-exclusion as the FCM push. Undefined identity (older server) falls
+          // through and counts, preserving the previous behavior.
+          if (e.identity && e.identity === userId) return;
           const m = mapRef.current;
           const next = { ...m, [e.roomId]: (m[e.roomId] ?? 0) + 1 };
           mapRef.current = next;

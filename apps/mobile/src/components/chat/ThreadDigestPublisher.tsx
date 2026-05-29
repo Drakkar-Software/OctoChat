@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 
 import type { StoredMsg } from '@/lib/message-view';
+import { useSession } from '@/lib/session-context';
 import { buildThreadDigest } from '@/lib/threads';
 import { useThreadDigest } from '@/lib/thread-digest-context';
 import type { MessageEditEvent } from '@/lib/types';
@@ -33,6 +34,7 @@ export function ThreadDigestPublisher({
   readBefore: number | null;
 }) {
   const { publish } = useThreadDigest();
+  const { session } = useSession();
   // Read the raw selector outputs (stable store refs, or `undefined`) and only fall
   // back to EMPTY inside the memo — so the deps stay equal across renders and the
   // digest is recomputed only when the room's messages/edits actually change.
@@ -40,8 +42,9 @@ export function ThreadDigestPublisher({
   const edits = useStarfishData(store, (d) => d.edits as MessageEditEvent[] | undefined);
   const threads = useMemo(
     // null readBefore → use a far-future mark so nothing counts as unread yet.
-    () => buildThreadDigest(messages ?? EMPTY, edits ?? EMPTY, readBefore ?? Number.MAX_SAFE_INTEGER),
-    [messages, edits, readBefore],
+    // session.userId so my own replies don't badge the thread as unread (same self-skip as notifications).
+    () => buildThreadDigest(messages ?? EMPTY, edits ?? EMPTY, readBefore ?? Number.MAX_SAFE_INTEGER, session?.userId),
+    [messages, edits, readBefore, session?.userId],
   );
 
   // Publish on every change…

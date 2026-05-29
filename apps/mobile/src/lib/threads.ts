@@ -43,12 +43,16 @@ function threadLabel(parent: StoredMsg, edits: MessageEditEvent[]): string {
  * top-level message that has at least one reply (a message carrying its
  * `parentId`); replies without a loaded parent are skipped. Sorted by most recent
  * activity and capped at `limit`. `readBefore` is the viewer's last-read timestamp
- * for the room — replies newer than it count toward the thread's unread badge.
+ * for the room — replies newer than it count toward the thread's unread badge,
+ * EXCEPT the viewer's own replies: like notifications (see `notification-preview`'s
+ * `m.authorId === selfId` skip), a message you sent never reads as unread to you.
+ * `currentUserId` is that viewer; omit it (undefined) to count every author's replies.
  */
 export function buildThreadDigest(
   messages: StoredMsg[],
   edits: MessageEditEvent[],
   readBefore: number,
+  currentUserId?: string,
   limit: number = DEFAULT_THREAD_LIMIT,
 ): ThreadSummary[] {
   const repliesByParent = new Map<string, StoredMsg[]>();
@@ -77,7 +81,7 @@ export function buildThreadDigest(
       label: threadLabel(parent, edits),
       replyCount: replies.length,
       participantIds,
-      unread: replies.reduce((n, r) => n + (r.ts > readBefore ? 1 : 0), 0),
+      unread: replies.reduce((n, r) => n + (r.ts > readBefore && r.authorId !== currentUserId ? 1 : 0), 0),
       lastActivityTs: Math.max(parent.ts, lastReplyTs),
     });
   }

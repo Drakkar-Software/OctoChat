@@ -98,7 +98,7 @@ export async function loadAllThreads(
       if (!data || !data._encrypted) continue;
       const plain = (await enc.decrypt(data)) as { messages?: StoredMsg[]; edits?: MessageEditEvent[] };
       // No per-room cap: the tab lists every thread, not the sidebar's top few.
-      const digest = buildThreadDigest(plain.messages ?? [], plain.edits ?? [], readBefore(room.id), Number.MAX_SAFE_INTEGER);
+      const digest = buildThreadDigest(plain.messages ?? [], plain.edits ?? [], readBefore(room.id), session.userId, Number.MAX_SAFE_INTEGER);
       for (const thread of digest) out.push({ room, thread });
     } catch {
       /* skip rooms we can't decrypt */
