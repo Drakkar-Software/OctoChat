@@ -92,11 +92,20 @@ export async function buildEncryptor(
   }
 }
 
-/** Owner-side: create the SPACE keyring if missing, return an encryptor. */
+/**
+ * Owner-side: create the SPACE keyring if missing, return an encryptor.
+ *
+ * `trustedAdders` is the provenance allow-list for opening the keyring; it
+ * defaults to the caller's own key but must be widened for a PAIRED device, whose
+ * keyring entries were signed by the ROOT (not its device key) — see
+ * `ownerTrustedAdders`. The CEK is still unwrapped with `keys` (this device's KEM
+ * keypair, which the root added as a recipient).
+ */
 export async function ownerEnsureKeyring(
   client: StarfishClient,
   keys: DeviceKeys,
   spaceId: string,
+  trustedAdders: string[] = [keys.edPub],
 ): Promise<Encryptor> {
   const krRes = await client.pull(keyringPull(spaceId)).catch(() => null);
   let keyring = krRes?.data as unknown as Keyring | undefined;
@@ -110,7 +119,7 @@ export async function ownerEnsureKeyring(
   const enc = await createKeyringEncryptor(
     keyring,
     { kemPubHex: keys.kemPub, kemPrivHex: keys.kemPriv },
-    { trustedAdders: [keys.edPub] },
+    { trustedAdders },
   );
   return enc as unknown as Encryptor;
 }

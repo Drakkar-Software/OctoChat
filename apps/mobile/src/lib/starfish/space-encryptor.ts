@@ -15,6 +15,7 @@ import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-clien
 
 import { makeClient, openEncryptor, ownerEnsureKeyring } from './client';
 import type { Session } from './identity';
+import { ownerTrustedAdders } from './identity';
 import { getMemberCap } from './member-caps';
 
 export interface SpaceEncryptor {
@@ -70,7 +71,14 @@ export function getSpaceEncryptor(
           : "You don't have access to this space.",
       );
     }
-    const encryptor = await ownerEnsureKeyring(session.chatClient, session.keys, spaceId);
+    // Owned keyring entries are signed by the root key (== device key for a
+    // seed/Nostr session; the cap-cert issuer for a paired device).
+    const encryptor = await ownerEnsureKeyring(
+      session.chatClient,
+      session.keys,
+      spaceId,
+      ownerTrustedAdders(session),
+    );
     return { encryptor, client: session.chatClient, isOwnerOpen: true };
   })();
   cache.set(spaceId, p);

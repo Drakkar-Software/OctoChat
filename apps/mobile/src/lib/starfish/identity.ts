@@ -22,6 +22,27 @@ export interface Session {
   chatClient: StarfishClient;
   accountClient: StarfishClient;
   fingerprint: string;
+  /**
+   * The Ed25519 pubkey that signs this identity's OWNED-space keyring entries —
+   * the trusted-adder provenance anchor for opening them. Equals {@link keys}.edPub
+   * for a seed/Nostr session (device IS the root). For a PAIRED device it is the
+   * ROOT's edPub (`capCert.iss`), because owned-space keyring entries — including
+   * the one granting this device — were signed by the root, not by the device's
+   * own key. See {@link ownerTrustedAdders}.
+   */
+  ownerEdPub: string;
+}
+
+/**
+ * Trusted-adder allow-list for opening an OWNED space's keyring: the root's
+ * signing key (which signed the keyring + its recipient adds) plus this device's
+ * own key (covers the rare case where THIS device created the keyring for a space
+ * the root never opened). Deduped — a seed session collapses to a single key.
+ */
+export function ownerTrustedAdders(session: Session): string[] {
+  return session.ownerEdPub === session.keys.edPub
+    ? [session.keys.edPub]
+    : [session.ownerEdPub, session.keys.edPub];
 }
 
 /** Fresh 12-word recovery seed. */
@@ -66,6 +87,8 @@ export async function buildSession({ userId, keys }: DerivedIdentity, name?: str
     chatClient,
     accountClient,
     fingerprint: fingerprintFromUserId(userId),
+    // Seed/Nostr: the device key IS the root, so it's its own keyring-adder anchor.
+    ownerEdPub: keys.edPub,
   };
 }
 
@@ -98,6 +121,9 @@ export async function buildLinkedSession({ userId, keys, capCert }: LinkedIdenti
     chatClient,
     accountClient,
     fingerprint: fingerprintFromUserId(userId),
+    // Paired device: owned-space keyring entries were signed by the ROOT, whose
+    // edPub is the cap-cert issuer — NOT this device's fresh key.
+    ownerEdPub: capCert.iss,
   };
 }
 

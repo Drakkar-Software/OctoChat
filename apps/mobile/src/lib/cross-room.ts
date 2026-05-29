@@ -8,6 +8,7 @@ import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-clien
 import { buildEncryptor, makeClient } from './starfish/client';
 import { getMemberCap } from './starfish/member-caps';
 import type { Session } from './starfish/identity';
+import { ownerTrustedAdders } from './starfish/identity';
 import { roomPull } from './starfish/paths';
 import { readRooms } from './starfish/registry';
 import type { StoredMsg } from './message-view';
@@ -31,7 +32,9 @@ export async function buildSpaceEncryptor(
 ): Promise<{ client: StarfishClient; enc: Encryptor } | null> {
   const memberCap = getMemberCap(spaceId);
   let client = session.chatClient;
-  let trustedAdders = [session.keys.edPub];
+  // Owned space: the root key signed the keyring (== device key for seed/Nostr;
+  // the cap-cert issuer for a paired device). Overridden below for joined spaces.
+  let trustedAdders = ownerTrustedAdders(session);
   if (memberCap) {
     const cap = JSON.parse(memberCap) as { iss?: string };
     client = makeClient(cap, session.keys.edPriv);
