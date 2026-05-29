@@ -15,13 +15,22 @@ import {
   provisionDevice,
   sealWithPassphrase,
 } from '@drakkar.software/starfish-identities';
+import type { CapCert } from '@drakkar.software/starfish-protocol';
 
+import type { DeviceKeys } from './client';
 import { SYNC_BASE, SYNC_NAMESPACE } from './config';
 import type { Session } from './identity';
 import { fingerprintFromUserId } from './identity';
-import { bytesToHex, ownerScope } from './paths';
+import { addDeviceToSpaceKeyring } from './members';
+import { bytesToHex, linkedDeviceScope } from './paths';
+import { readSpaces } from './registry';
 
 export const PAIR_PREFIX = 'octochat-pair:';
+
+// Linked-device cap-cert lifetime. `provisionDevice` defaults to 30 days, after
+// which the paired session's cap expires and it must be re-paired. A year keeps a
+// linked device usable long-term without a silent cap-refresh mechanism.
+const LINKED_DEVICE_TTL_SEC = 365 * 24 * 60 * 60;
 
 function anonClient(): StarfishClient {
   // Namespaced like every other client (see makeClient): the `_pairing` rendezvous
@@ -40,10 +49,27 @@ function randomNonce(): string {
 
 /** Existing device: provision + PIN-seal a new device, publish to rendezvous, return the QR payload. */
 export async function startDevicePairing(session: Session, pin: string): Promise<string> {
+  // Grant ONE cap-cert broad enough to drive both the chat and account clients on
+  // the paired device (it can't self-mint — its keypair ≠ root), so the new device
+  // can read its `_spaces` registry, profile and owned spaces straight away.
   const { deviceKeys, bundle } = await provisionDevice(
     { edPriv: session.keys.edPriv, edPub: session.keys.edPub },
-    { scope: ownerScope() },
+    { scope: linkedDeviceScope(session.userId), ttlSec: LINKED_DEVICE_TTL_SEC },
   );
+  // Make the new device a recipient of every keyring this user OWNS, so it can
+  // decrypt those spaces immediately. A keyring write is `space:owner`-gated, so
+  // we can only grant OWNED spaces — those absent from the member-cap map (joined
+  // spaces). Joined spaces stay locked until their owner re-invites this device.
+  const { spaces, caps } = await readSpaces(session.accountClient, session.userId);
+  for (const space of spaces) {
+    if (caps[space.id]) continue; // joined (has a member cap) — not ours to grant
+    try {
+      await addDeviceToSpaceKeyring(session, space.id, { kemPub: deviceKeys.kemPub, userId: session.userId });
+    } catch (err) {
+      // Best-effort per space — a single keyring failure must not abort pairing.
+      console.log('[pairing] keyring grant failed', { spaceId: space.id, error: String((err as Error)?.message ?? err) });
+    }
+  }
   const blob = JSON.stringify({ v: 1, keys: deviceKeys, bundle });
   const sealed = await sealWithPassphrase(pin, new TextEncoder().encode(blob));
   const nonce = randomNonce();
@@ -58,6 +84,11 @@ export async function startDevicePairing(session: Session, pin: string): Promise
 export interface PairResult {
   userId: string;
   fingerprint: string;
+  /** The freshly-provisioned device keypair (this device's own keys). */
+  deviceKeys: DeviceKeys;
+  /** The root-signed cap-cert delegating scope to {@link deviceKeys} — what the
+   *  paired device presents instead of a self-minted cap. */
+  capCert: CapCert;
 }
 
 /** New device: fetch the sealed blob by nonce, open with PIN, validate the bundle. */
@@ -90,5 +121,10 @@ export async function completeDevicePairing(payload: string, pin: string): Promi
     opts,
   );
   const userId = installed.credentials.userId;
-  return { userId, fingerprint: fingerprintFromUserId(userId) };
+  return {
+    userId,
+    fingerprint: fingerprintFromUserId(userId),
+    deviceKeys: installed.credentials.device,
+    capCert: installed.credentials.capCert,
+  };
 }

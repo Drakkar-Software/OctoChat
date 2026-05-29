@@ -7,6 +7,7 @@ import { generateMnemonic, validateMnemonic } from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english.js';
 import { bootstrapRootIdentity, mintDeviceCap } from '@drakkar.software/starfish-identities';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
+import type { CapCert } from '@drakkar.software/starfish-protocol';
 
 import { makeClient, ensurePseudo, type DeviceKeys } from './client';
 import { accountScope, ownerScope } from './paths';
@@ -62,6 +63,38 @@ export async function buildSession({ userId, keys }: DerivedIdentity, name?: str
     keys,
     chatCap,
     accountCap,
+    chatClient,
+    accountClient,
+    fingerprint: fingerprintFromUserId(userId),
+  };
+}
+
+/** A paired device's credentials: its own keypair + the root-signed cap-cert. */
+export interface LinkedIdentity {
+  userId: string;
+  keys: DeviceKeys;
+  capCert: CapCert;
+}
+
+/**
+ * Build a session for a PAIRED (linked) device. Unlike {@link buildSession}, the
+ * device keypair is NOT the root, so it cannot self-mint caps — both clients are
+ * driven by the single root-signed `capCert` from the pairing bundle (provisioned
+ * with `linkedDeviceScope`, broad enough to cover BOTH the chat and account
+ * paths). `keys` are the device's own keypair, used for keyring unwrap and join
+ * requests. No Argon2id — like {@link buildSession} this is the cheap path.
+ */
+export async function buildLinkedSession({ userId, keys, capCert }: LinkedIdentity, name?: string): Promise<Session> {
+  const fallback = name && name.trim() ? name.trim() : `octo-${userId.slice(0, 6)}`;
+  const chatClient = makeClient(capCert, keys.edPriv);
+  const accountClient = makeClient(capCert, keys.edPriv);
+  const displayName = await ensurePseudo(accountClient, userId, fallback).catch(() => fallback);
+  return {
+    userId,
+    name: displayName,
+    keys,
+    chatCap: capCert,
+    accountCap: capCert,
     chatClient,
     accountClient,
     fingerprint: fingerprintFromUserId(userId),

@@ -4,10 +4,12 @@ import type { BootstrapOrigin, RootIdentity } from '@drakkar.software/starfish-i
 
 import { clearAttachmentCache } from './starfish/attachments';
 import {
+  buildLinkedSession,
   buildSession,
   deriveSession,
   fingerprintFromUserId,
   rootIdentityOf,
+  type LinkedIdentity,
   type Session,
 } from './starfish/identity';
 import { clearMemberCaps, hydrateMemberCaps } from './starfish/member-caps';
@@ -68,6 +70,11 @@ interface SessionContextValue {
   addAccount: (seedWords: string[], name?: string) => Promise<void>;
   /** Add another Nostr-derived identity to the already-unlocked vault (no lock prompt). */
   addAccountWithRootIdentity: (root: RootIdentity, name?: string) => Promise<void>;
+  /** Add a PAIRED (linked) device's identity to the vault and make it active.
+   *  Persists the delegated cap-cert (no seed). A signed-out web device must pass
+   *  `lock` to establish its app-lock (first seal); native and already-unlocked
+   *  web ignore it. */
+  addLinkedDevice: (linked: LinkedIdentity, name?: string, lock?: SeedLock) => Promise<void>;
   /** Make a held account active, tearing down and rebuilding account-scoped state. */
   switchAccount: (userId: string) => Promise<void>;
   /** Remove one account from this device; falls to another, or to welcome if it was the last. */
@@ -133,6 +140,11 @@ async function hydrateCapsFor(session: Session): Promise<void> {
 // it's missing or unusable (older blob / corruption). Nostr-derived accounts have
 // no seed — they MUST have a usable `derived`, so a failure there is terminal.
 async function sessionFromPersisted(p: PersistedSession): Promise<Session> {
+  // Paired (linked) device: rebuild from the delegated cap-cert. Its keypair is not
+  // the root, so it can't self-mint or re-derive — this branch has no fallback.
+  if (p.capCert && p.derived) {
+    return buildLinkedSession({ userId: p.derived.userId, keys: p.derived.keys, capCert: p.capCert }, p.name);
+  }
   if (p.derived) {
     try {
       return await buildSession(p.derived, p.name);
@@ -346,6 +358,36 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           await saveVault(next);
           commitVault(next);
           setPendingNostrIdentity(null);
+          resetAccountScopedState();
+          await hydrateCapsFor(s);
+          setSession(s);
+        } finally {
+          opRef.current = false;
+          setStatus('ready');
+        }
+      },
+      addLinkedDevice: async (linked, name, lock) => {
+        if (opRef.current) return;
+        opRef.current = true;
+        setStatus('switching');
+        try {
+          await yieldToPaint();
+          // No Argon2id and no self-mint: buildLinkedSession drives both clients off
+          // the root-signed cap-cert. Persist the device keypair + the cert (no seed).
+          const s = await buildLinkedSession(linked, name);
+          const persisted: PersistedSession = {
+            name: s.name,
+            derived: { userId: linked.userId, keys: linked.keys },
+            capCert: linked.capCert,
+          };
+          const cur = vaultRef.current ?? { accounts: [], activeId: '' };
+          // Re-pairing the same account replaces its entry rather than duplicating it.
+          const others = cur.accounts.filter((a) => a.derived?.userId !== s.userId);
+          const next: Vault = { accounts: [...others, persisted], activeId: s.userId };
+          // `lock` seals a fresh vault on a signed-out web device (first app-lock);
+          // omitted when adding to an already-unlocked vault or on native (Keychain).
+          await saveVault(next, lock);
+          commitVault(next);
           resetAccountScopedState();
           await hydrateCapsFor(s);
           setSession(s);

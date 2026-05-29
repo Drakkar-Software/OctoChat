@@ -4,6 +4,7 @@
  * `session-context` stays platform-agnostic.
  */
 import type { BootstrapOrigin } from '@drakkar.software/starfish-identities';
+import type { CapCert } from '@drakkar.software/starfish-protocol';
 
 import type { DeviceKeys } from './client';
 
@@ -41,6 +42,15 @@ export interface PersistedSession {
    * Purely cosmetic — drives UI like the You-tab security card; never on the wire.
    */
   bootstrapOrigin?: BootstrapOrigin;
+  /**
+   * Root-signed cap-cert for a PAIRED (linked) device. Present ONLY for accounts
+   * added via device pairing: such a device has a fresh keypair (≠ root) and so
+   * cannot self-mint its caps — it must replay this delegated cert. When present
+   * (and `seed` absent), restore rebuilds the session via `buildLinkedSession`
+   * rather than re-deriving/self-minting. Sealed alongside `derived` (it grants
+   * the same access), never in cleartext.
+   */
+  capCert?: CapCert;
 }
 
 /**

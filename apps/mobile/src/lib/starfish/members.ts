@@ -48,6 +48,42 @@ function isAlreadyPresentRecipient(err: unknown): boolean {
 }
 
 /**
+ * Owner-side: add a recipient's KEM key to a SPACE keyring (one keyring → every
+ * channel). `session` must OWN the keyring — its write is `space:owner`-gated
+ * server-side, so this only works for spaces the caller owns.
+ *
+ * The keyring SDK builds its own `/pull|/push` paths; `session.chatClient` carries
+ * the `namespace` option (see makeClient), so those paths get the `/v1/octochat`
+ * prefix on the deployed server automatically — no client wrapper needed.
+ *
+ * Re-invite tolerance: a recipient already wrapped into the keyring makes the SDK
+ * throw "already present in epoch". That's the recover no-op — a member who lost
+ * their LOCAL cap (reinstall, or a same-seed device) is still a keyring recipient;
+ * swallow only that one error so the caller can fall through to re-mint a cap. Any
+ * other failure propagates.
+ *
+ * Reused by {@link inviteToSpace} (a new member) and by device pairing (granting a
+ * freshly-paired device its owner's keyrings — see `pairing.ts`).
+ */
+export async function addDeviceToSpaceKeyring(
+  session: Session,
+  spaceId: string,
+  recipient: { kemPub: string; userId: string },
+): Promise<void> {
+  try {
+    await addCollectionRecipient(
+      session.chatClient,
+      keyringName(spaceId),
+      { subKem: recipient.kemPub, userId: recipient.userId, label: recipient.userId.slice(0, 8) },
+      { edPriv: session.keys.edPriv, edPub: session.keys.edPub, kemPriv: session.keys.kemPriv },
+      { trustedAdders: [session.keys.edPub] },
+    );
+  } catch (err) {
+    if (!isAlreadyPresentRecipient(err)) throw err;
+  }
+}
+
+/**
  * Owner: invite an identity into a space. Adds them to the space keyring (one
  * keyring → all channels), records them in the roster (gates `space:member`),
  * and mints a single space-scoped member cap. Returns the invite bundle JSON.
@@ -61,27 +97,7 @@ export async function inviteToSpace(
   const req = JSON.parse(requestJson) as JoinRequest;
   if (!req.edPub || !req.kemPub || !req.userId) throw new Error('That is not a valid join request.');
   // 1. Add the invitee to the space keyring (covers every channel at once).
-  // The keyring SDK builds its own `/pull|/push` paths; `session.chatClient` carries
-  // the `namespace` option (see makeClient), so those paths get the `/v1/octochat`
-  // prefix on the deployed server automatically — no client wrapper needed.
-  //
-  // Re-invite tolerance: a member already wrapped into the keyring makes the SDK
-  // throw "already present in epoch". That's the recover path — a member who lost
-  // their LOCAL member cap (reinstall, or a new device from the same seed) is
-  // still a keyring recipient; they just need a fresh cap to re-accept with. The
-  // keyring add is a no-op for them, so swallow that one error and fall through
-  // to re-mint the cap (step 3). Any other failure still propagates.
-  try {
-    await addCollectionRecipient(
-      session.chatClient,
-      keyringName(spaceId),
-      { subKem: req.kemPub, userId: req.userId, label: req.userId.slice(0, 8) },
-      { edPriv: session.keys.edPriv, edPub: session.keys.edPub, kemPriv: session.keys.kemPriv },
-      { trustedAdders: [session.keys.edPub] },
-    );
-  } catch (err) {
-    if (!isAlreadyPresentRecipient(err)) throw err;
-  }
+  await addDeviceToSpaceKeyring(session, spaceId, { kemPub: req.kemPub, userId: req.userId });
   // 2. Record them in the space roster (owner-only write → grants space:member).
   await addSpaceMember(session.accountClient, spaceId, session.userId, req.userId);
   // 3. Mint one space-scoped cap covering all current + future channels.

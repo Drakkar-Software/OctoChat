@@ -143,6 +143,29 @@ export function accountScope(userId: string): ScopePreset {
 }
 
 /**
+ * The single cap-cert scope granted to a PAIRED (linked) device. It must serve
+ * BOTH clients a normal session splits across two self-minted caps — the chat
+ * client ({@link ownerScope}: `chat`/`spaces/**`) AND the account client
+ * ({@link accountScope}: profile + `_spaces` registry + devices + own public
+ * spaces) — because a paired device cannot self-mint (its fresh keypair ≠ root),
+ * so the root device delegates ONE `capCert` here that has to cover everything
+ * startup reads. The union of the two presets, deduped.
+ */
+export function linkedDeviceScope(userId: string): ScopePreset {
+  return {
+    ops: ['read', 'list', 'write'],
+    collections: ['chat', 'profile', 'devices', 'spaces', 'rooms', 'pubspace'],
+    paths: [
+      'spaces/**',
+      `user/${userId}/profile`,
+      `users/${userId}/_devices`,
+      `user/${userId}/_spaces`,
+      `pubspaces/${userId}/**`,
+    ],
+  };
+}
+
+/**
  * Link-bearer access to ONE public space at `pubspaces/{ownerId}/{spaceId}` —
  * space-wide (every room + the room registry), read-only or read/write. The tight
  * single-space path is the per-space isolation that complements the server's
