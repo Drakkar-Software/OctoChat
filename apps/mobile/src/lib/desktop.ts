@@ -7,6 +7,8 @@
  * The renderer is sandboxed and can't focus its own OS window or set the dock /
  * taskbar badge; those go through IPC to the Electron main process.
  */
+import { colors } from '../theme';
+
 /** Outcome of an on-demand desktop OTA check (mirror of the main-process type). */
 export type DesktopUpdateResult = 'updated' | 'current' | 'error' | 'unavailable';
 
@@ -18,6 +20,8 @@ declare global {
       platform?: string;
       focusWindow?: () => void;
       setBadgeCount?: (n: number) => void;
+      /** Windows-only: paint a colored taskbar overlay badge (PNG data URL), or null to clear. */
+      setOverlayBadge?: (png: string | null, description: string) => void;
       /** Subscribe to OTA update-ready events. Call once at startup. */
       onUpdateReady?: (cb: (version: string) => void) => void;
       /** Pull an already-staged update version on mount (push isn't buffered). */
@@ -53,9 +57,49 @@ export function focusDesktopWindow(): void {
   globalThis.window?.octochat?.focusWindow?.();
 }
 
-/** Reflect the unread total on the dock / taskbar icon. No-op elsewhere. */
+/**
+ * Reflect the unread total on the dock / taskbar icon. No-op off-desktop.
+ *
+ * macOS (dock) and Linux Unity render a real numeric badge from setBadgeCount —
+ * red by default. Windows has no numeric badge (setBadgeCount only draws a plain
+ * grey dot), so there we paint our own red circle and hand it to the taskbar
+ * overlay-icon API via setOverlayBadge.
+ */
 export function setDesktopBadge(n: number): void {
-  globalThis.window?.octochat?.setBadgeCount?.(n);
+  const bridge = globalThis.window?.octochat;
+  if (!bridge) return;
+  if (bridge.platform === 'win32') {
+    bridge.setOverlayBadge?.(n > 0 ? drawBadgePng(n) : null, n > 0 ? `${n} unread` : '');
+    return;
+  }
+  bridge.setBadgeCount?.(n);
+}
+
+/**
+ * Render a red circular unread badge to a PNG data URL for the Windows taskbar
+ * overlay. Counts above 9 collapse to "9+". Drawn at 2× (32px) for HiDPI
+ * crispness. Only ever called inside the win32 branch above — i.e. in the
+ * Electron renderer, which is Chromium and always has `document`/`canvas`.
+ */
+function drawBadgePng(n: number): string {
+  const size = 32;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+  // Reuse the theme's notification red rather than hardcoding a hex.
+  ctx.fillStyle = colors.light.mention;
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+  ctx.fill();
+  const label = n > 9 ? '9+' : String(n);
+  ctx.fillStyle = colors.light.onAccent;
+  ctx.font = `bold ${label.length > 1 ? 16 : 20}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, size / 2, size / 2 + 1);
+  return canvas.toDataURL('image/png');
 }
 
 /**

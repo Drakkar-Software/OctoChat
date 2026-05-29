@@ -16,8 +16,12 @@ contextBridge.exposeInMainWorld('octochat', {
   isElectron: true,
   // Bring the window forward (e.g. when a notification toast is clicked).
   focusWindow: () => ipcRenderer.invoke('octochat:focus-window'),
-  // Reflect the unread total on the dock / taskbar icon.
+  // Reflect the unread total on the dock / taskbar icon (macOS/Linux numeric).
   setBadgeCount: (n: number) => ipcRenderer.invoke('octochat:set-badge', n),
+  // Paint a custom colored taskbar overlay badge on Windows. `png` is a PNG data
+  // URL (red circle + count) or null to clear; `description` is the a11y label.
+  setOverlayBadge: (png: string | null, description: string) =>
+    ipcRenderer.invoke('octochat:set-overlay-badge', png, description),
   // Subscribe to OTA update-ready events. The callback receives the new version
   // string; call relaunch() to apply it. Wires one listener — call once at app
   // startup.

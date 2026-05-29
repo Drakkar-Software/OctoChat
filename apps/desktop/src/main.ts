@@ -3,6 +3,7 @@ import {
   BrowserWindow,
   ipcMain,
   Menu,
+  nativeImage,
   protocol,
   shell,
   type MenuItemConstructorOptions,
@@ -100,9 +101,22 @@ function registerIpc(): void {
   });
 
   // Reflect the unread total on the dock (macOS) / taskbar (Linux Unity) icon.
-  // Windows has no numeric badge — setBadgeCount is a no-op there.
+  // The renderer routes Windows to set-overlay-badge below instead, because
+  // Windows has no numeric badge — setBadgeCount only draws a default grey dot.
   ipcMain.handle('octochat:set-badge', (_event, count: unknown) => {
     app.setBadgeCount(typeof count === 'number' && count > 0 ? count : 0);
+  });
+
+  // Windows-only colored taskbar badge. `png` is a renderer-rendered PNG data
+  // URL (a red circle + count, themed in the app) or null to clear; the taskbar
+  // overlay-icon API gives full color control that setBadgeCount's grey dot does
+  // not. No-op on macOS/Linux, which use the numeric badge above.
+  ipcMain.handle('octochat:set-overlay-badge', (_event, png: unknown, description: unknown) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (!win) return;
+    const image =
+      typeof png === 'string' && png.length > 0 ? nativeImage.createFromDataURL(png) : null;
+    win.setOverlayIcon(image, typeof description === 'string' ? description : '');
   });
 
   // Let a freshly-mounted renderer learn about an update that was staged before
