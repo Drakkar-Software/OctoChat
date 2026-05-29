@@ -1,15 +1,21 @@
 import { resolveEdit, type StoredMsg } from './message-view';
 import type { MessageEditEvent } from './types';
 
-/** A thread summarised for the sidebar: its anchor message + recent activity. */
+/** A thread summarised for the sidebar + the Threads tab: its anchor message,
+ *  participants and recent activity. */
 export interface ThreadSummary {
   /** Id of the top-level message that anchors the thread (the reply target). */
   parentId: string;
+  /** The thread starter — the parent message's author. */
+  authorId: string;
   /** Short label for the row — the parent's (edit-folded) text, else its
    *  attachment name, else a generic fallback. */
   label: string;
   /** How many replies hang off the parent. */
   replyCount: number;
+  /** Distinct people in the thread (starter + repliers), most-recently-active
+   *  first — drives the Threads tab's avatar stack. */
+  participantIds: string[];
   /** Replies newer than the viewer's last room read — the row's unread badge. */
   unread: number;
   /** Newest activity in the thread (ms): max of the parent and all replies — the
@@ -59,10 +65,18 @@ export function buildThreadDigest(
     const parent = byId.get(parentId);
     if (!parent) continue; // orphaned reply — its parent isn't in the loaded log
     const lastReplyTs = replies.reduce((mx, r) => Math.max(mx, r.ts), 0);
+    // Distinct participants, newest activity first: the latest replier leads the
+    // avatar stack, the thread starter trails (deduped, preserving that order).
+    const participantIds: string[] = [];
+    for (const m of [parent, ...replies].sort((a, b) => b.ts - a.ts)) {
+      if (!participantIds.includes(m.authorId)) participantIds.push(m.authorId);
+    }
     out.push({
       parentId,
+      authorId: parent.authorId,
       label: threadLabel(parent, edits),
       replyCount: replies.length,
+      participantIds,
       unread: replies.reduce((n, r) => n + (r.ts > readBefore ? 1 : 0), 0),
       lastActivityTs: Math.max(parent.ts, lastReplyTs),
     });

@@ -57,6 +57,7 @@ export default function TabsLayout() {
       )}
     >
       <Tabs.Screen name="rooms" options={{ title: 'Rooms', tabBarIcon: tabIcon('hash') }} />
+      <Tabs.Screen name="threads" options={{ title: 'Threads', tabBarIcon: tabIcon('thread') }} />
       <Tabs.Screen name="you" options={{ title: 'You', tabBarIcon: tabIcon('user') }} />
     </Tabs>
   );

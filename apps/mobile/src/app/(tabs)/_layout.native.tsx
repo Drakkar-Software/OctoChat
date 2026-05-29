@@ -46,6 +46,10 @@ export default function NativeTabsLayout() {
         <NativeTabs.Trigger.Label>Rooms</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="hash" />} />
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="threads">
+        <NativeTabs.Trigger.Label>Threads</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="message-square" />} />
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="you">
         <NativeTabs.Trigger.Label>You</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="user" />} />

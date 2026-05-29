@@ -36,7 +36,7 @@ Non-negotiable. Follow these for every change:
 ## Structure
 
 - `src/app/` — Expo Router file-based routes. `(onboarding)/` stack
-  (welcome, seed, add-device), `(tabs)/` tab navigator (rooms, you),
+  (welcome, seed, add-device), `(tabs)/` tab navigator (rooms, threads, you),
   `search`, `room/[id]`, `thread/[id]`, `+not-found`. Keep thin.
 - `src/components/` — `ui/` primitives (`Txt`, `Button`, `IconButton`, `Card`,
   `Pill`, `Badge`, `Avatar`, `Icon`, `Divider`, `Row`, `Callout`, `AppBar`,

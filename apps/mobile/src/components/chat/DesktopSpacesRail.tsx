@@ -10,6 +10,7 @@ import { AccountSwitcherPopover } from '@/components/account/AccountSwitcherPopo
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/Icon';
+import { IconButton } from '@/components/ui/IconButton';
 import { Octopus } from '@/components/brand/Octopus';
 import { Txt } from '@/components/ui/Txt';
 
@@ -18,6 +19,8 @@ interface DesktopSpacesRailProps {
   activeId: string | null;
   onSelect?: (id: string) => void;
   onAdd?: () => void;
+  /** Open the Threads view (all of the active space's threads). */
+  onOpenThreads?: () => void;
   /** Bottom avatar / gear → the current identity's profile. */
   meLabel: string;
   /** The current identity's uploaded avatar (data URI), if any. */
@@ -86,6 +89,7 @@ export function DesktopSpacesRail({
   activeId,
   onSelect,
   onAdd,
+  onOpenThreads,
   meLabel,
   meAvatar,
   onOpenProfile,
@@ -116,6 +120,9 @@ export function DesktopSpacesRail({
         <Icon name="plus" size={16} color={colors.inkMuted} />
       </Pressable>
       <View style={styles.spacer} />
+      {onOpenThreads ? (
+        <IconButton name="thread" size={20} onPress={onOpenThreads} accessibilityLabel="Threads" />
+      ) : null}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Accounts"

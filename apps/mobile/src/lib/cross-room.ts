@@ -1,5 +1,5 @@
 /**
- * Cross-room reads for search + activity: decrypt every room the identity has a
+ * Cross-room reads for search + threads: decrypt every room the identity has a
  * keyring for (i.e. rooms it has opened), and flatten their messages. Rooms
  * never opened have no keyring yet and are simply skipped.
  */
@@ -12,11 +12,17 @@ import { ownerTrustedAdders } from './starfish/identity';
 import { roomPull } from './starfish/paths';
 import { readRooms } from './starfish/registry';
 import type { StoredMsg } from './message-view';
-import type { Room } from './types';
+import { buildThreadDigest, type ThreadSummary } from './threads';
+import type { MessageEditEvent, Room } from './types';
 
 export interface CrossRoomMessage {
   room: Room;
   msg: StoredMsg;
+}
+
+export interface CrossRoomThread {
+  room: Room;
+  thread: ThreadSummary;
 }
 
 /**
@@ -64,4 +70,39 @@ export async function loadAllMessages(session: Session, spaceId: string): Promis
     }
   }
   return out;
+}
+
+/**
+ * Every thread (a parent message with ≥1 reply) across every decryptable room of
+ * a space, flattened and sorted by most-recent activity. Mirrors
+ * {@link loadAllMessages}' decrypt loop but folds each room's log into thread
+ * summaries — with `edits`, so a thread's label reflects the parent's latest
+ * edit/delete. `readBefore(roomId)` is the viewer's last-read mark for that room;
+ * replies newer than it count toward the thread's unread badge.
+ */
+export async function loadAllThreads(
+  session: Session,
+  spaceId: string,
+  readBefore: (roomId: string) => number,
+): Promise<CrossRoomThread[]> {
+  const { rooms } = await readRooms(session.accountClient, spaceId);
+  const space = await buildSpaceEncryptor(session, spaceId);
+  if (!space) return [];
+  const { client, enc } = space;
+
+  const out: CrossRoomThread[] = [];
+  for (const room of rooms) {
+    try {
+      const res = await client.pull(roomPull(room.id)).catch(() => null);
+      const data = res?.data as Record<string, unknown> | undefined;
+      if (!data || !data._encrypted) continue;
+      const plain = (await enc.decrypt(data)) as { messages?: StoredMsg[]; edits?: MessageEditEvent[] };
+      // No per-room cap: the tab lists every thread, not the sidebar's top few.
+      const digest = buildThreadDigest(plain.messages ?? [], plain.edits ?? [], readBefore(room.id), Number.MAX_SAFE_INTEGER);
+      for (const thread of digest) out.push({ room, thread });
+    } catch {
+      /* skip rooms we can't decrypt */
+    }
+  }
+  return out.sort((a, b) => b.thread.lastActivityTs - a.thread.lastActivityTs);
 }
