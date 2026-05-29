@@ -15,6 +15,7 @@ import {
 import { clearMemberCaps, hydrateMemberCaps } from './starfish/member-caps';
 import { clearPubspaceCaps, hydratePubspaceCaps } from './starfish/pubspace-caps';
 import { readSpaces } from './starfish/registry';
+import { activeAccountOf, sessionFromPersisted } from './starfish/session-restore';
 import { clearSpaceEncryptors } from './starfish/space-encryptor';
 import { passkeyEnrollable } from './starfish/passkey';
 import {
@@ -133,33 +134,6 @@ async function hydrateCapsFor(session: Session): Promise<void> {
   // (message authors, sidebar) never fires a separate fetch for self — the editable
   // copy is loaded once by ProfileProvider, which also primes the avatar.
   primeProfile(session.userId, { pseudo: session.name });
-}
-
-// Rebuild a live session from a persisted one. Prefer the cached root identity
-// (skips the heavy bootstrap Argon2id); fall back to re-deriving from the seed if
-// it's missing or unusable (older blob / corruption). Nostr-derived accounts have
-// no seed — they MUST have a usable `derived`, so a failure there is terminal.
-async function sessionFromPersisted(p: PersistedSession): Promise<Session> {
-  // Paired (linked) device: rebuild from the delegated cap-cert. Its keypair is not
-  // the root, so it can't self-mint or re-derive — this branch has no fallback.
-  if (p.capCert && p.derived) {
-    return buildLinkedSession({ userId: p.derived.userId, keys: p.derived.keys, capCert: p.capCert }, p.name);
-  }
-  if (p.derived) {
-    try {
-      return await buildSession(p.derived, p.name);
-    } catch {
-      /* cached keys unusable — fall through to a full re-derive from the seed */
-    }
-  }
-  if (p.seed) return deriveSession(p.seed, p.name);
-  throw new Error('Persisted account has neither usable derived keys nor a recovery seed.');
-}
-
-/** The active account in a vault: the one matching `activeId`, else the first. */
-function activeAccountOf(v: Vault): PersistedSession | null {
-  if (v.accounts.length === 0) return null;
-  return v.accounts.find((a) => a.derived?.userId === v.activeId) ?? v.accounts[0];
 }
 
 function summarize(v: Vault | null): AccountSummary[] {

@@ -55,6 +55,11 @@ export function onPushOpenNavigate(_onOpen: (data: PushData) => void): () => voi
   return () => {};
 }
 
+/** Route to the room a tapped notifee (Android) notification points at. No-op on web. */
+export function onNotifeeOpenNavigate(_onOpen: (data: PushData) => void): () => void {
+  return () => {};
+}
+
 /** Number of spaces currently subscribed to via FCM topics. Always 0 on web. */
 export function getFcmTopicCount(): number {
   return 0;

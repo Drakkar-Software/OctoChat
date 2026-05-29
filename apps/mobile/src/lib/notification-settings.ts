@@ -14,9 +14,11 @@ export interface NotificationSettings {
   /** Master switch — off silences everything (web/desktop toasts AND native push
    *  topic subscriptions). */
   enabled: boolean;
-  /** Decrypt the latest message and show its text in the notification (web/desktop
-   *  only — native banners are rendered by the OS from the generic FCM payload).
-   *  Off keeps the privacy-preserving generic "New message" body. */
+  /** Decrypt the latest message and show its text in the notification: on web/desktop
+   *  (`notify.ts`) and on Android, where the headless background handler decrypts and
+   *  builds the banner (`push/background-notify.native`) — including on the lock screen.
+   *  iOS banners are OS-rendered from the generic FCM payload and unaffected. Off keeps
+   *  the privacy-preserving generic "New message" body everywhere. */
   preview: boolean;
   /** Play a sound with the notification (web/desktop: the toast isn't silent). */
   sound: boolean;

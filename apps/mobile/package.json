@@ -1,7 +1,7 @@
 {
   "name": "@octochat/mobile",
   "main": "expo-router/entry",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
@@ -27,6 +27,7 @@
     "@legendapp/list": "3.0.0-beta.56",
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0",
+    "@notifee/react-native": "^9.1.8",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-firebase/app": "^24.0.0",
     "@react-native-firebase/messaging": "^24.0.0",

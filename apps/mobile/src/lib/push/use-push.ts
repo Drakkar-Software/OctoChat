@@ -7,6 +7,7 @@ import type { Session } from '../starfish/identity';
 import {
   ensurePushPermission,
   onForegroundPush,
+  onNotifeeOpenNavigate,
   onPushOpenNavigate,
   type PushData,
   subscribeSpacePush,
@@ -76,10 +77,15 @@ export function usePush(session: Session | null, spaceIds: string[], enabled: bo
     const offMessage = onForegroundPush((data) => {
       if (data.roomId) dispatchRoomChange(data.roomId);
     });
+    // Two tap-navigation sources, mutually exclusive at runtime: RN-Firebase fires
+    // for the iOS visible-alert push; notifee fires for the Android notifee-built
+    // banner (data-only path). Each is a no-op on the other platform.
     const offOpen = onPushOpenNavigate(handleOpen);
+    const offNotifeeOpen = onNotifeeOpenNavigate(handleOpen);
     return () => {
       offMessage();
       offOpen();
+      offNotifeeOpen();
     };
   }, [handleOpen]);
 

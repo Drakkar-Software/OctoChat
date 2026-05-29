@@ -511,37 +511,89 @@ plainly:
 - **Old clients are unaffected** — `tag`/`thread-id` are ignored by clients that
   don't expect them, so the bridge change is deploy-order-safe.
 
-### Phase 2 — true bundled stacks on Android (needs a native release)
+### Phase 2 / 3 — REAL decrypted content via the two-message "placeholder + upgrade" hybrid
 
-Android's FCM `notification` block has **no group field** (`AndroidNotification`
-exposes only `tag`), so a real "OctoChat • 3 rooms" bundled stack with a group
-summary can't be done server-side. It requires the client to **build** the
-notification instead of letting the OS auto-display the FCM `notification`:
+**Implemented across all three repos.** A single FCM message can't do this on Android:
+a `notification`-block message is OS-displayed and the data background handler is
+*never* invoked when backgrounded; a pure data-only message can run JS but shows
+*nothing* if the headless task can't run (Doze quota / OEM killer / force-quit). The
+fix is **two messages per event**, both addressed to the same topic/condition:
 
-1. **Add [notifee](https://notifee.app)** (`@notifee/react-native`).
-   `expo-notifications`' Android grouping is weaker; notifee exposes `groupId` +
-   `groupSummary` directly. New native dep → bump `app.json` `version` to fence
-   OTAs (per the mobile OTA-updates convention).
-2. **Switch the bridge to data-only** for Android (drop the `notification` block,
-   keep `data`) so the OS hands the message to the app instead of auto-displaying.
-   Keep iOS as a visible `alert` push (its `thread-id` grouping already works and
-   data-only is throttled/dropped on iOS — see the iOS caveat above).
-3. **Build the notification in the background handler** (today a no-op at
-   module scope in `src/app/_layout.tsx`): for each push, display a notifee
-   notification with `android.groupId = spaceId` (outer group), per-room
-   `android.tag = roomId`, plus a **group-summary** notification per space. This
-   yields the bundled stack: messages grouped by space, rooms distinct within.
-4. **Real counts become possible** — the client owns the displayed notifications
-   and already tracks unread via `room-events-bus` / `unread-context`, so it can
-   render "3 new messages" accurately (impossible in Phase 1).
-5. **Caveats to carry in:** the Android background handler must do real work now
-   (build + display), so keep it cheap and resilient; honour the same
-   notification-settings master toggle; and re-test force-quit delivery (the
-   reason iOS stays on visible-alert pushes).
+1. **Placeholder** — a `notification`-block message the OS shows immediately, even
+   force-quit (generic, E2EE-safe), tagged per room (`android.notification.tag = roomId`,
+   `apns thread-id = roomId` for grouping). This is the **reliability floor**.
+2. **Upgrade** — a `data`-only `priority:high` message → Android hands it to the
+   headless JS task, which decrypts the latest message and **replaces** the placeholder
+   with "Sender: text". On iOS the upgrade is a no-op (no `apns`); iOS keeps the
+   placeholder (real content there is deferred — see below).
 
-Web/desktop have no OS-level bundled-stack API beyond `tag` (the Web
-Notifications spec doesn't stack across notifications), so Phase 2 is
-Android-only; iOS already groups in Phase 1.
+This is delivered by **Whistlers ≥0.8.0** (`format` may return an array of messages →
+`sendEach`); the Infra formatter `apps/octochat/format.ts` returns `[placeholder, upgrade]`.
+
+**Why this is strictly better than single-data-only:** if the headless handler can't
+run, or notifee can't render, or decrypt fails — the placeholder simply stays. Failures
+degrade to the **generic banner, never to silence.** It also removes the deploy-order
+hazard: the bridge always sends the placeholder, so old clients (no notifee handler)
+still get the generic banner and just ignore the data-only upgrade.
+
+**Client (`src/lib/push/background-notify.native.ts`).** The handler does NOTHING unless
+it can show real content — otherwise it would double the placeholder:
+- gated on `enabled` + `preview` (default OFF) read via `await loadNotificationSettings(userId)`
+  (the synchronous snapshot is never hydrated in a headless task);
+- rebuilds the session (`sessionFromPersisted`, cached-`derived` fast path, no Argon2id),
+  `await hydrateMemberCaps(userId, {})` (joined-space caps from the kv cache, no network),
+  then `loadLatestMessagePreview` (the same decrypt as the web toast);
+- on success: **cancel-then-replace** — `getDisplayedNotifications()` → cancel the entry
+  whose `android.tag === roomId` (the FCM placeholder; FCM's int id isn't predictable, so
+  match by tag), then `displayNotification({ id: roomId, groupId: spaceId, … })`;
+- on any miss (signed out / preview off / decrypt fails / exception): return and leave the
+  placeholder standing.
+
+notifee dep + the two-message display ⇒ `app.json` `version` bump (1.2.0) to fence OTAs and
+a fresh dev/EAS build (not Expo Go). Tap routing: placeholder taps → RN-Firebase
+`onPushOpenNavigate`; replacement taps → notifee `onNotifeeOpenNavigate`; both feed
+`openRoomFromNotification` and are subscribed together in `use-push.ts`.
+
+**Bridge formatter (Infra `apps/octochat/format.ts` — DONE, committed master 3892110):**
+returns the two-message array; see that file. Both messages carry identical routing `data`
+and the same self-exclusion `condition`; the placeholder carries the per-room
+`tag`/`thread-id` grouping; the upgrade is data-only `android:{priority:"high"}`.
+
+> **Verify on a physical device (polish, not reliability — the placeholder is the floor):**
+> 1. **Replacement** — does the upgrade actually cancel + replace the placeholder, or do two
+>    banners briefly coexist? Hinges on `getDisplayedNotifications()` surfacing the FCM
+>    placeholder's `android.tag`; if it doesn't, the placeholder lingers (double banner) —
+>    acceptable degradation, but check it.
+> 2. **Headless registration** — confirm `setBackgroundMessageHandler` fires in a force-quit
+>    launch (registered at `_layout.tsx` module scope). If it doesn't, only the placeholder
+>    shows (no upgrade) — still fine, but move registration to the JS entry to fix.
+> 3. **`smallIcon`** — `ic_launcher` should resolve (may render as a white square; a
+>    monochrome `ic_notification` is the polish). If `displayNotification` throws, the catch
+>    leaves the placeholder — no silence.
+> 4. **Ordering** — FCM doesn't guarantee placeholder-before-upgrade; in practice the OS
+>    render beats the decrypt-driven upgrade.
+
+Web/desktop have no OS-level bundled-stack API beyond `tag`, so this phase is
+Android-only; iOS keeps the placeholder + Phase 1's `thread-id` grouping.
+
+### iOS real-content — deferred (future work)
+
+iOS reliable banner-rewrite needs a **Notification Service Extension**, a *separate
+native process that does NOT host the Expo/RN runtime* (the silent-push-runs-JS path
+is Apple-throttled and undelivered when force-quit — the very reason iOS is on
+visible-alert). So iOS can't reuse the JS decrypt the way Android's headless task
+does. Recommended future path: NSE hosting iOS's built-in **JavaScriptCore** running
+a bundled subset of the existing JS decrypt (reject a native Swift re-port —
+ML-KEM/Kyber isn't in CryptoKit and every Starfish alpha wire change forces a
+byte-exact re-port). Binding prerequisites: App Group + shared keychain
+(`keychainAccessGroup` + `kSecAttrAccessibleAfterFirstUnlock` + a launch-time vault
+re-save migration); move the `preview` setting + joined-space member caps into the App
+Group container (the NSE can't read AsyncStorage); a WebCrypto-`subtle` shim over
+`@noble` (the SDK calls `subtle`, not `@noble` directly); an esbuild/rollup bundle
+step; bridge `aps['mutable-content']=1` with the generic alert as the timeout
+fallback; build only from the cached `derived` identity (no Argon2id — it blows the
+~30s NSE budget). Until then iOS keeps the reliable generic banner; `preview` default
+OFF means iOS users lose nothing visible out-of-the-box.
 
 ## Sources
 

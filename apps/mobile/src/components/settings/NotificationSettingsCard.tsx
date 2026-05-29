@@ -44,8 +44,9 @@ export function NotificationSettingsCard() {
         disabled={off}
       />
       <Txt variant="micro" tone="inkMuted">
-        Previews are decrypted on this device and shown on web & desktop. On mobile the OS
-        renders the banner, so the preview and sound there follow your system settings.
+        Previews are decrypted on this device and shown on web, desktop & Android — including
+        on the lock screen. iOS shows a generic banner (its preview and sound follow your
+        system settings).
       </Txt>
     </Card>
   );

@@ -14,8 +14,12 @@
  * / `GoogleService-Info.plist` (config plugin in `app.json`) — no JS init needed.
  */
 import messaging from '@react-native-firebase/messaging';
+import notifee, { EventType } from '@notifee/react-native';
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
+
+import { handleBackgroundPush } from './background-notify';
+import { MESSAGES_CHANNEL_ID } from './channel';
 
 export interface PushData {
   type?: string;
@@ -43,15 +47,6 @@ export const pushTopicForSpace = (spaceId: string): string =>
 export const pushTopicForUser = (userId: string): string => `octochat-user-${userId}`;
 
 const asStr = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
-
-/**
- * Android notification channel id for chat pushes. Single source of truth:
- * `ensureNotificationChannel` creates it, `app.json`'s `expo-notifications`
- * `defaultChannel` routes the bridge's channel-less FCM messages to it, and it
- * matches the bridge's documented `channelId` so it stays forward-compatible if
- * the bridge ever sets one.
- */
-const MESSAGES_CHANNEL_ID = 'messages';
 
 /**
  * Create the high-importance "Messages" channel so chat pushes show a heads-up
@@ -137,16 +132,43 @@ export function subscribeFcmTopicCount(fn: (count: number) => void): () => void 
   };
 }
 
+const notifeeDataToPush = (n?: { data?: { [key: string]: unknown } }): PushData => ({
+  type: asStr(n?.data?.type),
+  spaceId: asStr(n?.data?.spaceId),
+  roomId: asStr(n?.data?.roomId),
+  docId: asStr(n?.data?.docId),
+});
+
+// A warm tap (app backgrounded, not quit) is delivered to notifee's BACKGROUND
+// event handler, which runs before React is foreground-ready. Stash it here so
+// `onNotifeeOpenNavigate` can route once the app is active again.
+let pendingNotifeeOpen: PushData | null = null;
+
 /**
- * Required by RN-Firebase even though our pushes carry a `notification` block (the
- * OS displays those directly, and this handler is NOT invoked for them while
- * backgrounded). Kept as a no-op to satisfy the API and absorb any data-only edge.
+ * Register the FCM background handler. Android pushes are DATA-ONLY (no FCM
+ * `notification` block — see the Infra bridge formatter / docs/push-fcm.md), so the
+ * OS does NOT auto-display them: this headless task builds the banner itself, with
+ * the real decrypted message when the `preview` setting is on (`background-notify`).
+ * Also registers notifee's required background-event handler (iOS still uses the
+ * OS-rendered visible-alert push, so this is effectively Android's display path).
  */
 let bgRegistered = false;
 export function registerBackgroundPushHandler(): void {
   if (bgRegistered) return;
   bgRegistered = true;
-  messaging().setBackgroundMessageHandler(async () => {});
+  messaging().setBackgroundMessageHandler((msg) =>
+    handleBackgroundPush({
+      type: asStr(msg.data?.type),
+      spaceId: asStr(msg.data?.spaceId),
+      roomId: asStr(msg.data?.roomId),
+      docId: asStr(msg.data?.docId),
+    }),
+  );
+  // notifee requires a background-event handler when its notifications can be
+  // interacted with while backgrounded. A press lands here; stash for routing.
+  notifee.onBackgroundEvent(async ({ type, detail }) => {
+    if (type === EventType.PRESS) pendingNotifeeOpen = notifeeDataToPush(detail.notification);
+  });
 }
 
 export function onForegroundPush(cb: (data: PushData) => void): () => void {
@@ -182,4 +204,41 @@ export function onPushOpenNavigate(onOpen: (data: PushData) => void): () => void
       if (msg) emit(msg.data);
     });
   return unsub;
+}
+
+/**
+ * Notification-tap navigation for the NOTIFEE-built banners (Android data-only
+ * path). Mirrors {@link onPushOpenNavigate} but for notifee's event model, covering
+ * all three launch states: cold-start (`getInitialNotification`), foreground tap
+ * (`onForegroundEvent` PRESS), and warm-background tap (delivered to the background
+ * handler, stashed in `pendingNotifeeOpen`, drained when the app returns to active).
+ * Forwards the push `data` to `onOpen`, same as the RN-Firebase path — the caller
+ * resolves the room and routes. No-op on iOS (its banners aren't notifee-built, so
+ * none of these fire), so it's safe to subscribe alongside `onPushOpenNavigate`.
+ */
+export function onNotifeeOpenNavigate(onOpen: (data: PushData) => void): () => void {
+  const drainPending = (): void => {
+    if (!pendingNotifeeOpen) return;
+    const data = pendingNotifeeOpen;
+    pendingNotifeeOpen = null;
+    onOpen(data);
+  };
+  // A warm tap may have stashed before this subscriber mounted.
+  drainPending();
+  // Cold start: app launched by tapping a notifee notification while quit.
+  void notifee.getInitialNotification().then((initial) => {
+    if (initial) onOpen(notifeeDataToPush(initial.notification));
+  });
+  // Tap while the app is foreground.
+  const offForeground = notifee.onForegroundEvent(({ type, detail }) => {
+    if (type === EventType.PRESS) onOpen(notifeeDataToPush(detail.notification));
+  });
+  // Warm-background tap is a background event; route it when the app becomes active.
+  const appStateSub = AppState.addEventListener('change', (state) => {
+    if (state === 'active') drainPending();
+  });
+  return () => {
+    offForeground();
+    appStateSub.remove();
+  };
 }
