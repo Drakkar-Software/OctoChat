@@ -235,6 +235,12 @@ export function createOctochatFcmApp(app?: App): AppDefinition {
 }
 ```
 
+> This formatter shows the base case (topic-addressed, generic banner). It also
+> excludes the message author from their own push by switching to an FCM
+> *condition* when the event carries an `identity` — see
+> **"Author self-exclusion (sender skips their own push)"** below for the full
+> formatter and the per-collection `includeIdentity` flag that feeds it.
+
 ### B2. Register it in `src/index.ts`
 
 octobot and octochat each push from their **own Firebase project**. A small helper
@@ -479,6 +485,97 @@ eas build --profile development --platform all
   unread count for that room isn't bumped until SSE redelivers or the user opens the
   room. (Pre-existing SSE behavior; the push doesn't change it.) Closing the gap
   would mean coupling push delivery into `unread-context` — deliberately out of scope.
+
+## Author self-exclusion (sender skips their own push)
+
+Goal: a user never gets a push for a message **they** wrote — on **any** of their
+devices. Background banners are rendered by the OS, not our JS, so the client can't
+suppress them after the fact; the exclusion has to happen **at send time** in the
+bridge.
+
+**Mechanism — a per-user topic + an FCM condition.** Each device also subscribes to
+an account-scoped topic `octochat-user-<userId>` (alongside its per-space topics).
+When the bridge knows who authored the write, it addresses the push to an FCM
+**condition** instead of a plain topic:
+
+```
+'octochat-octochat-chat-changed-<spaceId>' in topics && !('octochat-user-<authorId>' in topics)
+```
+
+Only the author's own devices are subscribed to `octochat-user-<authorId>`, so the
+negation drops exactly them while every other space member still receives it. FCM
+conditions allow up to 5 topics; this uses 2.
+
+**Where the author comes from (E2EE-safe).** The server already authenticates the
+*writer* via their cap-cert — the same identity it uses for authorization and the
+audit log — completely independent of the (encrypted) message body. It does **not**
+read content. Starfish surfaces that identity to plugins as `WriteEvent.identity`,
+and the queuing plugin forwards it into the NATS payload **only for collections that
+opt in** (`includeIdentity` / `include_identity`, default off). So the bridge learns
+*who* posted *where*, never *what*.
+
+**Identity-match invariant (the one thing that can silently break it).** The string
+the client subscribes with (`session.userId`) MUST equal the string the server
+reports as the write identity (`auth.identity`). Both are
+`sha256(edPub)[0:16]` as 32-char lowercase hex, and both are **account-level** — a
+device cap resolves to its `issUserId` and a member cap to its `subUserId`, which for
+a real user are the same account id across all their devices. That's why exclusion is
+account-wide, not per-device. If those two strings ever diverge (different derivation,
+casing, truncation), the feature **no-ops silently** — no error, the author just keeps
+getting their own pushes. Guard it with the verify step below.
+
+**Moving parts (all shipped):**
+
+- **Starfish ≥ `3.0.0-alpha.13`** — `WriteEvent.identity` (threaded through the TS &
+  Python servers at every push site) + the queuing plugin's per-collection
+  `includeIdentity` / `include_identity` flag (publishes `QueueMessage.identity`).
+- **Whistlers ≥ `0.7.0`** — `FirebaseDestination`'s `format` may return a non-empty
+  `condition`, which is sent **instead of** `topic` (FCM accepts one or the other);
+  an absent/empty `condition` falls back to the normal topic send.
+- **Server (both impls)** — OctoChat `apps/server/src/index.ts` and Infra
+  `drakkar_sync/server.py` set `includeIdentity: true` / `include_identity=True` on the
+  `chat` / `streamchat` / `pubstream` / `pubspace` QueueConfigs, so a write emits
+  `octochat.chat.changed.<spaceId>` with `identity` in the body.
+- **Infra bridge** (`bridge/src/apps/octochat/format.ts`) — builds the condition when
+  `identity` is present, guarded to the userId charset so it can't inject:
+
+  ```ts
+  const id = (n.rawPayload as { identity?: string }).identity
+  const authorId = typeof id === "string" && /^[0-9a-f]{32}$/.test(id) ? id : undefined
+  return {
+    notification: { title: "OctoChat", body: "New message in another room" },
+    data: { /* …spaceId, roomId, docId… */ },
+    ...(authorId
+      ? { condition: `'${n.topic}' in topics && !('octochat-user-${authorId}' in topics)` }
+      : {}), // no/invalid identity → plain topic send
+    // …android / apns…
+  }
+  ```
+
+- **Client** (`fcm.native.ts`) — `pushTopicForUser(userId)` +
+  `subscribeUserPush` / `unsubscribeUserPush`; `use-push.ts` subscribes
+  `octochat-user-<session.userId>` in its reconcile effect (and drops it on
+  sign-out / toggle-off, tracked in a `subscribedUser` ref). Web is a no-op stub.
+
+**Degradation / deploy order.** Whenever `identity` is absent or malformed — an old
+payload, a collection that didn't opt in, an audience-cap/bot writer, or a device on
+an app build that predates the user-topic subscription — the bridge emits **no
+condition**, and `FirebaseDestination` falls back to a plain topic send (exactly
+today's behavior). So the four parts can ship in any order with no flag day; the
+exclusion simply activates once both ends are deployed and the device has
+re-subscribed.
+
+**Privacy note.** Forwarding the author's userId means the NATS/bridge layer now sees
+"user X posted to space Y at time T" — **metadata only**, content stays E2EE. It is
+gated per-collection (`includeIdentity` off by default) precisely so this exposure is
+an explicit opt-in, not a default.
+
+**Verify.** With a real device + two accounts: account A posts in a shared space → A's
+device(s) show **no** banner, B's device does; B posts → A is notified, B is not.
+Locally (no Firebase needed) you can assert the NATS payload now carries
+`identity: "<32-hex>"` and that it equals the sender's `session.userId` (the
+silent-failure check), and unit-test the bridge condition builder (see
+`bridge/src/apps/octochat/format.test.ts`).
 
 ## Notification grouping (per room)
 
