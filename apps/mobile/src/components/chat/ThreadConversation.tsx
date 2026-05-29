@@ -3,12 +3,13 @@ import { StyleSheet, View } from 'react-native';
 import { LegendList } from '@legendapp/list/react-native';
 
 import { spacing } from '@/theme';
-import { authorFor, toDisplayMessage } from '@/lib/message-view';
+import { authorFor, dayLabel, isContinuation, sameDay, toDisplayMessage } from '@/lib/message-view';
 import { plural } from '@/lib/format';
 import type { AttachmentRef } from '@/lib/starfish/attachments';
 import { useConversationData, type ConversationStore } from '@/lib/use-conversation-data';
 import { Txt } from '@/components/ui/Txt';
 
+import { DateDivider, UnreadDivider } from './Dividers';
 import { MessageGroup } from './MessageGroup';
 
 /** Highlighted parent message + its replies, read from the room's synced store. */
@@ -67,6 +68,12 @@ export function ThreadConversation({
       recycleItems={false}
       extraData={extraData}
       estimatedItemSize={ESTIMATED_ROW_HEIGHT}
+      // Follow new replies when near the bottom and hold the viewport steady on
+      // updates/prepends — mirrors RoomConversation. No `initialScrollAtEnd`: a
+      // thread opens at its parent (the header) so you read the context top-down.
+      maintainScrollAtEnd
+      maintainScrollAtEndThreshold={0.1}
+      maintainVisibleContentPosition
       ListHeaderComponent={
         <>
           {parent ? (
@@ -91,20 +98,34 @@ export function ThreadConversation({
           </View>
         </>
       }
-      renderItem={({ item: r }) => (
-        <MessageGroup
-          message={toDisplayMessage(r, reactions, currentUserId, { selfName, lastReadAt, edits })}
-          author={authorFor(r.authorId, currentUserId, pseudo(r.authorId), avatar(r.authorId))}
-          nameFor={nameFor}
-          resolveRoom={resolveRoom}
-          currentUserName={selfName}
-          onToggleReaction={(emoji) => onToggleReaction(r.id, emoji)}
-          onEdit={r.authorId === currentUserId && r.text ? (t) => onEditMessage(r.id, t) : undefined}
-          onDelete={r.authorId === currentUserId ? () => onDeleteMessage(r.id) : undefined}
-          onPressAuthor={onOpenProfile ? () => onOpenProfile(r.authorId) : undefined}
-          onLoadAttachment={onLoadAttachment}
-        />
-      )}
+      renderItem={({ item: r, index }) => {
+        // Group consecutive replies exactly like RoomConversation: a divider opens
+        // each new calendar day and the "New" rule fires once at the first reply past
+        // the read mark. `prev` is the previous reply only — the first reply never
+        // continues the parent (the "N replies" label sits between them).
+        const prev = replies[index - 1];
+        const showDate = !prev || !sameDay(prev.ts, r.ts);
+        const showUnread = lastReadAt != null && !!prev && prev.ts <= lastReadAt && r.ts > lastReadAt;
+        return (
+          <>
+            {showDate ? <DateDivider date={dayLabel(r.ts)} /> : null}
+            {showUnread ? <UnreadDivider /> : null}
+            <MessageGroup
+              message={toDisplayMessage(r, reactions, currentUserId, { selfName, lastReadAt, edits })}
+              author={authorFor(r.authorId, currentUserId, pseudo(r.authorId), avatar(r.authorId))}
+              continuation={!showDate && !showUnread && isContinuation(r, prev)}
+              nameFor={nameFor}
+              resolveRoom={resolveRoom}
+              currentUserName={selfName}
+              onToggleReaction={(emoji) => onToggleReaction(r.id, emoji)}
+              onEdit={r.authorId === currentUserId && r.text ? (t) => onEditMessage(r.id, t) : undefined}
+              onDelete={r.authorId === currentUserId ? () => onDeleteMessage(r.id) : undefined}
+              onPressAuthor={onOpenProfile ? () => onOpenProfile(r.authorId) : undefined}
+              onLoadAttachment={onLoadAttachment}
+            />
+          </>
+        );
+      }}
     />
   );
 }
