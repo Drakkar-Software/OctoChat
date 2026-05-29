@@ -25,7 +25,7 @@ vi.mock('./paths', () => ({
 
 import { ConflictError, StarfishHttpError } from '@drakkar.software/starfish-client';
 
-import { addJoinedPublicSpaceWithAccess, addJoinedSpaceWithCap, readSpaces, updateSpacesDoc } from './registry';
+import { addJoinedPublicSpaceWithAccess, addJoinedSpaceWithCap, readRooms, readSpaces, updateSpacesDoc } from './registry';
 
 /** A fake StarfishClient exposing just pull/push. */
 function fakeClient(pull: ReturnType<typeof vi.fn>, push: ReturnType<typeof vi.fn>) {
@@ -208,5 +208,34 @@ describe('readSpaces', () => {
     });
     const res = await readSpaces(fakeClient(pull, vi.fn()), 'u');
     expect(res).toEqual({ spaces: [], caps: {}, mutes: { rooms: {}, spaces: {} }, pubAccess: {}, hash: null });
+  });
+});
+
+describe('readRooms', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns an empty registry on a 404 (no doc yet — a first write can create it)', async () => {
+    const pull = vi.fn(async () => {
+      throw new StarfishHttpError(404, '');
+    });
+    const res = await readRooms(fakeClient(pull, vi.fn()), 'sp-1');
+    expect(res).toEqual({ rooms: [], owner: null, members: [], name: null, image: null, categories: [], hash: null });
+  });
+
+  // The linchpin of the offline fix: a network failure must PROPAGATE (not collapse to
+  // an empty registry), so the rooms provider can fall back to the cached list rather
+  // than wiping it. Both a StarfishHttpError(5xx) and a plain network rejection throw.
+  it('propagates a non-404 HTTP error instead of degrading to empty', async () => {
+    const pull = vi.fn(async () => {
+      throw new StarfishHttpError(500, 'down');
+    });
+    await expect(readRooms(fakeClient(pull, vi.fn()), 'sp-1')).rejects.toBeInstanceOf(StarfishHttpError);
+  });
+
+  it('propagates a plain network rejection (offline) instead of degrading to empty', async () => {
+    const pull = vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    await expect(readRooms(fakeClient(pull, vi.fn()), 'sp-1')).rejects.toBeInstanceOf(TypeError);
   });
 });

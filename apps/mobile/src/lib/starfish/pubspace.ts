@@ -13,6 +13,7 @@
  */
 import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 import { mintMemberCap } from '@drakkar.software/starfish-sharing';
+import { StarfishHttpError } from '@drakkar.software/starfish-client';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { PubAccessMap, Room, RoomKind, Space } from '@/lib/types';
@@ -155,7 +156,12 @@ export async function readPublicRoomsDoc(
   ownerId: string,
   spaceId: string,
 ): Promise<{ rooms: Room[]; name: string | null; image: string | null; categories: string[]; hash: string | null }> {
-  const res = await client.pull(pubspaceRoomsPull(ownerId, spaceId)).catch(() => null);
+  // 404 → empty doc; any other error (offline) propagates so the rooms provider can
+  // fall back to the cached registry instead of wiping the list. Twin of readRooms.
+  const res = await client.pull(pubspaceRoomsPull(ownerId, spaceId)).catch((err: unknown) => {
+    if (err instanceof StarfishHttpError && err.status === 404) return null;
+    throw err;
+  });
   const data = res?.data as Partial<PublicRoomsDoc> | undefined;
   const rooms = Array.isArray(data?.rooms) ? data.rooms : [];
   return {

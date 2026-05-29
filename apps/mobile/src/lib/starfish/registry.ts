@@ -227,7 +227,14 @@ export async function readRooms(
   categories: string[];
   hash: string | null;
 }> {
-  const res = await client.pull(roomsRegistryPull(spaceId)).catch(() => null);
+  // 404 (no registry yet) → an empty doc a first write can create; any OTHER error
+  // (offline / unreachable) PROPAGATES so a caller — the rooms provider, or a write
+  // RMW — can tell "empty space" from "couldn't reach the server" instead of silently
+  // collapsing to no-rooms (which wiped the room list offline). Mirrors pullSpacesDoc.
+  const res = await client.pull(roomsRegistryPull(spaceId)).catch((err: unknown) => {
+    if (err instanceof StarfishHttpError && err.status === 404) return null;
+    throw err;
+  });
   const data = res?.data as
     | { rooms?: Room[]; owner?: string; members?: unknown[]; name?: string; image?: string; categories?: unknown }
     | undefined;

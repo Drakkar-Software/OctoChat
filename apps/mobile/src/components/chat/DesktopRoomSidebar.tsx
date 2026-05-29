@@ -4,12 +4,14 @@ import { layout, radii, spacing } from '@/theme';
 import type { Room, RoomKind, Space } from '@/lib/types';
 import type { ThreadSummary } from '@/lib/threads';
 import type { RoomCategory } from '@/lib/use-rooms';
+import { useOnline } from '@/lib/connectivity';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 
 import { ChannelListSkeleton } from './ChannelListSkeleton';
+import { OfflineBanner } from './OfflineBanner';
 import { RoomCategoryList } from './RoomCategoryList';
 import { SidebarLinkRow } from './SidebarLinkRow';
 import { SpaceMeta } from './SpaceMeta';
@@ -78,6 +80,7 @@ export function DesktopRoomSidebar({
   loading = false,
 }: DesktopRoomSidebarProps) {
   const { colors } = useTheme();
+  const online = useOnline();
   const headerHover = useHover();
   const jumpHover = useHover();
   return (
@@ -117,6 +120,11 @@ export function DesktopRoomSidebar({
       </Pressable>
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+        {!online ? (
+          <View style={styles.banner}>
+            <OfflineBanner message="You’re offline — showing your last-synced rooms." />
+          </View>
+        ) : null}
         {/* Top-of-sidebar destinations (non-room): full-width labeled rows that
             sit ABOVE the channel categories so the sidebar reads as one nav
             stack. Replaces the old tiny IconButton hidden at the foot of the
@@ -184,5 +192,6 @@ const styles = StyleSheet.create({
   list: { flex: 1 },
   listContent: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.lg },
   navGroup: { paddingBottom: spacing.sm },
+  banner: { paddingBottom: spacing.sm },
   empty: { padding: spacing.md },
 });

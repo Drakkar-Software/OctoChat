@@ -33,6 +33,7 @@ import {
 
 import type { Room } from '@/lib/types';
 
+import { kvGet, kvSet } from './starfish/kv';
 import { readRooms, reconcileSpaceMeta } from './starfish/registry';
 import {
   isPublicSpaceId,
@@ -62,6 +63,42 @@ const PENDING: RoomsRegistryEntry = {
   rooms: [], owner: null, members: [], name: null, image: null, categories: [], hash: null, loading: true, loaded: false,
 };
 const IDLE: RoomsRegistryEntry = { ...PENDING, loading: false };
+
+// Offline cache of the plaintext `_rooms` registry (same sensitivity as the drafts /
+// outbox already in kv). Lets an offline read fall back to the last-synced rooms
+// instead of wiping the list. Keyed by identity so it never bleeds across accounts.
+const cacheKey = (userId: string, spaceId: string) => `octochat.rooms-cache.${userId}.${spaceId}`;
+
+/** Persist the DISPLAYABLE registry fields — never the `hash` (a cached hash must
+ *  never feed a write; this cache is display-only). Fire-and-forget. */
+function persistEntry(userId: string, spaceId: string, entry: RoomsRegistryEntry): void {
+  const { rooms, owner, members, name, image, categories } = entry;
+  void kvSet(cacheKey(userId, spaceId), JSON.stringify({ rooms, owner, members, name, image, categories })).catch(
+    () => {},
+  );
+}
+
+/** Load a previously-persisted entry (display-only → `hash: null`, `loaded: true`). */
+async function loadCachedEntry(userId: string, spaceId: string): Promise<RoomsRegistryEntry | null> {
+  try {
+    const raw = await kvGet(cacheKey(userId, spaceId));
+    if (!raw) return null;
+    const d = JSON.parse(raw) as Partial<RoomsRegistryEntry>;
+    return {
+      rooms: Array.isArray(d.rooms) ? d.rooms : [],
+      owner: typeof d.owner === 'string' ? d.owner : null,
+      members: Array.isArray(d.members) ? d.members.filter((m): m is string => typeof m === 'string') : [],
+      name: typeof d.name === 'string' ? d.name : null,
+      image: typeof d.image === 'string' ? d.image : null,
+      categories: Array.isArray(d.categories) ? d.categories.filter((c): c is string => typeof c === 'string') : [],
+      hash: null,
+      loading: false,
+      loaded: true,
+    };
+  } catch {
+    return null;
+  }
+}
 
 /** Imperative side of the registry, for the room opener (`useRoom`). */
 interface RoomsRegistryActions {
@@ -124,15 +161,27 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Run one read for a space, sharing the in-flight promise and publishing the
-  // result (or an empty-but-loaded entry on failure, mirroring readRooms' degrade).
+  // result. A FAILED read (offline / unreachable — readRooms now throws rather than
+  // collapsing to empty) never wipes a known-good list: it keeps the in-memory entry,
+  // else the persisted cache, else degrades to an empty-but-loaded shell.
   const runFetch = useCallback((spaceId: string): Promise<RoomsRegistryEntry> => {
     const pending = inflight.current.get(spaceId);
     if (pending) return pending;
     const prev = entries.current.get(spaceId) ?? PENDING;
     entries.current.set(spaceId, { ...prev, loading: true });
     notify(spaceId);
+    const userId = sessionRef.current?.userId ?? null;
     const p = fetchEntry(spaceId)
-      .catch(() => ({ ...IDLE, loaded: true }))
+      .then((entry) => {
+        // Cache a real (session-present) read so a later offline read can fall back.
+        if (entry.loaded && userId) persistEntry(userId, spaceId, entry);
+        return entry;
+      })
+      .catch(async () => {
+        if (prev.loaded) return { ...prev, loading: false }; // in-session: keep what we had
+        const cached = userId ? await loadCachedEntry(userId, spaceId) : null; // cold start
+        return cached ?? { ...IDLE, loaded: true };
+      })
       .then((entry) => {
         entries.current.set(spaceId, entry);
         return entry;

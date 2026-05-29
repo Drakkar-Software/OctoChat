@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
+import { useOnline } from '@/lib/connectivity';
 import { useInShell } from '@/lib/use-responsive';
 import { useSession } from '@/lib/session-context';
 import { useRooms } from '@/lib/use-rooms';
@@ -13,6 +14,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { ChannelListSkeleton } from '@/components/chat/ChannelListSkeleton';
+import { OfflineBanner } from '@/components/chat/OfflineBanner';
 import { RoomCategoryList } from '@/components/chat/RoomCategoryList';
 import { SidebarLinkRow } from '@/components/chat/SidebarLinkRow';
 import { SpaceHeader } from '@/components/chat/SpaceHeader';
@@ -20,6 +22,7 @@ import { SpaceHeader } from '@/components/chat/SpaceHeader';
 export default function RoomsScreen() {
   const { session } = useSession();
   const inShell = useInShell();
+  const online = useOnline();
   const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
   const { categories, loading: roomsLoading, isPublic, memberCount, isOwner, createRoom, createCategory, moveRoom } =
     useRooms(activeId);
@@ -85,23 +88,30 @@ export default function RoomsScreen() {
         <SignInPrompt subtitle="Create an identity to see your spaces." />
       ) : spacesLoading || roomsLoading ? (
         <ChannelListSkeleton />
-      ) : categories.length === 0 && !isOwner ? (
-        <EmptyState iconName="hash" title="No rooms yet" subtitle="Create a channel to get started." />
       ) : (
         <>
-          {/* Same per-space contextual Threads entry as the desktop sidebar
-              (DesktopRoomSidebar). The bottom tab is a global shortcut; this
-              row anchors Threads inside the active space's room list. */}
-          <SidebarLinkRow iconName="thread" label="Threads" onPress={() => router.push('/(tabs)/threads')} />
-          <RoomCategoryList
-            categories={categories}
-            userId={session.userId}
-            spaceId={activeId ?? space?.id ?? ''}
-            onOpenRoom={openRoom}
-            onCreateRoom={(category, name, kind) => createRoom(name, category, kind)}
-            onMoveRoom={isOwner ? moveRoom : undefined}
-            onCreateCategory={isOwner ? createCategory : undefined}
-          />
+          {/* Hoisted above the empty-state so an offline user is always told WHY the
+              list is sparse — even when the cache is empty and they see "No rooms yet". */}
+          {!online ? <OfflineBanner message="You’re offline — showing your last-synced rooms." /> : null}
+          {categories.length === 0 && !isOwner ? (
+            <EmptyState iconName="hash" title="No rooms yet" subtitle="Create a channel to get started." />
+          ) : (
+            <>
+              {/* Same per-space contextual Threads entry as the desktop sidebar
+                  (DesktopRoomSidebar). The bottom tab is a global shortcut; this
+                  row anchors Threads inside the active space's room list. */}
+              <SidebarLinkRow iconName="thread" label="Threads" onPress={() => router.push('/(tabs)/threads')} />
+              <RoomCategoryList
+                categories={categories}
+                userId={session.userId}
+                spaceId={activeId ?? space?.id ?? ''}
+                onOpenRoom={openRoom}
+                onCreateRoom={(category, name, kind) => createRoom(name, category, kind)}
+                onMoveRoom={isOwner ? moveRoom : undefined}
+                onCreateCategory={isOwner ? createCategory : undefined}
+              />
+            </>
+          )}
         </>
       )}
     </StackScreen>
