@@ -37,17 +37,22 @@ function RailItem({
         style={[
           styles.tile,
           {
+            // Active reads as a framed "selected chip": a bold accent border that
+            // also frames image tiles (the image fills inside the border, so the
+            // ring shows even when an opaque avatar covers the fill — the old
+            // solid-accent fill was invisible behind images). The squircle shape
+            // and light accent fill reinforce it for monogram tiles.
             borderRadius: active ? radii.md : radii.lg,
-            backgroundColor: active ? colors.accent : colors.fill,
-            borderColor: active ? 'transparent' : colors.lineFaint,
-            borderWidth: active ? 0 : 1,
+            backgroundColor: active ? colors.accentBg : colors.fill,
+            borderColor: active ? colors.accent : colors.lineFaint,
+            borderWidth: active ? 2 : 1,
           },
         ]}
       >
         {image ? (
           <Image source={{ uri: image }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={label} />
         ) : (
-          <Txt variant="caption" weight="bold" mono color={active ? colors.onAccent : colors.inkSoft}>
+          <Txt variant="caption" weight="bold" mono color={active ? colors.accentInk : colors.inkSoft}>
             {label}
           </Txt>
         )}
