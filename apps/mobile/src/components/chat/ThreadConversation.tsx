@@ -3,7 +3,8 @@ import { StyleSheet, View } from 'react-native';
 import { LegendList } from '@legendapp/list/react-native';
 
 import { spacing } from '@/theme';
-import { authorFor, dayLabel, isContinuation, sameDay, toDisplayMessage } from '@/lib/message-view';
+import { authorFor, dayLabel, isContinuation, mergePendingMessages, resolvePinned, sameDay, toDisplayMessage } from '@/lib/message-view';
+import type { OutboxMessage } from '@/lib/outbox';
 import { plural } from '@/lib/format';
 import type { AttachmentRef } from '@/lib/starfish/attachments';
 import { useConversationData, type ConversationStore } from '@/lib/use-conversation-data';
@@ -23,8 +24,13 @@ export function ThreadConversation({
   onToggleReaction,
   onEditMessage,
   onDeleteMessage,
+  onPinMessage,
+  ownerId,
+  isOwner,
   onOpenProfile,
   onLoadAttachment,
+  pending,
+  onRetry,
 }: {
   store: ConversationStore;
   /** Space this thread belongs to — resolves `#channel` mentions to links. */
@@ -40,23 +46,44 @@ export function ThreadConversation({
   onEditMessage: (msgId: string, text: string) => void;
   /** Delete a message (author-gated per row by this component). */
   onDeleteMessage: (msgId: string) => void;
+  /** Pin/unpin a message — wired only when {@link isOwner}. */
+  onPinMessage?: (msgId: string, pin: boolean) => void;
+  /** The space owner's id — the only author whose pin events count at fold time. */
+  ownerId?: string;
+  /** Whether the viewer is the space owner (gates the per-row pin affordance). */
+  isOwner?: boolean;
   /** Open an author's public profile (avatar/name tap). */
   onOpenProfile?: (userId: string) => void;
   onLoadAttachment?: (ref: AttachmentRef) => Promise<Uint8Array | null>;
+  /** Unsent (offline outbox) replies for THIS thread — rendered as muted pending
+   *  bubbles after the synced replies (see `src/lib/outbox.ts`). */
+  pending?: OutboxMessage[];
+  /** Retry a failed pending reply by id. */
+  onRetry?: (id: string) => void;
 }) {
-  const { messages, reactions, edits, pseudo, avatar, nameFor, resolveRoom, selfName } = useConversationData(
+  const { messages, reactions, edits, pins, pseudo, avatar, nameFor, resolveRoom, resolveUser, selfName } = useConversationData(
     store,
     spaceId,
     currentUserId,
     currentUserName,
   );
   const parent = messages.find((m) => m.id === parentId);
-  const replies = messages.filter((m) => m.parentId === parentId);
+  // Fold this thread's pending (offline) replies in as bubbles, deduped by id.
+  const replies = useMemo(
+    () => mergePendingMessages(messages.filter((m) => m.parentId === parentId), pending ?? []),
+    [messages, parentId, pending],
+  );
+  const pendingStatus = useMemo(() => new Map((pending ?? []).map((e) => [e.id, e.status])), [pending]);
+  const pinHandler = (msgId: string) =>
+    isOwner && onPinMessage ? () => onPinMessage(msgId, !resolvePinned(pins, msgId, ownerId)) : undefined;
   // LegendList memoizes each reply row by `[itemKey, data, extraData]`; reactions/edits
   // are folded onto the message at render from separate arrays, so without listing them
   // a new reaction/edit on a reply wouldn't re-render its row until a full re-open. Refs
   // change only on content change, so idle pulls cause no re-render (mirrors RoomConversation).
-  const extraData = useMemo(() => ({ reactions, edits }), [reactions, edits]);
+  const extraData = useMemo(
+    () => ({ reactions, edits, pins, ownerId, pendingStatus }),
+    [reactions, edits, pins, ownerId, pendingStatus],
+  );
 
   return (
     <LegendList
@@ -81,14 +108,17 @@ export function ThreadConversation({
         <>
           {parent ? (
             <MessageGroup
-              message={toDisplayMessage(parent, reactions, currentUserId, { selfName, lastReadAt, edits })}
+              message={toDisplayMessage(parent, reactions, currentUserId, { selfName, lastReadAt, edits, pins, ownerId })}
               author={authorFor(parent.authorId, currentUserId, pseudo(parent.authorId), avatar(parent.authorId))}
               nameFor={nameFor}
               resolveRoom={resolveRoom}
+              resolveUser={resolveUser}
+              onOpenMention={onOpenProfile}
               currentUserName={selfName}
               onToggleReaction={(emoji) => onToggleReaction(parent.id, emoji)}
               onEdit={parent.authorId === currentUserId && parent.text ? (t) => onEditMessage(parent.id, t) : undefined}
               onDelete={parent.authorId === currentUserId ? () => onDeleteMessage(parent.id) : undefined}
+              onPin={pinHandler(parent.id)}
               onPressAuthor={onOpenProfile ? () => onOpenProfile(parent.authorId) : undefined}
               onLoadAttachment={onLoadAttachment}
               highlighted
@@ -109,20 +139,25 @@ export function ThreadConversation({
         const prev = replies[index - 1];
         const showDate = !prev || !sameDay(prev.ts, r.ts);
         const showUnread = lastReadAt != null && !!prev && prev.ts <= lastReadAt && r.ts > lastReadAt;
+        const ps = pendingStatus.get(r.id);
         return (
           <>
             {showDate ? <DateDivider date={dayLabel(r.ts)} /> : null}
             {showUnread ? <UnreadDivider /> : null}
             <MessageGroup
-              message={toDisplayMessage(r, reactions, currentUserId, { selfName, lastReadAt, edits })}
+              message={toDisplayMessage(r, reactions, currentUserId, { selfName, lastReadAt, edits, pins, ownerId, pending: ps })}
               author={authorFor(r.authorId, currentUserId, pseudo(r.authorId), avatar(r.authorId))}
               continuation={!showDate && !showUnread && isContinuation(r, prev)}
               nameFor={nameFor}
               resolveRoom={resolveRoom}
+              resolveUser={resolveUser}
+              onOpenMention={onOpenProfile}
               currentUserName={selfName}
-              onToggleReaction={(emoji) => onToggleReaction(r.id, emoji)}
-              onEdit={r.authorId === currentUserId && r.text ? (t) => onEditMessage(r.id, t) : undefined}
-              onDelete={r.authorId === currentUserId ? () => onDeleteMessage(r.id) : undefined}
+              onToggleReaction={ps ? undefined : (emoji) => onToggleReaction(r.id, emoji)}
+              onEdit={!ps && r.authorId === currentUserId && r.text ? (t) => onEditMessage(r.id, t) : undefined}
+              onDelete={!ps && r.authorId === currentUserId ? () => onDeleteMessage(r.id) : undefined}
+              onPin={ps ? undefined : pinHandler(r.id)}
+              onRetry={ps === 'failed' && onRetry ? () => onRetry(r.id) : undefined}
               onPressAuthor={onOpenProfile ? () => onOpenProfile(r.authorId) : undefined}
               onLoadAttachment={onLoadAttachment}
             />

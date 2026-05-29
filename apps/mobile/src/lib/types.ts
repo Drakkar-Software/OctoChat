@@ -91,6 +91,19 @@ export interface MessageEditEvent {
   ts: number;
 }
 
+/** Append-only pin event stored in the room doc; the latest one (by `ts`) authored
+ *  by the SPACE OWNER wins at render — see `resolvePinned`. Only the owner may pin
+ *  or unpin, so unlike edits/reactions the guard filters by the owner, not the
+ *  message's author. A `pin` marks the message; an `unpin` clears it. */
+export interface PinEvent {
+  id: string;
+  msgId: string;
+  /** Who emitted it — only events where this equals the space owner count. */
+  userId: string;
+  kind: 'pin' | 'unpin';
+  ts: number;
+}
+
 export interface Message {
   id: ID;
   roomId: ID;
@@ -111,6 +124,12 @@ export interface Message {
   edited?: boolean;
   /** Whether the author has deleted this message (renders a "deleted" tombstone). */
   deleted?: boolean;
+  /** Whether the space owner has pinned this message (renders a "Pinned" mark). */
+  pinned?: boolean;
+  /** Unsent state for a message still in the offline outbox: `queued`/`sending`
+   *  render as a muted "will send when online" bubble, `failed` offers a retry.
+   *  Absent for a normal, server-confirmed message. See `src/lib/outbox.ts`. */
+  pending?: 'queued' | 'sending' | 'failed';
 }
 
 export interface Thread {

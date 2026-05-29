@@ -19,6 +19,7 @@ import type { CapCert } from '@drakkar.software/starfish-protocol';
 
 import type { DeviceKeys } from './client';
 import { SYNC_BASE, SYNC_NAMESPACE } from './config';
+import { fetchWithTimeout } from './fetch-timeout';
 import type { Session } from './identity';
 import { fingerprintFromUserId } from './identity';
 import { addDeviceToSpaceKeyring } from './members';
@@ -36,7 +37,7 @@ function anonClient(): StarfishClient {
   // Namespaced like every other client (see makeClient): the `_pairing` rendezvous
   // lives under the same `/v1/octochat` namespace on the deployed server, so the
   // anonymous push/pull must carry it too. Undefined locally (paths unchanged).
-  return new StarfishClient({ baseUrl: SYNC_BASE, namespace: SYNC_NAMESPACE });
+  return new StarfishClient({ baseUrl: SYNC_BASE, namespace: SYNC_NAMESPACE, fetch: fetchWithTimeout() });
 }
 
 function randomNonce(): string {

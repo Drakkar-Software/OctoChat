@@ -23,7 +23,7 @@ import { useSession } from './session-context';
 import { randomId } from './ids';
 import type { ConversationStore } from './use-conversation-data';
 import type { StoredMsg } from './message-view';
-import type { MessageEditEvent, ReactionEvent } from './types';
+import type { MessageEditEvent, PinEvent, ReactionEvent } from './types';
 
 /**
  * STREAM rooms — append-only rooms. Unlike {@link useRoom} (a merge-doc room synced
@@ -47,12 +47,14 @@ import type { MessageEditEvent, ReactionEvent } from './types';
 type StreamEnvelope =
   | { t: 'msg'; e: StoredMsg }
   | { t: 'reaction'; e: ReactionEvent }
-  | { t: 'edit'; e: MessageEditEvent };
+  | { t: 'edit'; e: MessageEditEvent }
+  | { t: 'pin'; e: PinEvent };
 
 interface StreamData {
   messages: StoredMsg[];
   reactions: ReactionEvent[];
   edits: MessageEditEvent[];
+  pins: PinEvent[];
 }
 
 /** Append `incoming` after `existing`, dropping any element whose `id` is already
@@ -104,14 +106,16 @@ function fanOut(items: AppendElement[]): StreamData {
   const messages: StoredMsg[] = [];
   const reactions: ReactionEvent[] = [];
   const edits: MessageEditEvent[] = [];
+  const pins: PinEvent[] = [];
   for (const item of items) {
     const env = item.data as unknown as StreamEnvelope;
     if (!env) continue;
     if (env.t === 'msg') messages.push({ ...env.e, ts: env.e.ts || item.ts });
     else if (env.t === 'reaction') reactions.push({ ...env.e, ts: env.e.ts || item.ts });
     else if (env.t === 'edit') edits.push({ ...env.e, ts: env.e.ts || item.ts });
+    else if (env.t === 'pin') pins.push({ ...env.e, ts: env.e.ts || item.ts });
   }
-  return { messages, reactions, edits };
+  return { messages, reactions, edits, pins };
 }
 
 /** A minimal zustand store whose `.data` the chat UI reads via `useStarfishData`.
@@ -119,7 +123,7 @@ function fanOut(items: AppendElement[]): StreamData {
  *  satisfy the `ConversationStore` type without pulling in the SDK's sync machinery. */
 function makeStreamStore(): ConversationStore {
   return createStore(() => ({
-    data: { messages: [], reactions: [], edits: [] } as StreamData,
+    data: { messages: [], reactions: [], edits: [], pins: [] } as StreamData,
     syncing: false,
     online: true,
     dirty: false,
@@ -143,6 +147,10 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
   const [client, setClient] = useState<StarfishClient | null>(null);
   const [opening, setOpening] = useState(true);
   const [openError, setOpenError] = useState<string | null>(null);
+  // Bumped by `reload()` to re-run the open effect after a timeout/error without
+  // leaving the screen — the rejected pull already cleared getSpaceEncryptor's cache.
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const reload = useCallback(() => setReloadNonce((n) => n + 1), []);
 
   // The synthetic store lives for this room's lifetime, keyed by roomId so a room switch
   // (the screen stays mounted) starts fresh rather than flashing the previous room's log.
@@ -203,7 +211,7 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
     return () => {
       cancelled = true;
     };
-  }, [enabled, session, roomId, spaceId, isPublic, ensureRegistry]);
+  }, [enabled, session, roomId, spaceId, isPublic, ensureRegistry, reloadNonce]);
 
   // Auth + path for this stream room (owner/joiner cap on public; member/space cap on
   // private). `signingKey` is the request-signing key the cap is bound to.
@@ -226,13 +234,14 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
   // re-render (the cursor serializes pulls and dedups by `ts`, but `concatDedupById` is
   // still the cheap belt-and-braces guard against re-rendering an unchanged list).
   const mergeIntoStore = useCallback((store: ConversationStore, batch: StreamData) => {
-    if (!batch.messages.length && !batch.reactions.length && !batch.edits.length) return;
+    if (!batch.messages.length && !batch.reactions.length && !batch.edits.length && !batch.pins.length) return;
     const cur = (store.getState() as unknown as { data: StreamData }).data;
     const messages = concatDedupById(cur.messages, batch.messages);
     const reactions = concatDedupById(cur.reactions, batch.reactions);
     const edits = concatDedupById(cur.edits, batch.edits);
-    if (messages === cur.messages && reactions === cur.reactions && edits === cur.edits) return;
-    store.setState({ data: { messages, reactions, edits } } as never);
+    const pins = concatDedupById(cur.pins ?? [], batch.pins);
+    if (messages === cur.messages && reactions === cur.reactions && edits === cur.edits && pins === (cur.pins ?? [])) return;
+    store.setState({ data: { messages, reactions, edits, pins } } as never);
   }, []);
 
   // Pull the append log and fan the NEW batch into the store. The cursor owns the
@@ -344,12 +353,17 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
   // (the union call-site stays type-clean). `attachment` is ignored — stream rooms
   // don't support attachments in Phase 1 (the bot-push contract is a plain JSON append).
   const send = useCallback(
-    (text: string, parentId?: string, _attachment?: AttachmentRef) => {
+    (text: string, parentId?: string, _attachment?: AttachmentRef, id?: string) => {
       const t = text.trim();
       if (!session || !t) return;
-      const msg: StoredMsg = { id: randomId(), authorId: session.userId, ts: Date.now(), text: t };
+      // `id` lets a queued (offline) message reuse its pending-bubble id so it dedups
+      // on sync instead of double-rendering (see outbox.ts); live sends mint a fresh one.
+      const msg: StoredMsg = { id: id ?? randomId(), authorId: session.userId, ts: Date.now(), text: t };
       if (parentId) msg.parentId = parentId;
-      void append({ t: 'msg', e: msg });
+      // Return the append promise (not `void`) so the screen can await + catch a
+      // failed (offline) send and divert the message to the outbox. useRoom.send is
+      // sync/void; `await send(…)` works for both since awaiting undefined is a no-op.
+      return append({ t: 'msg', e: msg });
     },
     [session, append],
   );
@@ -387,6 +401,23 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
     [session, append],
   );
 
+  // Pin/unpin append a `pin` envelope (mirrors edit/delete); folded by `resolvePinned`
+  // with the space owner as the guard. UI only fires these for the owner.
+  const pinMessage = useCallback(
+    (msgId: string) => {
+      if (!session) return;
+      void append({ t: 'pin', e: { id: randomId(), msgId, userId: session.userId, kind: 'pin', ts: Date.now() } });
+    },
+    [session, append],
+  );
+  const unpinMessage = useCallback(
+    (msgId: string) => {
+      if (!session) return;
+      void append({ t: 'pin', e: { id: randomId(), msgId, userId: session.userId, kind: 'unpin', ts: Date.now() } });
+    },
+    [session, append],
+  );
+
   // Attachments are not supported in stream rooms (Phase 1): the bot-push contract is a
   // plain JSON append, and public streams have no encryptor to seal a blob. Kept in the
   // returned shape (no-ops) so a room screen can consume useRoom or useStreamRoom alike.
@@ -397,11 +428,14 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
     store,
     opening: enabled ? opening : false,
     openError,
+    reload,
     syncError,
     send,
     toggleReaction,
     editMessage,
     deleteMessage,
+    pinMessage,
+    unpinMessage,
     uploadAttachment,
     loadAttachment,
     canWrite: route?.canWrite ?? false,

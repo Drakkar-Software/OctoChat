@@ -6,6 +6,7 @@ import { useSyncInit } from '@drakkar.software/starfish-client/zustand';
 
 import { SYNC_BASE, SYNC_NAMESPACE } from './starfish/config';
 import { capProviderFor, ensureRoomInitialized, makeClient } from './starfish/client';
+import { fetchWithTimeout } from './starfish/fetch-timeout';
 import { registerPull, onSseStatus } from './room-events-bus';
 import {
   loadAttachment as loadAttachmentDoc,
@@ -17,7 +18,7 @@ import { getMemberCap } from './starfish/member-caps';
 import { getSpaceEncryptor } from './starfish/space-encryptor';
 import { isPublicSpaceId, publicSpaceAuth } from './starfish/pubspace';
 import { pubspaceRoomPull, pubspaceRoomPush, roomPull, roomPush, spaceIdFromRoomId } from './starfish/paths';
-import type { MessageEditEvent, ReactionEvent } from './types';
+import type { MessageEditEvent, PinEvent, ReactionEvent } from './types';
 import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
 import { randomId } from './ids';
@@ -45,6 +46,10 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
   const [client, setClient] = useState<StarfishClient | null>(null);
   const [opening, setOpening] = useState(true);
   const [openError, setOpenError] = useState<string | null>(null);
+  // Bumped by `reload()` to re-run the open effect after a timeout/error without
+  // leaving the screen — the rejected pull already cleared getSpaceEncryptor's cache.
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const reload = useCallback(() => setReloadNonce((n) => n + 1), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,7 +95,7 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
     return () => {
       cancelled = true;
     };
-  }, [enabled, session, roomId, spaceId, isPublic, ensureRegistry]);
+  }, [enabled, session, roomId, spaceId, isPublic, ensureRegistry, reloadNonce]);
 
   const config = useMemo(() => {
     if (!enabled || !session || !client) return null;
@@ -106,6 +111,7 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
         onConflict: createUnionMerge(),
         storeName: `pub-${session.userId}-${roomId}`,
         storage: false as const,
+        fetch: fetchWithTimeout(),
       };
     }
     if (!encryptor) return null;
@@ -121,6 +127,7 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
       onConflict: createUnionMerge(),
       storeName: `chat-${session.userId}-${roomId}`,
       storage: false as const,
+      fetch: fetchWithTimeout(),
     };
   }, [enabled, session, client, encryptor, roomId, spaceId, isPublic]);
 
@@ -177,13 +184,16 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
     return () => clearInterval(id);
   }, [store, sseUp, pull]);
 
+  // `id` lets a queued (offline) message reuse the id its pending bubble already
+  // showed, so when it finally syncs it dedups against the bubble instead of
+  // double-rendering (see outbox.ts). Live sends omit it and mint a fresh id.
   const send = useCallback(
-    (text: string, parentId?: string, attachment?: AttachmentRef) => {
+    (text: string, parentId?: string, attachment?: AttachmentRef, id?: string) => {
       const t = text.trim();
       if (!store || !session || (!t && !attachment)) return;
       store.getState().set((d: Record<string, unknown>) => {
         const msgs = (d.messages as unknown[]) ?? [];
-        const msg: Record<string, unknown> = { id: randomId(), authorId: session.userId, ts: Date.now() };
+        const msg: Record<string, unknown> = { id: id ?? randomId(), authorId: session.userId, ts: Date.now() };
         if (t) msg.text = t;
         if (parentId) msg.parentId = parentId;
         if (attachment) msg.attachment = attachment;
@@ -256,6 +266,24 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
     [store, session],
   );
 
+  // Pin/unpin are append-only events keyed by msgId (mirrors edit/delete), folded at
+  // render by `resolvePinned`. Unlike edits the guard there is the SPACE OWNER, not
+  // the author — these only fire from the UI for the owner, but the fold is the real
+  // gate. `pin` re-sends idempotently; the latest event by `ts` wins.
+  const setPinned = useCallback(
+    (msgId: string, kind: 'pin' | 'unpin') => {
+      if (!store || !session) return;
+      store.getState().set((d: Record<string, unknown>) => {
+        const events = ((d.pins as PinEvent[]) ?? []).slice();
+        events.push({ id: randomId(), msgId, userId: session.userId, kind, ts: Date.now() });
+        return { ...d, pins: events };
+      });
+    },
+    [store, session],
+  );
+  const pinMessage = useCallback((msgId: string) => setPinned(msgId, 'pin'), [setPinned]);
+  const unpinMessage = useCallback((msgId: string) => setPinned(msgId, 'unpin'), [setPinned]);
+
   // Whether this identity may post here: always for private rooms; for public rooms,
   // only when the invitation link (or ownership) grants write.
   const canWrite = useMemo(() => {
@@ -263,5 +291,5 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
     return isPublic ? publicSpaceAuth(session, spaceId).write : true;
   }, [session, isPublic, spaceId]);
 
-  return { store, opening: enabled ? opening : false, openError, syncError, send, toggleReaction, editMessage, deleteMessage, uploadAttachment, loadAttachment, canWrite };
+  return { store, opening: enabled ? opening : false, openError, reload, syncError, send, toggleReaction, editMessage, deleteMessage, pinMessage, unpinMessage, uploadAttachment, loadAttachment, canWrite };
 }

@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import { LegendList } from '@legendapp/list/react-native';
 
-import { authorFor, dayLabel, isContinuation, sameDay, toDisplayMessage } from '@/lib/message-view';
+import { authorFor, dayLabel, isContinuation, mergePendingMessages, resolvePinned, sameDay, toDisplayMessage } from '@/lib/message-view';
+import type { OutboxMessage } from '@/lib/outbox';
 import { replyCount } from '@/lib/reactions';
 import type { AttachmentRef } from '@/lib/starfish/attachments';
 import { useConversationData, type ConversationStore } from '@/lib/use-conversation-data';
@@ -30,8 +31,13 @@ export function RoomConversation({
   onOpenThread,
   onEditMessage,
   onDeleteMessage,
+  onPinMessage,
+  ownerId,
+  isOwner,
   onOpenProfile,
   onLoadAttachment,
+  pending,
+  onRetry,
   editingId,
   onEditingChange,
 }: {
@@ -50,21 +56,39 @@ export function RoomConversation({
   onEditMessage: (msgId: string, text: string) => void;
   /** Delete a message (author-gated per row by this component). */
   onDeleteMessage: (msgId: string) => void;
+  /** Pin/unpin a message — wired only when {@link isOwner}. */
+  onPinMessage?: (msgId: string, pin: boolean) => void;
+  /** The space owner's id — the only author whose pin events count at fold time. */
+  ownerId?: string;
+  /** Whether the viewer is the space owner (gates the per-row pin affordance). */
+  isOwner?: boolean;
   /** Open an author's public profile (avatar/name tap). */
   onOpenProfile?: (userId: string) => void;
   onLoadAttachment?: (ref: AttachmentRef) => Promise<Uint8Array | null>;
+  /** Unsent (offline outbox) messages for THIS room's top level — rendered as muted
+   *  pending bubbles after the synced messages (see `src/lib/outbox.ts`). */
+  pending?: OutboxMessage[];
+  /** Retry a failed pending message by id. */
+  onRetry?: (id: string) => void;
   /** Id of the message whose inline editor is open (null = none) — lets the
    *  composer's ArrowUp shortcut open the viewer's last message for editing. */
   editingId?: string | null;
   onEditingChange?: (id: string | null) => void;
 }) {
-  const { messages, reactions, edits, pseudo, avatar, nameFor, resolveRoom, selfName } = useConversationData(
+  const { messages, reactions, edits, pins, pseudo, avatar, nameFor, resolveRoom, resolveUser, selfName } = useConversationData(
     store,
     spaceId,
     currentUserId,
     currentUserName,
   );
-  const top = messages.filter((m) => !m.parentId);
+  // Fold the offline outbox's pending entries in as bubbles (deduped by id against
+  // anything already synced) and key them by id → status so each row knows whether
+  // it's queued/sending/failed.
+  const top = useMemo(
+    () => mergePendingMessages(messages, pending ?? []).filter((m) => !m.parentId),
+    [messages, pending],
+  );
+  const pendingStatus = useMemo(() => new Map((pending ?? []).map((e) => [e.id, e.status])), [pending]);
 
   // LegendList memoizes each row's render by `[itemKey, data, extraData]`, so a row only
   // re-runs `toDisplayMessage` when its own message object changes. Reactions and edits
@@ -75,7 +99,10 @@ export function RoomConversation({
   // stream rooms preserve message identity across delta pulls, so the row would only update
   // on a full re-open (room switch) — hence reactions appearing to need a refresh. These
   // refs change only when their content changes, so an idle pull triggers no re-render.
-  const extraData = useMemo(() => ({ editingId, reactions, edits }), [editingId, reactions, edits]);
+  const extraData = useMemo(
+    () => ({ editingId, reactions, edits, pins, ownerId, pendingStatus }),
+    [editingId, reactions, edits, pins, ownerId, pendingStatus],
+  );
 
   return (
     <LegendList
@@ -99,21 +126,28 @@ export function RoomConversation({
         // never lands at the very top of a never-read room).
         const showDate = !prev || !sameDay(prev.ts, m.ts);
         const showUnread = lastReadAt != null && !!prev && prev.ts <= lastReadAt && m.ts > lastReadAt;
+        // A still-unsent message: it isn't on the server yet, so react/reply/edit/
+        // delete/pin make no sense — disable them and offer retry (when failed) instead.
+        const ps = pendingStatus.get(m.id);
         return (
           <>
             {showDate ? <DateDivider date={dayLabel(m.ts)} /> : null}
             {showUnread ? <UnreadDivider /> : null}
             <MessageGroup
-              message={toDisplayMessage(m, reactions, currentUserId, { threadCount: rc || undefined, selfName, lastReadAt, edits })}
+              message={toDisplayMessage(m, reactions, currentUserId, { threadCount: rc || undefined, selfName, lastReadAt, edits, pins, ownerId, pending: ps })}
               author={authorFor(m.authorId, currentUserId, pseudo(m.authorId), avatar(m.authorId))}
               continuation={!showDate && !showUnread && isContinuation(m, prev)}
               nameFor={nameFor}
               resolveRoom={resolveRoom}
+              resolveUser={resolveUser}
+              onOpenMention={onOpenProfile}
               currentUserName={selfName}
-              onToggleReaction={(emoji) => onToggleReaction(m.id, emoji)}
-              onOpenThread={() => onOpenThread(m.id)}
-              onEdit={m.authorId === currentUserId && m.text ? (t) => onEditMessage(m.id, t) : undefined}
-              onDelete={m.authorId === currentUserId ? () => onDeleteMessage(m.id) : undefined}
+              onToggleReaction={ps ? undefined : (emoji) => onToggleReaction(m.id, emoji)}
+              onOpenThread={ps ? undefined : () => onOpenThread(m.id)}
+              onEdit={!ps && m.authorId === currentUserId && m.text ? (t) => onEditMessage(m.id, t) : undefined}
+              onDelete={!ps && m.authorId === currentUserId ? () => onDeleteMessage(m.id) : undefined}
+              onPin={!ps && isOwner && onPinMessage ? () => onPinMessage(m.id, !resolvePinned(pins, m.id, ownerId)) : undefined}
+              onRetry={ps === 'failed' && onRetry ? () => onRetry(m.id) : undefined}
               onPressAuthor={onOpenProfile ? () => onOpenProfile(m.authorId) : undefined}
               onLoadAttachment={onLoadAttachment}
               editing={onEditingChange ? editingId === m.id : undefined}

@@ -647,7 +647,14 @@ it can show real content — otherwise it would double the placeholder:
   public (plaintext) room pushes with real content;
 - on success: **cancel-then-replace** — `getDisplayedNotifications()` → cancel the entry
   whose `android.tag === roomId` (the FCM placeholder; FCM's int id isn't predictable, so
-  match by tag), then `displayNotification({ id: roomId, groupId: spaceId, … })`;
+  match by tag), then `displayNotification({ title, id: roomId, groupId: spaceId, … })`;
+- **title shows the space + room** — `loadNotificationLabels` reads the plaintext `_rooms`
+  registry (private via the account cap, public via the link cap) and `notificationTitle`
+  formats it as `"Space › #room"` (matching the in-app `#channel` convention; bare name for
+  a DM). Best-effort and orthogonal to `preview` — names are plaintext metadata, not message
+  content — so a failed/slow lookup degrades to the bare `"OctoChat"` title and never gates
+  the preview body. The web/desktop toast (`notify.ts`) shows the same `"Space › #room"`
+  title, resolved from the already-loaded rooms-registry cache (`nav.ensure`, no extra pull);
 - on any miss (signed out / preview off / decrypt fails / exception): return and leave the
   placeholder standing.
 

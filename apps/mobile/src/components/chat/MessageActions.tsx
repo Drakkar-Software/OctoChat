@@ -19,6 +19,10 @@ interface MessageActionsProps {
   onEdit?: () => void;
   /** Delete this message (after an inline confirm). Omit to hide the delete button. */
   onDelete?: () => void;
+  /** Pin/unpin this message. Omit to hide the pin button (e.g. not the space owner). */
+  onPin?: () => void;
+  /** Whether the message is currently pinned — toggles the pin button's icon/label. */
+  pinned?: boolean;
   /** Emojis the user has already reacted with, highlighted in the picker. */
   mine?: Set<string>;
 }
@@ -29,7 +33,7 @@ interface MessageActionsProps {
  * surrounding content. Tapping react swaps the bar for a quick-emoji picker in
  * place — still anchored, so still no reflow.
  */
-export function MessageActions({ visible, onReact, onReply, onEdit, onDelete, mine }: MessageActionsProps) {
+export function MessageActions({ visible, onReact, onReply, onEdit, onDelete, onPin, pinned, mine }: MessageActionsProps) {
   const { colors } = useTheme();
   const [picking, setPicking] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -95,6 +99,19 @@ export function MessageActions({ visible, onReact, onReply, onEdit, onDelete, mi
           ) : null}
           {onReply ? (
             <IconButton name="thread" size={14} style={styles.btn} color={colors.inkSoft} accessibilityLabel="Reply in thread" onPress={onReply} />
+          ) : null}
+          {onPin ? (
+            <IconButton
+              name="pin"
+              size={14}
+              style={styles.btn}
+              color={pinned ? colors.accent : colors.inkSoft}
+              accessibilityLabel={pinned ? 'Unpin message' : 'Pin message'}
+              onPress={() => {
+                tapFeedback();
+                onPin();
+              }}
+            />
           ) : null}
           {onEdit ? (
             <IconButton name="edit" size={14} style={styles.btn} color={colors.inkSoft} accessibilityLabel="Edit message" onPress={onEdit} />

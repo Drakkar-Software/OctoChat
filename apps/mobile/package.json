@@ -14,11 +14,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@drakkar.software/starfish-client": "3.0.0-alpha.13",
-    "@drakkar.software/starfish-identities": "3.0.0-alpha.13",
-    "@drakkar.software/starfish-keyring": "3.0.0-alpha.13",
-    "@drakkar.software/starfish-protocol": "3.0.0-alpha.13",
-    "@drakkar.software/starfish-sharing": "3.0.0-alpha.13",
+    "@drakkar.software/starfish-client": "3.0.0-alpha.14",
+    "@drakkar.software/starfish-identities": "3.0.0-alpha.14",
+    "@drakkar.software/starfish-keyring": "3.0.0-alpha.14",
+    "@drakkar.software/starfish-protocol": "3.0.0-alpha.14",
+    "@drakkar.software/starfish-sharing": "3.0.0-alpha.14",
     "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
     "@expo-google-fonts/hanken-grotesk": "^0.4.3",
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",

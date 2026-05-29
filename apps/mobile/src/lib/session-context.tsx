@@ -188,6 +188,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     (async () => {
       const res = await loadVault();
       if (cancelled) return;
+      if (res.kind === 'error') {
+        // A storage read failed (e.g. transient Keychain miss on iOS cold start).
+        // Stay in 'loading' so index.tsx renders null — welcome-on-storage-error
+        // wipes the user's perceived account even though the vault is still on
+        // disk. The next cold start usually succeeds; a follow-up could add retry.
+        console.error('[session-context] loadVault failed', res.error);
+        return;
+      }
+      if (res.kind === 'none') {
+        // Genuine "no account" for a first-time user is the happy path → welcome.
+        // But on iOS cold start a not-yet-ready Keychain can RESOLVE getItemAsync
+        // with null (no throw), which lands here too. Log so the next cold-start
+        // welcome incident is diagnosable: a user who already had an account
+        // seeing this line means the storage read returned empty on a populated
+        // Keychain — i.e. the same root cause as a thrown error.
+        console.info('[session-context] storage reported no account → welcome');
+      }
       if (res.kind === 'locked') {
         setUnlockMethods(res.methods);
         setStatus('locked');
@@ -199,10 +216,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (acct) {
           try {
             const s = await sessionFromPersisted(acct);
-            await hydrateCapsFor(s);
+            // Set the session BEFORE caps hydrate so a caps hiccup can't sign the
+            // user out — hydrateMemberCaps already loads the local kv first, so
+            // the user has the offline cap set even if the server merge fails.
             if (!cancelled) setSession(s);
-          } catch {
-            /* corrupt/stale persisted identity — start signed-out */
+            await hydrateCapsFor(s).catch((err) => {
+              console.error('[session-context] caps hydrate failed (session kept)', err);
+            });
+          } catch (err) {
+            // Genuine corrupt/stale persisted identity OR sessionFromPersisted
+            // throw. Log so the next cold-start welcome incident is diagnosable.
+            console.error('[session-context] sessionFromPersisted failed', err);
           }
         }
       }

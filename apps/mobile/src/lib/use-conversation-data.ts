@@ -1,7 +1,8 @@
 import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 
+import { matchesUser } from './links';
 import { displayName, type StoredMsg } from './message-view';
-import type { MessageEditEvent, ReactionEvent } from './types';
+import type { MessageEditEvent, PinEvent, ReactionEvent } from './types';
 import { useAvatars, usePseudos } from './use-pseudos';
 import { useRoomMentions } from './use-room-mentions';
 
@@ -27,6 +28,7 @@ export function useConversationData(
   const messages = (useStarfishData(store, (d) => d.messages as StoredMsg[] | undefined) ?? []) as StoredMsg[];
   const reactions = (useStarfishData(store, (d) => d.reactions as ReactionEvent[] | undefined) ?? []) as ReactionEvent[];
   const edits = (useStarfishData(store, (d) => d.edits as MessageEditEvent[] | undefined) ?? []) as MessageEditEvent[];
+  const pins = (useStarfishData(store, (d) => d.pins as PinEvent[] | undefined) ?? []) as PinEvent[];
   // Resolve names for authors AND reactors, so the "who reacted" tooltip can name
   // them; include the viewer so their own pseudo resolves for @mention matching.
   const ids = [...new Set([currentUserId, ...messages.map((m) => m.authorId), ...reactions.map((r) => r.userId)])];
@@ -36,6 +38,15 @@ export function useConversationData(
   const resolveRoom = useRoomMentions(spaceId ?? null);
   // Prefer the live pseudo (reflects a profile edit) over the prop fallback.
   const selfName = pseudo(currentUserId)?.trim() || currentUserName;
+  // Reverse of `pseudo`: map an `@mention` token back to a user id so the mention
+  // can open that user's profile, the same way tapping an author name does. Scoped
+  // to `ids` (authors/reactors/self in the loaded window) — exactly the users whose
+  // names already resolve in the view, so a mention turns clickable on the same tick
+  // its author name does. A mention of someone who hasn't posted/reacted here stays
+  // inert (their pseudo was never fetched). `selfName` covers self, whose own pseudo
+  // lags; on a first-name collision `.find` takes the first match (see `matchesUser`).
+  const resolveUser = (name: string): string | undefined =>
+    ids.find((id) => matchesUser(name, id === currentUserId ? selfName : pseudo(id)));
 
-  return { messages, reactions, edits, pseudo, avatar, nameFor, resolveRoom, selfName };
+  return { messages, reactions, edits, pins, pseudo, avatar, nameFor, resolveRoom, resolveUser, selfName };
 }

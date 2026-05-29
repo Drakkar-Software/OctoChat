@@ -1,7 +1,8 @@
 import { mentionsUser } from './links';
+import type { OutboxMessage, OutboxStatus } from './outbox';
 import { aggregateReactions } from './reactions';
 import type { AttachmentRef } from './starfish/attachments';
-import type { Message, MessageEditEvent, ReactionEvent, User } from './types';
+import type { Message, MessageEditEvent, PinEvent, ReactionEvent, User } from './types';
 
 /** Shape of a message as stored (encrypted) in a room document. */
 export interface StoredMsg {
@@ -95,6 +96,22 @@ export function resolveEdit(
     .at(-1);
 }
 
+/** Whether `msgId` is currently pinned, folded from the append-only `pins` log:
+ *  the latest event (by `ts`) authored by the SPACE OWNER wins (`pin` ⇒ true,
+ *  `unpin` ⇒ false). Mirrors {@link resolveEdit}'s fold, but the guard is the owner
+ *  — only the owner may pin — not the message's author. With no known owner nothing
+ *  counts as pinned (so a viewer who can't resolve the owner sees no pins, which is
+ *  why owner-id is mandatory at fold time — see the room screen wiring). */
+export function resolvePinned(pins: PinEvent[], msgId: string, ownerId?: string): boolean {
+  if (!ownerId) return false;
+  return (
+    pins
+      .filter((p) => p.msgId === msgId && p.userId === ownerId)
+      .sort((a, b) => a.ts - b.ts)
+      .at(-1)?.kind === 'pin'
+  );
+}
+
 /** View-time context for mapping a stored message to its display form. */
 export interface DisplayOpts {
   /** Reply count if this message anchors a thread. */
@@ -106,6 +123,13 @@ export interface DisplayOpts {
   lastReadAt?: number;
   /** Append-only edit/delete log for the room — folded per message at render. */
   edits?: MessageEditEvent[];
+  /** Append-only pin/unpin log for the room — folded per message at render. */
+  pins?: PinEvent[];
+  /** The space owner's id — the only author whose pin events count. */
+  ownerId?: string;
+  /** Unsent state when this message is still in the offline outbox (see outbox.ts).
+   *  Absent for a server-confirmed message. */
+  pending?: OutboxStatus;
 }
 
 /** Map a stored message → the display `Message` the UI components expect. */
@@ -134,7 +158,25 @@ export function toDisplayMessage(
     unread: m.ts > (opts.lastReadAt ?? 0),
     edited: edit?.kind === 'edit',
     deleted,
+    pinned: resolvePinned(opts.pins ?? [], m.id, opts.ownerId),
+    pending: opts.pending,
   };
+}
+
+/** Fold the offline outbox's pending entries into the store's message list so they
+ *  render as bubbles. Drops any pending entry whose id is already in the store (it
+ *  has synced — dedup-by-id, the outbox's core invariant) and appends the rest after
+ *  the last stored message (queued entries carry `ts = Date.now()`, so they're the
+ *  newest and belong at the tail — appending preserves the store's existing order,
+ *  keeping continuation grouping + date dividers intact). Returns `stored` unchanged
+ *  when nothing pending survives, so an idle render allocates nothing. */
+export function mergePendingMessages(stored: StoredMsg[], pending: OutboxMessage[]): StoredMsg[] {
+  if (!pending.length) return stored;
+  const ids = new Set(stored.map((m) => m.id));
+  const extra: StoredMsg[] = pending
+    .filter((p) => !ids.has(p.id))
+    .map((p) => ({ id: p.id, authorId: p.authorId, text: p.text, ts: p.ts, parentId: p.parentId }));
+  return extra.length ? [...stored, ...extra] : stored;
 }
 
 /** The current user's most recent top-level message that is still editable —

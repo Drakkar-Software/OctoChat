@@ -12,6 +12,12 @@ interface LinkTextProps extends Omit<TxtProps, 'children'> {
   /** Resolve a `#channel` mention to a room so it can link; unknown names stay
    *  plain text. Omit to render mentions as plain text. */
   resolveRoom?: (name: string) => Room | undefined;
+  /** Resolve an `@user` mention to a user id so it can open that user's profile;
+   *  unknown names stay plain text. Omit to render `@user` mentions inert. */
+  resolveUser?: (name: string) => string | undefined;
+  /** Open a resolved `@user` mention's profile — wired together with
+   *  {@link resolveUser}, the `@`-mention twin of an author-name tap. */
+  onPressUser?: (userId: string) => void;
   /** The viewer's pseudo — an `@mention` of it renders as a highlighted chip so
    *  you can spot where you were named. */
   currentUserName?: string;
@@ -27,6 +33,8 @@ interface LinkTextProps extends Omit<TxtProps, 'children'> {
 export function LinkText({
   children,
   resolveRoom,
+  resolveUser,
+  onPressUser,
   currentUserName,
   variant = 'body',
   weight,
@@ -70,13 +78,19 @@ export function LinkText({
         }
         if (seg.user) {
           const self = matchesUser(seg.user, currentUserName);
+          // Resolve to a user id so the mention opens that profile, mirroring the
+          // `#channel` path above. Unresolved (a non-poster) → inert styled text.
+          const userId = resolveUser?.(seg.user);
+          const press = userId && onPressUser ? () => onPressUser(userId) : undefined;
           return (
             <Txt
               key={i}
               variant={variant}
               weight={self ? 'semibold' : 'medium'}
               tone={self ? 'accentInk' : 'accent'}
-              style={self ? { backgroundColor: colors.accentSoft } : undefined}
+              style={[self ? { backgroundColor: colors.accentSoft } : null, press ? styles.link : null]}
+              accessibilityRole={press ? 'link' : undefined}
+              onPress={press}
             >
               {seg.text}
             </Txt>

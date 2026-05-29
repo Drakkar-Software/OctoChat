@@ -7,6 +7,7 @@ import { WEB_BASE } from '@/lib/starfish/config';
 import { useSession } from '@/lib/session-context';
 import { useSpaces } from '@/lib/use-spaces';
 import { useSpaceSettings } from '@/lib/use-space-settings';
+import { useSpaceStats } from '@/lib/use-space-stats';
 import { useTheme } from '@/lib/use-theme';
 import { AppBar } from '@/components/ui/AppBar';
 import { Avatar } from '@/components/ui/Avatar';
@@ -22,6 +23,8 @@ import { Txt } from '@/components/ui/Txt';
 import { QrCode } from '@/components/onboarding/QrCode';
 import { SpaceMembersCard } from '@/components/chat/SpaceMembersCard';
 import { SpaceMeta } from '@/components/chat/SpaceMeta';
+import { SpaceStatsCard } from '@/components/chat/SpaceStatsCard';
+import { StreamBotPanel } from '@/components/chat/StreamBotPanel';
 
 function copy(text: string) {
   try {
@@ -41,8 +44,13 @@ function webOrigin(): string {
 
 export default function SpaceScreen() {
   const { colors } = useTheme();
-  const params = useLocalSearchParams<{ id: string; name?: string }>();
+  // `roomId`+`roomKind` are set by the room screen's info button so the owner of
+  // a public stream room can reach the "Connect a bot" panel from here once the
+  // in-room panel has hidden itself (rooms with messages don't carry it).
+  const params = useLocalSearchParams<{ id: string; name?: string; roomId?: string; roomKind?: string }>();
   const spaceId = params.id;
+  const fromRoomId = params.roomId;
+  const fromRoomIsStream = params.roomKind === 'stream';
   const { session } = useSession();
   const { spaces } = useSpaces();
   const space = spaces.find((s) => s.id === spaceId);
@@ -68,6 +76,10 @@ export default function SpaceScreen() {
     createInvite,
     leave,
   } = useSpaceSettings(spaceId);
+  // Gate on `!loading` too: `isOwner` is optimistically true until useSpaceSettings
+  // resolves real ownership (ownerId starts null), so without it a non-owner would
+  // fire the per-room fan-out once before the gate flips false.
+  const { stats: spaceStats, loading: statsLoading } = useSpaceStats(spaceId, isOwner && !loading);
   const memberCount = 1 + members.length; // owner + roster (public spaces have no roster)
 
   const [saved, setSaved] = useState(false);
@@ -228,6 +240,8 @@ export default function SpaceScreen() {
                 ) : null}
               </Card>
 
+              <SpaceStatsCard stats={spaceStats} loading={statsLoading} />
+
               {isPublic ? (
                 <Card title="INVITATION LINK">
                   <Callout tone="warning" iconName="unlock" title="Not end-to-end encrypted">
@@ -343,6 +357,15 @@ export default function SpaceScreen() {
                   ) : null}
                 </Card>
               )}
+
+              {/* Owner-only "Connect a bot" panel for the room the user navigated
+                  from — surfaced here once the in-room panel hides itself (rooms
+                  with messages don't carry it, see {@link StreamBotPanelWhenEmpty}).
+                  Public-stream-only: private stream rooms enroll bots as keyring
+                  members instead, so no link-cap minting applies. */}
+              {isPublic && fromRoomIsStream && fromRoomId ? (
+                <StreamBotPanel ownerId={session.userId} spaceId={spaceId} roomId={fromRoomId} />
+              ) : null}
             </>
           ) : isMember ? (
             <Card title="MEMBERSHIP">

@@ -4,6 +4,7 @@ import { configureStarfishPlatform } from '@/lib/starfish/platform';
 import { registerServiceWorker } from '@/lib/pwa';
 import { ensureNotificationChannel, registerBackgroundPushHandler } from '@/lib/push/fcm';
 import { NotificationSettingsProvider } from '@/lib/notification-settings-context';
+import { OutboxProvider } from '@/lib/outbox-context';
 import { ProfileProvider } from '@/lib/profile-context';
 import { RoomsRegistryProvider } from '@/lib/rooms-registry-context';
 import { SessionProvider } from '@/lib/session-context';
@@ -64,6 +65,10 @@ export default function RootLayout() {
         <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
           <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
           <SessionProvider>
+          {/* OutboxProvider only needs the session: it hydrates the per-identity
+              offline send-queue and runs the background flusher that drains it on
+              reconnect. Sits high so it keeps draining regardless of the open screen. */}
+          <OutboxProvider>
           {/* NotificationSettingsProvider sits above UnreadProvider (which reads the
               master toggle to gate push + web toasts) and below the session it loads
               per-identity settings from. SpacesProvider sits above UnreadProvider too:
@@ -92,6 +97,7 @@ export default function RootLayout() {
               </RoomsRegistryProvider>
             </SpacesProvider>
           </NotificationSettingsProvider>
+          </OutboxProvider>
         </SessionProvider>
         </KeyboardProvider>
       </SafeAreaProvider>
