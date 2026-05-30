@@ -10,6 +10,7 @@ import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
+import { IconButton } from '@/components/ui/IconButton';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
@@ -98,11 +99,17 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
         accessibilityLabel="Dismiss"
       >
         <Pressable style={[styles.sheet, { backgroundColor: colors.paper }]} onPress={() => undefined}>
+          <View style={[styles.grabber, { backgroundColor: colors.lineSoft }]} />
           <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-            <Txt variant="micro" weight="bold" mono uppercase tone="inkMuted">
-              New automation
-            </Txt>
-            <Txt variant="title">{picked ? picked.name : 'Pick an integration'}</Txt>
+            <View style={styles.header}>
+              <View style={styles.headerText}>
+                <Txt variant="micro" weight="bold" mono uppercase tone="inkMuted">
+                  New automation
+                </Txt>
+                <Txt variant="title">{picked ? picked.name : 'Pick an integration'}</Txt>
+              </View>
+              <IconButton name="x" onPress={onClose} accessibilityLabel="Cancel" color={colors.inkMuted} />
+            </View>
 
             {!picked ? (
               <View style={styles.providerList}>
@@ -214,13 +221,13 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
                 ) : null}
 
                 <View style={styles.actions}>
-                  <Button label="Create" iconName="check" variant="primary" onPress={submit} loading={busy} />
-                  <Button label="Back" variant="ghost" onPress={() => setProviderId(null)} />
+                  <Button label="Back" iconName="arrow-l" variant="ghost" onPress={() => setProviderId(null)} />
+                  <View style={styles.actionPrimary}>
+                    <Button label="Create" iconName="check" variant="primary" onPress={submit} loading={busy} full />
+                  </View>
                 </View>
               </>
             )}
-
-            <Button label="Cancel" variant="ghost" onPress={onClose} />
           </ScrollView>
         </Pressable>
       </Pressable>
@@ -235,7 +242,16 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radii.sheet,
     borderTopRightRadius: radii.sheet,
   },
+  grabber: {
+    width: 36,
+    height: 4,
+    borderRadius: radii.pill,
+    alignSelf: 'center',
+    marginTop: spacing.sm,
+  },
   body: { gap: spacing.sm, padding: spacing.lg },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  headerText: { flex: 1, gap: 2 },
   providerList: { gap: spacing.sm },
   providerRow: {
     flexDirection: 'row',
@@ -249,5 +265,6 @@ const styles = StyleSheet.create({
   field: { gap: 4 },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', borderWidth: 1, borderRadius: radii.md, padding: 2, gap: 2 },
   pill: { paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: radii.sm },
-  actions: { gap: spacing.sm, paddingTop: spacing.xs },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingTop: spacing.xs },
+  actionPrimary: { flex: 1 },
 });
