@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { router } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
@@ -6,6 +7,7 @@ import { useOnline } from '@/lib/connectivity';
 import { useInShell } from '@/lib/use-responsive';
 import { useSession } from '@/lib/session-context';
 import { useRooms } from '@/lib/use-rooms';
+import { useRoomsRegistryActions } from '@/lib/rooms-registry-context';
 import { useSpaces } from '@/lib/use-spaces';
 import type { Room } from '@/lib/types';
 import { AppBar } from '@/components/ui/AppBar';
@@ -13,6 +15,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { IconButton } from '@/components/ui/IconButton';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
+import { AutomatedRoomCreator } from '@/components/chat/AutomatedRoomCreator';
 import { ChannelListSkeleton } from '@/components/chat/ChannelListSkeleton';
 import { OfflineBanner } from '@/components/chat/OfflineBanner';
 import { RoomCategoryList } from '@/components/chat/RoomCategoryList';
@@ -26,7 +29,10 @@ export default function RoomsScreen() {
   const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
   const { categories, loading: roomsLoading, isPublic, memberCount, isOwner, createRoom, createCategory, moveRoom } =
     useRooms(activeId);
+  const { refresh: refreshRegistry } = useRoomsRegistryActions();
   const space = spaces.find((s) => s.id === activeId) ?? spaces[0];
+  const [creatorOpen, setCreatorOpen] = useState(false);
+  const canAddAutomation = !!session && !!activeId && isPublic && isOwner;
 
   const openRoom = (room: Room) =>
     router.push({ pathname: '/room/[id]', params: { id: room.id, name: room.name, kind: room.kind } });
@@ -110,10 +116,29 @@ export default function RoomsScreen() {
                 onMoveRoom={isOwner ? moveRoom : undefined}
                 onCreateCategory={isOwner ? createCategory : undefined}
               />
+              {canAddAutomation ? (
+                <SidebarLinkRow
+                  iconName="refresh"
+                  label="Add automation"
+                  onPress={() => setCreatorOpen(true)}
+                />
+              ) : null}
             </>
           )}
         </>
       )}
+      {creatorOpen && session && activeId ? (
+        <AutomatedRoomCreator
+          session={session}
+          spaceId={activeId}
+          onClose={() => setCreatorOpen(false)}
+          onCreated={async (roomId) => {
+            setCreatorOpen(false);
+            await refreshRegistry(activeId);
+            router.push({ pathname: '/room/[id]', params: { id: roomId, kind: 'automated' } });
+          }}
+        />
+      ) : null}
     </StackScreen>
   );
 }

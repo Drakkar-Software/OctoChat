@@ -3,6 +3,8 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { BackHandler, StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
+import { useAutomationCommands } from '@/lib/automations/use-automation-commands';
+import { useAutomationDriver } from '@/lib/automations/use-automation-driver';
 import { useSession } from '@/lib/session-context';
 import { useRoomsRegistry } from '@/lib/rooms-registry-context';
 import { roomDraftKey } from '@/lib/use-draft';
@@ -21,6 +23,8 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { IconButton } from '@/components/ui/IconButton';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
+import { AutomatedRoomSettingsSheet } from '@/components/chat/AutomatedRoomSettingsSheet';
+import { AutomationHints } from '@/components/chat/AutomationHints';
 import { Composer } from '@/components/chat/Composer';
 import { ConversationSkeleton } from '@/components/chat/ConversationSkeleton';
 import { DesktopChatTopbar } from '@/components/chat/DesktopChatTopbar';
@@ -38,9 +42,11 @@ export default function RoomScreen() {
   const { session } = useSession();
   const { markRoomRead, lastReadAt, hydrated } = useUnread();
   // A stream room is append-only (useStreamRoom); a channel/dm is a merge-doc room
-  // (useRoom). Both hooks are called unconditionally (React rules) but only the one
-  // matching `kind` is `enabled` and does any work; we pick its result here.
-  const isStream = kind === 'stream';
+  // (useRoom). An automated room is a stream room with a runner attached — same
+  // pubstream storage, same hook. Both hooks are called unconditionally (React rules)
+  // but only the one matching `kind` is `enabled` and does any work.
+  const isAutomated = kind === 'automated';
+  const isStream = kind === 'stream' || isAutomated;
   const channel = useRoom(id, { enabled: !isStream });
   const stream = useStreamRoom(id, { enabled: isStream });
   const { store, opening, openError, offline, reload, syncError, send, toggleReaction, editMessage, deleteMessage, pinMessage, unpinMessage, uploadAttachment, loadAttachment, canWrite } =
@@ -59,7 +65,14 @@ export default function RoomScreen() {
   // pin events count when folding `pinned` at render (see resolvePinned) — so every
   // viewer needs it, not just the owner. Read from the shared registry (resolves for
   // owned, joined AND public spaces); `use-room`'s own registry read is null for joiners.
-  const { owner } = useRoomsRegistry(spaceId);
+  const { owner, rooms } = useRoomsRegistry(spaceId);
+  const automatedRoom = isAutomated ? rooms.find((r) => r.id === id) ?? null : null;
+  // Drive scheduled ticks + slash-command replies while the room is foreground.
+  // Both hooks no-op when the room isn't automated or the device isn't the elected
+  // runner (`automation.runOnDeviceId !== session.keys.edPub`).
+  useAutomationDriver({ session, room: automatedRoom });
+  useAutomationCommands({ session, room: automatedRoom, store });
+  const [showAutomationSheet, setShowAutomationSheet] = useState(false);
   const isOwner = !!owner && session?.userId === owner;
   const onPinMessage = (msgId: string, pin: boolean) => (pin ? pinMessage(msgId) : unpinMessage(msgId));
   const showBotPanel =
@@ -121,9 +134,15 @@ export default function RoomScreen() {
     router.push({ pathname: '/thread/[id]', params: { id: msgId, roomId: id, roomName: name, kind } });
   // Pass the room context so a public-stream room's space screen can surface the
   // owner-only "Connect a bot" panel for THIS room (the in-room panel hides once
-  // the room has messages — see {@link StreamBotPanelWhenEmpty}).
-  const openMembers = () =>
+  // the room has messages — see {@link StreamBotPanelWhenEmpty}). Automated rooms
+  // route the info button to their dedicated settings sheet instead.
+  const openMembers = () => {
+    if (isAutomated) {
+      setShowAutomationSheet(true);
+      return;
+    }
     router.push({ pathname: '/space/[id]', params: { id: spaceIdFromRoomId(id), roomId: id, roomKind: kind } });
+  };
   const openSearch = () => router.push('/search');
   const openProfile = (userId: string) => router.push({ pathname: '/profile/[id]', params: { id: userId } });
 
@@ -186,6 +205,7 @@ export default function RoomScreen() {
           {showBotPanel ? (
             <StreamBotPanelWhenEmpty store={store} ownerId={session.userId} spaceId={spaceId} roomId={id} />
           ) : null}
+          {automatedRoom ? <AutomationHints room={automatedRoom} /> : null}
           <RoomConversation
             store={store}
             spaceId={spaceIdFromRoomId(id)}
@@ -214,6 +234,17 @@ export default function RoomScreen() {
       ) : (
         <EmptyState iconName="globe" title="Connecting…" />
       )}
+      {session && automatedRoom && showAutomationSheet ? (
+        <AutomatedRoomSettingsSheet
+          session={session}
+          room={automatedRoom}
+          onClose={() => setShowAutomationSheet(false)}
+          onDeleted={() => {
+            setShowAutomationSheet(false);
+            goBack();
+          }}
+        />
+      ) : null}
     </StackScreen>
   );
 }

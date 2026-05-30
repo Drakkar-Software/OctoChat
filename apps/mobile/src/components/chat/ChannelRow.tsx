@@ -24,7 +24,15 @@ export function ChannelRow({ room, active = false, onPress, onLongPress, rowRef 
     <ListRow
       label={room.name}
       avatarLabel={room.kind === 'dm' ? (room.avatar ?? '??') : undefined}
-      iconName={room.kind === 'stream' ? 'stream' : room.kind === 'private' ? 'lock' : 'hash'}
+      iconName={
+        room.kind === 'automated'
+          ? 'refresh'
+          : room.kind === 'stream'
+          ? 'stream'
+          : room.kind === 'private'
+          ? 'lock'
+          : 'hash'
+      }
       active={active}
       unread={room.unread}
       mention={room.mention}

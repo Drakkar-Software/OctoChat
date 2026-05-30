@@ -76,8 +76,40 @@ export interface Space {
 
 /** `stream` is an append-only room (a "Stream room"): writers append to a log —
  *  no pull/merge/hash — so bots/integrations can post without the sync protocol.
- *  Its encryption follows the space (E2EE private / plaintext public). */
-export type RoomKind = 'channel' | 'private' | 'dm' | 'stream';
+ *  Its encryption follows the space (E2EE private / plaintext public).
+ *  `automated` is a stream room with a built-in integration attached: a bot posts
+ *  scheduled fetches into it, and the user drives the bot with `/<command>` msgs.
+ *  Storage-wise it's identical to a public `stream` (pubstream collection). */
+export type RoomKind = 'channel' | 'private' | 'dm' | 'stream' | 'automated';
+
+/** Stored, synced configuration of an `automated` room — kept on the per-Room
+ *  registry entry so every device sees status / can take over the runner.
+ *  Secret provider params (API keys etc.) live in device-local kv instead — see
+ *  `src/lib/automations/secrets.ts`. */
+export interface AutomationMeta {
+  /** FK into the built-in provider catalog (e.g. 'rss' / 'http' / 'echo'). */
+  providerId: string;
+  /** Non-secret provider params (URLs, locations, etc.). */
+  params: Record<string, unknown>;
+  /** Scheduled-fetch cadence in minutes; `0` = commands-only (no scheduled run). */
+  intervalMin: number;
+  /** Off → ticker skips and `onCommand` ignores; the room itself still renders. */
+  enabled: boolean;
+  /** Bot write credential minted via `createStreamBotCredential` — token + endpoint. */
+  credential: {
+    token: string;
+    endpoint: string;
+    signPath: string;
+    expiresAt?: number;
+  };
+  /** The deterministic id of the device elected to run this automation. Other
+   *  devices see status but never fire — single-runner election avoids dup posts. */
+  runOnDeviceId: string | null;
+  /** Last successful tick (epoch ms) — synced for cross-device status display. */
+  lastRunAt: number | null;
+  /** Last error message — set on throw, cleared on success. */
+  lastError: string | null;
+}
 
 export interface Room {
   id: ID;
@@ -91,6 +123,10 @@ export interface Room {
   mention?: boolean;
   /** DM avatar monogram. */
   avatar?: string;
+  /** Present only for `kind === 'automated'` — the runner config (synced via the
+   *  `_rooms` registry doc; threaded through every writer for free since writers
+   *  rewrite the whole `rooms[]`). */
+  automation?: AutomationMeta;
 }
 
 export interface Reaction {

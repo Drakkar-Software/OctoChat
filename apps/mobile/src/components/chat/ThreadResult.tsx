@@ -18,6 +18,7 @@ const ROOM_ICON: Record<RoomKind, IconName> = {
   private: 'lock',
   dm: 'people',
   stream: 'stream',
+  automated: 'refresh',
 };
 
 /** Avatars shown before the conversation collapses to a "+N" disc. */

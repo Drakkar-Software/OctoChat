@@ -386,7 +386,7 @@ const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().t
  * runs the mutator over `{ rooms, categories }` (or `null` for a no-op). Public docs
  * are last-writer-wins (only the owner's own devices race), so no ConflictError loop.
  */
-async function updatePublicRoomsRegistry(
+export async function updatePublicRoomsRegistry(
   session: Session,
   spaceId: string,
   mutator: (cur: { rooms: Room[]; categories: string[] }) => { rooms: Room[]; categories: string[] } | null,

@@ -98,6 +98,15 @@ export const pubstreamRoomPull = (ownerId: string, spaceId: string, roomId: stri
 export const pubstreamRoomPush = (ownerId: string, spaceId: string, roomId: string) =>
   push(pubstreamRoomName(ownerId, spaceId, roomId));
 
+// ── Public-space directory index (server-maintained projection) ───────────────
+// A read-only list document the server keeps up to date via the `starfish-projection`
+// plugin: every `pubspace` `_rooms` write folds the public space's `{ name, ownerId,
+// image, rooms }` into this one list. `readRoles: ["public"]`, so it's pulled with NO
+// cap (anonymous). The `{shard}` is the space type — only `public` is materialized;
+// see the `spaceindex` collection in apps/server + Infra collections.py.
+export const spaceIndexName = (shard: 'public') => `_index/spaces/${shard}`;
+export const spaceIndexPull = (shard: 'public') => pull(spaceIndexName(shard));
+
 // ── Cap scopes ────────────────────────────────────────────────────────────────
 /** Full owner/device access to every space the identity owns. */
 export function ownerScope(): ScopePreset {

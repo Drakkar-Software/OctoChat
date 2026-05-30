@@ -57,7 +57,7 @@ export async function sendQueued(session: Session, entry: OutboxMessage): Promis
   const msg: StoredMsg = { id: entry.id, authorId: entry.authorId, ts: entry.ts, text: entry.text };
   if (entry.parentId) msg.parentId = entry.parentId;
 
-  if (entry.kind === 'stream') {
+  if (entry.kind === 'stream' || entry.kind === 'automated') {
     // Append-only log: seal for a private stream, plaintext for a public one.
     const env = { t: 'msg', e: msg } as unknown as Record<string, unknown>;
     const body = encryptor ? await (encryptor as unknown as EncryptFn).encrypt(env) : env;

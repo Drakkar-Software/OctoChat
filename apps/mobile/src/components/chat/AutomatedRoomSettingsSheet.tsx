@@ -1,0 +1,249 @@
+import { useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+
+import { radii, spacing } from '@/theme';
+import {
+  deleteAutomatedRoom,
+  rotateAutomatedRoomCredential,
+  runAutomationTick,
+  updateAutomatedRoom,
+} from '@/lib/automations/orchestrator';
+import { getProvider } from '@/lib/automations/providers';
+import { loadAutomationSecrets, saveAutomationSecrets } from '@/lib/automations/secrets';
+import type { Session } from '@/lib/starfish/identity';
+import type { Room } from '@/lib/types';
+import { useTheme } from '@/lib/use-theme';
+import { useEffect } from 'react';
+import { Button } from '@/components/ui/Button';
+import { Callout } from '@/components/ui/Callout';
+import { CopyField } from '@/components/ui/CopyField';
+import { TextField } from '@/components/ui/TextField';
+import { Toggle } from '@/components/ui/Toggle';
+import { Txt } from '@/components/ui/Txt';
+
+const INTERVAL_OPTIONS: { label: string; min: number }[] = [
+  { label: 'Off', min: 0 },
+  { label: '15 min', min: 15 },
+  { label: '30 min', min: 30 },
+  { label: '1 h', min: 60 },
+  { label: '6 h', min: 360 },
+  { label: '24 h', min: 1440 },
+];
+
+interface Props {
+  session: Session;
+  room: Room;
+  onClose: () => void;
+  onDeleted: () => void;
+}
+
+/** Settings + actions for an automated room. Owner-only; non-owners see a callout
+ *  explaining the room is managed elsewhere. */
+export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }: Props) {
+  const { colors } = useTheme();
+  const auto = room.automation;
+  const provider = auto ? getProvider(auto.providerId) : null;
+  const [params, setParams] = useState<Record<string, unknown>>(auto?.params ?? {});
+  const [secrets, setSecrets] = useState<Record<string, unknown>>({});
+  const [interval, setInterval] = useState<number>(auto?.intervalMin ?? 0);
+  const [enabled, setEnabled] = useState<boolean>(auto?.enabled ?? true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadAutomationSecrets(session.userId, room.id).then((s) => {
+      if (!cancelled) setSecrets(s);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session.userId, room.id]);
+
+  if (!auto || !provider) {
+    return (
+      <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+        <Pressable style={[styles.backdrop, { backgroundColor: colors.scrim }]} onPress={onClose}>
+          <Pressable style={[styles.sheet, { backgroundColor: colors.paper }]} onPress={() => undefined}>
+            <Callout tone="warning" iconName="alert">
+              This room's automation provider isn't installed on this build.
+            </Callout>
+            <Button label="Close" variant="ghost" onPress={onClose} />
+          </Pressable>
+        </Pressable>
+      </Modal>
+    );
+  }
+
+  const runsHere = auto.runOnDeviceId === session.keys.edPub;
+
+  const wrap = async (label: string, fn: () => Promise<void>) => {
+    setBusy(label);
+    setError(null);
+    try {
+      await fn();
+    } catch (e) {
+      setError(String((e as Error)?.message ?? e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const save = () =>
+    wrap('save', async () => {
+      await saveAutomationSecrets(session.userId, room.id, secrets);
+      await updateAutomatedRoom({
+        session,
+        room,
+        patch: { params, intervalMin: interval, enabled },
+      });
+    });
+
+  const runNow = () =>
+    wrap('runNow', async () => {
+      await runAutomationTick({ session, room, trigger: 'scheduled', now: Date.now() });
+    });
+
+  const takeOver = () =>
+    wrap('takeOver', async () => {
+      await updateAutomatedRoom({ session, room, patch: { runOnDeviceId: session.keys.edPub } });
+    });
+
+  const rotate = () => wrap('rotate', async () => rotateAutomatedRoomCredential(session, room));
+
+  const remove = () =>
+    wrap('delete', async () => {
+      await deleteAutomatedRoom(session, room);
+      onDeleted();
+    });
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <Pressable
+        style={[styles.backdrop, { backgroundColor: colors.scrim }]}
+        onPress={onClose}
+        accessibilityLabel="Dismiss"
+      >
+        <Pressable style={[styles.sheet, { backgroundColor: colors.paper }]} onPress={() => undefined}>
+          <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+            <Txt variant="micro" weight="bold" mono uppercase tone="inkMuted">
+              Automation
+            </Txt>
+            <Txt variant="title">{provider.name}</Txt>
+            <Txt variant="caption" tone="inkMuted">
+              {provider.description}
+            </Txt>
+
+            <View style={styles.row}>
+              <Txt variant="footnote" weight="semibold" style={styles.rowLabel}>
+                Enabled
+              </Txt>
+              <Toggle value={enabled} onValueChange={setEnabled} accessibilityLabel="Enable automation" />
+            </View>
+
+            <Txt variant="footnote" weight="semibold">
+              Schedule
+            </Txt>
+            <View style={[styles.pillRow, { borderColor: colors.lineSoft }]}>
+              {INTERVAL_OPTIONS.map((opt) => {
+                const on = opt.min === interval;
+                return (
+                  <Pressable
+                    key={opt.min}
+                    accessibilityRole="button"
+                    onPress={() => setInterval(opt.min)}
+                    style={[styles.pill, { backgroundColor: on ? colors.accentSoft : 'transparent' }]}
+                  >
+                    <Txt variant="caption" weight={on ? 'semibold' : 'regular'} color={on ? colors.accentInk : colors.inkMuted}>
+                      {opt.label}
+                    </Txt>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {provider.paramFields.length ? (
+              <>
+                <Txt variant="footnote" weight="semibold">
+                  Settings
+                </Txt>
+                {provider.paramFields.map((f) => {
+                  const isSecret = !!f.secret;
+                  const value = isSecret ? ((secrets[f.key] as string | undefined) ?? '') : ((params[f.key] as string | undefined) ?? '');
+                  const onChange = (next: string) => {
+                    if (isSecret) setSecrets((s) => ({ ...s, [f.key]: next }));
+                    else setParams((p) => ({ ...p, [f.key]: next }));
+                  };
+                  return (
+                    <View key={f.key} style={styles.field}>
+                      <Txt variant="caption" tone="inkMuted">
+                        {f.label}
+                      </Txt>
+                      <TextField
+                        value={String(value)}
+                        onChangeText={onChange}
+                        placeholder={f.placeholder}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        keyboardType={f.kind === 'number' ? 'numeric' : f.kind === 'url' ? 'url' : 'default'}
+                        multiline={f.kind === 'textarea'}
+                        secureTextEntry={isSecret}
+                      />
+                    </View>
+                  );
+                })}
+              </>
+            ) : null}
+
+            <View style={styles.actions}>
+              <Button label="Save" iconName="check" onPress={save} loading={busy === 'save'} />
+              <Button label="Run now" iconName="refresh" variant="secondary" onPress={runNow} loading={busy === 'runNow'} />
+              {runsHere ? (
+                <Txt variant="caption" tone="inkMuted">
+                  Running on this device.
+                </Txt>
+              ) : (
+                <Button label="Run on this device" iconName="arrow-r" variant="secondary" onPress={takeOver} loading={busy === 'takeOver'} />
+              )}
+            </View>
+
+            <Txt variant="footnote" weight="semibold">
+              Bot credential
+            </Txt>
+            <CopyField label="Token" value={auto.credential.token} lines={3} />
+            <CopyField label="Endpoint" value={auto.credential.endpoint} lines={2} />
+            <Button label="Rotate credential" iconName="refresh" variant="ghost" onPress={rotate} loading={busy === 'rotate'} />
+
+            {error ? (
+              <Callout tone="warning" iconName="alert">
+                {error}
+              </Callout>
+            ) : null}
+
+            <View style={styles.danger}>
+              <Button label="Delete automation" iconName="trash" variant="danger" onPress={remove} loading={busy === 'delete'} />
+            </View>
+            <Button label="Close" variant="ghost" onPress={onClose} />
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: { flex: 1, justifyContent: 'flex-end' },
+  sheet: {
+    maxHeight: '90%',
+    borderTopLeftRadius: radii.sheet,
+    borderTopRightRadius: radii.sheet,
+  },
+  body: { gap: spacing.sm, padding: spacing.lg },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs },
+  rowLabel: { flex: 1 },
+  pillRow: { flexDirection: 'row', flexWrap: 'wrap', borderWidth: 1, borderRadius: radii.md, padding: 2, gap: 2 },
+  pill: { paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: radii.sm },
+  field: { gap: 4 },
+  actions: { gap: spacing.sm, paddingTop: spacing.xs },
+  danger: { paddingTop: spacing.lg },
+});

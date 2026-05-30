@@ -23,7 +23,17 @@ export function DesktopChatTopbar({ name, kind = 'channel', onSearch }: DesktopC
   return (
     <View style={[styles.bar, { height: layout.desktopTopbarHeight, backgroundColor: colors.paper, borderBottomColor: colors.lineSoft }]}>
       <Icon
-        name={kind === 'dm' ? 'people' : kind === 'stream' ? 'stream' : kind === 'private' ? 'lock' : 'hash'}
+        name={
+          kind === 'automated'
+            ? 'refresh'
+            : kind === 'dm'
+            ? 'people'
+            : kind === 'stream'
+            ? 'stream'
+            : kind === 'private'
+            ? 'lock'
+            : 'hash'
+        }
         size={16}
         color={colors.inkSoft}
       />

@@ -24,7 +24,8 @@ export async function shareText(text: string, title?: string): Promise<boolean> 
   }
 }
 
-/** Whether a share affordance should be shown on this platform. */
+/** Whether a share affordance should be shown on this platform. Native only
+ *  (Android/iOS) — web/desktop hide the Share button and rely on Copy. */
 export function canShare(): boolean {
-  return Platform.OS !== 'web' || typeof (globalThis as WebShare).navigator?.share === 'function';
+  return Platform.OS === 'ios' || Platform.OS === 'android';
 }
