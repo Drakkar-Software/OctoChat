@@ -25,7 +25,7 @@ import { usePathname } from 'expo-router';
 import type { DmMap, Space } from '@/lib/types';
 
 import { createSpace as createSpaceDoc, onSpaceMeta, readSpaces } from './starfish/registry';
-import { isDmSpaceId, reconcileDmInbox } from './starfish/dm';
+import { healDmMap, isDmSpaceId, reconcileDmInbox } from './starfish/dm';
 import { createPublicSpace } from './starfish/pubspace';
 import { consumePrimedSpaces } from './spaces-prime';
 import { hydrateMutes } from './mutes';
@@ -64,7 +64,14 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     const { spaces: list, mutes, reads, dms: dmMap } = await readSpaces(session.accountClient, session.userId);
     const rail = railSpaces(list);
     setSpaces(rail);
+    // Derive DMs from the durable `dm-` spaces, not just the lossy `dms` index, so a DM
+    // survives a clobbered/missing map entry and re-syncs across same-seed devices.
     setDms(dmMap);
+    void healDmMap(session, list, dmMap)
+      .then((healed) => {
+        if (healed !== dmMap) setDms(healed);
+      })
+      .catch(() => {});
     setActiveId((prev) => prev ?? rail[0]?.id ?? null);
     // This `_spaces` re-pull runs on every navigation (effect below) and on app
     // foreground — the only post-startup re-read of the doc. Re-hydrate the read marks
@@ -80,7 +87,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       .then(async (changed) => {
         if (!changed) return;
         const next = await readSpaces(session.accountClient, session.userId);
-        setDms(next.dms);
+        setDms(await healDmMap(session, next.spaces, next.dms));
       })
       .catch(() => {});
   }, [session]);

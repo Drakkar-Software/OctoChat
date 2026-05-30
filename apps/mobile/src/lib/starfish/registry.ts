@@ -113,15 +113,13 @@ async function pullSpacesDoc(client: StarfishClient, userId: string): Promise<Sp
   const data = res?.data as
     | { spaces?: Space[]; caps?: CapMap; mutes?: unknown; reads?: unknown; pubAccess?: PubAccessMap; dms?: unknown }
     | undefined;
-  const dms = coerceDms(data?.dms);
-  console.log('[dm-sync] READ _spaces', { userId: userId.slice(0, 8), dmKeys: Object.keys(dms), rawDmsType: typeof data?.dms, hash: res?.hash ?? null });
   return {
     spaces: Array.isArray(data?.spaces) ? data!.spaces! : [],
     caps: data?.caps && typeof data.caps === 'object' ? data.caps : {},
     mutes: coerceMutes(data?.mutes),
     reads: coerceReads(data?.reads),
     pubAccess: data?.pubAccess && typeof data.pubAccess === 'object' ? data.pubAccess : {},
-    dms,
+    dms: coerceDms(data?.dms),
     hash: res?.hash ?? null,
   };
 }
@@ -257,9 +255,7 @@ export async function updateDmsDoc(
     try {
       // Thread `spaces`/`caps`/`mutes`/`reads`/`pubAccess` through unchanged — a dms edit must
       // never drop a sibling key (the twin of how `mutes` is preserved by updateSpacesDoc).
-      console.log('[dm-sync] WRITE dms', { userId: userId.slice(0, 8), before: Object.keys(dms), after: Object.keys(next), hash });
       await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads, pubAccess, dms: next }, hash);
-      console.log('[dm-sync] WRITE dms OK');
       return;
     } catch (err) {
       if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;

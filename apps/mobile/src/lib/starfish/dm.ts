@@ -14,7 +14,7 @@
  */
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { Room, Space } from '@/lib/types';
+import type { DmMap, Room, Space } from '@/lib/types';
 
 import { ensureRoomInitialized, ownerEnsureKeyring } from './client';
 import { acceptSpaceInvite, inviteToSpace } from './members';
@@ -110,6 +110,43 @@ export async function createOrOpenDm(
   const { client } = await getSpaceEncryptor(sharedSpaceId, session, null);
   await appendDmInvite(session, client, sharedSpaceId, peerKeys.kemPub, inviteJson);
   return ref;
+}
+
+/**
+ * Rebuild the peer→DM-space map from the PERSISTED `dm-` spaces in the registry.
+ *
+ * The `dms` map is only a convenience index — it rides the shared `_spaces` doc and can
+ * lag or be lost (e.g. a clobbered read-modify-write, a dropped sibling key). The dm-
+ * SPACES themselves persist on the SAME reliable path as every other joined space
+ * (`addJoinedSpace` / `addJoinedSpaceWithCap`), so they're the durable source of truth.
+ *
+ * For any `dm-` space present in `rawSpaces` but absent from the map, read its roster,
+ * find the peer (the one roster member that isn't us), map it, and persist the mapping
+ * (best-effort) so the index self-heals across devices. Returns the (possibly extended)
+ * map — same reference when nothing changed. Never throws.
+ *
+ * `rawSpaces` MUST be the UNFILTERED space list (dm- spaces still included), not the
+ * rail-filtered one.
+ */
+export async function healDmMap(session: Session, rawSpaces: Space[], dmMap: DmMap): Promise<DmMap> {
+  const mappedSpaceIds = new Set(Object.values(dmMap));
+  const orphans = rawSpaces.filter((s) => isDmSpaceId(s.id) && !mappedSpaceIds.has(s.id));
+  if (orphans.length === 0) return dmMap;
+  const healed: DmMap = { ...dmMap };
+  for (const s of orphans) {
+    try {
+      const { owner, members } = await readRooms(session.accountClient, s.id);
+      // Owner is the creator; members holds the other side. The peer is whichever
+      // roster entry isn't us (works from both the creator's and the invitee's view).
+      const peer = [owner ?? '', ...members].find((u) => u && u !== session.userId);
+      if (!peer || healed[peer]) continue; // unknown peer, or peer already mapped — skip
+      healed[peer] = s.id;
+      void setDmMapping(session.accountClient, session.userId, peer, s.id).catch(() => {});
+    } catch {
+      /* unreadable dm space — skip, try again next refresh */
+    }
+  }
+  return healed;
 }
 
 /**
