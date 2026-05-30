@@ -105,12 +105,15 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     // `readSpaces`; the SDK pull cache now serves the last-synced `_spaces` doc on
     // the refresh below, so fall through to it instead of locking in empty.
     if (primed && primed.length > 0) {
-      // Filter DM spaces out of the rail here too; the `dms` map (and DM section)
-      // hydrate on the first navigation/foreground refresh.
+      // Paint the rail instantly from the primed snapshot…
       const rail = railSpaces(primed);
       setSpaces(rail);
       setActiveId((prev) => prev ?? rail[0]?.id ?? null);
       setLoading(false);
+      // …but the prime only carries the spaces array, NOT the `dms` map — so the
+      // virtual DM space would read empty until the first navigation. Kick a
+      // background refresh to hydrate `dms` (+ accept any inbound invites) now.
+      void refresh().catch(() => {});
       return;
     }
     (async () => {
