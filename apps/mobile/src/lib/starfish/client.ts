@@ -147,10 +147,16 @@ export async function ensureRoomInitialized(
   await client.push(roomPush(roomId), sealed as Record<string, unknown>, res?.hash ?? null);
 }
 
-/** A user's public profile: display pseudo + optional inline avatar (data URI). */
+/** A user's public profile: display pseudo + optional inline avatar (data URI) +
+ *  their PUBLIC identity keys. The keys are published so a peer can start an E2EE DM
+ *  (seal a keyring to `kemPub`, bind a member cap to `edPub`); they are public by
+ *  design, so this leaks nothing. Absent (`null`) for identities that predate key
+ *  publishing — the DM "Message" affordance stays disabled until they're backfilled. */
 export interface PublicProfile {
   pseudo: string | null;
   avatar: string | null;
+  edPub: string | null;
+  kemPub: string | null;
 }
 
 /** Read any user's public profile — pseudo and the inlined avatar data URI. */
@@ -162,19 +168,21 @@ export async function readProfile(userId: string): Promise<PublicProfile> {
     // Raw unauthenticated GET (public profile) — bypasses the StarfishClient, so the
     // `namespace` it would add is applied here via SYNC_PREFIX, same as EVENTS_URL.
     const r = await fetchWithTimeout()(`${SYNC_BASE}${SYNC_PREFIX}${profilePull(userId)}`);
-    if (!r.ok) return { pseudo: null, avatar: null };
+    if (!r.ok) return { pseudo: null, avatar: null, edPub: null, kemPub: null };
     const body = await r.json();
-    const data = body?.data as { pseudo?: unknown; avatar?: unknown } | undefined;
+    const data = body?.data as { pseudo?: unknown; avatar?: unknown; edPub?: unknown; kemPub?: unknown } | undefined;
     const profile: PublicProfile = {
       pseudo: typeof data?.pseudo === 'string' ? data.pseudo : null,
       avatar: typeof data?.avatar === 'string' ? data.avatar : null,
+      edPub: typeof data?.edPub === 'string' ? data.edPub : null,
+      kemPub: typeof data?.kemPub === 'string' ? data.kemPub : null,
     };
-    cacheProfile(userId, profile); // offline-first: remember the last-known pseudo/avatar
+    cacheProfile(userId, profile); // offline-first: remember the last-known pseudo/avatar/keys
     return profile;
   } catch {
     // Offline (fetch rejected) — fall back to the last-known profile so names/avatars
     // don't vanish offline. A real `!r.ok` answer above is NOT overridden by cache.
-    return (await loadCachedProfile(userId)) ?? { pseudo: null, avatar: null };
+    return (await loadCachedProfile(userId)) ?? { pseudo: null, avatar: null, edPub: null, kemPub: null };
   }
 }
 
@@ -229,10 +237,12 @@ export async function readProfiles(ids: string[]): Promise<Map<string, PublicPro
     chunk.forEach((id, j) => {
       const entry = entries[j];
       if (!entry || entry.error) return; // unresolved → omit from map (no wipe, may retry)
-      const data = (entry.data ?? null) as { pseudo?: unknown; avatar?: unknown } | null;
+      const data = (entry.data ?? null) as { pseudo?: unknown; avatar?: unknown; edPub?: unknown; kemPub?: unknown } | null;
       const profile: PublicProfile = {
         pseudo: typeof data?.pseudo === 'string' ? data.pseudo : null,
         avatar: typeof data?.avatar === 'string' ? data.avatar : null,
+        edPub: typeof data?.edPub === 'string' ? data.edPub : null,
+        kemPub: typeof data?.kemPub === 'string' ? data.kemPub : null,
       };
       cacheProfile(id, profile); // warm the offline cache for this user
       out.set(id, profile);
@@ -250,7 +260,7 @@ export async function readProfiles(ids: string[]): Promise<Map<string, PublicPro
 export async function writeProfile(
   client: StarfishClient,
   userId: string,
-  patch: { pseudo?: string; avatar?: string | null },
+  patch: { pseudo?: string; avatar?: string | null; edPub?: string; kemPub?: string },
 ): Promise<void> {
   const current = await client.pull(profilePull(userId)).catch(() => null);
   const base = (current?.data as Record<string, unknown> | undefined) ?? {};
@@ -262,6 +272,41 @@ export async function writeProfile(
 /** Write the caller's own profile pseudo, preserving any other profile fields. */
 export async function writePseudo(client: StarfishClient, userId: string, pseudo: string): Promise<void> {
   await writeProfile(client, userId, { pseudo });
+}
+
+/**
+ * Publish this identity's PUBLIC keys (edPub + kemPub) in its profile, so a peer who
+ * opens this profile can discover them and start an E2EE DM (seal a keyring to
+ * `kemPub`, bind a member cap to `edPub`). The keys are public by design — co-members
+ * already see each other — so this leaks nothing.
+ *
+ * One-time + idempotent: writes ONLY when a CONFIRMED read shows the keys absent
+ * (404 or present-but-keyless), never on a transient read failure (which would risk a
+ * needless write / clobber). Mirrors {@link ensurePseudo}'s confirmed-absent guard.
+ * ROOT-DEVICE ONLY — `profile` is `device:root`-write, so a paired device must not
+ * call this (it would 403). Best-effort: callers ignore failures and retry next open.
+ */
+export async function ensureProfileKeys(
+  client: StarfishClient,
+  userId: string,
+  keys: { edPub: string; kemPub: string },
+): Promise<void> {
+  let confirmedAbsent = false;
+  try {
+    // Raw confirmed read (bypasses the client namespace like readOwnPseudo), so a
+    // transient/server error is distinguishable from "no keys yet".
+    const r = await fetchWithTimeout()(`${SYNC_BASE}${SYNC_PREFIX}${profilePull(userId)}`);
+    if (r.status === 404) confirmedAbsent = true; // no profile yet → keys absent
+    else if (r.ok) {
+      const body = await r.json();
+      const data = body?.data as { edPub?: unknown; kemPub?: unknown } | undefined;
+      confirmedAbsent = !(typeof data?.edPub === 'string' && typeof data?.kemPub === 'string');
+    } else return; // transient/server error — don't write
+  } catch {
+    return; // network error — don't write (no blind clobber)
+  }
+  if (!confirmedAbsent) return;
+  await writeProfile(client, userId, { edPub: keys.edPub, kemPub: keys.kemPub });
 }
 
 /**

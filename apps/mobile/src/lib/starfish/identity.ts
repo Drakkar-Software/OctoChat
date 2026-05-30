@@ -9,7 +9,7 @@ import { bootstrapRootIdentity, mintDeviceCap } from '@drakkar.software/starfish
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 import type { CapCert } from '@drakkar.software/starfish-protocol';
 
-import { makeClient, ensurePseudo, type DeviceKeys } from './client';
+import { makeClient, ensureProfileKeys, ensurePseudo, type DeviceKeys } from './client';
 import { accountScope, ownerScope } from './paths';
 import type { DerivedIdentity } from './storage-types';
 
@@ -78,6 +78,10 @@ export async function buildSession({ userId, keys }: DerivedIdentity, name?: str
   // for a brand-new identity. Never overwrite — a blind write here would revert
   // an edit made on another device back to the bootstrap default on every open.
   const displayName = await ensurePseudo(accountClient, userId, fallback).catch(() => fallback);
+  // Publish this identity's public keys so peers can discover them to start an E2EE
+  // DM. Root-device only (profile is device:root-write) — buildLinkedSession skips it.
+  // Best-effort + idempotent; never blocks sign-in.
+  void ensureProfileKeys(accountClient, userId, keys).catch(() => {});
   return {
     userId,
     name: displayName,

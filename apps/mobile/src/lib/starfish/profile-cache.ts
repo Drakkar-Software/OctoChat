@@ -27,6 +27,8 @@ export async function loadCachedProfile(userId: string): Promise<PublicProfile |
     return {
       pseudo: typeof d.pseudo === 'string' ? d.pseudo : null,
       avatar: typeof d.avatar === 'string' ? d.avatar : null,
+      edPub: typeof d.edPub === 'string' ? d.edPub : null,
+      kemPub: typeof d.kemPub === 'string' ? d.kemPub : null,
     };
   } catch {
     return null;

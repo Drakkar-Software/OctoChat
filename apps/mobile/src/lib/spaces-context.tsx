@@ -22,9 +22,10 @@ import {
 import { AppState } from 'react-native';
 import { usePathname } from 'expo-router';
 
-import type { Space } from '@/lib/types';
+import type { DmMap, Space } from '@/lib/types';
 
 import { createSpace as createSpaceDoc, onSpaceMeta, readSpaces } from './starfish/registry';
+import { isDmSpaceId, reconcileDmInbox } from './starfish/dm';
 import { createPublicSpace } from './starfish/pubspace';
 import { consumePrimedSpaces } from './spaces-prime';
 import { hydrateMutes } from './mutes';
@@ -32,8 +33,12 @@ import { flushReadsNow, hydrateReads } from './reads';
 import { useSession } from './session-context';
 
 interface SpacesContextValue {
-  /** The identity's spaces, WITHOUT the unread overlay (added in `useSpaces`). */
+  /** The identity's spaces, WITHOUT the unread overlay (added in `useSpaces`). DM
+   *  spaces (`dm-` prefix) are excluded — they surface in the Direct Messages section
+   *  (see `useDmMap`/`use-dms`), never as a space rail. */
   spaces: Space[];
+  /** Peer userId → shared DM-space id. Drives the Direct Messages section. */
+  dms: DmMap;
   activeId: string | null;
   setActiveId: (id: string | null) => void;
   loading: boolean;
@@ -41,20 +46,26 @@ interface SpacesContextValue {
   createSpace: (name: string, type?: 'private' | 'public') => Promise<Space | null>;
 }
 
+/** Drop DM spaces — they never belong in the space rail / switcher. */
+const railSpaces = (list: Space[]): Space[] => list.filter((s) => !isDmSpaceId(s.id));
+
 const Ctx = createContext<SpacesContextValue | null>(null);
 
 export function SpacesProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
   const pathname = usePathname();
   const [spaces, setSpaces] = useState<Space[]>([]);
+  const [dms, setDms] = useState<DmMap>({});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     if (!session) return;
-    const { spaces: list, mutes, reads } = await readSpaces(session.accountClient, session.userId);
-    setSpaces(list);
-    setActiveId((prev) => prev ?? list[0]?.id ?? null);
+    const { spaces: list, mutes, reads, dms: dmMap } = await readSpaces(session.accountClient, session.userId);
+    const rail = railSpaces(list);
+    setSpaces(rail);
+    setDms(dmMap);
+    setActiveId((prev) => prev ?? rail[0]?.id ?? null);
     // This `_spaces` re-pull runs on every navigation (effect below) and on app
     // foreground — the only post-startup re-read of the doc. Re-hydrate the read marks
     // and mute prefs from it too (they share the doc) so a room read or a space muted
@@ -62,6 +73,16 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     // authoritative in their own modules, so a stale read can't roll local state back.
     await hydrateReads(session.userId, reads);
     await hydrateMutes(session.userId, mutes);
+    // Accept any inbound DM invites delivered through a shared space's carrier
+    // (best-effort, fire-and-forget so a carrier hiccup never blocks the rails). If a
+    // new DM was accepted, re-read so its peer→space mapping reaches the DM section.
+    void reconcileDmInbox(session, rail)
+      .then(async (changed) => {
+        if (!changed) return;
+        const next = await readSpaces(session.accountClient, session.userId);
+        setDms(next.dms);
+      })
+      .catch(() => {});
   }, [session]);
 
   useEffect(() => {
@@ -70,6 +91,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     if (!session) {
       setSpaces([]);
+      setDms({});
       setActiveId(null);
       setLoading(false);
       return;
@@ -83,8 +105,11 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     // `readSpaces`; the SDK pull cache now serves the last-synced `_spaces` doc on
     // the refresh below, so fall through to it instead of locking in empty.
     if (primed && primed.length > 0) {
-      setSpaces(primed);
-      setActiveId((prev) => prev ?? primed[0]?.id ?? null);
+      // Filter DM spaces out of the rail here too; the `dms` map (and DM section)
+      // hydrate on the first navigation/foreground refresh.
+      const rail = railSpaces(primed);
+      setSpaces(rail);
+      setActiveId((prev) => prev ?? rail[0]?.id ?? null);
       setLoading(false);
       return;
     }
@@ -161,8 +186,8 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<SpacesContextValue>(
-    () => ({ spaces, activeId, setActiveId, loading, refresh, createSpace }),
-    [spaces, activeId, loading, refresh, createSpace],
+    () => ({ spaces, dms, activeId, setActiveId, loading, refresh, createSpace }),
+    [spaces, dms, activeId, loading, refresh, createSpace],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
@@ -174,4 +199,10 @@ export function useSpacesContext(): SpacesContextValue {
   const v = useContext(Ctx);
   if (!v) throw new Error('useSpacesContext must be used within SpacesProvider');
   return v;
+}
+
+/** The peer→DM-space map (see {@link SpacesContextValue.dms}) — the source for the
+ *  Direct Messages section. Thin selector over the spaces context. */
+export function useDmMap(): DmMap {
+  return useSpacesContext().dms;
 }

@@ -30,6 +30,8 @@ import {
   addJoinedSpaceWithCap,
   readRooms,
   readSpaces,
+  setDmMapping,
+  updateDmsDoc,
   updateReadsDoc,
   updateSpacesDoc,
 } from './registry';
@@ -58,7 +60,7 @@ describe('updateSpacesDoc', () => {
     }));
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: { x: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {} },
+      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: { x: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {} },
       'h1',
     );
   });
@@ -73,7 +75,7 @@ describe('updateSpacesDoc', () => {
     }));
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'a' }], caps: { x: '1', y: '2' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {} },
+      { v: 1, spaces: [{ id: 'a' }], caps: { x: '1', y: '2' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {} },
       'h1',
     );
   });
@@ -81,7 +83,7 @@ describe('updateSpacesDoc', () => {
   it('preserves the pubAccess map when the mutator only changes spaces', async () => {
     const sealed = { entry: { addedBy: 'me' }, ct: 'ab' };
     const pull = vi.fn(async () => ({
-      data: { v: 1, spaces: [{ id: 'a' }], caps: {}, pubAccess: { a: sealed } },
+      data: { v: 1, spaces: [{ id: 'a' }], caps: {}, pubAccess: { a: sealed }, dms: {} },
       hash: 'h1',
     }));
     const push = vi.fn(async () => undefined);
@@ -92,7 +94,7 @@ describe('updateSpacesDoc', () => {
     }));
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { a: sealed } },
+      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { a: sealed }, dms: {} },
       'h1',
     );
   });
@@ -131,7 +133,7 @@ describe('updateSpacesDoc', () => {
     }));
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [], caps: { a: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {} },
+      { v: 1, spaces: [], caps: { a: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {} },
       null,
     );
   });
@@ -153,7 +155,7 @@ describe('addJoinedSpaceWithCap', () => {
     await addJoinedSpaceWithCap(fakeClient(pull, push), 'u', SPACE('a'), 'CAP');
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'a' }], caps: { a: 'CAP' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {} },
+      { v: 1, spaces: [{ id: 'a' }], caps: { a: 'CAP' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {} },
       'h',
     );
   });
@@ -164,7 +166,7 @@ describe('addJoinedSpaceWithCap', () => {
     await addJoinedSpaceWithCap(fakeClient(pull, push), 'u', SPACE('b'), 'CB');
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: { a: 'CA', b: 'CB' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {} },
+      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: { a: 'CA', b: 'CB' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {} },
       'h',
     );
   });
@@ -178,7 +180,7 @@ describe('addJoinedPublicSpaceWithAccess', () => {
     await addJoinedPublicSpaceWithAccess(fakeClient(pull, push), 'u', SPACE('p'), sealed);
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'a' }, SPACE('p')], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { p: sealed } },
+      { v: 1, spaces: [{ id: 'a' }, SPACE('p')], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { p: sealed }, dms: {} },
       'h',
     );
   });
@@ -193,7 +195,7 @@ describe('addJoinedPublicSpaceWithAccess', () => {
     await addJoinedPublicSpaceWithAccess(fakeClient(pull, push), 'u', SPACE('p'), sealed);
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'p' }], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { p: sealed } },
+      { v: 1, spaces: [{ id: 'p' }], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { p: sealed }, dms: {} },
       'h',
     );
   });
@@ -226,6 +228,7 @@ describe('updateReadsDoc', () => {
         mutes: { rooms: { r1: true }, spaces: {} },
         reads: { rooms: { r1: 100, r2: 200 } },
         pubAccess: { a: sealed },
+        dms: {},
       },
       'h1',
     );
@@ -247,14 +250,82 @@ describe('updateReadsDoc', () => {
   });
 });
 
+describe('updateDmsDoc / setDmMapping', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('writes the next dms map while threading every sibling key through', async () => {
+    const pull = vi.fn(async () => ({
+      data: {
+        v: 1,
+        spaces: [{ id: 'a' }],
+        caps: { a: 'CAP' },
+        mutes: { rooms: { r1: true }, spaces: {} },
+        reads: { rooms: { r1: 100 } },
+        pubAccess: {},
+        dms: { peerA: 'dm-1' },
+      },
+      hash: 'h1',
+    }));
+    const push = vi.fn(async () => undefined);
+    await updateDmsDoc(fakeClient(pull, push), 'u', (cur) => ({ ...cur, peerB: 'dm-2' }));
+    expect(push).toHaveBeenCalledWith(
+      '/push/u',
+      {
+        v: 1,
+        spaces: [{ id: 'a' }],
+        caps: { a: 'CAP' },
+        mutes: { rooms: { r1: true }, spaces: {} },
+        reads: { rooms: { r1: 100 } },
+        pubAccess: {},
+        dms: { peerA: 'dm-1', peerB: 'dm-2' },
+      },
+      'h1',
+    );
+  });
+
+  it('a spaces/caps edit preserves an existing dms map', async () => {
+    const pull = vi.fn(async () => ({ data: { v: 1, spaces: [], caps: {}, dms: { p: 'dm-x' } }, hash: 'h' }));
+    const push = vi.fn(async () => undefined);
+    await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => ({
+      spaces: cur.spaces,
+      caps: { ...cur.caps, a: '1' },
+      pubAccess: cur.pubAccess,
+    }));
+    expect(push).toHaveBeenCalledWith(
+      '/push/u',
+      { v: 1, spaces: [], caps: { a: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: { p: 'dm-x' } },
+      'h',
+    );
+  });
+
+  it('setDmMapping adds a peer→space entry', async () => {
+    const pull = vi.fn(async () => ({ data: { v: 1, spaces: [], caps: {}, dms: {} }, hash: 'h' }));
+    const push = vi.fn(async () => undefined);
+    await setDmMapping(fakeClient(pull, push), 'u', 'peerA', 'dm-1');
+    expect(push).toHaveBeenCalledWith(
+      '/push/u',
+      { v: 1, spaces: [], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: { peerA: 'dm-1' } },
+      'h',
+    );
+  });
+
+  it('setDmMapping is a no-op (no write) when the peer already maps to that space', async () => {
+    const pull = vi.fn(async () => ({ data: { v: 1, spaces: [], caps: {}, dms: { peerA: 'dm-1' } }, hash: 'h' }));
+    const push = vi.fn(async () => undefined);
+    await setDmMapping(fakeClient(pull, push), 'u', 'peerA', 'dm-1');
+    expect(push).not.toHaveBeenCalled();
+  });
+});
+
 describe('readSpaces', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('defaults caps + pubAccess to {} for a legacy doc with neither key', async () => {
+  it('defaults caps + pubAccess + dms to {} for a legacy doc with none of the keys', async () => {
     const pull = vi.fn(async () => ({ data: { v: 1, spaces: [{ id: 'a' }] }, hash: 'h' }));
     const res = await readSpaces(fakeClient(pull, vi.fn()), 'u');
     expect(res.caps).toEqual({});
     expect(res.pubAccess).toEqual({});
+    expect(res.dms).toEqual({});
     expect(res.spaces).toEqual([{ id: 'a' }]);
   });
 
@@ -269,6 +340,7 @@ describe('readSpaces', () => {
       mutes: { rooms: {}, spaces: {} },
       reads: { rooms: {} },
       pubAccess: {},
+      dms: {},
       hash: null,
     });
   });

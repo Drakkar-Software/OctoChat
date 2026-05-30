@@ -38,6 +38,7 @@ import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
 import { useSpacesContext } from './spaces-context';
 import { kvGet, kvSet } from './starfish/kv';
+import { isDmInboxRoomId } from './starfish/dm-inbox';
 import { spaceIdFromRoomId } from './starfish/paths';
 import { buildAuthHeaders } from './starfish/client';
 import { dispatchRoomChange, emitSseStatus } from './room-events-bus';
@@ -211,7 +212,9 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       if (spaceIds.length > 0) {
         const live = new Set(spaceIds);
         const pruned = Object.fromEntries(
-          Object.entries(initial).filter(([roomId]) => live.has(spaceIdFromRoomId(roomId))),
+          Object.entries(initial).filter(
+            ([roomId]) => live.has(spaceIdFromRoomId(roomId)) && !isDmInboxRoomId(roomId),
+          ),
         );
         if (Object.keys(pruned).length !== Object.keys(initial).length) {
           initial = pruned;
@@ -227,6 +230,11 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
 
       unsub = subscribeRoomChanges(
         (e) => {
+          // The DM-invite carrier rides a `streamchat` doc inside a shared space, so its
+          // appends fire a change event keyed on THAT space — which would otherwise
+          // inflate the host space's badge + create a phantom room counter. It's never a
+          // real room (not in any registry), so drop it entirely: no bump, no toast.
+          if (isDmInboxRoomId(e.roomId)) return;
           // Active room view: pull fresh messages there, skip the unread bump.
           if (dispatchRoomChange(e.roomId)) return;
           // My own write from another device on this account: the server forwards

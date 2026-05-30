@@ -47,6 +47,12 @@ export function DesktopNav() {
   // Strict equality — `startsWith` would also match `/thread/<id>` (a single thread).
   const threadsActive = pathname === '/threads';
   const pinnedActive = pathname.startsWith('/pinned');
+  const automationsActive = pathname.startsWith('/automations');
+  // Show the Automations destination on every public space the user could
+  // interact with: the owner (so they can create the first) and any member of a
+  // space that already has at least one automated room (so they can browse).
+  const hasAutomations = categories.some((c) => c.rooms.some((r) => r.kind === 'automated'));
+  const showAutomations = isPublic && (isOwner || hasAutomations);
   const meLabel = (profile?.name ?? '··').slice(0, 2).toUpperCase();
 
   // Recent threads of the open room, shown under its sidebar row. Only when the
@@ -97,6 +103,12 @@ export function DesktopNav() {
             threadsActive={threadsActive}
             onOpenPinned={hasPins ? () => router.push({ pathname: '/pinned/[id]', params: { id: space.id } }) : undefined}
             pinnedActive={pinnedActive}
+            onOpenAutomations={
+              showAutomations
+                ? () => router.push({ pathname: '/automations/[spaceId]', params: { spaceId: space.id } })
+                : undefined
+            }
+            automationsActive={automationsActive}
             onJumpTo={() => router.push('/search')}
             onOpenSpaceMenu={() => router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
             onCreateRoom={(category, name, kind) => createRoom(name, category, kind)}

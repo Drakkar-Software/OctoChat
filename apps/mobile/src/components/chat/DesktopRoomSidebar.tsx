@@ -5,12 +5,14 @@ import type { Room, RoomKind, Space } from '@/lib/types';
 import type { ThreadSummary } from '@/lib/threads';
 import type { RoomCategory } from '@/lib/use-rooms';
 import { useOnline } from '@/lib/connectivity';
+import { useDms } from '@/lib/use-dms';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 
 import { ChannelListSkeleton } from './ChannelListSkeleton';
+import { DirectMessagesSection } from './DirectMessagesSection';
 import { OfflineBanner } from './OfflineBanner';
 import { RoomCategoryList } from './RoomCategoryList';
 import { SidebarLinkRow } from './SidebarLinkRow';
@@ -39,6 +41,11 @@ interface DesktopRoomSidebarProps {
   onOpenPinned?: () => void;
   /** Highlight the Pinned row as the current destination. */
   pinnedActive?: boolean;
+  /** Open the space-wide Automations list (only public spaces with an owner or
+   *  existing automations expose this). Omit to hide the row. */
+  onOpenAutomations?: () => void;
+  /** Highlight the Automations row as the current destination. */
+  automationsActive?: boolean;
   onJumpTo?: () => void;
   /** Open the space switcher / join surface (the header acts as a menu). */
   onOpenSpaceMenu?: () => void;
@@ -72,6 +79,8 @@ export function DesktopRoomSidebar({
   threadsActive = false,
   onOpenPinned,
   pinnedActive = false,
+  onOpenAutomations,
+  automationsActive = false,
   onJumpTo,
   onOpenSpaceMenu,
   onCreateRoom,
@@ -81,6 +90,7 @@ export function DesktopRoomSidebar({
 }: DesktopRoomSidebarProps) {
   const { colors } = useTheme();
   const online = useOnline();
+  const dms = useDms();
   const headerHover = useHover();
   const jumpHover = useHover();
   return (
@@ -130,7 +140,7 @@ export function DesktopRoomSidebar({
             stack. Replaces the old tiny IconButton hidden at the foot of the
             spaces rail — a labeled row in the natural reading column is far
             more discoverable on wide web. */}
-        {onOpenThreads || onOpenPinned ? (
+        {onOpenThreads || onOpenPinned || onOpenAutomations ? (
           <View style={styles.navGroup}>
             {onOpenThreads ? (
               <SidebarLinkRow iconName="thread" label="Threads" active={threadsActive} onPress={onOpenThreads} />
@@ -138,8 +148,23 @@ export function DesktopRoomSidebar({
             {onOpenPinned ? (
               <SidebarLinkRow iconName="pin" label="Pinned" active={pinnedActive} onPress={onOpenPinned} />
             ) : null}
+            {onOpenAutomations ? (
+              <SidebarLinkRow
+                iconName="refresh"
+                label="Automations"
+                active={automationsActive}
+                onPress={onOpenAutomations}
+              />
+            ) : null}
           </View>
         ) : null}
+        {/* DMs are personal + cross-space: a dedicated group above the space's
+            channels, reusing the same ChannelRow as the mobile list. */}
+        <DirectMessagesSection
+          dms={dms}
+          activeRoomId={activeRoomId}
+          onOpen={(dm) => onOpenRoom({ id: dm.roomId, spaceId: dm.spaceId, category: '', name: dm.name, kind: 'dm' })}
+        />
         {loading ? (
           <ChannelListSkeleton />
         ) : categories.length === 0 && !onCreateCategory ? (

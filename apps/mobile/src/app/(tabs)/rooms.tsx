@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { router } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
@@ -7,16 +6,16 @@ import { useOnline } from '@/lib/connectivity';
 import { useInShell } from '@/lib/use-responsive';
 import { useSession } from '@/lib/session-context';
 import { useRooms } from '@/lib/use-rooms';
-import { useRoomsRegistryActions } from '@/lib/rooms-registry-context';
 import { useSpaces } from '@/lib/use-spaces';
+import { useDms, type DmEntry } from '@/lib/use-dms';
 import type { Room } from '@/lib/types';
 import { AppBar } from '@/components/ui/AppBar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { IconButton } from '@/components/ui/IconButton';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
-import { AutomatedRoomCreator } from '@/components/chat/AutomatedRoomCreator';
 import { ChannelListSkeleton } from '@/components/chat/ChannelListSkeleton';
+import { DirectMessagesSection } from '@/components/chat/DirectMessagesSection';
 import { OfflineBanner } from '@/components/chat/OfflineBanner';
 import { RoomCategoryList } from '@/components/chat/RoomCategoryList';
 import { SidebarLinkRow } from '@/components/chat/SidebarLinkRow';
@@ -29,13 +28,18 @@ export default function RoomsScreen() {
   const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
   const { categories, loading: roomsLoading, isPublic, memberCount, isOwner, createRoom, createCategory, moveRoom } =
     useRooms(activeId);
-  const { refresh: refreshRegistry } = useRoomsRegistryActions();
   const space = spaces.find((s) => s.id === activeId) ?? spaces[0];
-  const [creatorOpen, setCreatorOpen] = useState(false);
-  const canAddAutomation = !!session && !!activeId && isPublic && isOwner;
+  const dms = useDms();
+  // Surface the Automations destination whenever the space could carry one — to
+  // owners (so they can create the first) and to members of any space that
+  // already has at least one automated room (so they can browse them).
+  const hasAutomations = categories.some((c) => c.rooms.some((r) => r.kind === 'automated'));
+  const showAutomations = !!session && !!activeId && isPublic && (isOwner || hasAutomations);
 
   const openRoom = (room: Room) =>
     router.push({ pathname: '/room/[id]', params: { id: room.id, name: room.name, kind: room.kind } });
+  const openDm = (dm: DmEntry) =>
+    router.push({ pathname: '/room/[id]', params: { id: dm.roomId, name: dm.name, kind: 'dm' } });
 
   // On desktop the sidebar IS the room list, so this pane is the resting state.
   if (inShell) {
@@ -99,14 +103,27 @@ export default function RoomsScreen() {
           {/* Hoisted above the empty-state so an offline user is always told WHY the
               list is sparse — even when the cache is empty and they see "No rooms yet". */}
           {!online ? <OfflineBanner message="You’re offline — showing your last-synced rooms." /> : null}
+          {/* DMs are personal + cross-space, so they sit at the top of the list — above
+              the active space's channels — and render whether or not this space has any. */}
+          <DirectMessagesSection dms={dms} onOpen={openDm} />
           {categories.length === 0 && !isOwner ? (
             <EmptyState iconName="hash" title="No rooms yet" subtitle="Create a channel to get started." />
           ) : (
             <>
-              {/* Same per-space contextual Threads entry as the desktop sidebar
-                  (DesktopRoomSidebar). The bottom tab is a global shortcut; this
-                  row anchors Threads inside the active space's room list. */}
+              {/* Same per-space contextual destinations as the desktop sidebar
+                  (DesktopRoomSidebar): Threads is a global shortcut anchored
+                  inside the active space; Automations leads to a list view that
+                  also hosts the "New automation" creator. */}
               <SidebarLinkRow iconName="thread" label="Threads" onPress={() => router.push('/(tabs)/threads')} />
+              {showAutomations && activeId ? (
+                <SidebarLinkRow
+                  iconName="refresh"
+                  label="Automations"
+                  onPress={() =>
+                    router.push({ pathname: '/automations/[spaceId]', params: { spaceId: activeId } })
+                  }
+                />
+              ) : null}
               <RoomCategoryList
                 categories={categories}
                 userId={session.userId}
@@ -116,29 +133,10 @@ export default function RoomsScreen() {
                 onMoveRoom={isOwner ? moveRoom : undefined}
                 onCreateCategory={isOwner ? createCategory : undefined}
               />
-              {canAddAutomation ? (
-                <SidebarLinkRow
-                  iconName="refresh"
-                  label="Add automation"
-                  onPress={() => setCreatorOpen(true)}
-                />
-              ) : null}
             </>
           )}
         </>
       )}
-      {creatorOpen && session && activeId ? (
-        <AutomatedRoomCreator
-          session={session}
-          spaceId={activeId}
-          onClose={() => setCreatorOpen(false)}
-          onCreated={async (roomId) => {
-            setCreatorOpen(false);
-            await refreshRegistry(activeId);
-            router.push({ pathname: '/room/[id]', params: { id: roomId, kind: 'automated' } });
-          }}
-        />
-      ) : null}
     </StackScreen>
   );
 }

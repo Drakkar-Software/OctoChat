@@ -158,6 +158,25 @@ export const config: SyncConfig = {
       maxBodyBytes: 262_144,
       allowedMimeTypes: JSON_ONLY,
     },
+    // PUBLIC-SPACE DIRECTORY: a server-maintained list document indexing every
+    // public space, written ONLY by the `starfish-projection` plugin (see
+    // projections.ts) — every `pubspace` `_rooms` write folds the space's
+    // `{ name, ownerId, image, rooms }` into the `_index/spaces/public` list.
+    // `pullOnly` rejects all client writes (the projection writes in-process via
+    // the store, bypassing HTTP role checks); `readRoles: ["public"]` lets the
+    // Explore screen browse it anonymously, like `profile`. `{shard}` is the space
+    // type — only `public` is materialized (private spaces are never indexed; an
+    // aggregate index has one read-role and would leak invite-only spaces).
+    {
+      name: "spaceindex",
+      storagePath: "_index/spaces/{shard}",
+      readRoles: ["public"],
+      writeRoles: [],
+      pullOnly: true,
+      encryption: "none",
+      maxBodyBytes: 262_144,
+      allowedMimeTypes: JSON_ONLY,
+    },
     // Anonymous rendezvous slot for QR device pairing.
     {
       name: "pairing",

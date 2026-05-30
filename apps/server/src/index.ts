@@ -12,8 +12,10 @@ import { FilesystemObjectStore } from "@drakkar.software/starfish-server/node";
 import { identitiesServerPlugin } from "@drakkar.software/starfish-identities";
 import { sharingServerPlugin } from "@drakkar.software/starfish-sharing";
 import { createQueuingServerPlugin } from "@drakkar.software/starfish-queuing";
+import { createProjectionServerPlugin } from "@drakkar.software/starfish-projection";
 
 import { config } from "./config.js";
+import { projections } from "./projections.js";
 import { createNatsQueue } from "./queue.js";
 import { createFileRevocationStore } from "./revocation-store.js";
 import { makeSpaceRoleEnricher } from "./space-role.js";
@@ -106,6 +108,12 @@ const roleEnricher: typeof spaceEnricher = async (auth, params) => [
   ...(await pubspaceEnricher(auth, params)),
 ];
 
+// Maintains the public-space directory list at `_index/spaces/public`: its
+// `afterWrite` hook folds every `pubspace` `_rooms` write into one queryable list
+// document (see projections.ts). Writes in-process against the same `store`, so
+// the `spaceindex` collection is `pullOnly` (clients read it, only this writes it).
+const projection = createProjectionServerPlugin({ store, projections });
+
 const syncRouter = createSyncRouter({
   store,
   config,
@@ -113,7 +121,7 @@ const syncRouter = createSyncRouter({
   // Grants `space:owner` / `space:member` (space-role.ts) plus the issuer-bound
   // `pubspace:owner` / `:reader` / `:writer` roles for public spaces (pubspace-role.ts).
   roleEnricher,
-  plugins: [queuing],
+  plugins: [queuing, projection],
 });
 
 await saveConfig(store, config);

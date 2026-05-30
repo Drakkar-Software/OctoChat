@@ -19,6 +19,13 @@ export type CapMap = Record<string, string>;
  *  `pubspace-caps.ts`. */
 export type PubAccessMap = Record<string, SealedBlob>;
 
+/** Maps a DM peer's userId → the private DM-space id shared with them. Lets the
+ *  initiator dedup (one conversation per peer) and the non-initiator record the
+ *  space their inbox reconciler accepted. Shares the `_spaces` doc like {@link CapMap}
+ *  (the space's member cap rides `caps`; this is just the peer→space pointer). See
+ *  `starfish/dm.ts`. */
+export type DmMap = Record<string, string>;
+
 /** A mute entry. `true` = muted indefinitely; a number = muted UNTIL that epoch-ms
  *  instant (the forward-compatible shape for a future "mute for 15 min" — read-
  *  supported now, but the current UI only ever writes `true` or deletes the key). */

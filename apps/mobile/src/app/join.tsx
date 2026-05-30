@@ -156,6 +156,19 @@ export default function JoinScreen() {
         ) : null}
       </Card>
 
+      <Card title="DISCOVER">
+        <Txt variant="footnote" tone="inkSoft">
+          Browse public spaces anyone can find, then ask an owner for an invitation link.
+        </Txt>
+        <Button
+          label="Browse public spaces"
+          variant="secondary"
+          size="md"
+          iconName="globe"
+          onPress={() => router.push('/spaces/explore')}
+        />
+      </Card>
+
       <Card title="YOUR JOIN REQUEST">
         <Txt variant="footnote" tone="inkSoft">
           For private spaces: send this to an owner so they can invite you.

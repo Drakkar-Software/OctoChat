@@ -258,6 +258,9 @@ importers:
       '@drakkar.software/starfish-identities':
         specifier: 3.0.0-alpha.14
         version: 3.0.0-alpha.14(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
+      '@drakkar.software/starfish-projection':
+        specifier: link:../../../../Drakkar-Software/satellite/packages/ts/projection
+        version: link:../../../../Drakkar-Software/satellite/packages/ts/projection
       '@drakkar.software/starfish-protocol':
         specifier: 3.0.0-alpha.14
         version: 3.0.0-alpha.14
@@ -7861,7 +7864,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 

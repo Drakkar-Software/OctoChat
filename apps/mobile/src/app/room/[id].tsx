@@ -190,9 +190,21 @@ export default function RoomScreen() {
       ) : opening ? (
         <ConversationSkeleton />
       ) : openError ? (
-        <EmptyState iconName="alert" title="Couldn't open room" subtitle={openError}>
-          <Button label="Try again" iconName="refresh" onPress={reload} />
-        </EmptyState>
+        // A DM open-error is almost always the known paired-device limitation: a QR-
+        // paired device has a fresh keypair, so it's not a recipient of the DM space's
+        // keyring (the peer sealed it to your SEED key). Surface that instead of the
+        // generic keyring copy; the DM rehydrates + decrypts on your primary device.
+        kind === 'dm' ? (
+          <EmptyState
+            iconName="alert"
+            title="Open this DM on your primary device"
+            subtitle="Direct messages are encrypted to your seed identity, so a paired device can’t unlock them yet."
+          />
+        ) : (
+          <EmptyState iconName="alert" title="Couldn't open room" subtitle={openError}>
+            <Button label="Try again" iconName="refresh" onPress={reload} />
+          </EmptyState>
+        )
       ) : store ? (
         <>
           {!online || offline ? (
