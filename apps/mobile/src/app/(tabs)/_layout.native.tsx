@@ -56,6 +56,10 @@ export default function NativeTabsLayout() {
         <NativeTabs.Trigger.Label>Threads</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="message-square" />} />
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="automations">
+        <NativeTabs.Trigger.Label>Automations</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="refresh-cw" />} />
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="you">
         <NativeTabs.Trigger.Label>You</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="user" />} />
