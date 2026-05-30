@@ -4,6 +4,7 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { WEB_BASE } from '@/lib/starfish/config';
+import { isDmSpaceId } from '@/lib/starfish/dm-ids';
 import { useMutes } from '@/lib/mutes-context';
 import { useRooms } from '@/lib/use-rooms';
 import { useSession } from '@/lib/session-context';
@@ -53,6 +54,10 @@ export default function SpaceScreen() {
   // in-room panel has hidden itself (rooms with messages don't carry it).
   const params = useLocalSearchParams<{ id: string; name?: string; roomId?: string; roomKind?: string }>();
   const spaceId = params.id;
+  // A DM space is a 1:1 conversation rendered AS a space (see starfish/dm.ts). It has
+  // no categories to manage and no one to invite — the peer is already its sole member —
+  // so those owner cards are hidden for it.
+  const isDm = isDmSpaceId(spaceId);
   const fromRoomId = params.roomId;
   const fromRoomIsStream = params.roomKind === 'stream';
   const { session } = useSession();
@@ -276,20 +281,22 @@ export default function SpaceScreen() {
 
               <SpaceStatsCard stats={spaceStats} loading={statsLoading} />
 
-              <Card title="CATEGORIES">
-                <Txt variant="footnote" tone="inkSoft">
-                  Group channels into categories. Drag a channel onto a category (or long-press it) to move it.
-                </Txt>
-                <CategoryManager
-                  categories={categories.map((c) => c.name)}
-                  onCreate={createCategory}
-                  onRename={renameCategory}
-                  onDelete={deleteCategory}
-                  onReorder={reorderCategories}
-                />
-              </Card>
+              {isDm ? null : (
+                <Card title="CATEGORIES">
+                  <Txt variant="footnote" tone="inkSoft">
+                    Group channels into categories. Drag a channel onto a category (or long-press it) to move it.
+                  </Txt>
+                  <CategoryManager
+                    categories={categories.map((c) => c.name)}
+                    onCreate={createCategory}
+                    onRename={renameCategory}
+                    onDelete={deleteCategory}
+                    onReorder={reorderCategories}
+                  />
+                </Card>
+              )}
 
-              {isPublic ? (
+              {isDm ? null : isPublic ? (
                 <Card title="INVITATION LINK">
                   <Callout tone="warning" iconName="unlock" title="Not end-to-end encrypted">
                     Anyone with the link can open this space without an account. A read &amp; write link also lets them post.
