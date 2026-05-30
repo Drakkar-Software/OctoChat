@@ -34,8 +34,27 @@ leaves your device. The server syncs ciphertext it can't read.
   presence and activity stream in over a NATS-backed gateway.
 - 🎨 **A theme with a point of view.** Marine palette, octopus mark, Bricolage +
   Hanken + JetBrains Mono. Light and dark, every constant from a single source.
-- 🔑 **Multi-device, no passwords.** Pair a new device from your seed; passkeys
-  gate sensitive enrollment.
+- 🔑 **Multi-device, multi-account, no passwords.** Hold several accounts and
+  switch live; pair a new device from your seed (passkeys gate sensitive
+  enrollment), or sign in with a **NIP-07** Nostr extension.
+- 📴 **Offline-first.** Rooms and profiles are served from a local pull cache, so
+  the app opens and reads instantly even with no connection — an offline banner
+  shows when you're disconnected.
+
+## 💬 What you can do
+
+- **Spaces & channels** — public or private, with categories and per-room unread.
+- **Threads** — reply in-thread anywhere; a dedicated Threads tab gathers every
+  thread in the active space, decrypted across rooms.
+- **1:1 direct messages** — encrypted private conversations with another member.
+- **Explore** — a directory of public spaces you can discover and join.
+- **Automations & bots** — automated rooms driven by scheduled fetches or
+  slash-command bots, plus append-only "stream" rooms for easy bot push (see the
+  runnable [`examples/`](examples/README.md)).
+- **Rich notifications** — real-content push on Android (FCM), per-room grouping,
+  taps that route straight to the room; you never get pinged for your own posts.
+- **Files** — drag-and-drop attachments (web), native share & save; every blob
+  sealed client-side before upload.
 
 ## 🔒 Security & encryption
 
@@ -164,11 +183,12 @@ pnpm desktop    # Electron wrapper
 
 ```
 apps/
-  mobile/    — Expo SDK 55 app (@octochat/mobile)
+  mobile/    — Expo SDK 56 app (@octochat/mobile)
   server/    — Hono Starfish server (@octochat/server)
   desktop/   — Electron wrapper (@octochat/desktop)
 packages/
   tsconfig/  — shared TypeScript base config
+examples/    — standalone SDK-only bots (stream-publish-bot, stream-webhook-bot)
 infra/
   whistlers-sse.mjs     — dev launcher for Whistlers (adds CORS)
   whistlers.config.json — Whistlers subscription config

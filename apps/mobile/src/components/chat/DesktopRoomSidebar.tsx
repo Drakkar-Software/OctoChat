@@ -31,11 +31,6 @@ interface DesktopRoomSidebarProps {
   /** Recent threads of the active room, listed under its row. Omit to show none. */
   threads?: ThreadSummary[];
   onOpenRoom: (room: Room) => void;
-  /** Open the public-space directory (Explore). Space-independent, so it heads
-   *  the nav group above the space-scoped destinations. */
-  onOpenExplore?: () => void;
-  /** Highlight the Explore row as the current destination. */
-  exploreActive?: boolean;
   /** Open one of the active room's threads (the reply target's message id). */
   onOpenThread?: (parentId: string) => void;
   /** Open the Threads view (every thread in the active space). */
@@ -79,8 +74,6 @@ export function DesktopRoomSidebar({
   activeRoomId,
   threads,
   onOpenRoom,
-  onOpenExplore,
-  exploreActive = false,
   onOpenThread,
   onOpenThreads,
   threadsActive = false,
@@ -147,11 +140,8 @@ export function DesktopRoomSidebar({
             stack. Replaces the old tiny IconButton hidden at the foot of the
             spaces rail — a labeled row in the natural reading column is far
             more discoverable on wide web. */}
-        {onOpenExplore || onOpenThreads || onOpenPinned || onOpenAutomations ? (
+        {onOpenThreads || onOpenPinned || onOpenAutomations ? (
           <View style={styles.navGroup}>
-            {onOpenExplore ? (
-              <SidebarLinkRow iconName="globe" label="Explore" active={exploreActive} onPress={onOpenExplore} />
-            ) : null}
             {onOpenThreads ? (
               <SidebarLinkRow iconName="thread" label="Threads" active={threadsActive} onPress={onOpenThreads} />
             ) : null}

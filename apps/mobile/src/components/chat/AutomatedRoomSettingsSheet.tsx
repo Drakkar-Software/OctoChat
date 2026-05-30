@@ -17,18 +17,10 @@ import { useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { CopyField } from '@/components/ui/CopyField';
+import { IntervalPicker } from '@/components/chat/IntervalPicker';
 import { TextField } from '@/components/ui/TextField';
 import { Toggle } from '@/components/ui/Toggle';
 import { Txt } from '@/components/ui/Txt';
-
-const INTERVAL_OPTIONS: { label: string; min: number }[] = [
-  { label: 'Off', min: 0 },
-  { label: '15 min', min: 15 },
-  { label: '30 min', min: 30 },
-  { label: '1 h', min: 60 },
-  { label: '6 h', min: 360 },
-  { label: '24 h', min: 1440 },
-];
 
 interface Props {
   session: Session;
@@ -141,26 +133,7 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
               <Toggle value={enabled} onValueChange={setEnabled} accessibilityLabel="Enable automation" />
             </View>
 
-            <Txt variant="footnote" weight="semibold">
-              Schedule
-            </Txt>
-            <View style={[styles.pillRow, { borderColor: colors.lineSoft }]}>
-              {INTERVAL_OPTIONS.map((opt) => {
-                const on = opt.min === interval;
-                return (
-                  <Pressable
-                    key={opt.min}
-                    accessibilityRole="button"
-                    onPress={() => setInterval(opt.min)}
-                    style={[styles.pill, { backgroundColor: on ? colors.accentSoft : 'transparent' }]}
-                  >
-                    <Txt variant="caption" weight={on ? 'semibold' : 'regular'} color={on ? colors.accentInk : colors.inkMuted}>
-                      {opt.label}
-                    </Txt>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <IntervalPicker value={interval} onChange={setInterval} />
 
             {provider.paramFields.length ? (
               <>
@@ -241,8 +214,6 @@ const styles = StyleSheet.create({
   body: { gap: spacing.sm, padding: spacing.lg },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs },
   rowLabel: { flex: 1 },
-  pillRow: { flexDirection: 'row', flexWrap: 'wrap', borderWidth: 1, borderRadius: radii.md, padding: 2, gap: 2 },
-  pill: { paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: radii.sm },
   field: { gap: 4 },
   actions: { gap: spacing.sm, paddingTop: spacing.xs },
   danger: { paddingTop: spacing.lg },

@@ -1,4 +1,9 @@
 import 'react-native-gesture-handler';
+// Side-effect import: runs `TaskManager.defineTask` at module scope on EVERY launch,
+// including a cold headless background launch where React never mounts. Resolves to a
+// no-op on web. Must stay a bare import — the register hook can't pull it in (it never
+// runs on a background relaunch).
+import '@/lib/automations/background-task';
 
 import { configureStarfishPlatform } from '@/lib/starfish/platform';
 import { registerServiceWorker } from '@/lib/pwa';
@@ -9,6 +14,7 @@ import { OutboxProvider } from '@/lib/outbox-context';
 import { ProfileProvider } from '@/lib/profile-context';
 import { RoomsRegistryProvider } from '@/lib/rooms-registry-context';
 import { SessionProvider } from '@/lib/session-context';
+import { useAutomationBackground } from '@/lib/automations/use-automation-background';
 import { SpacesProvider } from '@/lib/spaces-context';
 import { ThreadDigestProvider } from '@/lib/thread-digest-context';
 import { UnreadProvider } from '@/lib/unread-context';
@@ -44,6 +50,13 @@ void ensureNotificationChannel();
 // Keep the native splash up until our fonts are ready (must run at module top).
 void SplashScreen.preventAutoHideAsync();
 
+/** Mount point for the background-automation task registration. Renders nothing —
+ *  must sit under SessionProvider so the hook can read the active session. */
+function AutomationBackgroundMount() {
+  useAutomationBackground();
+  return null;
+}
+
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useAppFonts();
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
@@ -66,6 +79,10 @@ export default function RootLayout() {
         <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
           <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
           <SessionProvider>
+          {/* Registers the OS background task that ticks due automations while the app
+              is backgrounded/closed (native only). Sits directly under the session it
+              reads; renders nothing. */}
+          <AutomationBackgroundMount />
           {/* OutboxProvider only needs the session: it hydrates the per-identity
               offline send-queue and runs the background flusher that drains it on
               reconnect. Sits high so it keeps draining regardless of the open screen. */}

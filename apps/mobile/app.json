@@ -47,7 +47,8 @@
       ],
       "infoPlist": {
         "UIBackgroundModes": [
-          "remote-notification"
+          "remote-notification",
+          "processing"
         ],
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -101,7 +102,8 @@
           "defaultChannel": "messages"
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "expo-background-task"
     ],
     "experiments": {
       "typedRoutes": true,
