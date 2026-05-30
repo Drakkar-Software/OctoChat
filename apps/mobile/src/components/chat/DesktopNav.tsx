@@ -48,6 +48,7 @@ export function DesktopNav() {
   const threadsActive = pathname === '/threads';
   const pinnedActive = pathname.startsWith('/pinned');
   const automationsActive = pathname.startsWith('/automations');
+  const exploreActive = pathname.startsWith('/spaces/explore');
   // Show the Automations destination on every public space the user could
   // interact with: the owner (so they can create the first) and any member of a
   // space that already has at least one automated room (so they can browse).
@@ -98,6 +99,8 @@ export function DesktopNav() {
             activeRoomId={activeRoomId}
             threads={activeThreads}
             onOpenRoom={openRoom}
+            onOpenExplore={() => router.push('/spaces/explore')}
+            exploreActive={exploreActive}
             onOpenThread={openThread}
             onOpenThreads={hasThreads ? () => router.push('/(tabs)/threads') : undefined}
             threadsActive={threadsActive}

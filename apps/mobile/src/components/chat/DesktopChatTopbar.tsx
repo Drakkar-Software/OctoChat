@@ -11,14 +11,17 @@ interface DesktopChatTopbarProps {
   name: string;
   kind?: RoomKind;
   onSearch?: () => void;
+  onDetails?: () => void;
 }
 
 /**
  * The 52px toolbar above the main pane on desktop: the room's kind glyph + name
- * on the left, search on the right. Replaces the centered mobile {@link AppBar}
- * when the app is in shell mode.
+ * on the left, search + details on the right. Replaces the centered mobile
+ * {@link AppBar} when the app is in shell mode — so it must carry the same
+ * right-hand affordances (the info button routes to space details, or an
+ * automated room's settings sheet).
  */
-export function DesktopChatTopbar({ name, kind = 'channel', onSearch }: DesktopChatTopbarProps) {
+export function DesktopChatTopbar({ name, kind = 'channel', onSearch, onDetails }: DesktopChatTopbarProps) {
   const { colors } = useTheme();
   return (
     <View style={[styles.bar, { height: layout.desktopTopbarHeight, backgroundColor: colors.paper, borderBottomColor: colors.lineSoft }]}>
@@ -41,6 +44,7 @@ export function DesktopChatTopbar({ name, kind = 'channel', onSearch }: DesktopC
         {name}
       </Txt>
       <IconButton name="search" size={16} onPress={onSearch} accessibilityLabel="Search in room" />
+      <IconButton name="info" size={16} onPress={onDetails} accessibilityLabel="Space details" />
     </View>
   );
 }

@@ -161,7 +161,7 @@ export default function RoomScreen() {
           }
         />
       }
-      desktopHeader={<DesktopChatTopbar name={name} kind={kind} onSearch={openSearch} />}
+      desktopHeader={<DesktopChatTopbar name={name} kind={kind} onSearch={openSearch} onDetails={openMembers} />}
       footer={
         canWrite ? (
           <Composer
