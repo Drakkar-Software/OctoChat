@@ -1,21 +1,20 @@
 import { router } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useOnline } from '@/lib/connectivity';
+import { DM_HOME_ID, isDmHomeId } from '@/lib/dm-home';
 import { useInShell } from '@/lib/use-responsive';
 import { useSession } from '@/lib/session-context';
 import { useRooms } from '@/lib/use-rooms';
 import { useSpaces } from '@/lib/use-spaces';
-import { useDms, type DmEntry } from '@/lib/use-dms';
+import { useDms, useTotalDmUnread, type DmEntry } from '@/lib/use-dms';
 import type { Room } from '@/lib/types';
-import { AppBar } from '@/components/ui/AppBar';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { IconButton } from '@/components/ui/IconButton';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { ChannelListSkeleton } from '@/components/chat/ChannelListSkeleton';
-import { DirectMessagesSection } from '@/components/chat/DirectMessagesSection';
+import { DmList } from '@/components/chat/DmList';
 import { OfflineBanner } from '@/components/chat/OfflineBanner';
 import { RoomCategoryList } from '@/components/chat/RoomCategoryList';
 import { SidebarLinkRow } from '@/components/chat/SidebarLinkRow';
@@ -26,10 +25,12 @@ export default function RoomsScreen() {
   const inShell = useInShell();
   const online = useOnline();
   const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
+  const isDmHome = isDmHomeId(activeId);
   const { categories, loading: roomsLoading, isPublic, memberCount, isOwner, createRoom, createCategory, moveRoom } =
-    useRooms(activeId);
-  const space = spaces.find((s) => s.id === activeId) ?? spaces[0];
+    useRooms(isDmHome ? null : activeId); // the virtual DM space has no registry doc
+  const space = isDmHome ? undefined : spaces.find((s) => s.id === activeId) ?? spaces[0];
   const dms = useDms();
+  const dmUnread = useTotalDmUnread();
   // Surface the Automations destination whenever the space could carry one — to
   // owners (so they can create the first) and to members of any space that
   // already has at least one automated room (so they can browse them).
@@ -60,52 +61,41 @@ export default function RoomsScreen() {
       scroll
       contentStyle={styles.content}
       header={
-        space ? (
-          <SpaceHeader
-            space={space}
-            spaces={spaces}
-            activeId={activeId ?? space.id}
-            isPublic={isPublic}
-            memberCount={memberCount}
-            onSelectSpace={setActiveId}
-            onAddSpace={() => router.push('/join')}
-            onSearch={() => router.push('/search')}
-            onOpenSpace={() => router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
-            onMenu={() => router.push('/join')}
-          />
-        ) : (
-          <AppBar
-            title="Rooms"
-            right={
-              <>
-                <IconButton
-                  name="search"
-                  onPress={() => router.push('/search')}
-                  accessibilityLabel="Search"
-                />
-                <IconButton
-                  name="plus"
-                  onPress={() => router.push('/join')}
-                  accessibilityLabel="Join or create a space"
-                />
-              </>
-            }
-          />
-        )
+        // The DM space is always present (it's virtual), so the header always renders
+        // — `space` is undefined when DM-home is selected. The rail + DM tile live here.
+        <SpaceHeader
+          space={space}
+          isDmHome={isDmHome}
+          spaces={spaces}
+          activeId={activeId ?? DM_HOME_ID}
+          isPublic={isPublic}
+          memberCount={memberCount}
+          onSelectSpace={setActiveId}
+          onSelectDms={() => setActiveId(DM_HOME_ID)}
+          dmsActive={isDmHome}
+          dmUnread={dmUnread}
+          onAddSpace={() => router.push('/join')}
+          onSearch={() => router.push('/search')}
+          onOpenSpace={() => space && router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
+          onMenu={() => router.push('/join')}
+        />
       }
     >
       {!session ? (
         <SignInPrompt subtitle="Create an identity to see your spaces." />
-      ) : spacesLoading || roomsLoading ? (
+      ) : spacesLoading || (!isDmHome && roomsLoading) ? (
         <ChannelListSkeleton />
+      ) : isDmHome ? (
+        // EmptyState is flex:1, which collapses inside the ScrollView content container
+        // — give it a floor so the no-DMs case still centers.
+        <View style={styles.dmHome}>
+          <DmList dms={dms} onOpen={openDm} />
+        </View>
       ) : (
         <>
           {/* Hoisted above the empty-state so an offline user is always told WHY the
               list is sparse — even when the cache is empty and they see "No rooms yet". */}
           {!online ? <OfflineBanner message="You’re offline — showing your last-synced rooms." /> : null}
-          {/* DMs are personal + cross-space, so they sit at the top of the list — above
-              the active space's channels — and render whether or not this space has any. */}
-          <DirectMessagesSection dms={dms} onOpen={openDm} />
           {categories.length === 0 && !isOwner ? (
             <EmptyState iconName="hash" title="No rooms yet" subtitle="Create a channel to get started." />
           ) : (
@@ -143,4 +133,5 @@ export default function RoomsScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: 96 },
+  dmHome: { minHeight: 320 },
 });

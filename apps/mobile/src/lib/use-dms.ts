@@ -50,3 +50,9 @@ export function useDms(): DmEntry[] {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [peerIds, dms, unreadByRoom, pseudo]);
 }
+
+/** Total unread across every DM — the virtual DM space's rail-tile badge count. */
+export function useTotalDmUnread(): number {
+  const dms = useDms();
+  return useMemo(() => dms.reduce((n, d) => n + d.unread, 0), [dms]);
+}

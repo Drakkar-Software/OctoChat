@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 
 import { glowShadow, layout, radii, spacing } from '@/theme';
 import type { Space } from '@/lib/types';
+import { DM_HOME_NAME } from '@/lib/dm-home';
 import { useHover } from '@/lib/use-hover';
 import { useMutes } from '@/lib/mutes-context';
 import { useTheme } from '@/lib/use-theme';
@@ -19,6 +20,12 @@ interface DesktopSpacesRailProps {
   activeId: string | null;
   onSelect?: (id: string) => void;
   onAdd?: () => void;
+  /** Select the virtual DM space (the leading tile that lists every DM). */
+  onSelectDms?: () => void;
+  /** Whether the DM space is the active selection. */
+  dmsActive?: boolean;
+  /** Aggregate unread across all DMs, for the DM tile badge. */
+  dmUnread?: number;
   /** Bottom avatar / gear → the current identity's profile. */
   meLabel: string;
   /** The current identity's uploaded avatar (data URI), if any. */
@@ -94,6 +101,9 @@ export function DesktopSpacesRail({
   activeId,
   onSelect,
   onAdd,
+  onSelectDms,
+  dmsActive,
+  dmUnread,
   meLabel,
   meAvatar,
   onOpenProfile,
@@ -105,6 +115,33 @@ export function DesktopSpacesRail({
     <View style={[styles.rail, { width: layout.railWidth, backgroundColor: colors.paperAlt, borderRightColor: colors.lineSoft }]}>
       <Octopus size={28} />
       <View style={[styles.rule, { backgroundColor: colors.lineFaint }]} />
+      {/* Virtual DM space — pinned first, lists every DM (see lib/dm-home). */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={DM_HOME_NAME}
+        onPress={onSelectDms}
+        style={styles.tileWrap}
+      >
+        <View
+          style={[
+            styles.tile,
+            {
+              borderRadius: dmsActive ? radii.lg : radii.xl,
+              backgroundColor: dmsActive ? colors.accent : colors.fill,
+              borderColor: dmsActive ? 'transparent' : colors.lineFaint,
+              borderWidth: dmsActive ? 0 : 1,
+            },
+            dmsActive ? glowShadow(colors.glow, 0.3, 8) : null,
+          ]}
+        >
+          <Icon name="people" size={20} color={dmsActive ? colors.onAccent : colors.inkSoft} />
+        </View>
+        {dmUnread ? (
+          <View style={styles.badge}>
+            <Badge count={dmUnread} />
+          </View>
+        ) : null}
+      </Pressable>
       {spaces.map((s) => (
         <SpaceTile
           key={s.id}

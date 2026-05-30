@@ -5,32 +5,43 @@ import type { Room, RoomKind, Space } from '@/lib/types';
 import type { ThreadSummary } from '@/lib/threads';
 import type { RoomCategory } from '@/lib/use-rooms';
 import { useOnline } from '@/lib/connectivity';
-import { useDms } from '@/lib/use-dms';
+import { DM_HOME_NAME } from '@/lib/dm-home';
+import type { DmEntry } from '@/lib/use-dms';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 
 import { ChannelListSkeleton } from './ChannelListSkeleton';
-import { DirectMessagesSection } from './DirectMessagesSection';
+import { DmList } from './DmList';
 import { OfflineBanner } from './OfflineBanner';
 import { RoomCategoryList } from './RoomCategoryList';
 import { SidebarLinkRow } from './SidebarLinkRow';
 import { SpaceMeta } from './SpaceMeta';
 
 interface DesktopRoomSidebarProps {
-  space: Space;
+  /** The active space — undefined when the virtual DM space is selected. */
+  space?: Space;
+  /** True when the virtual DM space is selected: render the DM list, not a space. */
+  isDmHome?: boolean;
+  /** Every DM (across all peers), for the DM-home view. */
+  dms?: DmEntry[];
   /** Whether the active space is public (plaintext) vs private (E2EE). */
-  isPublic: boolean;
+  isPublic?: boolean;
   /** Owner + roster for private spaces; null for public (no roster). */
   memberCount?: number | null;
-  categories: RoomCategory[];
+  categories?: RoomCategory[];
   /** Signed-in identity — the key (with the space) for persisted collapse state. */
   userId: string;
   activeRoomId?: string;
   /** Recent threads of the active room, listed under its row. Omit to show none. */
   threads?: ThreadSummary[];
   onOpenRoom: (room: Room) => void;
+  /** Open the public-space directory (Explore). Space-independent, so it heads
+   *  the nav group above the space-scoped destinations. */
+  onOpenExplore?: () => void;
+  /** Highlight the Explore row as the current destination. */
+  exploreActive?: boolean;
   /** Open one of the active room's threads (the reply target's message id). */
   onOpenThread?: (parentId: string) => void;
   /** Open the Threads view (every thread in the active space). */
@@ -64,16 +75,24 @@ interface DesktopRoomSidebarProps {
  * search affordance, and the space's rooms grouped by category. Reuses
  * {@link RoomCategorySection}/{@link ChannelRow} so list rows stay identical
  * to the mobile rooms tab.
+ *
+ * In DM-home mode ({@link isDmHome}) the same shell renders a "Direct Messages"
+ * header over the full {@link DmList} (every peer's DM) instead — the virtual DM
+ * space has no jump-to, nav group or categories.
  */
 export function DesktopRoomSidebar({
   space,
+  isDmHome = false,
+  dms = [],
   isPublic,
   memberCount,
-  categories,
+  categories = [],
   userId,
   activeRoomId,
   threads,
   onOpenRoom,
+  onOpenExplore,
+  exploreActive = false,
   onOpenThread,
   onOpenThreads,
   threadsActive = false,
@@ -90,9 +109,38 @@ export function DesktopRoomSidebar({
 }: DesktopRoomSidebarProps) {
   const { colors } = useTheme();
   const online = useOnline();
-  const dms = useDms();
   const headerHover = useHover();
   const jumpHover = useHover();
+
+  // The virtual DM space: same sidebar shell, a "Direct Messages" header over the full
+  // DM list — no jump-to, nav group or categories (none apply to DMs).
+  if (isDmHome) {
+    return (
+      <View style={[styles.sidebar, { width: layout.sidebarWidth, backgroundColor: colors.paperAlt, borderRightColor: colors.lineSoft }]}>
+        <View style={[styles.header, { borderBottomColor: colors.lineFaint }]}>
+          <View style={styles.headerText}>
+            <Txt variant="subhead" weight="semibold" numberOfLines={1}>
+              {DM_HOME_NAME}
+            </Txt>
+          </View>
+          <Icon name="people" size={15} color={colors.inkMuted} />
+        </View>
+        <ScrollView style={styles.list} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+          {!online ? (
+            <View style={styles.banner}>
+              <OfflineBanner message="You’re offline — showing your last-synced DMs." />
+            </View>
+          ) : null}
+          <DmList
+            dms={dms}
+            activeRoomId={activeRoomId}
+            onOpen={(dm) => onOpenRoom({ id: dm.roomId, spaceId: dm.spaceId, category: '', name: dm.name, kind: 'dm' })}
+          />
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.sidebar, { width: layout.sidebarWidth, backgroundColor: colors.paperAlt, borderRightColor: colors.lineSoft }]}>
       <Pressable
@@ -104,9 +152,9 @@ export function DesktopRoomSidebar({
       >
         <View style={styles.headerText}>
           <Txt variant="subhead" weight="semibold" numberOfLines={1}>
-            {space.name}
+            {space?.name}
           </Txt>
-          <SpaceMeta isPublic={isPublic} memberCount={memberCount} iconSize={9} numberOfLines={1} />
+          <SpaceMeta isPublic={!!isPublic} memberCount={memberCount} iconSize={9} numberOfLines={1} />
         </View>
         <Icon name="gear" size={15} color={colors.inkMuted} />
       </Pressable>
@@ -140,8 +188,11 @@ export function DesktopRoomSidebar({
             stack. Replaces the old tiny IconButton hidden at the foot of the
             spaces rail — a labeled row in the natural reading column is far
             more discoverable on wide web. */}
-        {onOpenThreads || onOpenPinned || onOpenAutomations ? (
+        {onOpenExplore || onOpenThreads || onOpenPinned || onOpenAutomations ? (
           <View style={styles.navGroup}>
+            {onOpenExplore ? (
+              <SidebarLinkRow iconName="globe" label="Explore" active={exploreActive} onPress={onOpenExplore} />
+            ) : null}
             {onOpenThreads ? (
               <SidebarLinkRow iconName="thread" label="Threads" active={threadsActive} onPress={onOpenThreads} />
             ) : null}
@@ -158,13 +209,6 @@ export function DesktopRoomSidebar({
             ) : null}
           </View>
         ) : null}
-        {/* DMs are personal + cross-space: a dedicated group above the space's
-            channels, reusing the same ChannelRow as the mobile list. */}
-        <DirectMessagesSection
-          dms={dms}
-          activeRoomId={activeRoomId}
-          onOpen={(dm) => onOpenRoom({ id: dm.roomId, spaceId: dm.spaceId, category: '', name: dm.name, kind: 'dm' })}
-        />
         {loading ? (
           <ChannelListSkeleton />
         ) : categories.length === 0 && !onCreateCategory ? (
@@ -175,7 +219,7 @@ export function DesktopRoomSidebar({
           <RoomCategoryList
             categories={categories}
             userId={userId}
-            spaceId={space.id}
+            spaceId={space?.id ?? ''}
             activeRoomId={activeRoomId}
             threads={threads}
             onOpenRoom={onOpenRoom}

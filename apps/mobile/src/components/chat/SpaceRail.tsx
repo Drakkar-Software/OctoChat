@@ -5,8 +5,9 @@ import { radii, spacing } from '@/theme';
 import type { Space } from '@/lib/types';
 import { useMutes } from '@/lib/mutes-context';
 import { useTheme } from '@/lib/use-theme';
+import { DM_HOME_SHORT } from '@/lib/dm-home';
 import { Badge } from '@/components/ui/Badge';
-import { Icon } from '@/components/ui/Icon';
+import { Icon, type IconName } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 
 interface SpaceRailProps {
@@ -14,11 +15,18 @@ interface SpaceRailProps {
   activeId: string;
   onSelect?: (id: string) => void;
   onAdd?: () => void;
+  /** Select the virtual DM space (the leading tile that lists every DM). */
+  onSelectDms?: () => void;
+  /** Whether the DM space is the active selection. */
+  dmsActive?: boolean;
+  /** Aggregate unread across all DMs, for the DM tile badge. */
+  dmUnread?: number;
 }
 
 function RailItem({
   label,
   image,
+  icon,
   active,
   unread,
   isPublic,
@@ -27,6 +35,9 @@ function RailItem({
 }: {
   label: string;
   image?: string;
+  /** When set, render this glyph centered instead of an image/monogram, and drop the
+   *  privacy corner — used by the virtual DM tile. */
+  icon?: IconName;
   active: boolean;
   unread?: number;
   isPublic?: boolean;
@@ -52,7 +63,9 @@ function RailItem({
           },
         ]}
       >
-        {image ? (
+        {icon ? (
+          <Icon name={icon} size={18} color={active ? colors.accentInk : colors.inkSoft} />
+        ) : image ? (
           <Image source={{ uri: image }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={label} />
         ) : (
           <Txt variant="caption" weight="bold" mono color={active ? colors.accentInk : colors.inkSoft}>
@@ -60,9 +73,11 @@ function RailItem({
           </Txt>
         )}
       </View>
-      <View style={[styles.corner, { backgroundColor: colors.paper, borderColor: colors.lineSoft }]}>
-        <Icon name={isPublic ? 'globe' : 'lock'} size={8} color={colors.inkMuted} />
-      </View>
+      {icon ? null : (
+        <View style={[styles.corner, { backgroundColor: colors.paper, borderColor: colors.lineSoft }]}>
+          <Icon name={isPublic ? 'globe' : 'lock'} size={8} color={colors.inkMuted} />
+        </View>
+      )}
       {muted ? (
         <View style={[styles.muteCorner, { backgroundColor: colors.paper, borderColor: colors.lineSoft }]}>
           <Icon name="volume-off" size={8} color={colors.inkMuted} />
@@ -78,11 +93,13 @@ function RailItem({
 }
 
 /** Horizontal rail of space monograms with per-space unread badges. */
-export function SpaceRail({ spaces, activeId, onSelect, onAdd }: SpaceRailProps) {
+export function SpaceRail({ spaces, activeId, onSelect, onAdd, onSelectDms, dmsActive, dmUnread }: SpaceRailProps) {
   const { colors } = useTheme();
   const { isSpaceMuted } = useMutes();
   return (
     <View style={styles.rail}>
+      {/* Virtual DM space — pinned first, lists every DM (see lib/dm-home). */}
+      <RailItem label={DM_HOME_SHORT} icon="people" active={!!dmsActive} unread={dmUnread} onPress={onSelectDms} />
       {spaces.map((s) => (
         <RailItem
           key={s.id}

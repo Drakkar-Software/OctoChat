@@ -3,12 +3,14 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { layout } from '@/theme';
 import type { Room } from '@/lib/types';
+import { DM_HOME_ID, isDmHomeId } from '@/lib/dm-home';
 import { useProfile } from '@/lib/profile-context';
 import { useRoomSidebarVisible } from '@/lib/use-responsive';
 import { useRooms } from '@/lib/use-rooms';
 import { useSession } from '@/lib/session-context';
 import { useSpaceNav } from '@/lib/use-space-nav';
 import { useSpaces } from '@/lib/use-spaces';
+import { useDms, useTotalDmUnread } from '@/lib/use-dms';
 import { useTheme } from '@/lib/use-theme';
 import { useThreadDigest } from '@/lib/thread-digest-context';
 import { Button } from '@/components/ui/Button';
@@ -30,13 +32,17 @@ export function DesktopNav() {
   const { profile } = useProfile();
   const { session } = useSession();
   const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
+  const isDmHome = isDmHomeId(activeId);
+  const navId = isDmHome ? null : activeId; // the virtual DM space has no registry doc
   const { categories, loading: roomsLoading, isPublic, memberCount, isOwner, createRoom, createCategory, moveRoom } =
-    useRooms(activeId);
+    useRooms(navId);
   const { digest } = useThreadDigest();
-  const { hasThreads, hasPins } = useSpaceNav(activeId);
+  const { hasThreads, hasPins } = useSpaceNav(navId);
+  const dms = useDms();
+  const dmUnread = useTotalDmUnread();
   const showRoomSidebar = useRoomSidebarVisible();
 
-  const space = spaces.find((s) => s.id === activeId) ?? spaces[0];
+  const space = isDmHome ? undefined : spaces.find((s) => s.id === activeId) ?? spaces[0];
   const activeRoomId =
     pathname.startsWith('/room/') || pathname.startsWith('/members/')
       ? params.id
@@ -82,13 +88,24 @@ export function DesktopNav() {
         spaces={spaces}
         activeId={activeId}
         onSelect={selectSpace}
+        onSelectDms={() => { setActiveId(DM_HOME_ID); router.push('/(tabs)/rooms'); }}
+        dmsActive={isDmHome}
+        dmUnread={dmUnread}
         onAdd={() => router.push('/join')}
         meLabel={meLabel}
         meAvatar={profile?.avatar}
         onOpenProfile={() => router.push('/(tabs)/you')}
       />
       {showRoomSidebar &&
-        (space ? (
+        (isDmHome ? (
+          <DesktopRoomSidebar
+            isDmHome
+            dms={dms}
+            userId={session?.userId ?? ''}
+            activeRoomId={activeRoomId}
+            onOpenRoom={openRoom}
+          />
+        ) : space ? (
           <DesktopRoomSidebar
             space={space}
             isPublic={isPublic}
