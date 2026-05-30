@@ -68,6 +68,7 @@ const ICONS = {
   refresh: { lib: Feather, n: 'refresh-cw' },
   globe: { lib: Ionicons, n: 'globe-outline' },
   folder: { lib: Feather, n: 'folder' },
+  share: { lib: Feather, n: 'share' },
 } satisfies Record<string, IconDef>;
 
 export type IconName = keyof typeof ICONS;

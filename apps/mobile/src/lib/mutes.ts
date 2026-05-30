@@ -31,6 +31,11 @@ const keyFor = (userId: string) => `octochat.mutes.${userId}`;
 
 let cache: MutePrefs = EMPTY;
 let activeKey: string | null = null;
+// Count of local mute writes whose server round-trip is still in flight. While > 0, a
+// navigation/foreground re-hydrate (SpacesProvider.refresh) must NOT replace the cache:
+// the server may not yet reflect the just-made optimistic change, so a wholesale replace
+// would visibly revert it. Reads don't need this (their merge is monotonic).
+let pending = 0;
 const listeners = new Set<() => void>();
 
 /** A mute is active when set to `true` (forever) or to a future epoch-ms instant. */
@@ -43,6 +48,16 @@ function coerce(raw: unknown): MutePrefs {
   const pick = (v: unknown): Record<string, MuteValue> =>
     v && typeof v === 'object' ? (v as Record<string, MuteValue>) : {};
   return { rooms: pick(r.rooms), spaces: pick(r.spaces) };
+}
+
+function mapEqual(a: Record<string, MuteValue>, b: Record<string, MuteValue>): boolean {
+  const ak = Object.keys(a);
+  if (ak.length !== Object.keys(b).length) return false;
+  for (const k of ak) if (a[k] !== b[k]) return false;
+  return true;
+}
+function prefsEqual(a: MutePrefs, b: MutePrefs): boolean {
+  return mapEqual(a.rooms, b.rooms) && mapEqual(a.spaces, b.spaces);
 }
 
 // ── Synchronous reads (for the non-React notification code paths) ───────────────
@@ -92,6 +107,14 @@ function persist(): void {
  */
 export async function hydrateMutes(userId: string, serverPrefs: MutePrefs): Promise<void> {
   activeKey = keyFor(userId);
+  // A local mute write is still settling — don't let this re-hydrate clobber the
+  // optimistic value with a server copy that hasn't caught up yet (it would revert the
+  // toggle until the next navigation). The write's own emit already reflects the change.
+  if (pending > 0) return;
+  // Skip the emit/persist when the synced prefs match what we already hold — this now
+  // runs on every navigation/foreground re-pull (SpacesProvider.refresh), and a new
+  // snapshot reference would re-render every consumer for an unchanged value.
+  if (prefsEqual(cache, serverPrefs)) return;
   emit(serverPrefs);
   await kvSet(activeKey, JSON.stringify(serverPrefs));
 }
@@ -138,11 +161,16 @@ async function setMute(session: Session, field: 'rooms' | 'spaces', id: string, 
   }
   // Sync to the durable doc, applying the SAME explicit target to fresh server state
   // (idempotent — survives a concurrent edit on another device, last-writer-wins).
-  await updateMutesDoc(session.accountClient, session.userId, (cur) => applyMute(cur, field, id, muted)).catch(
-    (err) => {
-      console.error('[OctoChat] mutes: failed to sync mute change', err);
-    },
-  );
+  // `pending` brackets the round-trip so a navigation re-hydrate can't revert the
+  // optimistic emit above before the server reflects it.
+  pending++;
+  try {
+    await updateMutesDoc(session.accountClient, session.userId, (cur) => applyMute(cur, field, id, muted));
+  } catch (err) {
+    console.error('[OctoChat] mutes: failed to sync mute change', err);
+  } finally {
+    pending--;
+  }
 }
 
 export const setRoomMute = (session: Session, roomId: string, muted: boolean): Promise<void> =>

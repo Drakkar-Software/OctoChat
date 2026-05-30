@@ -160,7 +160,7 @@ export default function JoinScreen() {
         <Txt variant="footnote" tone="inkSoft">
           For private spaces: send this to an owner so they can invite you.
         </Txt>
-        <CopyField value={myRequest} copyLabel="Copy join request" />
+        <CopyField value={myRequest} copyLabel="Copy join request" share shareTitle="My OctoChat join request" />
       </Card>
 
       <Card title="PASTE AN INVITE">

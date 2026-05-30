@@ -32,6 +32,18 @@ export interface MutePrefs {
   spaces: Record<string, MuteValue>;
 }
 
+/** A per-room read mark: the epoch-ms instant the viewer last read that room.
+ *  Monotonic (only ever advances) so a merge across devices takes the MAX. */
+export type ReadValue = number;
+
+/** Per-user read marks — the timestamp each room was last read. Synced across the
+ *  user's devices (a `reads` key alongside `spaces`/`caps`/`mutes` in the
+ *  `user/<userId>/_spaces` doc) and mirrored to device-local kv (`reads.ts`) so the
+ *  unread badge / divider clears on every device, not just the one that read. */
+export interface ReadPrefs {
+  rooms: Record<string, ReadValue>;
+}
+
 export interface User {
   id: ID;
   name: string;

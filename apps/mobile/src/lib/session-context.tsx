@@ -17,6 +17,7 @@ import { recoverPubspaceAccess } from './starfish/pubspace';
 import { clearPubspaceCaps, hydratePubspaceCaps } from './starfish/pubspace-caps';
 import { readSpaces } from './starfish/registry';
 import { hydrateMutes, resetMutes } from './mutes';
+import { flushReadsNow, hydrateReads, resetReads } from './reads';
 import { activeAccountOf, sessionFromPersisted } from './starfish/session-restore';
 import { clearSpaceEncryptors } from './starfish/space-encryptor';
 import { passkeyEnrollable } from './starfish/passkey';
@@ -119,7 +120,11 @@ function resetAccountScopedState(): void {
   clearSpaceEncryptors();
   clearPrimedSpaces();
   clearRoomEventsBus();
+  // Flush any pending read marks before dropping them so a just-read room on the
+  // outgoing account isn't lost; then clear the in-memory snapshot.
+  void flushReadsNow();
   resetMutes();
+  resetReads();
 }
 
 async function hydrateCapsFor(session: Session): Promise<void> {
@@ -129,7 +134,7 @@ async function hydrateCapsFor(session: Session): Promise<void> {
   // prime SpacesProvider with the list; neither then re-reads the identical doc. Pass
   // the seed-authenticated accountClient (readSpaces degrades to empty on failure,
   // which leaves the local cap cache intact).
-  const { spaces, caps, mutes, pubAccess } = await readSpaces(session.accountClient, session.userId);
+  const { spaces, caps, mutes, reads, pubAccess } = await readSpaces(session.accountClient, session.userId);
   await hydrateMemberCaps(session.userId, caps);
   await hydratePubspaceCaps(session.userId);
   // Public-space credentials carry a bearer secret, so they ride the synced doc SEALED
@@ -142,6 +147,9 @@ async function hydrateCapsFor(session: Session): Promise<void> {
   // them — feed them to the mute cache (server-authoritative; an unreachable read
   // degrades to empty upstream, which a later successful sync re-heals). No second pull.
   await hydrateMutes(session.userId, mutes);
+  // Read marks share the same `_spaces` doc — feed them to the read cache (max-merged
+  // with local so an offline read survives). No second pull. See `reads.ts`.
+  await hydrateReads(session.userId, reads);
   primeSpaces(session.userId, spaces);
   // Seed the shared public-profile cache with our own pseudo so `use-pseudos`
   // (message authors, sidebar) never fires a separate fetch for self — the editable
