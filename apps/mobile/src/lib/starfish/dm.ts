@@ -19,48 +19,20 @@ import type { Room, Space } from '@/lib/types';
 import { ensureRoomInitialized, ownerEnsureKeyring } from './client';
 import { acceptSpaceInvite, inviteToSpace } from './members';
 import { isPublicSpaceId } from './pubspace';
+import { dmRoomId, dmWinner, isDmSpaceId, newDmSpaceId } from './dm-ids';
 import { appendDmInvite, scanDmInbox } from './dm-inbox';
 import type { PeerKeys } from './dm-keys';
 import { ownerTrustedAdders, type Session } from './identity';
 import { addJoinedSpace, DEFAULT_CATEGORY, readRooms, readSpaces, setDmMapping, writeRooms } from './registry';
 import { getSpaceEncryptor } from './space-encryptor';
 
-import { randomId } from '../ids';
-
-/** A DM space id — random + `dm-`-prefixed (a TYPE tag, not a deterministic identity:
- *  still CSPRNG-unguessable, so the first-writer-owns TOFU rule can't be exploited). */
-function newDmSpaceId(): string {
-  return `dm-${randomId()}`;
-}
-
-/** True for a DM space (vs a normal `sp-` space or a `psp-` public space). The room
- *  list uses this to keep DMs out of the space rail. */
-export const isDmSpaceId = (spaceId: string): boolean => spaceId.startsWith('dm-');
-
-/** The single room of a DM space. `spaceIdFromRoomId('dm-x-dm')` → `dm-x` (round-trips
- *  through the first-two-segments rule, like every room id). */
-export const dmRoomId = (spaceId: string): string => `${spaceId}-dm`;
+// Re-export the pure id/dedup helpers so existing importers can keep reaching for them
+// through `starfish/dm` (their canonical home is the dependency-light `dm-ids`).
+export { dmRoomId, dmWinner, isDmSpaceId } from './dm-ids';
 
 export interface DmRef {
   spaceId: string;
   roomId: string;
-}
-
-/**
- * Decide which of two competing DM spaces survives when A and B create one each before
- * either's invite arrives: the space owned by `min(userId)` wins (a stable, symmetric
- * rule both sides compute identically). `mySpaceId` is our own-created space (owned by
- * us) for this peer, if any; `peerSpaceId` is the one we just received an invite for
- * (owned by the peer). Returns the winning space id.
- */
-export function dmWinner(
-  myUserId: string,
-  peerUserId: string,
-  mySpaceId: string | undefined,
-  peerSpaceId: string,
-): string {
-  if (!mySpaceId || mySpaceId === peerSpaceId) return peerSpaceId; // no competition
-  return myUserId < peerUserId ? mySpaceId : peerSpaceId;
 }
 
 /** Create a private DM space owned by this session: seed its keyring + the single

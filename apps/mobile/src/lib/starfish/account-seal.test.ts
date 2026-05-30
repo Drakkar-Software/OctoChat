@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 
-import { sealToSelf, unsealFromSelf } from './account-seal';
+import { sealToRecipient, sealToSelf, unsealFromRecipient, unsealFromSelf } from './account-seal';
 import type { Session } from './identity';
 
 // sealToSelf/unsealFromSelf only touch session.keys.{edPub,edPriv,kemPub,kemPriv}.
@@ -35,5 +35,34 @@ describe('account-seal: sealToSelf / unsealFromSelf', () => {
     const flipped = (parseInt(last, 16) ^ 0xff).toString(16).padStart(2, '0');
     const tampered = { ...blob, ct: blob.ct.slice(0, -2) + flipped };
     await expect(unsealFromSelf(session, tampered)).rejects.toThrow();
+  });
+});
+
+describe('account-seal: sealToRecipient / unsealFromRecipient', () => {
+  it('A seals to B; only B opens it', async () => {
+    const a = sessionWithKeys();
+    const b = sessionWithKeys();
+    const plaintext = JSON.stringify({ spaceId: 'dm-1', cap: { kind: 'member' } });
+    const blob = await sealToRecipient(a, b.keys.kemPub, plaintext);
+    expect(await unsealFromRecipient(b, blob)).toBe(plaintext);
+    // The sealer's edPub is authenticated on the entry (used to cross-check the cap).
+    expect(blob.entry.addedBy).toBe(a.keys.edPub);
+  });
+
+  it('a third party (wrong KEM key) cannot open it — the trial-unseal skip', async () => {
+    const a = sessionWithKeys();
+    const b = sessionWithKeys();
+    const c = sessionWithKeys();
+    const blob = await sealToRecipient(a, b.keys.kemPub, 'secret');
+    await expect(unsealFromRecipient(c, blob)).rejects.toThrow();
+  });
+
+  it('rejects a blob whose signed sealer (addedBy) was tampered', async () => {
+    const a = sessionWithKeys();
+    const b = sessionWithKeys();
+    const evil = sessionWithKeys();
+    const blob = await sealToRecipient(a, b.keys.kemPub, 'secret');
+    const tampered = { ...blob, entry: { ...blob.entry, addedBy: evil.keys.edPub } };
+    await expect(unsealFromRecipient(b, tampered)).rejects.toThrow();
   });
 });

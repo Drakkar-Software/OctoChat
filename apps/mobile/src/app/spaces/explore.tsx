@@ -1,26 +1,26 @@
 import { router } from 'expo-router';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
+import { plural } from '@/lib/format';
 import { useExploreSpaces } from '@/lib/use-explore-spaces';
-import { useTheme } from '@/lib/use-theme';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
-import { Callout } from '@/components/ui/Callout';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Pill } from '@/components/ui/Pill';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { Txt } from '@/components/ui/Txt';
-import { SpaceExploreRow } from '@/components/chat/SpaceExploreRow';
+import { SpaceExploreRow, SpaceExploreRowSkeleton } from '@/components/chat/SpaceExploreRow';
 
 /**
  * Explore — the public-space directory. Lists every public space the server knows
  * about (from the `_index/spaces/public` projection), newest first. View-only: it
- * shows what exists; joining still needs an invite link (stated below the list).
+ * shows what exists; joining still needs an invite link (stated in the lead).
  * Thin route — all data access lives in `useExploreSpaces`.
  */
 export default function ExploreScreen() {
-  const { colors } = useTheme();
   const { spaces, ownerNames, loading, reload } = useExploreSpaces();
+  const hasSpaces = spaces.length > 0;
 
   return (
     <StackScreen
@@ -28,40 +28,47 @@ export default function ExploreScreen() {
       contentStyle={styles.content}
       header={
         <AppBar
-          title="Explore spaces"
+          title="Explore"
           onBack={() => router.back()}
           right={<Button label="Refresh" variant="ghost" size="sm" iconName="refresh" onPress={reload} />}
         />
       }
     >
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.accent} />
-          <Txt variant="footnote" tone="inkSoft">
-            Loading public spaces…
+      {/* Editorial lead-in: sets the "surfacing from the deep" framing + a live count. */}
+      <View style={styles.lead}>
+        <View style={styles.kicker}>
+          <Txt variant="micro" weight="semibold" mono uppercase tone="accent">
+            Discover
           </Txt>
+          {!loading && hasSpaces ? <Pill label={plural(spaces.length, 'space')} tone="accent" /> : null}
         </View>
-      ) : spaces.length === 0 ? (
+        <Txt variant="title" weight="bold">
+          Public spaces
+        </Txt>
+        <Txt variant="footnote" tone="inkSoft" style={styles.leadCopy}>
+          Spaces anyone can find. They’re view-only here — join one with an invitation link from its owner,
+          pasted on the Join screen.
+        </Txt>
+      </View>
+
+      {loading ? (
+        <View style={styles.list} accessibilityLabel="Loading public spaces">
+          {[0, 1, 2, 3].map((i) => (
+            <SpaceExploreRowSkeleton key={i} />
+          ))}
+        </View>
+      ) : hasSpaces ? (
+        <View style={styles.list}>
+          {spaces.map((s) => (
+            <SpaceExploreRow key={s.id} space={s} ownerName={s.ownerId ? ownerNames.get(s.ownerId) : undefined} />
+          ))}
+        </View>
+      ) : (
         <EmptyState
           iconName="globe"
-          title="No public spaces yet"
-          subtitle="Public spaces show up here once someone creates one. Create one from “Join or create”."
+          title="The water’s still"
+          subtitle="No public spaces have surfaced yet. Create one from “Join or create” and it’ll appear here."
         />
-      ) : (
-        <>
-          <Txt variant="footnote" tone="inkSoft">
-            Public spaces anyone can discover. To join one, ask its owner for an invitation link —
-            then paste it on the Join screen.
-          </Txt>
-          <View style={styles.list}>
-            {spaces.map((s) => (
-              <SpaceExploreRow key={s.id} space={s} ownerName={s.ownerId ? ownerNames.get(s.ownerId) : undefined} />
-            ))}
-          </View>
-          <Callout tone="info" iconName="info" title="View-only directory">
-            Listing a space here doesn’t grant access — public spaces are still joined by invitation link.
-          </Callout>
-        </>
       )}
     </StackScreen>
   );
@@ -69,6 +76,8 @@ export default function ExploreScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.screenX, gap: spacing.lg },
-  center: { paddingVertical: spacing.xl, alignItems: 'center', gap: spacing.sm },
+  lead: { gap: spacing.xs },
+  kicker: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  leadCopy: { maxWidth: 460 },
   list: { gap: spacing.sm },
 });
