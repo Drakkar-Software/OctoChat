@@ -19,6 +19,9 @@
  */
 import notifee, { AndroidImportance } from '@notifee/react-native';
 
+import { isMuteActive, loadMutesFromKv } from '../mutes';
+import { notificationTitle } from '../notification-format';
+import { loadNotificationLabels } from '../notification-labels';
 import { loadNotificationSettings } from '../notification-settings';
 import { loadLatestMessagePreview } from '../notification-preview';
 // Importing platform.native runs `install()` (globalThis.crypto) at module load;
@@ -27,6 +30,7 @@ import { loadLatestMessagePreview } from '../notification-preview';
 import { configureStarfishPlatform } from '../starfish/platform';
 import { hydrateMemberCaps } from '../starfish/member-caps';
 import { spaceIdFromRoomId } from '../starfish/paths';
+import { hydratePubspaceCaps } from '../starfish/pubspace-caps';
 import { activeAccountOf, sessionFromPersisted } from '../starfish/session-restore';
 import { loadVault } from '../starfish/storage';
 
@@ -66,11 +70,14 @@ async function cancelPlaceholder(tag: string): Promise<void> {
 }
 
 /**
- * Replace the placeholder with the real decrypted content. `id = roomKey` so a later
- * upgrade in the same room replaces this one (latest wins); `groupId = spaceId` bundles
- * a space's rooms. Cancel the FCM placeholder first so the room shows a single banner.
+ * Replace the placeholder with the real decrypted content. `title` is the resolved
+ * "Space › #room" header (or the bare app name when names couldn't be resolved).
+ * `id = roomKey` so a later upgrade in the same room replaces this one (latest wins);
+ * `groupId = spaceId` bundles a space's rooms. Cancel the FCM placeholder first so the
+ * room shows a single banner.
  */
 async function displayRealContent(
+  title: string,
   body: string,
   roomKey: string,
   spaceId: string | undefined,
@@ -80,7 +87,7 @@ async function displayRealContent(
   await cancelPlaceholder(roomKey);
   await notifee.displayNotification({
     id: roomKey,
-    title: 'OctoChat',
+    title,
     body,
     data: pushDataToNotifee(data),
     android: {
@@ -111,15 +118,35 @@ export async function handleBackgroundPush(data: PushData): Promise<void> {
     const settings = await loadNotificationSettings(userId);
     if (!settings.enabled || !settings.preview) return;
 
+    // Muted room (or whole space): suppress the decrypted upgrade and best-effort
+    // cancel the OS placeholder so this room stays silent. Read from the kv copy the
+    // foreground app warms (no provider tree / server round-trip in this headless
+    // task). NOTE: a muted space normally never reaches here (its FCM topic is
+    // unsubscribed); a muted room in an UNMUTED space still receives the push, and
+    // FCM ordering means the generic placeholder may already be on screen — hence
+    // best-effort. (A muted space's own topic-drop is the reliable native layer.)
+    const muted = await loadMutesFromKv(userId);
+    if (isMuteActive(muted.rooms[roomId]) || isMuteActive(muted.spaces[spaceId])) {
+      await cancelPlaceholder(roomId);
+      return;
+    }
+
     const session = await sessionFromPersisted(account);
     // Joined-space caps live only in the kv cache in a cold task; reload them (empty
     // server caps leaves the local cache intact, no network) so a JOINED space can open
-    // its keyring. Owned spaces don't need it.
+    // its keyring. Owned spaces don't need it. Likewise hydrate the JOINED public-space
+    // link caps so a public room can authorize its plaintext pull (owned public spaces
+    // use the account cap, no entry needed).
     await hydrateMemberCaps(userId, {});
+    await hydratePubspaceCaps(userId);
     const preview = await loadLatestMessagePreview(session, roomId).catch(() => null);
     if (!preview) return; // couldn't decrypt → leave the generic placeholder
 
-    await displayRealContent(preview, roomId, spaceId, data);
+    // Resolve the "Space › #room" title from the plaintext registry. Best-effort: a
+    // failed/slow lookup degrades to the bare app name — never gate the preview on it.
+    const labels = await loadNotificationLabels(session, roomId).catch(() => null);
+    const title = notificationTitle(labels?.spaceName, labels?.roomName, labels?.roomKind);
+    await displayRealContent(title, preview, roomId, spaceId, data);
   } catch {
     // Leave the placeholder standing — never worse than the generic banner.
   }

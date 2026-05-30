@@ -25,6 +25,17 @@ export interface SpaceEncryptor {
   isOwnerOpen: boolean;
 }
 
+/** A GENUINE access denial (not on the keyring / not a member) — distinct from a
+ *  network failure. The room-open path surfaces this as a hard error, but treats a
+ *  connectivity failure as a transient offline state (see use-room/use-stream-room).
+ *  Tagged as a class so callers classify by `instanceof`, not by message matching. */
+export class SpaceAccessError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SpaceAccessError';
+  }
+}
+
 const cache = new Map<string, Promise<SpaceEncryptor>>();
 
 /** Drop every cached space encryptor (on account switch — keys are per-identity). */
@@ -65,7 +76,7 @@ export function getSpaceEncryptor(
     const owner = reg?.owner ?? null;
     const members = reg?.members ?? [];
     if (owner !== null && owner !== session.userId) {
-      throw new Error(
+      throw new SpaceAccessError(
         members.includes(session.userId)
           ? "You're a member of this space, but its key isn't on this device yet — reconnect, or ask the owner to re-invite."
           : "You don't have access to this space.",

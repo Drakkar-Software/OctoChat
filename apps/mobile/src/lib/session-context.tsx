@@ -13,8 +13,11 @@ import {
   type Session,
 } from './starfish/identity';
 import { clearMemberCaps, hydrateMemberCaps } from './starfish/member-caps';
+import { recoverPubspaceAccess } from './starfish/pubspace';
 import { clearPubspaceCaps, hydratePubspaceCaps } from './starfish/pubspace-caps';
 import { readSpaces } from './starfish/registry';
+import { hydrateMutes, resetMutes } from './mutes';
+import { flushReadsNow, hydrateReads, resetReads } from './reads';
 import { activeAccountOf, sessionFromPersisted } from './starfish/session-restore';
 import { clearSpaceEncryptors } from './starfish/space-encryptor';
 import { passkeyEnrollable } from './starfish/passkey';
@@ -117,6 +120,11 @@ function resetAccountScopedState(): void {
   clearSpaceEncryptors();
   clearPrimedSpaces();
   clearRoomEventsBus();
+  // Flush any pending read marks before dropping them so a just-read room on the
+  // outgoing account isn't lost; then clear the in-memory snapshot.
+  void flushReadsNow();
+  resetMutes();
+  resetReads();
 }
 
 async function hydrateCapsFor(session: Session): Promise<void> {
@@ -126,9 +134,22 @@ async function hydrateCapsFor(session: Session): Promise<void> {
   // prime SpacesProvider with the list; neither then re-reads the identical doc. Pass
   // the seed-authenticated accountClient (readSpaces degrades to empty on failure,
   // which leaves the local cap cache intact).
-  const { spaces, caps } = await readSpaces(session.accountClient, session.userId);
+  const { spaces, caps, mutes, reads, pubAccess } = await readSpaces(session.accountClient, session.userId);
   await hydrateMemberCaps(session.userId, caps);
   await hydratePubspaceCaps(session.userId);
+  // Public-space credentials carry a bearer secret, so they ride the synced doc SEALED
+  // to the account key. Recover them into the local cache (gives a device that never
+  // opened the link access) and backfill any local-only ones up to the doc. Best-effort
+  // and after hydratePubspaceCaps so the local cache + active user are set. See
+  // `pubspace.ts` recoverPubspaceAccess.
+  await recoverPubspaceAccess(session, pubAccess);
+  // Mute prefs share the same `_spaces` doc, so the single read above already carries
+  // them — feed them to the mute cache (server-authoritative; an unreachable read
+  // degrades to empty upstream, which a later successful sync re-heals). No second pull.
+  await hydrateMutes(session.userId, mutes);
+  // Read marks share the same `_spaces` doc — feed them to the read cache (max-merged
+  // with local so an offline read survives). No second pull. See `reads.ts`.
+  await hydrateReads(session.userId, reads);
   primeSpaces(session.userId, spaces);
   // Seed the shared public-profile cache with our own pseudo so `use-pseudos`
   // (message authors, sidebar) never fires a separate fetch for self — the editable
@@ -188,6 +209,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     (async () => {
       const res = await loadVault();
       if (cancelled) return;
+      if (res.kind === 'error') {
+        // A storage read failed (e.g. transient Keychain miss on iOS cold start).
+        // Stay in 'loading' so index.tsx renders null — welcome-on-storage-error
+        // wipes the user's perceived account even though the vault is still on
+        // disk. The next cold start usually succeeds; a follow-up could add retry.
+        console.error('[session-context] loadVault failed', res.error);
+        return;
+      }
+      if (res.kind === 'none') {
+        // Genuine "no account" for a first-time user is the happy path → welcome.
+        // But on iOS cold start a not-yet-ready Keychain can RESOLVE getItemAsync
+        // with null (no throw), which lands here too. Log so the next cold-start
+        // welcome incident is diagnosable: a user who already had an account
+        // seeing this line means the storage read returned empty on a populated
+        // Keychain — i.e. the same root cause as a thrown error.
+        console.info('[session-context] storage reported no account → welcome');
+      }
       if (res.kind === 'locked') {
         setUnlockMethods(res.methods);
         setStatus('locked');
@@ -199,10 +237,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (acct) {
           try {
             const s = await sessionFromPersisted(acct);
-            await hydrateCapsFor(s);
+            // Set the session BEFORE caps hydrate so a caps hiccup can't sign the
+            // user out — hydrateMemberCaps already loads the local kv first, so
+            // the user has the offline cap set even if the server merge fails.
             if (!cancelled) setSession(s);
-          } catch {
-            /* corrupt/stale persisted identity — start signed-out */
+            await hydrateCapsFor(s).catch((err) => {
+              console.error('[session-context] caps hydrate failed (session kept)', err);
+            });
+          } catch (err) {
+            // Genuine corrupt/stale persisted identity OR sessionFromPersisted
+            // throw. Log so the next cold-start welcome incident is diagnosable.
+            console.error('[session-context] sessionFromPersisted failed', err);
           }
         }
       }

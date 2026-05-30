@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 
 import { radii, spacing } from '@/theme';
 import type { Space } from '@/lib/types';
+import { useMutes } from '@/lib/mutes-context';
 import { useTheme } from '@/lib/use-theme';
 import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/Icon';
@@ -21,6 +22,7 @@ function RailItem({
   active,
   unread,
   isPublic,
+  muted,
   onPress,
 }: {
   label: string;
@@ -28,6 +30,7 @@ function RailItem({
   active: boolean;
   unread?: number;
   isPublic?: boolean;
+  muted?: boolean;
   onPress?: () => void;
 }) {
   const { colors } = useTheme();
@@ -60,6 +63,11 @@ function RailItem({
       <View style={[styles.corner, { backgroundColor: colors.paper, borderColor: colors.lineSoft }]}>
         <Icon name={isPublic ? 'globe' : 'lock'} size={8} color={colors.inkMuted} />
       </View>
+      {muted ? (
+        <View style={[styles.muteCorner, { backgroundColor: colors.paper, borderColor: colors.lineSoft }]}>
+          <Icon name="volume-off" size={8} color={colors.inkMuted} />
+        </View>
+      ) : null}
       {unread ? (
         <View style={styles.badge}>
           <Badge count={unread} />
@@ -72,6 +80,7 @@ function RailItem({
 /** Horizontal rail of space monograms with per-space unread badges. */
 export function SpaceRail({ spaces, activeId, onSelect, onAdd }: SpaceRailProps) {
   const { colors } = useTheme();
+  const { isSpaceMuted } = useMutes();
   return (
     <View style={styles.rail}>
       {spaces.map((s) => (
@@ -82,6 +91,7 @@ export function SpaceRail({ spaces, activeId, onSelect, onAdd }: SpaceRailProps)
           active={s.id === activeId}
           unread={s.unread}
           isPublic={(s.type ?? 'private') === 'public'}
+          muted={isSpaceMuted(s.id)}
           onPress={() => onSelect?.(s.id)}
         />
       ))}
@@ -107,6 +117,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -3,
     right: -3,
+    width: 15,
+    height: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  muteCorner: {
+    position: 'absolute',
+    bottom: -3,
+    left: -3,
     width: 15,
     height: 15,
     borderRadius: 8,

@@ -19,6 +19,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { AppState } from 'react-native';
 import { usePathname } from 'expo-router';
 
 import type { Space } from '@/lib/types';
@@ -26,6 +27,8 @@ import type { Space } from '@/lib/types';
 import { createSpace as createSpaceDoc, onSpaceMeta, readSpaces } from './starfish/registry';
 import { createPublicSpace } from './starfish/pubspace';
 import { consumePrimedSpaces } from './spaces-prime';
+import { hydrateMutes } from './mutes';
+import { flushReadsNow, hydrateReads } from './reads';
 import { useSession } from './session-context';
 
 interface SpacesContextValue {
@@ -49,9 +52,16 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (!session) return;
-    const { spaces: list } = await readSpaces(session.accountClient, session.userId);
+    const { spaces: list, mutes, reads } = await readSpaces(session.accountClient, session.userId);
     setSpaces(list);
     setActiveId((prev) => prev ?? list[0]?.id ?? null);
+    // This `_spaces` re-pull runs on every navigation (effect below) and on app
+    // foreground — the only post-startup re-read of the doc. Re-hydrate the read marks
+    // and mute prefs from it too (they share the doc) so a room read or a space muted
+    // on another device propagates here without an app restart. Max-merged / server-
+    // authoritative in their own modules, so a stale read can't roll local state back.
+    await hydrateReads(session.userId, reads);
+    await hydrateMutes(session.userId, mutes);
   }, [session]);
 
   useEffect(() => {
@@ -68,7 +78,11 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     // hydration) instead of pulling the identical doc again on first paint. Falls
     // back to a read when no fresh stash exists (e.g. a later in-app refresh).
     const primed = consumePrimedSpaces(session.userId);
-    if (primed) {
+    // An EMPTY prime (`[]`) is truthy in JS — if we adopted it we'd short-circuit
+    // the refresh and show a blank rail. Offline that empty came from a failed
+    // `readSpaces`; the SDK pull cache now serves the last-synced `_spaces` doc on
+    // the refresh below, so fall through to it instead of locking in empty.
+    if (primed && primed.length > 0) {
       setSpaces(primed);
       setActiveId((prev) => prev ?? primed[0]?.id ?? null);
       setLoading(false);
@@ -101,6 +115,24 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     }
     void refresh().catch(() => {});
   }, [pathname, session, refresh]);
+
+  // Re-pull on app foreground too, so the read-mark / mute reconcile happens even when
+  // the user returns to the app WITHOUT navigating (the navigation effect above never
+  // fires then). On web a tab refocus dispatches the same 'active' change — a harmless
+  // extra reconcile. Idempotent: an unchanged doc no-ops in the hydrate functions.
+  useEffect(() => {
+    if (!session) return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void refresh().catch(() => {});
+      } else {
+        // Backgrounding is the most common "done reading" action on mobile — push any
+        // read marks still inside the debounce window NOW, before RN freezes timers.
+        void flushReadsNow();
+      }
+    });
+    return () => sub.remove();
+  }, [session, refresh]);
 
   // Adopt a freshly-saved/reconciled space name + image (from the settings screen
   // or a post-sync reconcile) live, without waiting for the next navigation refresh.

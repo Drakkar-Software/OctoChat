@@ -17,13 +17,16 @@
 import { router } from 'expo-router';
 
 import { focusDesktopWindow } from './desktop';
+import { APP_NAME, notificationTitle } from './notification-format';
 import {
   openRoomFromNotification,
   type OpenRoomFromNotificationDeps,
 } from './notification-open-room';
+import { isMuted } from './mutes';
 import { getNotificationSettings } from './notification-settings';
 import { loadLatestMessagePreview } from './notification-preview';
 import type { Session } from './starfish/identity';
+import { spaceIdFromRoomId } from './starfish/paths';
 
 const GENERIC_BODY = 'New message in another room';
 
@@ -37,6 +40,8 @@ export function ensureNotifyPermission(): void {
 interface NotifyOptions {
   /** When true the toast is shown without a sound. */
   silent?: boolean;
+  /** Toast title — the resolved "Space › #room" header; defaults to the app name. */
+  title?: string;
   /**
    * Registry/space deps for resolving the clicked room's real name/kind and
    * focusing its space (see `openRoomFromNotification`). When omitted the click
@@ -57,7 +62,7 @@ export function notifyNewMessage(roomId: string, body = GENERIC_BODY, options: N
     // replacement so a follow-up message isn't silently swapped in. This mirrors
     // the per-room grouping the native push sets (`tag` on Android, `thread-id`
     // on iOS); see docs/push-fcm.md "Notification grouping".
-    const n = new Notification('OctoChat', {
+    const n = new Notification(options.title ?? APP_NAME, {
       body,
       tag: `octochat-message-${roomId}`,
       renotify: true,
@@ -89,14 +94,30 @@ export async function notifyRoomChange(
 ): Promise<void> {
   const settings = getNotificationSettings();
   if (!settings.enabled) return;
+  // Silenced when the room (or its whole space) is muted. The SSE callback already
+  // gates this, but the check here keeps the module self-contained for any caller.
+  if (isMuted(roomId, spaceIdFromRoomId(roomId))) return;
   // Bail before the (async) preview fetch when no toast could be shown anyway.
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   if (typeof document !== 'undefined' && document.hasFocus()) return;
+
+  // Resolve the "Space › #room" title from the already-loaded rooms-registry cache
+  // (no extra pull — `nav.ensure` shares the same cache the rails read). Best-effort:
+  // unresolved names degrade to the bare app name. Names are plaintext metadata, so
+  // the title carries them even when `preview` is off and the body stays generic.
+  let title: string | undefined;
+  if (nav) {
+    const entry = await nav.ensure(spaceIdFromRoomId(roomId)).catch(() => null);
+    if (entry) {
+      const room = entry.rooms.find((r) => r.id === roomId);
+      title = notificationTitle(entry.name, room?.name ?? null, room?.kind);
+    }
+  }
 
   let body = GENERIC_BODY;
   if (settings.preview && session) {
     const preview = await loadLatestMessagePreview(session, roomId).catch(() => null);
     if (preview) body = preview;
   }
-  notifyNewMessage(roomId, body, { silent: !settings.sound, nav });
+  notifyNewMessage(roomId, body, { silent: !settings.sound, nav, title });
 }

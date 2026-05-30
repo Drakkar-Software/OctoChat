@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
+
 import { radii, spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
 import {
   createStreamBotCredential,
   type StreamBotCredential,
 } from '@/lib/starfish/stream-bots';
+import type { ConversationStore } from '@/lib/use-conversation-data';
 import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
@@ -73,6 +76,32 @@ export function StreamBotPanel({ ownerId, spaceId, roomId }: { ownerId: string; 
       ) : null}
     </View>
   );
+}
+
+/**
+ * Same panel, gated to render ONLY while the room has no messages yet. Once the
+ * first message arrives the panel disappears from the room view — an active
+ * conversation shouldn't carry owner-only admin UI above it. Owners reach the
+ * panel from the room's info button instead (it shows on the space screen when
+ * navigated from a stream room).
+ */
+export function StreamBotPanelWhenEmpty({
+  store,
+  ownerId,
+  spaceId,
+  roomId,
+}: {
+  store: ConversationStore;
+  ownerId: string;
+  spaceId: string;
+  roomId: string;
+}) {
+  const isEmpty = useStarfishData(store, (d) => {
+    const msgs = (d as { messages?: unknown[] } | undefined)?.messages;
+    return !msgs || msgs.length === 0;
+  });
+  if (!isEmpty) return null;
+  return <StreamBotPanel ownerId={ownerId} spaceId={spaceId} roomId={roomId} />;
 }
 
 const styles = StyleSheet.create({

@@ -81,6 +81,8 @@ export interface Palette {
   // ── Status ───────────────────────────────────────────────────────────────
   unread: string;
   mention: string;
+  /** Text/glyph on an `unread`/`mention` badge — stays light in both schemes. */
+  onUnread: string;
   danger: string;
   dangerBg: string;
   dangerBorder: string;
@@ -145,6 +147,7 @@ const light: Palette = {
 
   unread: '#0c8aaf',
   mention: '#a64034',
+  onUnread: '#ffffff',
   danger: '#a64034',
   dangerBg: 'rgba(166,64,52,0.10)',
   dangerBorder: 'rgba(166,64,52,0.32)',
@@ -205,6 +208,7 @@ const dark: Palette = {
 
   unread: '#52b6d4',
   mention: '#cf6b5e',
+  onUnread: '#ffffff',
   danger: '#cf6b5e',
   dangerBg: 'rgba(207,107,94,0.14)',
   dangerBorder: 'rgba(207,107,94,0.38)',
@@ -336,6 +340,20 @@ export function glowShadow(color: string, opacity = 0.45, radius = 18) {
     shadowRadius: radius,
     shadowOffset: { width: 0, height: 4 },
     elevation: 8,
+  } as const;
+}
+
+/**
+ * The "lit-from-above paper edge" — a `paper` surface ringed by a hairline whose
+ * top edge catches light (`hairlineHi`). Returns the three theme-dependent color
+ * props meant for an inline style; pair with a `borderWidth`/`borderRadius` from a
+ * StyleSheet. Pass a `border` override for emphasised edges (e.g. `accentBorder`).
+ */
+export function paperBorder(p: Palette, border: string = p.lineSoft) {
+  return {
+    backgroundColor: p.paper,
+    borderColor: border,
+    borderTopColor: p.hairlineHi,
   } as const;
 }
 

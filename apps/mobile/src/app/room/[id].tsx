@@ -4,15 +4,18 @@ import { BackHandler, StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
+import { useRoomsRegistry } from '@/lib/rooms-registry-context';
 import { roomDraftKey } from '@/lib/use-draft';
 import { useMessageEditing } from '@/lib/use-message-editing';
 import { useRoom } from '@/lib/use-room';
+import { useRoomSend } from '@/lib/use-room-send';
 import { useStreamRoom } from '@/lib/use-stream-room';
 import { useUnread } from '@/lib/unread-context';
 import { spaceIdFromRoomId } from '@/lib/starfish/paths';
 import { isPublicSpaceId, publicSpaceAuth } from '@/lib/starfish/pubspace';
 import type { RoomKind } from '@/lib/types';
 import { AppBar } from '@/components/ui/AppBar';
+import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { IconButton } from '@/components/ui/IconButton';
@@ -21,9 +24,10 @@ import { StackScreen } from '@/components/ui/StackScreen';
 import { Composer } from '@/components/chat/Composer';
 import { ConversationSkeleton } from '@/components/chat/ConversationSkeleton';
 import { DesktopChatTopbar } from '@/components/chat/DesktopChatTopbar';
+import { OfflineBanner } from '@/components/chat/OfflineBanner';
 import { ReadOnlyFooter } from '@/components/chat/ReadOnlyFooter';
 import { RoomConversation } from '@/components/chat/RoomConversation';
-import { StreamBotPanel } from '@/components/chat/StreamBotPanel';
+import { StreamBotPanelWhenEmpty } from '@/components/chat/StreamBotPanel';
 import { ThreadDigestPublisher } from '@/components/chat/ThreadDigestPublisher';
 
 export default function RoomScreen() {
@@ -39,13 +43,25 @@ export default function RoomScreen() {
   const isStream = kind === 'stream';
   const channel = useRoom(id, { enabled: !isStream });
   const stream = useStreamRoom(id, { enabled: isStream });
-  const { store, opening, openError, syncError, send, toggleReaction, editMessage, deleteMessage, uploadAttachment, loadAttachment, canWrite } =
+  const { store, opening, openError, offline, reload, syncError, send, toggleReaction, editMessage, deleteMessage, pinMessage, unpinMessage, uploadAttachment, loadAttachment, canWrite } =
     isStream ? stream : channel;
   const { editingId, setEditingId, editLast } = useMessageEditing(store, session?.userId ?? '');
+  // Offline outbox: route text sends through the queue when offline / on failure,
+  // and surface this room's pending bubbles + retry. Attachments still need a
+  // connection (handled in the Composer's onSend below).
+  const { online, pending, retry, sendText } = useRoomSend({ roomId: id, kind, send });
 
   // Owner-only "Connect a bot" panel for a PUBLIC stream room (mints a createPublicLink
   // audience cap). Private streams enroll bots as keyring members instead, so no panel.
   const spaceId = spaceIdFromRoomId(id);
+
+  // The space owner gates the per-message pin affordance, AND is the only author whose
+  // pin events count when folding `pinned` at render (see resolvePinned) — so every
+  // viewer needs it, not just the owner. Read from the shared registry (resolves for
+  // owned, joined AND public spaces); `use-room`'s own registry read is null for joiners.
+  const { owner } = useRoomsRegistry(spaceId);
+  const isOwner = !!owner && session?.userId === owner;
+  const onPinMessage = (msgId: string, pin: boolean) => (pin ? pinMessage(msgId) : unpinMessage(msgId));
   const showBotPanel =
     isStream && !!session && isPublicSpaceId(spaceId) && publicSpaceAuth(session, spaceId).ownerId === session.userId;
   const title = kind === 'dm' ? name : `#${name}`;
@@ -103,7 +119,11 @@ export default function RoomScreen() {
   );
   const openThread = (msgId: string) =>
     router.push({ pathname: '/thread/[id]', params: { id: msgId, roomId: id, roomName: name, kind } });
-  const openMembers = () => router.push({ pathname: '/space/[id]', params: { id: spaceIdFromRoomId(id) } });
+  // Pass the room context so a public-stream room's space screen can surface the
+  // owner-only "Connect a bot" panel for THIS room (the in-room panel hides once
+  // the room has messages — see {@link StreamBotPanelWhenEmpty}).
+  const openMembers = () =>
+    router.push({ pathname: '/space/[id]', params: { id: spaceIdFromRoomId(id), roomId: id, roomKind: kind } });
   const openSearch = () => router.push('/search');
   const openProfile = (userId: string) => router.push({ pathname: '/profile/[id]', params: { id: userId } });
 
@@ -128,9 +148,16 @@ export default function RoomScreen() {
           <Composer
             placeholder={`Message ${title}`}
             draftKey={session ? roomDraftKey(session.userId, id) : undefined}
+            offline={!online}
             onSend={async (t, file) => {
-              const ref = file ? await uploadAttachment(file.bytes, file.name, file.mime) : null;
-              send(t, undefined, ref ?? undefined);
+              // A file needs a live upload — the Composer blocks this path while
+              // offline (attachments aren't queued), so we only reach it online.
+              if (file) {
+                const ref = await uploadAttachment(file.bytes, file.name, file.mime);
+                send(t, undefined, ref ?? undefined);
+                return;
+              }
+              await sendText(t);
             }}
             onEditLast={editLast}
           />
@@ -144,15 +171,21 @@ export default function RoomScreen() {
       ) : opening ? (
         <ConversationSkeleton />
       ) : openError ? (
-        <EmptyState iconName="alert" title="Couldn't open room" subtitle={openError} />
+        <EmptyState iconName="alert" title="Couldn't open room" subtitle={openError}>
+          <Button label="Try again" iconName="refresh" onPress={reload} />
+        </EmptyState>
       ) : store ? (
         <>
-          {syncError ? (
+          {!online || offline ? (
+            <OfflineBanner />
+          ) : syncError ? (
             <Callout tone="warning" iconName="alert">
               {syncError}
             </Callout>
           ) : null}
-          {showBotPanel ? <StreamBotPanel ownerId={session.userId} spaceId={spaceId} roomId={id} /> : null}
+          {showBotPanel ? (
+            <StreamBotPanelWhenEmpty store={store} ownerId={session.userId} spaceId={spaceId} roomId={id} />
+          ) : null}
           <RoomConversation
             store={store}
             spaceId={spaceIdFromRoomId(id)}
@@ -163,8 +196,13 @@ export default function RoomScreen() {
             onOpenThread={openThread}
             onEditMessage={editMessage}
             onDeleteMessage={deleteMessage}
+            onPinMessage={onPinMessage}
+            ownerId={owner ?? undefined}
+            isOwner={isOwner}
             onOpenProfile={openProfile}
             onLoadAttachment={loadAttachment}
+            pending={pending}
+            onRetry={retry}
             editingId={editingId}
             onEditingChange={setEditingId}
           />

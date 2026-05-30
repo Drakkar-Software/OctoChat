@@ -5,12 +5,12 @@ import { Image } from 'expo-image';
 import { glowShadow, layout, radii, spacing } from '@/theme';
 import type { Space } from '@/lib/types';
 import { useHover } from '@/lib/use-hover';
+import { useMutes } from '@/lib/mutes-context';
 import { useTheme } from '@/lib/use-theme';
 import { AccountSwitcherPopover } from '@/components/account/AccountSwitcherPopover';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/Icon';
-import { IconButton } from '@/components/ui/IconButton';
 import { Octopus } from '@/components/brand/Octopus';
 import { Txt } from '@/components/ui/Txt';
 
@@ -19,8 +19,6 @@ interface DesktopSpacesRailProps {
   activeId: string | null;
   onSelect?: (id: string) => void;
   onAdd?: () => void;
-  /** Open the Threads view (all of the active space's threads). */
-  onOpenThreads?: () => void;
   /** Bottom avatar / gear → the current identity's profile. */
   meLabel: string;
   /** The current identity's uploaded avatar (data URI), if any. */
@@ -34,6 +32,7 @@ function SpaceTile({
   active,
   unread,
   isPublic,
+  muted,
   onPress,
 }: {
   label: string;
@@ -41,6 +40,7 @@ function SpaceTile({
   active: boolean;
   unread?: number;
   isPublic?: boolean;
+  muted?: boolean;
   onPress?: () => void;
 }) {
   const { colors } = useTheme();
@@ -70,6 +70,11 @@ function SpaceTile({
       <View style={[styles.corner, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
         <Icon name={isPublic ? 'globe' : 'lock'} size={9} color={colors.inkMuted} />
       </View>
+      {muted ? (
+        <View style={[styles.muteCorner, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
+          <Icon name="volume-off" size={9} color={colors.inkMuted} />
+        </View>
+      ) : null}
       {unread ? (
         <View style={styles.badge}>
           <Badge count={unread} />
@@ -89,12 +94,12 @@ export function DesktopSpacesRail({
   activeId,
   onSelect,
   onAdd,
-  onOpenThreads,
   meLabel,
   meAvatar,
   onOpenProfile,
 }: DesktopSpacesRailProps) {
   const { colors } = useTheme();
+  const { isSpaceMuted } = useMutes();
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <View style={[styles.rail, { width: layout.railWidth, backgroundColor: colors.paperAlt, borderRightColor: colors.lineSoft }]}>
@@ -108,6 +113,7 @@ export function DesktopSpacesRail({
           active={s.id === activeId}
           unread={s.unread}
           isPublic={(s.type ?? 'private') === 'public'}
+          muted={isSpaceMuted(s.id)}
           onPress={() => onSelect?.(s.id)}
         />
       ))}
@@ -120,9 +126,6 @@ export function DesktopSpacesRail({
         <Icon name="plus" size={16} color={colors.inkMuted} />
       </Pressable>
       <View style={styles.spacer} />
-      {onOpenThreads ? (
-        <IconButton name="thread" size={20} onPress={onOpenThreads} accessibilityLabel="Threads" />
-      ) : null}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Accounts"
@@ -152,6 +155,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -3,
     right: -3,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  muteCorner: {
+    position: 'absolute',
+    bottom: -3,
+    left: -3,
     width: 16,
     height: 16,
     borderRadius: 8,

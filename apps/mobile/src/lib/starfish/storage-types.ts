@@ -95,8 +95,12 @@ export interface SeedLock {
  * - `none`   — nothing stored; start signed-out.
  * - `ready`  — vault available immediately (native Keychain path).
  * - `locked` — a sealed vault exists; unlock with one of `methods` (web path).
+ * - `error`  — storage read failed (e.g. transient Keychain miss on cold start).
+ *   The caller MUST NOT collapse this into "no account" — the vault is still on
+ *   disk; the symptom is a stuck splash instead of a wrongful welcome-screen.
  */
 export type VaultLoad =
   | { kind: 'none' }
   | { kind: 'ready'; vault: Vault }
-  | { kind: 'locked'; methods: UnlockMethod[] };
+  | { kind: 'locked'; methods: UnlockMethod[] }
+  | { kind: 'error'; error: unknown };

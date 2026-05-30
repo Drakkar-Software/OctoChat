@@ -33,7 +33,7 @@ export function ThreadRow({ thread, onPress }: { thread: ThreadSummary; onPress?
       >
         {thread.label}
       </Txt>
-      {unread ? <Badge count={thread.unread} /> : null}
+      <Badge count={thread.unread} />
     </Pressable>
   );
 }

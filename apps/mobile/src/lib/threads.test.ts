@@ -39,7 +39,7 @@ describe('buildThreadDigest', () => {
       msg('p3', 300, { text: 'new parent' }),
       msg('r3', 310, { parentId: 'p3' }),
     ];
-    const order = buildThreadDigest(messages, [], 0, 2).map((t) => t.parentId);
+    const order = buildThreadDigest(messages, [], 0, undefined, 2).map((t) => t.parentId);
     expect(order).toEqual(['p2', 'p3']);
   });
 
@@ -53,6 +53,18 @@ describe('buildThreadDigest', () => {
     const [thread] = buildThreadDigest(messages, [], 200);
     expect(thread.replyCount).toBe(3);
     expect(thread.unread).toBe(2);
+  });
+
+  it('excludes the viewer\'s own replies from unread (like notifications)', () => {
+    const messages = [
+      msg('p1', 100, { text: 'parent' }),
+      msg('r1', 250, { parentId: 'p1', authorId: 'me' }), // mine → never unread to me
+      msg('r2', 260, { parentId: 'p1', authorId: 'u2' }), // someone else → unread
+      msg('r3', 270, { parentId: 'p1', authorId: 'me' }), // mine → never unread to me
+    ];
+    const [thread] = buildThreadDigest(messages, [], 200, 'me');
+    expect(thread.replyCount).toBe(3); // all replies still count toward the thread
+    expect(thread.unread).toBe(1); // only u2's reply badges as unread
   });
 
   it('skips replies whose parent is not in the loaded log', () => {

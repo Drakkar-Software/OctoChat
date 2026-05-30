@@ -5,20 +5,27 @@
  * itself (web/desktop — see `notify.ts`); native banners are OS-rendered from the
  * generic FCM payload and can't be rewritten.
  *
- * Scoped to PRIVATE (E2EE) rooms — the whole point is local decryption. Public
- * (plaintext) rooms return null and fall back to the generic body. BOTH private
- * room kinds are handled: a regular room is a single merge-doc (`{messages,edits}`)
- * at the chat path; a STREAM room is an append-only log of sealed `{t,e}` envelopes
- * at a separate path, which we fold the same way `use-stream-room` does. Any failure
- * (no keyring yet, server unreachable, no text message) returns null so the caller
- * shows the generic "New message" banner instead.
+ * Handles both PRIVATE (E2EE) and PUBLIC (plaintext) rooms. For private rooms the
+ * whole point is local decryption; public-space rooms are plaintext and server-readable,
+ * so we read them directly (no keyring). BOTH room kinds are handled per space type: a
+ * regular room is a single merge-doc (`{messages,edits}`) at the chat/pubspace path; a
+ * STREAM room is an append-only log of `{t,e}` envelopes (sealed for private, plaintext
+ * for public) at a separate path, which we fold the same way `use-stream-room` does. Any
+ * failure (no keyring yet, server unreachable, no text message) returns null so the
+ * caller shows the generic "New message" banner instead.
  */
 import { buildSpaceEncryptor } from './cross-room';
 import { resolveEdit, type StoredMsg } from './message-view';
-import { readPseudo } from './starfish/client';
+import { makeClient, readPseudo } from './starfish/client';
 import type { Session } from './starfish/identity';
-import { roomPull, spaceIdFromRoomId, streamRoomPull } from './starfish/paths';
-import { isPublicSpaceId } from './starfish/pubspace';
+import {
+  pubspaceRoomPull,
+  pubstreamRoomPull,
+  roomPull,
+  spaceIdFromRoomId,
+  streamRoomPull,
+} from './starfish/paths';
+import { isPublicSpaceId, publicSpaceAuth } from './starfish/pubspace';
 import type { MessageEditEvent } from './types';
 
 /** Hard cap on preview length so a long message can't overflow the OS toast. */
@@ -65,7 +72,7 @@ async function latestSenderLine(
 
 export async function loadLatestMessagePreview(session: Session, roomId: string): Promise<string | null> {
   const spaceId = spaceIdFromRoomId(roomId);
-  if (isPublicSpaceId(spaceId)) return null;
+  if (isPublicSpaceId(spaceId)) return loadPublicLatestMessagePreview(session, roomId, spaceId);
 
   const space = await buildSpaceEncryptor(session, spaceId);
   if (!space) return null;
@@ -100,6 +107,49 @@ export async function loadLatestMessagePreview(session: Session, roomId: string)
     } catch {
       /* a single undecryptable element must not blank the whole preview */
     }
+  }
+  return latestSenderLine(messages, edits, session.userId);
+}
+
+/**
+ * Public-space variant: same merge-doc→stream probe as the private path, minus
+ * decryption — a public space is plaintext, authorized by a cap (no keyring). The
+ * client is built from the joiner's link cap or, when none is stored, this identity's
+ * own account cap as owner (see `publicSpaceAuth`).
+ */
+async function loadPublicLatestMessagePreview(
+  session: Session,
+  roomId: string,
+  spaceId: string,
+): Promise<string | null> {
+  const auth = publicSpaceAuth(session, spaceId);
+  const client = makeClient(auth.cap, auth.signingKey);
+
+  // A regular public room is a single plaintext merge-doc at the pubspace path.
+  const res = await client.pull(pubspaceRoomPull(auth.ownerId, spaceId, roomId)).catch(() => null);
+  const data = res?.data as { messages?: StoredMsg[]; edits?: MessageEditEvent[] } | undefined;
+  if (Array.isArray(data?.messages)) {
+    return latestSenderLine(data.messages, data.edits ?? [], session.userId);
+  }
+
+  // No merge-doc → a public STREAM room: an append-only log of plaintext `{t,e}`
+  // envelopes (the `pubstream` collection). Fold it like `use-stream-room` does, then
+  // preview the latest line identically — no decrypt, the envelope IS `item.data`.
+  let items: { ts: number; data: Record<string, unknown> }[];
+  try {
+    items = (await client.pull<{ ts: number; data: Record<string, unknown> }>(
+      pubstreamRoomPull(auth.ownerId, spaceId, roomId),
+      { appendField: 'items' },
+    )) as { ts: number; data: Record<string, unknown> }[];
+  } catch {
+    return null;
+  }
+  const messages: StoredMsg[] = [];
+  const edits: MessageEditEvent[] = [];
+  for (const item of items ?? []) {
+    const env = item.data as StreamEnvelope;
+    if (env?.t === 'msg') messages.push({ ...env.e, ts: env.e.ts || item.ts });
+    else if (env?.t === 'edit') edits.push({ ...env.e, ts: env.e.ts || item.ts });
   }
   return latestSenderLine(messages, edits, session.userId);
 }

@@ -1,10 +1,10 @@
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Pressable, StyleSheet } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 
-import { motion, radii } from '@/theme';
-import { tapFeedback } from '@/lib/haptics';
+import { radii } from '@/theme';
 import { useHover } from '@/lib/use-hover';
+import { useScalePress } from '@/lib/use-scale-press';
 import { useTheme } from '@/lib/use-theme';
 
 import { Icon, type IconName } from './Icon';
@@ -24,11 +24,7 @@ interface IconButtonProps {
 export function IconButton({ name, onPress, size = 20, color, accessibilityLabel, style }: IconButtonProps) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
-  const pressed = useSharedValue(0);
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: 1 - pressed.value * 0.14 }],
-    opacity: 1 - pressed.value * 0.3,
-  }));
+  const { animStyle, onPressIn, onPressOut } = useScalePress({ scaleTo: 0.86, fadeTo: 0.7 });
 
   return (
     <AnimatedPressable
@@ -37,13 +33,8 @@ export function IconButton({ name, onPress, size = 20, color, accessibilityLabel
       hitSlop={8}
       onPress={onPress}
       {...hoverProps}
-      onPressIn={() => {
-        pressed.value = withTiming(1, { duration: motion.fast });
-        tapFeedback();
-      }}
-      onPressOut={() => {
-        pressed.value = withTiming(0, { duration: motion.fast });
-      }}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
       style={[styles.btn, { backgroundColor: hovered ? colors.hover : 'transparent' }, animStyle, style]}
     >
       <Icon name={name} size={size} color={color ?? colors.inkSoft} />

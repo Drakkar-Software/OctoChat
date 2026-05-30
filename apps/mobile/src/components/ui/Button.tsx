@@ -1,11 +1,11 @@
 import type { StyleProp, ViewStyle } from 'react-native';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 
-import { fonts, glowShadow, motion, opacity, radii, shadows, spacing, type as typeScale } from '@/theme';
-import { tapFeedback } from '@/lib/haptics';
+import { fonts, glowShadow, opacity, radii, shadows, spacing, type as typeScale } from '@/theme';
 import { useHover } from '@/lib/use-hover';
+import { useScalePress } from '@/lib/use-scale-press';
 import { useTheme, type Palette } from '@/lib/use-theme';
 
 import { Icon, type IconName } from './Icon';
@@ -67,8 +67,7 @@ export function Button({
   const v = variantColors(colors, variant);
   const s = SIZES[size];
   const { hovered, hoverProps } = useHover();
-  const scale = useSharedValue(1);
-  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const { animStyle, onPressIn, onPressOut } = useScalePress({ scaleTo: 0.97 });
 
   const isPrimary = variant === 'primary';
   const hoverWash = !hovered ? null : isPrimary ? colors.brightWash : colors.hover;
@@ -79,13 +78,8 @@ export function Button({
       disabled={disabled || loading}
       onPress={onPress}
       {...hoverProps}
-      onPressIn={() => {
-        scale.value = withTiming(0.97, { duration: motion.fast });
-        tapFeedback();
-      }}
-      onPressOut={() => {
-        scale.value = withTiming(1, { duration: motion.fast });
-      }}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
       style={[
         styles.base,
         {

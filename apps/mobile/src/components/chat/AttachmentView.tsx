@@ -4,6 +4,7 @@ import { getBase64 } from '@drakkar.software/starfish-protocol';
 
 import { radii, spacing } from '@/theme';
 import { formatBytes } from '@/lib/format';
+import { saveAttachment } from '@/lib/save-attachment';
 import type { AttachmentRef } from '@/lib/starfish/attachments';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
@@ -14,14 +15,6 @@ import { Txt } from '@/components/ui/Txt';
 function bytesToUri(bytes: Uint8Array, mime: string): string {
   if (Platform.OS === 'web') return URL.createObjectURL(new Blob([bytes as BlobPart], { type: mime }));
   return `data:${mime};base64,${getBase64().encode(bytes)}`;
-}
-
-function triggerDownload(uri: string, name: string): void {
-  if (Platform.OS !== 'web') return;
-  const a = document.createElement('a');
-  a.href = uri;
-  a.download = name;
-  a.click();
 }
 
 interface AttachmentViewProps {
@@ -108,7 +101,7 @@ export function AttachmentView({ attachment, onLoad }: AttachmentViewProps) {
     setBusy(true);
     try {
       const bytes = await onLoad(attachment);
-      if (bytes) triggerDownload(bytesToUri(bytes, attachment.mime), attachment.name);
+      if (bytes) await saveAttachment(bytes, attachment.name, attachment.mime);
     } catch {
       /* surfaced by the disabled state resetting; user can retry */
     } finally {

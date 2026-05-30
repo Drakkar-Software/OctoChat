@@ -4,8 +4,10 @@ import { BackHandler, StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
+import { useRoomsRegistry } from '@/lib/rooms-registry-context';
 import { threadDraftKey } from '@/lib/use-draft';
 import { useRoom } from '@/lib/use-room';
+import { useRoomSend } from '@/lib/use-room-send';
 import { useStreamRoom } from '@/lib/use-stream-room';
 import { useUnread } from '@/lib/unread-context';
 import { spaceIdFromRoomId } from '@/lib/starfish/paths';
@@ -17,6 +19,7 @@ import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { Composer } from '@/components/chat/Composer';
 import { ConversationSkeleton } from '@/components/chat/ConversationSkeleton';
+import { OfflineBanner } from '@/components/chat/OfflineBanner';
 import { ReadOnlyFooter } from '@/components/chat/ReadOnlyFooter';
 import { ThreadConversation } from '@/components/chat/ThreadConversation';
 
@@ -35,8 +38,15 @@ export default function ThreadScreen() {
   const isStream = kind === 'stream';
   const channel = useRoom(roomId, { enabled: !isStream });
   const stream = useStreamRoom(roomId, { enabled: isStream });
-  const { store, opening, openError, send, toggleReaction, editMessage, deleteMessage, uploadAttachment, loadAttachment, canWrite } =
+  const { store, opening, openError, offline, send, toggleReaction, editMessage, deleteMessage, pinMessage, unpinMessage, uploadAttachment, loadAttachment, canWrite } =
     isStream ? stream : channel;
+  // Owner gates the per-message pin affordance and is the only author whose pin events
+  // count at fold time (resolvePinned) — read from the shared registry like room/[id].
+  const { owner } = useRoomsRegistry(spaceIdFromRoomId(roomId));
+  const isOwner = !!owner && session?.userId === owner;
+  const onPinMessage = (msgId: string, pin: boolean) => (pin ? pinMessage(msgId) : unpinMessage(msgId));
+  // Offline outbox for this thread surface (keyed to roomId + parentId).
+  const { online, pending, retry, sendText } = useRoomSend({ roomId, kind, parentId, send });
 
   // Mirror room/[id]: prefer the natural back action; fall through to `/rooms`
   // only if the thread is somehow the only screen in the stack (no thread deep
@@ -63,9 +73,15 @@ export default function ThreadScreen() {
           <Composer
             placeholder="Reply in thread…"
             draftKey={session ? threadDraftKey(session.userId, roomId, parentId) : undefined}
+            offline={!online}
             onSend={async (t, file) => {
-              const ref = file ? await uploadAttachment(file.bytes, file.name, file.mime) : null;
-              send(t, parentId, ref ?? undefined);
+              // Attachments need a live upload — the Composer blocks this path offline.
+              if (file) {
+                const ref = await uploadAttachment(file.bytes, file.name, file.mime);
+                send(t, parentId, ref ?? undefined);
+                return;
+              }
+              await sendText(t);
             }}
           />
         ) : (
@@ -80,8 +96,10 @@ export default function ThreadScreen() {
       ) : openError ? (
         <EmptyState iconName="alert" title="Couldn't open thread" subtitle={openError} />
       ) : store ? (
-        <ThreadConversation
-          store={store}
+        <>
+          {!online || offline ? <OfflineBanner subject="replies" /> : null}
+          <ThreadConversation
+            store={store}
           spaceId={spaceIdFromRoomId(roomId)}
           parentId={parentId}
           currentUserId={session.userId}
@@ -90,9 +108,15 @@ export default function ThreadScreen() {
           onToggleReaction={toggleReaction}
           onEditMessage={editMessage}
           onDeleteMessage={deleteMessage}
+          onPinMessage={onPinMessage}
+          ownerId={owner ?? undefined}
+          isOwner={isOwner}
           onOpenProfile={(userId) => router.push({ pathname: '/profile/[id]', params: { id: userId } })}
           onLoadAttachment={loadAttachment}
-        />
+          pending={pending}
+          onRetry={retry}
+          />
+        </>
       ) : (
         <EmptyState iconName="globe" title="Connecting…" />
       )}

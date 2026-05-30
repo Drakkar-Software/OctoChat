@@ -33,10 +33,14 @@ interface ComposerProps {
   /** kv key under which to persist the unsent text as a local draft (survives
    *  refresh and re-entry). Omit to keep the input ephemeral. */
   draftKey?: string;
+  /** Device is offline. Text still sends (it's queued in the outbox and shown as a
+   *  pending bubble), but a file CAN'T be queued — so sending an attachment is
+   *  blocked with a hint until the connection is back. */
+  offline?: boolean;
 }
 
 /** Message input bar — attach a file, insert an emoji, and send. */
-export function Composer({ placeholder, onSend, onEditLast, draftKey }: ComposerProps) {
+export function Composer({ placeholder, onSend, onEditLast, draftKey, offline }: ComposerProps) {
   const { colors } = useTheme();
   const { text, setText, clearDraft } = useDraft(draftKey);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -60,9 +64,12 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey }: Composer
     [pasteRef, emoji.inputRef],
   );
   const hasContent = text.trim().length > 0 || !!pending;
+  // Offline with a file attached: text would queue fine, but the file can't — so
+  // block the send (and surface a hint) until the connection is back.
+  const fileBlocked = !!offline && !!pending;
 
   const submit = async () => {
-    if (!hasContent || busy) return;
+    if (!hasContent || busy || fileBlocked) return;
     setBusy(true);
     try {
       await onSend?.(text.trim(), pending ?? undefined);
@@ -137,6 +144,15 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey }: Composer
         </View>
       ) : null}
 
+      {fileBlocked ? (
+        <View style={styles.offlineHint}>
+          <Icon name="clock" size={12} color={colors.warning} />
+          <Txt variant="micro" color={colors.warning}>
+            You’re offline — files send when you’re back online. Text sends now.
+          </Txt>
+        </View>
+      ) : null}
+
       {/* Glow lives on an absolutely-positioned sibling, not on the TextInput's
           ancestor. On Android, flipping `elevation` on an ancestor during the
           focus commit creates a new native render layer and eats the focus event
@@ -191,9 +207,9 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey }: Composer
           />
           <Pressable
             accessibilityRole="button"
-            accessibilityState={{ disabled: !hasContent || busy }}
+            accessibilityState={{ disabled: !hasContent || busy || fileBlocked }}
             accessibilityLabel="Send"
-            disabled={!hasContent || busy}
+            disabled={!hasContent || busy || fileBlocked}
             onPress={submit}
             style={({ pressed }) => [
               styles.send,
@@ -262,6 +278,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pendingText: { flexShrink: 1, minWidth: 0 },
+  offlineHint: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginBottom: spacing.sm },
   barWrap: {},
   barGlow: { borderRadius: radii.sheet },
   bar: {

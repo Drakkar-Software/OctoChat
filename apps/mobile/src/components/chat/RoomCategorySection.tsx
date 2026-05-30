@@ -5,6 +5,7 @@ import { radii, spacing } from '@/theme';
 import type { Room, RoomKind } from '@/lib/types';
 import type { ThreadSummary } from '@/lib/threads';
 import type { RoomCategory } from '@/lib/use-rooms';
+import { useRoomDropZone } from '@/lib/use-room-dnd';
 import { useTheme } from '@/lib/use-theme';
 import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
@@ -12,7 +13,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
-import { ChannelRow } from './ChannelRow';
+import { DraggableChannelRow } from './DraggableChannelRow';
 import { ThreadRow } from './ThreadRow';
 
 interface RoomCategorySectionProps {
@@ -20,6 +21,9 @@ interface RoomCategorySectionProps {
   activeRoomId?: string;
   /** Recent threads of the active room — rendered indented under its row. */
   threads?: ThreadSummary[];
+  /** Whether this category is collapsed (controlled — persisted by the parent). */
+  collapsed: boolean;
+  onToggleCollapse: () => void;
   onOpenRoom: (room: Room) => void;
   /** Open one of the active room's threads (the reply target's message id). */
   onOpenThread?: (parentId: string) => void;
@@ -28,25 +32,38 @@ interface RoomCategorySectionProps {
    *  (e.g. only the owner may add rooms), or `null`/void on success. Omit to hide
    *  the add control. */
   onCreateRoom?: (category: string, name: string, kind: RoomKind) => Promise<string | null> | void;
+  /** Owner-only: a room was dropped onto this category (web drag) — re-home it here. */
+  onMoveRoom?: (roomId: string) => void;
+  /** Owner-only: request moving a room via the picker (native long-press). */
+  onRequestMove?: (room: Room) => void;
 }
 
 /** A collapsible category header followed by its room rows. The active room's
- *  row is trailed by its most recent threads (when supplied). */
+ *  row is trailed by its most recent threads (when supplied). Doubles as a
+ *  drop target so a channel dragged onto it (web) re-homes into this category. */
 export function RoomCategorySection({
   category,
   activeRoomId,
   threads,
+  collapsed,
+  onToggleCollapse,
   onOpenRoom,
   onOpenThread,
   onCreateRoom,
+  onMoveRoom,
+  onRequestMove,
 }: RoomCategorySectionProps) {
   const { colors } = useTheme();
-  const [collapsed, setCollapsed] = useState(false);
   const [adding, setAdding] = useState(false);
   const [kind, setKind] = useState<RoomKind>('channel');
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [dropOver, setDropOver] = useState(false);
   const isStream = kind === 'stream';
+
+  // Web drag-drop target (no-op on native). The dropped room re-homes into this
+  // category; `dropOver` paints a highlight while a row hovers over the section.
+  const dropRef = useRoomDropZone(category.name, (roomId) => onMoveRoom?.(roomId), setDropOver);
 
   const submit = async () => {
     const n = name.trim();
@@ -58,11 +75,17 @@ export function RoomCategorySection({
   };
 
   return (
-    <View style={styles.section}>
+    <View
+      ref={dropRef}
+      style={[
+        styles.section,
+        dropOver ? { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder } : { borderColor: 'transparent' },
+      ]}
+    >
       {/* Collapse toggle and the add button are separate press targets so the
           "+" stays comfortably clickable and never just folds the category. */}
       <View style={styles.header}>
-        <Pressable accessibilityRole="button" onPress={() => setCollapsed((c) => !c)} style={styles.toggle}>
+        <Pressable accessibilityRole="button" onPress={onToggleCollapse} style={styles.toggle}>
           <Icon name={collapsed ? 'chev' : 'chevron-down'} size={12} color={colors.inkMuted} />
           <Txt variant="micro" weight="bold" mono uppercase tone="inkMuted">
             {category.name}
@@ -76,7 +99,7 @@ export function RoomCategorySection({
             accessibilityLabel={adding ? 'Cancel new room' : `Add a room to ${category.name}`}
             onPress={() => {
               setError(null);
-              setCollapsed(false);
+              if (collapsed) onToggleCollapse(); // expand so the add box is visible
               setKind('channel');
               setAdding((a) => !a);
             }}
@@ -87,7 +110,12 @@ export function RoomCategorySection({
       {!collapsed
         ? category.rooms.map((room) => (
             <Fragment key={room.id}>
-              <ChannelRow room={room} active={room.id === activeRoomId} onPress={() => onOpenRoom(room)} />
+              <DraggableChannelRow
+                room={room}
+                active={room.id === activeRoomId}
+                onPress={() => onOpenRoom(room)}
+                onRequestMove={onRequestMove}
+              />
               {room.id === activeRoomId && threads?.length
                 ? threads.map((t) => (
                     <ThreadRow key={t.parentId} thread={t} onPress={() => onOpenThread?.(t.parentId)} />
@@ -154,7 +182,7 @@ export function RoomCategorySection({
 }
 
 const styles = StyleSheet.create({
-  section: { marginBottom: spacing.sm },
+  section: { marginBottom: spacing.sm, borderWidth: 1, borderRadius: radii.md },
   header: { flexDirection: 'row', alignItems: 'center', paddingRight: spacing.xs },
   toggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: spacing.md },
   addBox: { marginTop: spacing.xs },

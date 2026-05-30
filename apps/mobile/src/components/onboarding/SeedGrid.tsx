@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import { radii, spacing } from '@/theme';
+import { paperBorder, radii, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
 import { Txt } from '@/components/ui/Txt';
 
@@ -18,7 +18,7 @@ export function SeedGrid({ words, concealed = false }: SeedGridProps) {
       {words.map((word, i) => (
         <View
           key={word}
-          style={[styles.cell, { backgroundColor: colors.paper, borderColor: colors.lineFaint, borderTopColor: colors.hairlineHi }]}
+          style={[styles.cell, paperBorder(colors, colors.lineFaint)]}
         >
           <View style={[styles.index, { backgroundColor: colors.accentBg }]}>
             <Txt variant="micro" mono weight="semibold" color={colors.accentInk}>

@@ -45,8 +45,12 @@ export async function loadVault(): Promise<VaultLoad> {
     const vault = asVault(raw);
     if (!vault || vault.accounts.length === 0) return { kind: 'none' };
     return { kind: 'ready', vault };
-  } catch {
-    return { kind: 'none' };
+  } catch (error) {
+    // A read error is NOT "no account" — the vault is still in Keychain. Returning
+    // 'none' here caused cold-start welcome-screen flashes (the user's identity
+    // appeared wiped). Surface the error so the caller can keep the splash up.
+    console.error('[storage.native] loadVault failed', error);
+    return { kind: 'error', error };
   }
 }
 

@@ -10,6 +10,7 @@ import { useTheme } from '@/lib/use-theme';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
 import { LinkText } from '@/components/ui/LinkText';
+import { Pill } from '@/components/ui/Pill';
 import { Txt } from '@/components/ui/Txt';
 
 import { AttachmentView } from './AttachmentView';
@@ -29,6 +30,12 @@ interface MessageGroupProps {
   onLoadAttachment?: (ref: AttachmentRef) => Promise<Uint8Array | null>;
   /** Resolve a `#channel` mention in the body to a room so it links there. */
   resolveRoom?: (name: string) => Room | undefined;
+  /** Resolve an `@user` mention in the body to a user id (paired with
+   *  {@link onOpenMention}) so tapping it opens that user's profile. */
+  resolveUser?: (name: string) => string | undefined;
+  /** Open a tapped `@user` mention's profile — the mention twin of
+   *  {@link onPressAuthor}. */
+  onOpenMention?: (userId: string) => void;
   /** The viewer's pseudo — an `@mention` of it renders as a highlight chip. */
   currentUserName?: string;
   /** Emphasize as the highlighted parent in a thread view. */
@@ -46,14 +53,44 @@ interface MessageGroupProps {
   onEditingChange?: (editing: boolean) => void;
   /** Delete this message. Omit to hide the delete affordance (e.g. not the author). */
   onDelete?: () => void;
+  /** Pin/unpin this message. Omit to hide the pin affordance (e.g. not the space owner).
+   *  The current pinned state is read from `message.pinned`. */
+  onPin?: () => void;
   /** Open the author's profile (tapping the avatar or name). Omit to render them
    *  inert — e.g. read-only/snapshot contexts with nowhere to navigate. */
   onPressAuthor?: () => void;
+  /** Retry sending a `failed` pending message (see {@link Message.pending}). Only
+   *  meaningful for the viewer's own queued messages. */
+  onRetry?: () => void;
 }
 
 /** Avatar diameter; also the width of the gutter kept under continuation rows so
  *  their body stays aligned with the first message of the group. */
 const AVATAR_SIZE = 36;
+
+/** Status line under an unsent (outbox) message: a muted "will send when online"
+ *  while queued/sending, or a tappable "couldn't send · retry" once it failed. */
+function PendingNote({ status, onRetry }: { status: NonNullable<Message['pending']>; onRetry?: () => void }) {
+  const { colors } = useTheme();
+  if (status === 'failed') {
+    return (
+      <Pressable accessibilityRole="button" accessibilityLabel="Retry sending message" onPress={onRetry} style={styles.pendingRow}>
+        <Icon name="alert" size={12} color={colors.danger} />
+        <Txt variant="micro" weight="medium" color={colors.danger}>
+          Couldn’t send · Retry
+        </Txt>
+      </Pressable>
+    );
+  }
+  return (
+    <View style={styles.pendingRow}>
+      <Icon name="clock" size={12} color={colors.inkMuted} />
+      <Txt variant="micro" tone="inkMuted">
+        {status === 'sending' ? 'Sending…' : 'Will send when online'}
+      </Txt>
+    </View>
+  );
+}
 
 /** The "N replies" entry point under a message that anchors a thread. Lifts to an
  *  accent tint + chevron nudge on hover so it reads as the tappable way in. */
@@ -93,10 +130,14 @@ export function MessageGroup({
   highlighted,
   continuation,
   resolveRoom,
+  resolveUser,
+  onOpenMention,
   currentUserName,
   onEdit,
   onDelete,
+  onPin,
   onPressAuthor,
+  onRetry,
   editing: editingProp,
   onEditingChange,
 }: MessageGroupProps) {
@@ -130,9 +171,13 @@ export function MessageGroup({
   const [revealed, setRevealed] = useState(false);
   const showActions = Platform.OS === 'web' ? hovered : revealed;
   const mine = new Set((message.reactions ?? []).filter((r) => r.mine).map((r) => r.emoji));
+  // A queued/sending (not-yet-failed) message reads as muted — it's not on the
+  // server yet. A failed one stays full-opacity so its retry affordance is obvious.
+  const dimmed = message.pending === 'queued' || message.pending === 'sending';
   const rowStyle = [
     styles.row,
     continuation ? styles.continuation : null,
+    dimmed ? styles.pendingDim : null,
     strong
       ? { backgroundColor: colors.accentBgStrong }
       : tinted
@@ -190,8 +235,16 @@ export function MessageGroup({
           />
         ) : (
           <>
+            {message.pinned ? <Pill label="Pinned" iconName="pin" tone="accent" /> : null}
             {message.text ? (
-              <LinkText variant="body" tone="inkSoft" resolveRoom={resolveRoom} currentUserName={currentUserName}>
+              <LinkText
+                variant="body"
+                tone="inkSoft"
+                resolveRoom={resolveRoom}
+                resolveUser={resolveUser}
+                onPressUser={onOpenMention}
+                currentUserName={currentUserName}
+              >
                 {message.text}
               </LinkText>
             ) : null}
@@ -200,6 +253,7 @@ export function MessageGroup({
                 (edited)
               </Txt>
             ) : null}
+            {message.pending ? <PendingNote status={message.pending} onRetry={onRetry} /> : null}
             {message.attachmentRef ? (
               <AttachmentView attachment={message.attachmentRef} onLoad={onLoadAttachment} />
             ) : null}
@@ -212,13 +266,15 @@ export function MessageGroup({
           </>
         )}
       </View>
-      {!message.deleted && !editing && (onToggleReaction || onOpenThread || onEdit || onDelete) ? (
+      {!message.deleted && !editing && (onToggleReaction || onOpenThread || onEdit || onDelete || onPin) ? (
         <MessageActions
           visible={showActions}
           onReact={onToggleReaction}
           onReply={onOpenThread}
           onEdit={onEdit ? () => setEditing(true) : undefined}
           onDelete={onDelete}
+          onPin={onPin}
+          pinned={message.pinned}
           mine={mine}
         />
       ) : null}
@@ -259,6 +315,10 @@ const styles = StyleSheet.create({
   // an unread @-mention of you).
   mentionBar: { position: 'absolute', left: 0, top: 0, bottom: 0 },
   body: { flex: 1, gap: 4 },
+  // Dim a queued/sending message so it reads as not-yet-on-the-server.
+  pendingDim: { opacity: 0.6 },
+  // Clock/alert + status text under an unsent message.
+  pendingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   thread: {
     flexDirection: 'row',

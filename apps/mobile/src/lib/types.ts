@@ -1,6 +1,7 @@
 /** Domain model for OctoChat. Frontend-only — these describe placeholder data. */
 
 import type { PresenceStatus, VerificationLevel } from '@/theme';
+import type { SealedBlob } from './starfish/account-seal';
 import type { AttachmentRef } from './starfish/attachments';
 
 export type ID = string;
@@ -9,6 +10,39 @@ export type ID = string;
  *  JSON). Persisted both in device-local kv (`member-caps.ts`) and, for durability,
  *  in the user's own synced `_spaces` doc so a fresh device re-hydrates it. */
 export type CapMap = Record<string, string>;
+
+/** Maps a joined PUBLIC space's id → its invitation credential (the owner-signed cap
+ *  plus the link's ephemeral private key) SEALED to the account's own key. Unlike a
+ *  member cap (safe in the clear — see {@link CapMap}), a public-join credential
+ *  embeds a bearer secret, so it is sealed before riding in the plaintext `_spaces`
+ *  doc. Recovered on any device with the same seed. See `account-seal.ts` and
+ *  `pubspace-caps.ts`. */
+export type PubAccessMap = Record<string, SealedBlob>;
+
+/** A mute entry. `true` = muted indefinitely; a number = muted UNTIL that epoch-ms
+ *  instant (the forward-compatible shape for a future "mute for 15 min" — read-
+ *  supported now, but the current UI only ever writes `true` or deletes the key). */
+export type MuteValue = true | number;
+
+/** Per-user mute preferences: which rooms and which whole spaces are silenced.
+ *  Synced across the user's devices (stored alongside `spaces`/`caps` in the
+ *  `user/<userId>/_spaces` doc) and mirrored to device-local kv (`mutes.ts`). */
+export interface MutePrefs {
+  rooms: Record<string, MuteValue>;
+  spaces: Record<string, MuteValue>;
+}
+
+/** A per-room read mark: the epoch-ms instant the viewer last read that room.
+ *  Monotonic (only ever advances) so a merge across devices takes the MAX. */
+export type ReadValue = number;
+
+/** Per-user read marks — the timestamp each room was last read. Synced across the
+ *  user's devices (a `reads` key alongside `spaces`/`caps`/`mutes` in the
+ *  `user/<userId>/_spaces` doc) and mirrored to device-local kv (`reads.ts`) so the
+ *  unread badge / divider clears on every device, not just the one that read. */
+export interface ReadPrefs {
+  rooms: Record<string, ReadValue>;
+}
 
 export interface User {
   id: ID;
@@ -91,6 +125,19 @@ export interface MessageEditEvent {
   ts: number;
 }
 
+/** Append-only pin event stored in the room doc; the latest one (by `ts`) authored
+ *  by the SPACE OWNER wins at render — see `resolvePinned`. Only the owner may pin
+ *  or unpin, so unlike edits/reactions the guard filters by the owner, not the
+ *  message's author. A `pin` marks the message; an `unpin` clears it. */
+export interface PinEvent {
+  id: string;
+  msgId: string;
+  /** Who emitted it — only events where this equals the space owner count. */
+  userId: string;
+  kind: 'pin' | 'unpin';
+  ts: number;
+}
+
 export interface Message {
   id: ID;
   roomId: ID;
@@ -111,6 +158,12 @@ export interface Message {
   edited?: boolean;
   /** Whether the author has deleted this message (renders a "deleted" tombstone). */
   deleted?: boolean;
+  /** Whether the space owner has pinned this message (renders a "Pinned" mark). */
+  pinned?: boolean;
+  /** Unsent state for a message still in the offline outbox: `queued`/`sending`
+   *  render as a muted "will send when online" bubble, `failed` offers a retry.
+   *  Absent for a normal, server-confirmed message. See `src/lib/outbox.ts`. */
+  pending?: 'queued' | 'sending' | 'failed';
 }
 
 export interface Thread {

@@ -10,6 +10,9 @@ import { signRequest, stableStringify } from '@drakkar.software/starfish-protoco
 import type { SignableMethod } from '@drakkar.software/starfish-protocol';
 
 import { SYNC_BASE, SYNC_NAMESPACE, SYNC_PREFIX } from './config';
+import { fetchWithTimeout } from './fetch-timeout';
+import { pullCache, PULL_CACHE_MAX_AGE_MS } from './pull-cache';
+import { cacheProfile, loadCachedProfile } from './profile-cache';
 import { keyringPull, keyringPush, profilePull, profilePush, roomPull, roomPush } from './paths';
 
 export interface DeviceKeys {
@@ -36,6 +39,13 @@ export function makeClient(cap: unknown, devEdPrivHex: string): StarfishClient {
     baseUrl: SYNC_BASE,
     namespace: SYNC_NAMESPACE,
     capProvider: capProviderFor(cap, devEdPrivHex),
+    // Bound the connect phase so a stalled socket rejects instead of hanging the
+    // room-open path forever (Android network transitions) — see fetch-timeout.ts.
+    fetch: fetchWithTimeout(),
+    // Offline-first: read-through cache so the space `_keyring`, room registries
+    // and any structured pull survive offline (ciphertext-at-rest). See pull-cache.ts.
+    cache: pullCache(),
+    cacheMaxAgeMs: PULL_CACHE_MAX_AGE_MS,
   });
 }
 
@@ -151,16 +161,20 @@ export async function readProfile(userId: string): Promise<PublicProfile> {
   try {
     // Raw unauthenticated GET (public profile) — bypasses the StarfishClient, so the
     // `namespace` it would add is applied here via SYNC_PREFIX, same as EVENTS_URL.
-    const r = await fetch(`${SYNC_BASE}${SYNC_PREFIX}${profilePull(userId)}`);
+    const r = await fetchWithTimeout()(`${SYNC_BASE}${SYNC_PREFIX}${profilePull(userId)}`);
     if (!r.ok) return { pseudo: null, avatar: null };
     const body = await r.json();
     const data = body?.data as { pseudo?: unknown; avatar?: unknown } | undefined;
-    return {
+    const profile: PublicProfile = {
       pseudo: typeof data?.pseudo === 'string' ? data.pseudo : null,
       avatar: typeof data?.avatar === 'string' ? data.avatar : null,
     };
+    cacheProfile(userId, profile); // offline-first: remember the last-known pseudo/avatar
+    return profile;
   } catch {
-    return { pseudo: null, avatar: null };
+    // Offline (fetch rejected) — fall back to the last-known profile so names/avatars
+    // don't vanish offline. A real `!r.ok` answer above is NOT overridden by cache.
+    return (await loadCachedProfile(userId)) ?? { pseudo: null, avatar: null };
   }
 }
 
@@ -175,7 +189,7 @@ export async function readPseudo(userId: string): Promise<string | null> {
 let profileBatchClient: StarfishClient | undefined;
 function getProfileBatchClient(): StarfishClient {
   if (!profileBatchClient) {
-    profileBatchClient = new StarfishClient({ baseUrl: SYNC_BASE, namespace: SYNC_NAMESPACE });
+    profileBatchClient = new StarfishClient({ baseUrl: SYNC_BASE, namespace: SYNC_NAMESPACE, fetch: fetchWithTimeout() });
   }
   return profileBatchClient;
 }
@@ -204,16 +218,24 @@ export async function readProfiles(ids: string[]): Promise<Map<string, PublicPro
       // keeps an explicitly supplied identity, so this resolves each user's doc.
       entries = await client.batchPullMany('profile', chunk.map((id) => ({ identity: id })));
     } catch {
-      continue; // network/5xx for this chunk — leave its ids unresolved (caller keeps prior)
+      // Network/5xx for this chunk — offline-first: fill from the last-known cache so
+      // pseudos/avatars survive offline (cold start, where the in-memory cache is empty).
+      for (const id of chunk) {
+        const cached = await loadCachedProfile(id);
+        if (cached) out.set(id, cached);
+      }
+      continue;
     }
     chunk.forEach((id, j) => {
       const entry = entries[j];
       if (!entry || entry.error) return; // unresolved → omit from map (no wipe, may retry)
       const data = (entry.data ?? null) as { pseudo?: unknown; avatar?: unknown } | null;
-      out.set(id, {
+      const profile: PublicProfile = {
         pseudo: typeof data?.pseudo === 'string' ? data.pseudo : null,
         avatar: typeof data?.avatar === 'string' ? data.avatar : null,
-      });
+      };
+      cacheProfile(id, profile); // warm the offline cache for this user
+      out.set(id, profile);
     });
   }
   return out;
@@ -294,7 +316,7 @@ export async function buildAuthHeaders(
 async function readOwnPseudo(userId: string): Promise<{ read: boolean; pseudo: string | null }> {
   try {
     // SYNC_PREFIX: raw fetch bypasses the client's namespace, like readProfile above.
-    const r = await fetch(`${SYNC_BASE}${SYNC_PREFIX}${profilePull(userId)}`);
+    const r = await fetchWithTimeout()(`${SYNC_BASE}${SYNC_PREFIX}${profilePull(userId)}`);
     if (r.status === 404) return { read: true, pseudo: null }; // confirmed: no profile yet
     if (!r.ok) return { read: false, pseudo: null }; // transient/server error — don't seed
     const body = await r.json();

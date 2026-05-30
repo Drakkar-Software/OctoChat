@@ -9,11 +9,12 @@ import { buildEncryptor, makeClient } from './starfish/client';
 import { getMemberCap } from './starfish/member-caps';
 import type { Session } from './starfish/identity';
 import { ownerTrustedAdders } from './starfish/identity';
-import { roomPull } from './starfish/paths';
+import { pubspaceRoomPull, roomPull } from './starfish/paths';
+import { isPublicSpaceId, publicSpaceAuth, publicSpaceClient, readPublicRoomsDoc } from './starfish/pubspace';
 import { readRooms } from './starfish/registry';
 import type { StoredMsg } from './message-view';
 import { buildThreadDigest, type ThreadSummary } from './threads';
-import type { MessageEditEvent, Room } from './types';
+import type { MessageEditEvent, PinEvent, Room } from './types';
 
 export interface CrossRoomMessage {
   room: Room;
@@ -98,11 +99,77 @@ export async function loadAllThreads(
       if (!data || !data._encrypted) continue;
       const plain = (await enc.decrypt(data)) as { messages?: StoredMsg[]; edits?: MessageEditEvent[] };
       // No per-room cap: the tab lists every thread, not the sidebar's top few.
-      const digest = buildThreadDigest(plain.messages ?? [], plain.edits ?? [], readBefore(room.id), Number.MAX_SAFE_INTEGER);
+      const digest = buildThreadDigest(plain.messages ?? [], plain.edits ?? [], readBefore(room.id), session.userId, Number.MAX_SAFE_INTEGER);
       for (const thread of digest) out.push({ room, thread });
     } catch {
       /* skip rooms we can't decrypt */
     }
   }
   return out.sort((a, b) => b.thread.lastActivityTs - a.thread.lastActivityTs);
+}
+
+/**
+ * Every message the SPACE OWNER has pinned, across the merge-doc rooms of a space,
+ * newest pin first. Folds the `pins` log per room: the latest event (by `ts`) authored
+ * by the space `owner` wins (`pin` ⇒ included). Only the owner's events count — same
+ * guard as `resolvePinned` — so a forged peer pin never surfaces. Handles both PRIVATE
+ * (one space encryptor decrypts each room's doc) and PUBLIC (plaintext docs, public
+ * client) spaces. Stream rooms are skipped like in {@link loadAllThreads}/{@link
+ * loadAllMessages} (their log lives off the `roomPull` doc). Returns `[]` for a private
+ * space with no resolvable owner/keyring.
+ */
+export async function loadAllPins(session: Session, spaceId: string): Promise<CrossRoomMessage[]> {
+  const out: { room: Room; msg: StoredMsg; pinnedTs: number }[] = [];
+  // Fold a room's pins → its pinned messages (latest owner event per id wins, `pin` ⇒
+  // included). Shared by the private (decrypted) and public (plaintext) branches.
+  const collect = (room: Room, owner: string, plain: { messages?: StoredMsg[]; pins?: PinEvent[] }) => {
+    const latest = new Map<string, PinEvent>();
+    for (const p of plain.pins ?? []) {
+      if (p.userId !== owner) continue;
+      const cur = latest.get(p.msgId);
+      if (!cur || p.ts > cur.ts) latest.set(p.msgId, p);
+    }
+    const byId = new Map((plain.messages ?? []).map((m) => [m.id, m]));
+    for (const [msgId, ev] of latest) {
+      if (ev.kind !== 'pin') continue;
+      const msg = byId.get(msgId);
+      if (msg) out.push({ room, msg, pinnedTs: ev.ts });
+    }
+  };
+
+  if (isPublicSpaceId(spaceId)) {
+    // Public space: plaintext docs (no keyring/decrypt). Owner is the space owner id;
+    // read the room list + each room's plaintext doc with the public client.
+    const auth = publicSpaceAuth(session, spaceId);
+    const client = publicSpaceClient(session, spaceId);
+    const { rooms } = await readPublicRoomsDoc(client, auth.ownerId, spaceId);
+    for (const room of rooms) {
+      try {
+        const res = await client.pull(pubspaceRoomPull(auth.ownerId, spaceId, room.id)).catch(() => null);
+        const data = res?.data as { messages?: StoredMsg[]; pins?: PinEvent[] } | undefined;
+        if (data) collect(room, auth.ownerId, data);
+      } catch {
+        /* skip rooms we can't read */
+      }
+    }
+  } else {
+    // Private space: one space encryptor decrypts every channel's per-room doc.
+    const { rooms, owner } = await readRooms(session.accountClient, spaceId);
+    if (!owner) return [];
+    const space = await buildSpaceEncryptor(session, spaceId);
+    if (!space) return [];
+    const { client, enc } = space;
+    for (const room of rooms) {
+      try {
+        const res = await client.pull(roomPull(room.id)).catch(() => null);
+        const data = res?.data as Record<string, unknown> | undefined;
+        if (!data || !data._encrypted) continue;
+        const plain = (await enc.decrypt(data)) as { messages?: StoredMsg[]; pins?: PinEvent[] };
+        collect(room, owner, plain);
+      } catch {
+        /* skip rooms we can't decrypt */
+      }
+    }
+  }
+  return out.sort((a, b) => b.pinnedTs - a.pinnedTs).map(({ room, msg }) => ({ room, msg }));
 }

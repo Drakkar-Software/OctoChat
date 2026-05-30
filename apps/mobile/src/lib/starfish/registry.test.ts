@@ -25,7 +25,14 @@ vi.mock('./paths', () => ({
 
 import { ConflictError, StarfishHttpError } from '@drakkar.software/starfish-client';
 
-import { addJoinedSpaceWithCap, readSpaces, updateSpacesDoc } from './registry';
+import {
+  addJoinedPublicSpaceWithAccess,
+  addJoinedSpaceWithCap,
+  readRooms,
+  readSpaces,
+  updateReadsDoc,
+  updateSpacesDoc,
+} from './registry';
 
 /** A fake StarfishClient exposing just pull/push. */
 function fakeClient(pull: ReturnType<typeof vi.fn>, push: ReturnType<typeof vi.fn>) {
@@ -34,6 +41,12 @@ function fakeClient(pull: ReturnType<typeof vi.fn>, push: ReturnType<typeof vi.f
 
 const SPACE = (id: string) => ({ id, name: id, short: id.slice(0, 2), members: 1 }) as never;
 
+// The funnel reads `mutes` + `pubAccess` fresh and threads them through every push,
+// so a spaces/caps edit never drops a sibling key. The pull mocks below carry neither,
+// so both default to empty on the pushed doc.
+const EMPTY_MUTES = { rooms: {}, spaces: {} };
+const EMPTY_READS = { rooms: {} };
+
 describe('updateSpacesDoc', () => {
   it('preserves the caps map when the mutator only changes spaces', async () => {
     const pull = vi.fn(async () => ({ data: { v: 1, spaces: [{ id: 'a' }], caps: { x: '1' } }, hash: 'h1' }));
@@ -41,8 +54,13 @@ describe('updateSpacesDoc', () => {
     await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => ({
       spaces: [...cur.spaces, SPACE('b')],
       caps: cur.caps,
+      pubAccess: cur.pubAccess,
     }));
-    expect(push).toHaveBeenCalledWith('/push/u', { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: { x: '1' } }, 'h1');
+    expect(push).toHaveBeenCalledWith(
+      '/push/u',
+      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: { x: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {} },
+      'h1',
+    );
   });
 
   it('preserves the spaces array when the mutator only changes caps', async () => {
@@ -51,8 +69,32 @@ describe('updateSpacesDoc', () => {
     await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => ({
       spaces: cur.spaces,
       caps: { ...cur.caps, y: '2' },
+      pubAccess: cur.pubAccess,
     }));
-    expect(push).toHaveBeenCalledWith('/push/u', { v: 1, spaces: [{ id: 'a' }], caps: { x: '1', y: '2' } }, 'h1');
+    expect(push).toHaveBeenCalledWith(
+      '/push/u',
+      { v: 1, spaces: [{ id: 'a' }], caps: { x: '1', y: '2' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {} },
+      'h1',
+    );
+  });
+
+  it('preserves the pubAccess map when the mutator only changes spaces', async () => {
+    const sealed = { entry: { addedBy: 'me' }, ct: 'ab' };
+    const pull = vi.fn(async () => ({
+      data: { v: 1, spaces: [{ id: 'a' }], caps: {}, pubAccess: { a: sealed } },
+      hash: 'h1',
+    }));
+    const push = vi.fn(async () => undefined);
+    await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => ({
+      spaces: [...cur.spaces, SPACE('b')],
+      caps: cur.caps,
+      pubAccess: cur.pubAccess,
+    }));
+    expect(push).toHaveBeenCalledWith(
+      '/push/u',
+      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { a: sealed } },
+      'h1',
+    );
   });
 
   it('retries on ConflictError by re-reading and re-applying', async () => {
@@ -61,7 +103,11 @@ describe('updateSpacesDoc', () => {
       .fn()
       .mockRejectedValueOnce(new ConflictError())
       .mockResolvedValueOnce(undefined);
-    await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => ({ spaces: cur.spaces, caps: { ...cur.caps, a: '1' } }));
+    await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => ({
+      spaces: cur.spaces,
+      caps: { ...cur.caps, a: '1' },
+      pubAccess: cur.pubAccess,
+    }));
     expect(pull).toHaveBeenCalledTimes(2);
     expect(push).toHaveBeenCalledTimes(2);
   });
@@ -78,8 +124,16 @@ describe('updateSpacesDoc', () => {
       throw new StarfishHttpError(404, '');
     });
     const push = vi.fn(async () => undefined);
-    await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => ({ spaces: cur.spaces, caps: { ...cur.caps, a: '1' } }));
-    expect(push).toHaveBeenCalledWith('/push/u', { v: 1, spaces: [], caps: { a: '1' } }, null);
+    await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => ({
+      spaces: cur.spaces,
+      caps: { ...cur.caps, a: '1' },
+      pubAccess: cur.pubAccess,
+    }));
+    expect(push).toHaveBeenCalledWith(
+      '/push/u',
+      { v: 1, spaces: [], caps: { a: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {} },
+      null,
+    );
   });
 
   it('propagates a non-404 read error without writing', async () => {
@@ -97,24 +151,110 @@ describe('addJoinedSpaceWithCap', () => {
     const pull = vi.fn(async () => ({ data: { v: 1, spaces: [{ id: 'a' }], caps: {} }, hash: 'h' }));
     const push = vi.fn(async () => undefined);
     await addJoinedSpaceWithCap(fakeClient(pull, push), 'u', SPACE('a'), 'CAP');
-    expect(push).toHaveBeenCalledWith('/push/u', { v: 1, spaces: [{ id: 'a' }], caps: { a: 'CAP' } }, 'h');
+    expect(push).toHaveBeenCalledWith(
+      '/push/u',
+      { v: 1, spaces: [{ id: 'a' }], caps: { a: 'CAP' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {} },
+      'h',
+    );
   });
 
   it('appends a new space and sets its cap', async () => {
     const pull = vi.fn(async () => ({ data: { v: 1, spaces: [{ id: 'a' }], caps: { a: 'CA' } }, hash: 'h' }));
     const push = vi.fn(async () => undefined);
     await addJoinedSpaceWithCap(fakeClient(pull, push), 'u', SPACE('b'), 'CB');
-    expect(push).toHaveBeenCalledWith('/push/u', { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: { a: 'CA', b: 'CB' } }, 'h');
+    expect(push).toHaveBeenCalledWith(
+      '/push/u',
+      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: { a: 'CA', b: 'CB' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {} },
+      'h',
+    );
+  });
+});
+
+describe('addJoinedPublicSpaceWithAccess', () => {
+  it('appends a new public space and sets its sealed access entry', async () => {
+    const sealed = { entry: { addedBy: 'me' }, ct: 'deadbeef' } as never;
+    const pull = vi.fn(async () => ({ data: { v: 1, spaces: [{ id: 'a' }], caps: {} }, hash: 'h' }));
+    const push = vi.fn(async () => undefined);
+    await addJoinedPublicSpaceWithAccess(fakeClient(pull, push), 'u', SPACE('p'), sealed);
+    expect(push).toHaveBeenCalledWith(
+      '/push/u',
+      { v: 1, spaces: [{ id: 'a' }, SPACE('p')], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { p: sealed } },
+      'h',
+    );
+  });
+
+  it('does not duplicate an already-joined space but (re)writes its access', async () => {
+    const sealed = { entry: { addedBy: 'me' }, ct: 'new' } as never;
+    const pull = vi.fn(async () => ({
+      data: { v: 1, spaces: [{ id: 'p' }], caps: {}, pubAccess: { p: { ct: 'old' } } },
+      hash: 'h',
+    }));
+    const push = vi.fn(async () => undefined);
+    await addJoinedPublicSpaceWithAccess(fakeClient(pull, push), 'u', SPACE('p'), sealed);
+    expect(push).toHaveBeenCalledWith(
+      '/push/u',
+      { v: 1, spaces: [{ id: 'p' }], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { p: sealed } },
+      'h',
+    );
+  });
+});
+
+describe('updateReadsDoc', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('writes the next read marks while threading every sibling key through', async () => {
+    const sealed = { entry: { addedBy: 'me' }, ct: 'ab' };
+    const pull = vi.fn(async () => ({
+      data: {
+        v: 1,
+        spaces: [{ id: 'a' }],
+        caps: { a: 'CAP' },
+        mutes: { rooms: { r1: true }, spaces: {} },
+        reads: { rooms: { r1: 100 } },
+        pubAccess: { a: sealed },
+      },
+      hash: 'h1',
+    }));
+    const push = vi.fn(async () => undefined);
+    await updateReadsDoc(fakeClient(pull, push), 'u', (cur) => ({ rooms: { ...cur.rooms, r2: 200 } }));
+    expect(push).toHaveBeenCalledWith(
+      '/push/u',
+      {
+        v: 1,
+        spaces: [{ id: 'a' }],
+        caps: { a: 'CAP' },
+        mutes: { rooms: { r1: true }, spaces: {} },
+        reads: { rooms: { r1: 100, r2: 200 } },
+        pubAccess: { a: sealed },
+      },
+      'h1',
+    );
+  });
+
+  it('skips the write when the mutator returns null (nothing newer)', async () => {
+    const pull = vi.fn(async () => ({ data: { v: 1, spaces: [], caps: {}, reads: { rooms: { r1: 100 } } }, hash: 'h' }));
+    const push = vi.fn(async () => undefined);
+    await updateReadsDoc(fakeClient(pull, push), 'u', () => null);
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('retries on ConflictError by re-reading the latest server marks', async () => {
+    const pull = vi.fn(async () => ({ data: { v: 1, spaces: [], caps: {}, reads: { rooms: {} } }, hash: 'h' }));
+    const push = vi.fn().mockRejectedValueOnce(new ConflictError()).mockResolvedValueOnce(undefined);
+    await updateReadsDoc(fakeClient(pull, push), 'u', (cur) => ({ rooms: { ...cur.rooms, r1: 1 } }));
+    expect(pull).toHaveBeenCalledTimes(2);
+    expect(push).toHaveBeenCalledTimes(2);
   });
 });
 
 describe('readSpaces', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('defaults caps to {} for a legacy doc with no caps key', async () => {
+  it('defaults caps + pubAccess to {} for a legacy doc with neither key', async () => {
     const pull = vi.fn(async () => ({ data: { v: 1, spaces: [{ id: 'a' }] }, hash: 'h' }));
     const res = await readSpaces(fakeClient(pull, vi.fn()), 'u');
     expect(res.caps).toEqual({});
+    expect(res.pubAccess).toEqual({});
     expect(res.spaces).toEqual([{ id: 'a' }]);
   });
 
@@ -123,6 +263,42 @@ describe('readSpaces', () => {
       throw new StarfishHttpError(500, 'down');
     });
     const res = await readSpaces(fakeClient(pull, vi.fn()), 'u');
-    expect(res).toEqual({ spaces: [], caps: {}, hash: null });
+    expect(res).toEqual({
+      spaces: [],
+      caps: {},
+      mutes: { rooms: {}, spaces: {} },
+      reads: { rooms: {} },
+      pubAccess: {},
+      hash: null,
+    });
+  });
+});
+
+describe('readRooms', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns an empty registry on a 404 (no doc yet — a first write can create it)', async () => {
+    const pull = vi.fn(async () => {
+      throw new StarfishHttpError(404, '');
+    });
+    const res = await readRooms(fakeClient(pull, vi.fn()), 'sp-1');
+    expect(res).toEqual({ rooms: [], owner: null, members: [], name: null, image: null, categories: [], hash: null });
+  });
+
+  // The linchpin of the offline fix: a network failure must PROPAGATE (not collapse to
+  // an empty registry), so the rooms provider can fall back to the cached list rather
+  // than wiping it. Both a StarfishHttpError(5xx) and a plain network rejection throw.
+  it('propagates a non-404 HTTP error instead of degrading to empty', async () => {
+    const pull = vi.fn(async () => {
+      throw new StarfishHttpError(500, 'down');
+    });
+    await expect(readRooms(fakeClient(pull, vi.fn()), 'sp-1')).rejects.toBeInstanceOf(StarfishHttpError);
+  });
+
+  it('propagates a plain network rejection (offline) instead of degrading to empty', async () => {
+    const pull = vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    await expect(readRooms(fakeClient(pull, vi.fn()), 'sp-1')).rejects.toBeInstanceOf(TypeError);
   });
 });

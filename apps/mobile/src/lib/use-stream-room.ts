@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { createStore } from 'zustand';
 import { AppendLogCursor } from '@drakkar.software/starfish-client';
 import type { AppendElement, Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
@@ -10,6 +9,7 @@ import { getMemberCap } from './starfish/member-caps';
 import { isPublicSpaceId, publicSpaceAuth } from './starfish/pubspace';
 import { kvGet, kvSet } from './starfish/kv';
 import { registerPull, onSseStatus } from './room-events-bus';
+import { reportReachability } from './connectivity';
 import {
   pubstreamRoomPull,
   pubstreamRoomPush,
@@ -21,9 +21,10 @@ import type { AttachmentRef } from './starfish/attachments';
 import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
 import { randomId } from './ids';
-import type { ConversationStore } from './use-conversation-data';
+import { makeEmptyConversationStore, type ConversationStore } from './use-conversation-data';
+import { useRoomOpenState } from './use-room-open';
 import type { StoredMsg } from './message-view';
-import type { MessageEditEvent, ReactionEvent } from './types';
+import type { MessageEditEvent, PinEvent, ReactionEvent } from './types';
 
 /**
  * STREAM rooms — append-only rooms. Unlike {@link useRoom} (a merge-doc room synced
@@ -47,12 +48,14 @@ import type { MessageEditEvent, ReactionEvent } from './types';
 type StreamEnvelope =
   | { t: 'msg'; e: StoredMsg }
   | { t: 'reaction'; e: ReactionEvent }
-  | { t: 'edit'; e: MessageEditEvent };
+  | { t: 'edit'; e: MessageEditEvent }
+  | { t: 'pin'; e: PinEvent };
 
 interface StreamData {
   messages: StoredMsg[];
   reactions: ReactionEvent[];
   edits: MessageEditEvent[];
+  pins: PinEvent[];
 }
 
 /** Append `incoming` after `existing`, dropping any element whose `id` is already
@@ -104,34 +107,18 @@ function fanOut(items: AppendElement[]): StreamData {
   const messages: StoredMsg[] = [];
   const reactions: ReactionEvent[] = [];
   const edits: MessageEditEvent[] = [];
+  const pins: PinEvent[] = [];
   for (const item of items) {
     const env = item.data as unknown as StreamEnvelope;
     if (!env) continue;
     if (env.t === 'msg') messages.push({ ...env.e, ts: env.e.ts || item.ts });
     else if (env.t === 'reaction') reactions.push({ ...env.e, ts: env.e.ts || item.ts });
     else if (env.t === 'edit') edits.push({ ...env.e, ts: env.e.ts || item.ts });
+    else if (env.t === 'pin') pins.push({ ...env.e, ts: env.e.ts || item.ts });
   }
-  return { messages, reactions, edits };
+  return { messages, reactions, edits, pins };
 }
 
-/** A minimal zustand store whose `.data` the chat UI reads via `useStarfishData`.
- *  Only `data` is consumed; the StarfishStore action/flag fields are inert stubs to
- *  satisfy the `ConversationStore` type without pulling in the SDK's sync machinery. */
-function makeStreamStore(): ConversationStore {
-  return createStore(() => ({
-    data: { messages: [], reactions: [], edits: [] } as StreamData,
-    syncing: false,
-    online: true,
-    dirty: false,
-    error: null,
-    hash: null,
-    pull: async () => {},
-    set: () => {},
-    restore: () => {},
-    flush: async () => {},
-    setOnline: () => {},
-  })) as unknown as ConversationStore;
-}
 
 export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) {
   const enabled = opts.enabled ?? true;
@@ -141,8 +128,15 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
   const isPublic = isPublicSpaceId(spaceId);
   const [encryptor, setEncryptor] = useState<Encryptor | null>(null);
   const [client, setClient] = useState<StarfishClient | null>(null);
-  const [opening, setOpening] = useState(true);
-  const [openError, setOpenError] = useState<string | null>(null);
+  // Shared open-state machine (offline-classification + reconnect re-open) — see
+  // {@link useRoomOpenState}. The synthetic store still renders offline (warm history +
+  // pending bubbles), so an unreachable open degrades to an offline shell, not an error.
+  // Offline-first: the space keyring now comes from the SDK pull cache, so the
+  // encryptor builds offline and the warm-started log (persisted ciphertext) paints
+  // without the network. So building the encryptor no longer proves reachability —
+  // that's reported from a fresh cursor `pull()` below, not from `openReached`.
+  const { opening, openError, offline, reloadNonce, reload, beginOpen, finishOpening, failOpen } =
+    useRoomOpenState();
 
   // The synthetic store lives for this room's lifetime, keyed by roomId so a room switch
   // (the screen stays mounted) starts fresh rather than flashing the previous room's log.
@@ -151,7 +145,7 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
   // paints history instantly instead of re-fetching the whole log from scratch.
   const roomStateRef = useRef<{ id: string; store: ConversationStore } | null>(null);
   if (!roomStateRef.current || roomStateRef.current.id !== roomId) {
-    roomStateRef.current = { id: roomId, store: makeStreamStore() };
+    roomStateRef.current = { id: roomId, store: makeEmptyConversationStore() };
   }
   const roomState = enabled ? roomStateRef.current : null;
   const store = roomState?.store ?? null;
@@ -172,8 +166,7 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset open state before reopening on room/session change
     setEncryptor(null);
     setClient(null);
-    setOpenError(null);
-    setOpening(true);
+    beginOpen();
     if (!enabled || !session) return;
     (async () => {
       try {
@@ -182,7 +175,7 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
           if (!cancelled) {
             setEncryptor(null);
             setClient(makeClient(auth.cap, auth.signingKey));
-            setOpening(false);
+            finishOpening(); // public open did no network call — proves no reachability
           }
           return;
         }
@@ -191,19 +184,18 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
         if (!cancelled) {
           setEncryptor(enc);
           setClient(roomClient);
-          setOpening(false);
+          // No openReached() — the keyring may have come from cache (offline). The
+          // cursor pull reports reachability (see `pull` below).
+          finishOpening();
         }
       } catch (e) {
-        if (!cancelled) {
-          setOpenError(String((e as Error)?.message ?? e));
-          setOpening(false);
-        }
+        if (!cancelled) failOpen(e);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [enabled, session, roomId, spaceId, isPublic, ensureRegistry]);
+  }, [enabled, session, roomId, spaceId, isPublic, ensureRegistry, reloadNonce, beginOpen, finishOpening, failOpen]);
 
   // Auth + path for this stream room (owner/joiner cap on public; member/space cap on
   // private). `signingKey` is the request-signing key the cap is bound to.
@@ -226,13 +218,14 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
   // re-render (the cursor serializes pulls and dedups by `ts`, but `concatDedupById` is
   // still the cheap belt-and-braces guard against re-rendering an unchanged list).
   const mergeIntoStore = useCallback((store: ConversationStore, batch: StreamData) => {
-    if (!batch.messages.length && !batch.reactions.length && !batch.edits.length) return;
+    if (!batch.messages.length && !batch.reactions.length && !batch.edits.length && !batch.pins.length) return;
     const cur = (store.getState() as unknown as { data: StreamData }).data;
     const messages = concatDedupById(cur.messages, batch.messages);
     const reactions = concatDedupById(cur.reactions, batch.reactions);
     const edits = concatDedupById(cur.edits, batch.edits);
-    if (messages === cur.messages && reactions === cur.reactions && edits === cur.edits) return;
-    store.setState({ data: { messages, reactions, edits } } as never);
+    const pins = concatDedupById(cur.pins ?? [], batch.pins);
+    if (messages === cur.messages && reactions === cur.reactions && edits === cur.edits && pins === (cur.pins ?? [])) return;
+    store.setState({ data: { messages, reactions, edits, pins } } as never);
   }, []);
 
   // Pull the append log and fan the NEW batch into the store. The cursor owns the
@@ -255,8 +248,12 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
         mergeIntoStore(roomState.store, fanOut(batch));
         void kvSet(streamLogKey(roomId), JSON.stringify(cur.cursor.getItems()));
       }
+      // A successful cursor pull is the real reachability signal (append-log pulls
+      // aren't served from the offline cache — they own their warm-start persistence).
+      reportReachability(true);
       setSyncError((prev) => (prev === null ? prev : null));
     } catch {
+      reportReachability(false);
       setSyncError('Reconnecting… messages may be out of date.');
     }
   }, [roomId, roomState, mergeIntoStore]);
@@ -344,12 +341,17 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
   // (the union call-site stays type-clean). `attachment` is ignored — stream rooms
   // don't support attachments in Phase 1 (the bot-push contract is a plain JSON append).
   const send = useCallback(
-    (text: string, parentId?: string, _attachment?: AttachmentRef) => {
+    (text: string, parentId?: string, _attachment?: AttachmentRef, id?: string) => {
       const t = text.trim();
       if (!session || !t) return;
-      const msg: StoredMsg = { id: randomId(), authorId: session.userId, ts: Date.now(), text: t };
+      // `id` lets a queued (offline) message reuse its pending-bubble id so it dedups
+      // on sync instead of double-rendering (see outbox.ts); live sends mint a fresh one.
+      const msg: StoredMsg = { id: id ?? randomId(), authorId: session.userId, ts: Date.now(), text: t };
       if (parentId) msg.parentId = parentId;
-      void append({ t: 'msg', e: msg });
+      // Return the append promise (not `void`) so the screen can await + catch a
+      // failed (offline) send and divert the message to the outbox. useRoom.send is
+      // sync/void; `await send(…)` works for both since awaiting undefined is a no-op.
+      return append({ t: 'msg', e: msg });
     },
     [session, append],
   );
@@ -387,6 +389,23 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
     [session, append],
   );
 
+  // Pin/unpin append a `pin` envelope (mirrors edit/delete); folded by `resolvePinned`
+  // with the space owner as the guard. UI only fires these for the owner.
+  const pinMessage = useCallback(
+    (msgId: string) => {
+      if (!session) return;
+      void append({ t: 'pin', e: { id: randomId(), msgId, userId: session.userId, kind: 'pin', ts: Date.now() } });
+    },
+    [session, append],
+  );
+  const unpinMessage = useCallback(
+    (msgId: string) => {
+      if (!session) return;
+      void append({ t: 'pin', e: { id: randomId(), msgId, userId: session.userId, kind: 'unpin', ts: Date.now() } });
+    },
+    [session, append],
+  );
+
   // Attachments are not supported in stream rooms (Phase 1): the bot-push contract is a
   // plain JSON append, and public streams have no encryptor to seal a blob. Kept in the
   // returned shape (no-ops) so a room screen can consume useRoom or useStreamRoom alike.
@@ -397,11 +416,15 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
     store,
     opening: enabled ? opening : false,
     openError,
+    offline,
+    reload,
     syncError,
     send,
     toggleReaction,
     editMessage,
     deleteMessage,
+    pinMessage,
+    unpinMessage,
     uploadAttachment,
     loadAttachment,
     canWrite: route?.canWrite ?? false,

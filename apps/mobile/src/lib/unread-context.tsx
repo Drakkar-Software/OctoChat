@@ -6,11 +6,14 @@
  * enables it, `notifyRoomChange` pulls + decrypts the changed room's latest message
  * to build the toast body; the count path stays pull-free.)
  *
- * Because chat is E2E-encrypted, the server can only tell us *which room*
- * changed — not the message id or author. "Don't count my own messages" is
- * handled by ignoring the room currently being viewed (you're inside a room
- * when you send). Counts are persisted to local kv per identity and restored on
- * reload; the SSE stream reconnects fresh (no replay).
+ * Because chat is E2E-encrypted, the server can't tell us the message id or text,
+ * but it does forward the write's author `identity` (account-level user id). We
+ * skip our own writes two ways: the room currently being viewed (you're inside it
+ * when you send on this device), and any event whose `identity` is ours (a send
+ * from ANOTHER device on the same account) — the same self-exclusion the FCM push
+ * uses, so the unread badge no longer counts messages you sent. Counts are persisted
+ * to local kv per identity and restored on reload; the SSE stream reconnects fresh
+ * (no replay).
  */
 import {
   createContext,
@@ -27,6 +30,9 @@ import { subscribeRoomChanges } from './events';
 import { setDesktopBadge } from './desktop';
 import { setTabTitleBadge } from './tab-title';
 import { ensureNotifyPermission, notifyRoomChange } from './notify';
+import { isMuted } from './mutes';
+import { useMutes } from './mutes-context';
+import { getReadPrefs, loadReadMarksFromKv, setRoomReadAt, subscribeReads } from './reads';
 import { useNotificationSettings } from './notification-settings-context';
 import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
@@ -57,7 +63,6 @@ interface UnreadValue {
 }
 
 const persistKey = (userId: string) => `octochat.unread.${userId}`;
-const lastReadKey = (userId: string) => `octochat.lastread.${userId}`;
 
 const Ctx = createContext<UnreadValue | null>(null);
 
@@ -69,9 +74,12 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   // and keeps state updaters pure (no side effects inside setState).
   const mapRef = useRef<Record<string, number>>({});
 
-  // Per-room last-read timestamp (ms), persisted per identity. Advanced on every
-  // room open so messages newer than the previous visit read as "unread". Ref-only
-  // (no state): it's a selector input snapshotted by callers, not reactive UI.
+  // Per-room last-read timestamp (ms). A local MIRROR of the synced read-mark cache
+  // (`reads.ts` — stored in the `_spaces` doc, shared across the user's devices), kept
+  // here as a ref because callers snapshot it during render (a selector input, not
+  // reactive UI) before `markRoomRead` advances it. Seeded from kv on hydrate and kept
+  // in sync by the `subscribeReads` reconcile below, which also clears the unread count
+  // for any room whose mark advanced on ANOTHER device.
   const lastReadRef = useRef<Record<string, number>>({});
   // Reactive flag flipped true once lastReadRef has hydrated from kv for this
   // identity, so callers don't snapshot the empty (all-unread) map on a fresh load.
@@ -104,11 +112,22 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   // Notification preferences (per identity) gate both push and web toasts.
   const { settings: notif } = useNotificationSettings();
 
-  // Native push: subscribe the device to per-space FCM topics, mirroring the SSE
-  // candidate set so backgrounded native apps still get notified. No-op on
-  // web/desktop (those rely on the live SSE stream + notify.ts). The master toggle
+  // Mute prefs: consumed here so the provider re-renders (and the push set below
+  // recomputes) the instant a space is muted/unmuted. The SSE candidate set stays
+  // UNFILTERED (see `subscribeRoomChanges` below) — dropping a muted space there
+  // would kill live updates for a muted room you're actively viewing.
+  const mutes = useMutes();
+
+  // Native push: subscribe the device to per-space FCM topics. A MUTED space is
+  // dropped from this set so its topic is unsubscribed — the only layer that stops a
+  // native banner (the OS renders the bridge's push before any JS runs). No-op on
+  // web/desktop (those rely on the live SSE stream + notify.ts); the master toggle
   // drops every subscription when off.
-  usePush(session, spaceIds, notif.enabled);
+  const pushSpaceIds = useMemo(
+    () => spaceIds.filter((id) => !mutes.isSpaceMuted(id)),
+    [spaceIds, mutes],
+  );
+  usePush(session, pushSpaceIds, notif.enabled);
 
   // Request browser-notification permission once notifications are enabled
   // (web/desktop; no-op on native). Re-asks when the user flips the toggle on.
@@ -129,22 +148,54 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
     }
     let cancelled = false;
     let unsub = () => {};
+    let unsubReads = () => {};
     void (async () => {
-      const [raw, rawLastRead] = await Promise.all([kvGet(persistKey(userId)), kvGet(lastReadKey(userId))]);
+      // Read marks now come from the synced `reads` cache (persisted to its own kv,
+      // folding the legacy `octochat.lastread` map). This seeds the mirror with THIS
+      // device's own marks; cross-device marks merged in by `hydrateReads` arrive via
+      // the reconcile subscription below.
+      const [raw, marks] = await Promise.all([kvGet(persistKey(userId)), loadReadMarksFromKv(userId)]);
       if (cancelled) return;
-      let lastRead: Record<string, number> = {};
-      if (rawLastRead) {
-        try {
-          lastRead = JSON.parse(rawLastRead) as Record<string, number>;
-        } catch {
-          lastRead = {};
-        }
-      }
-      lastReadRef.current = lastRead;
+      lastReadRef.current = marks;
       // Marks are loaded — flip the gate now (before the count-prune / subscribe
       // gate below, which can early-return). `cancelled` was checked just above and
       // nothing awaits between, so no stale-closure write. Stays true across re-runs.
       setHydrated(true);
+
+      // Reconcile the unread COUNT against the synced read marks: when a room's mark
+      // advances past our mirror — because it was read on ANOTHER device (or by our own
+      // `markRoomRead`, idempotently) — clear that room's unread count to 0. The badge
+      // counter has no per-message timestamps, so this is "the other device read it →
+      // assume caught up"; a message that landed between the two devices' read times is
+      // dropped from the count (accepted approximation — see the feature plan).
+      const reconcileReads = () => {
+        const next = getReadPrefs().rooms;
+        const prev = lastReadRef.current;
+        const mirror = { ...prev };
+        const counts = { ...mapRef.current };
+        let marksChanged = false;
+        let countsChanged = false;
+        for (const [roomId, ts] of Object.entries(next)) {
+          if (ts > (prev[roomId] ?? 0)) {
+            mirror[roomId] = ts;
+            marksChanged = true;
+            if (counts[roomId]) {
+              delete counts[roomId];
+              countsChanged = true;
+            }
+          }
+        }
+        if (marksChanged) lastReadRef.current = mirror;
+        if (countsChanged) {
+          mapRef.current = counts;
+          setUnreadByRoom(counts);
+          void kvSet(persistKey(userId), JSON.stringify(counts));
+        }
+      };
+      unsubReads = subscribeReads(reconcileReads);
+      // Catch any advance already emitted before we subscribed (e.g. the startup
+      // `hydrateReads` server-merge that ran before this provider mounted).
+      reconcileReads();
       let initial: Record<string, number> = {};
       if (raw) {
         try {
@@ -178,6 +229,12 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
         (e) => {
           // Active room view: pull fresh messages there, skip the unread bump.
           if (dispatchRoomChange(e.roomId)) return;
+          // My own write from another device on this account: the server forwards
+          // the author identity, so skip the bump (and the toast below) — same
+          // self-exclusion as the FCM push. Undefined identity (older server) falls
+          // through and counts, preserving the previous behavior.
+          if (e.identity && e.identity === userId) return;
+          // Unread is KEPT for muted rooms/spaces (silence-only) — bump it regardless.
           const m = mapRef.current;
           const next = { ...m, [e.roomId]: (m[e.roomId] ?? 0) + 1 };
           mapRef.current = next;
@@ -186,10 +243,14 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
           // web/desktop notification, honoring settings (no-op when focused, disabled,
           // or native). Decrypts a preview when the `preview` setting is on. The nav
           // deps let a click resolve the room's real name/kind + focus its space.
-          void notifyRoomChange(session, e.roomId, {
-            ensure: ensureRef.current,
-            setActiveId: setActiveIdRef.current,
-          });
+          // Skipped when the room (or its whole space) is muted — the sync mute cache
+          // reads correctly inside this long-lived SSE closure (no stale React state).
+          if (!isMuted(e.roomId, e.spaceId ?? spaceIdFromRoomId(e.roomId))) {
+            void notifyRoomChange(session, e.roomId, {
+              ensure: ensureRef.current,
+              setActiveId: setActiveIdRef.current,
+            });
+          }
         },
         {
           spaces: spaceIds,
@@ -203,6 +264,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
       unsub();
+      unsubReads();
     };
     // spacesKey is the stable sorted-join of spaceIds; changing it re-establishes
     // the stream when the user joins or leaves a space.
@@ -212,10 +274,12 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   const markRoomRead = useCallback(
     (roomId: string) => {
       // Advance the read mark first — every open counts as "read up to now", so
-      // messages that arrive after this stop reading as unread on the next visit.
-      const lr = { ...lastReadRef.current, [roomId]: Date.now() };
-      lastReadRef.current = lr;
-      if (userId) void kvSet(lastReadKey(userId), JSON.stringify(lr));
+      // messages that arrive after this stop reading as unread on the next visit. We
+      // update the local mirror AND push through the synced read cache (`setRoomReadAt`:
+      // optimistic + debounced sync to the `_spaces` doc) so other devices clear too.
+      const ts = Date.now();
+      lastReadRef.current = { ...lastReadRef.current, [roomId]: ts };
+      if (session) setRoomReadAt(session, roomId, ts);
       // Then clear the unread count, if any.
       const m = mapRef.current;
       if (!m[roomId]) return;
@@ -225,7 +289,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       setUnreadByRoom(next);
       if (userId) void kvSet(persistKey(userId), JSON.stringify(next));
     },
-    [userId],
+    [userId, session],
   );
 
   // Read the last-read mark for a room from the live mirror (0 = never read).

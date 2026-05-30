@@ -22,7 +22,7 @@ export interface PubspaceAccess {
   write: boolean;
 }
 
-type AccessMap = Record<string, PubspaceAccess>;
+export type AccessMap = Record<string, PubspaceAccess>;
 
 /** Pre-multi-account global blob; adopted once by the first user that hydrates. */
 const LEGACY_KEY = 'octochat.pubspacecaps.v1';
@@ -67,6 +67,26 @@ export async function hydratePubspaceCaps(userId: string): Promise<void> {
 
 function persist(): void {
   if (activeKey) void kvSet(activeKey, JSON.stringify(cache));
+}
+
+/**
+ * Merge access entries recovered from the synced `_spaces` doc OVER the in-memory
+ * cache (server wins) and warm the local kv — the public twin of `member-caps.ts`
+ * step 2. This is what lets a device that never opened the invite link recover
+ * read/write access to a public space it sees in its list. Call AFTER
+ * {@link hydratePubspaceCaps} has set the active user (so `persist()` targets the
+ * right key). Empty `entries` is a no-op (leaves the local-only cache intact).
+ */
+export function mergePubspaceAccess(entries: AccessMap): void {
+  if (Object.keys(entries).length === 0) return;
+  cache = { ...cache, ...entries };
+  persist();
+}
+
+/** A snapshot of the in-memory access cache — used to compute which device-local
+ *  entries are missing from the synced doc and need a one-time backfill. */
+export function localPubspaceEntries(): AccessMap {
+  return cache;
 }
 
 export function getPubspaceAccess(spaceId: string): PubspaceAccess | null {

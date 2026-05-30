@@ -15,8 +15,12 @@
  *     { collection: "chat", hash, timestamp, params: { spaceId, roomId } }   // raw
  *     { …, rawPayload: { …, params: { spaceId, roomId } } }                  // Whistlers
  *
- * Because chat docs are E2E-encrypted, an event can only carry the roomId (+ doc
- * hash + timestamp) — never a message id or author.
+ * Because chat docs are E2E-encrypted, an event carries the roomId (+ doc hash +
+ * timestamp) but never a message id or its plaintext. It MAY carry `identity` — the
+ * write author's account-level user id (sha256(edPub)[:16]) — when the server's
+ * queuing plugin sets `includeIdentity` (OctoChat's does, for the same self-exclusion
+ * the FCM bridge uses). That's metadata the server holds, not encrypted content, so
+ * it's safe to forward; the client uses it to skip its own writes (see unread-context).
  *
  * Routing by collection: `chat`/`streamchat`/`pubstream` carry `params.roomId`.
  * Public channels (`pubspace`) instead carry `params.docId` (the room id, or
@@ -30,6 +34,10 @@ export interface RoomChange {
   spaceId?: string;
   hash?: string;
   ts?: number;
+  /** Account-level user id of the write's author (sha256(edPub)[:16]), when the
+   *  server forwards it (`includeIdentity`). Absent on servers that don't — callers
+   *  must treat undefined as "author unknown". */
+  identity?: string;
 }
 
 interface QueueMessageish {
@@ -37,6 +45,7 @@ interface QueueMessageish {
   params?: { roomId?: string; docId?: string; spaceId?: string };
   hash?: string;
   timestamp?: number;
+  identity?: string;
 }
 
 /** Parse one SSE `data:` payload into a RoomChange, or null if not a chat change.
@@ -57,7 +66,13 @@ export function parseRoomChange(data: string): RoomChange | null {
       roomId = msg.params?.roomId;
     }
     if (!roomId) return null;
-    return { roomId, spaceId: msg.params?.spaceId, hash: msg.hash, ts: msg.timestamp };
+    return {
+      roomId,
+      spaceId: msg.params?.spaceId,
+      hash: msg.hash,
+      ts: msg.timestamp,
+      identity: typeof msg.identity === 'string' ? msg.identity : undefined,
+    };
   } catch {
     return null;
   }

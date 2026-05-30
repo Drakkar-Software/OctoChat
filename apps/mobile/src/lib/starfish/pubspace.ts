@@ -13,17 +13,33 @@
  */
 import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 import { mintMemberCap } from '@drakkar.software/starfish-sharing';
+import { StarfishHttpError } from '@drakkar.software/starfish-client';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { Room, RoomKind, Space } from '@/lib/types';
+import type { PubAccessMap, Room, RoomKind, Space } from '@/lib/types';
 
 import { randomId, roomSlug } from '../ids';
 
+import { sealToSelf, unsealFromSelf } from './account-seal';
+import type { SealedBlob } from './account-seal';
 import { makeClient } from './client';
 import type { Session } from './identity';
 import { bytesToHex, pubspaceRoomPush, pubspaceRoomsPull, pubspaceRoomsPush, pubspaceScope } from './paths';
-import { getPubspaceAccess, savePubspaceAccess } from './pubspace-caps';
-import { addJoinedSpace } from './registry';
+import {
+  getPubspaceAccess,
+  localPubspaceEntries,
+  mergePubspaceAccess,
+  savePubspaceAccess,
+} from './pubspace-caps';
+import type { AccessMap, PubspaceAccess } from './pubspace-caps';
+import {
+  addJoinedPublicSpaceWithAccess,
+  addJoinedSpace,
+  CategoryError,
+  DEFAULT_CATEGORY,
+  normalizeCategories,
+  updateSpacesDoc,
+} from './registry';
 
 /** Everything a joiner needs, packed into the invitation link's URL fragment. */
 export interface PublicInviteToken {
@@ -108,6 +124,9 @@ interface PublicRoomsDoc {
    *  writes it. `image` is a data URI (see avatar-image). */
   name?: string;
   image?: string;
+  /** Ordered category list — mirrors the private registry (see normalizeCategories).
+   *  Omitted when empty so a pre-feature public space stays byte-identical. */
+  categories?: string[];
 }
 
 /** Public-space ids are prefixed so the data layer can branch synchronously without
@@ -136,13 +155,20 @@ export async function readPublicRoomsDoc(
   client: StarfishClient,
   ownerId: string,
   spaceId: string,
-): Promise<{ rooms: Room[]; name: string | null; image: string | null; hash: string | null }> {
-  const res = await client.pull(pubspaceRoomsPull(ownerId, spaceId)).catch(() => null);
+): Promise<{ rooms: Room[]; name: string | null; image: string | null; categories: string[]; hash: string | null }> {
+  // 404 → empty doc; any other error (offline) propagates so the rooms provider can
+  // fall back to the cached registry instead of wiping the list. Twin of readRooms.
+  const res = await client.pull(pubspaceRoomsPull(ownerId, spaceId)).catch((err: unknown) => {
+    if (err instanceof StarfishHttpError && err.status === 404) return null;
+    throw err;
+  });
   const data = res?.data as Partial<PublicRoomsDoc> | undefined;
+  const rooms = Array.isArray(data?.rooms) ? data.rooms : [];
   return {
-    rooms: Array.isArray(data?.rooms) ? data.rooms : [],
+    rooms,
     name: typeof data?.name === 'string' ? data.name : null,
     image: typeof data?.image === 'string' ? data.image : null,
+    categories: normalizeCategories(rooms, data?.categories),
     hash: res?.hash ?? null,
   };
 }
@@ -217,7 +243,8 @@ export async function createPublicInvite(
  * this identity's own `_spaces` list. No keyring check (there is none). Idempotent.
  */
 export async function joinPublicSpace(session: Session, token: PublicInviteToken): Promise<Space> {
-  savePubspaceAccess(token.spaceId, { ownerId: token.ownerId, cap: token.cap, key: token.key, write: token.write });
+  const access: PubspaceAccess = { ownerId: token.ownerId, cap: token.cap, key: token.key, write: token.write };
+  savePubspaceAccess(token.spaceId, access); // device-local: keeps reads synchronous here
   const name = token.spaceName.trim() || `public-${token.spaceId.slice(-6)}`;
   const space: Space = {
     id: token.spaceId,
@@ -228,8 +255,55 @@ export async function joinPublicSpace(session: Session, token: PublicInviteToken
     ownerId: token.ownerId,
     write: token.write,
   };
-  await addJoinedSpace(session.accountClient, session.userId, space);
+  // Seal the credential to the account key and persist it in the synced `_spaces` doc
+  // (atomically with the space) so the user's OTHER devices recover access WITHOUT
+  // re-opening the link — the public twin of how a private member cap self-heals.
+  const sealed = await sealToSelf(session, JSON.stringify(access));
+  await addJoinedPublicSpaceWithAccess(session.accountClient, session.userId, space, sealed);
   return space;
+}
+
+/**
+ * Sign-in orchestrator: reconcile this device's public-space access with the synced
+ * `_spaces` doc (its sealed `pubAccess` map). Two halves, both best-effort:
+ *
+ * - RECOVER — unseal every server entry into the in-memory + kv cache, so a device
+ *   that never opened the invite link gains read/write access to a public space it
+ *   already sees in its list.
+ * - BACKFILL — seal any device-local-only entry missing from the server doc and upload
+ *   it in ONE batched write, so spaces this device joined before the credential synced
+ *   propagate to the user's other devices (no re-join needed). This is what heals an
+ *   account that joined public spaces on web/desktop before this feature shipped.
+ *
+ * Failures are logged, not thrown: access still works from whatever is cached locally.
+ */
+export async function recoverPubspaceAccess(session: Session, serverPubAccess: PubAccessMap): Promise<void> {
+  // 1. RECOVER: unseal server entries → merge over the local cache (server wins).
+  const recovered: AccessMap = {};
+  for (const [spaceId, sealed] of Object.entries(serverPubAccess)) {
+    try {
+      recovered[spaceId] = JSON.parse(await unsealFromSelf(session, sealed)) as PubspaceAccess;
+    } catch (e) {
+      console.error('[OctoChat] pubspace recover: failed to unseal', spaceId, e);
+    }
+  }
+  mergePubspaceAccess(recovered);
+
+  // 2. BACKFILL: local-only entries the server doc doesn't have yet → seal + upload.
+  const local = localPubspaceEntries();
+  const missing = Object.keys(local).filter((id) => !(id in serverPubAccess));
+  if (missing.length === 0) return;
+  try {
+    const sealedEntries: Record<string, SealedBlob> = {};
+    for (const id of missing) sealedEntries[id] = await sealToSelf(session, JSON.stringify(local[id]));
+    await updateSpacesDoc(session.accountClient, session.userId, (cur) => ({
+      spaces: cur.spaces,
+      caps: cur.caps,
+      pubAccess: { ...cur.pubAccess, ...sealedEntries },
+    }));
+  } catch (e) {
+    console.error('[OctoChat] pubspace backfill failed', e);
+  }
 }
 
 /** A client authenticated for a public space (owner's account cap or joiner's link cap). */
@@ -247,11 +321,11 @@ export async function createPublicRoom(
   session: Session,
   spaceId: string,
   name: string,
-  category = 'CHANNELS',
+  category = DEFAULT_CATEGORY,
   kind: RoomKind = 'channel',
 ): Promise<Room> {
   const client = session.accountClient;
-  const { rooms, name: spaceName, image, hash } = await readPublicRoomsDoc(client, session.userId, spaceId);
+  const { rooms, name: spaceName, image, categories, hash } = await readPublicRoomsDoc(client, session.userId, spaceId);
   const room: Room = {
     id: `${spaceId}-${roomSlug(name)}-${Date.now().toString(36)}`,
     spaceId,
@@ -259,12 +333,15 @@ export async function createPublicRoom(
     name,
     kind,
   };
-  // Preserve the shared name/image so adding a channel never drops the space identity.
+  // Preserve the shared name/image + category list so adding a channel never drops
+  // the space identity or the ordered categories.
+  const nextCategories = categories.includes(category) ? categories : [...categories, category];
   const doc: PublicRoomsDoc = {
     v: 1,
     rooms: [...rooms, room],
     ...(spaceName ? { name: spaceName } : {}),
     ...(image ? { image } : {}),
+    ...(nextCategories.length ? { categories: nextCategories } : {}),
   };
   await client.push(pubspaceRoomsPush(session.userId, spaceId), doc as unknown as Record<string, unknown>, hash);
   // A 'channel' is a merge-doc room → seed its empty doc so a reader's first pull
@@ -288,9 +365,107 @@ export async function updatePublicSpaceMeta(
   meta: { name?: string | null; image?: string | null },
 ): Promise<void> {
   const client = session.accountClient;
-  const { rooms, name: curName, image: curImage, hash } = await readPublicRoomsDoc(client, session.userId, spaceId);
+  const { rooms, name: curName, image: curImage, categories, hash } = await readPublicRoomsDoc(client, session.userId, spaceId);
   const name = (meta.name === undefined ? curName : meta.name)?.trim() || undefined;
   const image = (meta.image === undefined ? curImage : meta.image) || undefined;
-  const doc: PublicRoomsDoc = { v: 1, rooms, ...(name ? { name } : {}), ...(image ? { image } : {}) };
+  const doc: PublicRoomsDoc = {
+    v: 1,
+    rooms,
+    ...(name ? { name } : {}),
+    ...(image ? { image } : {}),
+    ...(categories.length ? { categories } : {}),
+  };
   await client.push(pubspaceRoomsPush(session.userId, spaceId), doc as unknown as Record<string, unknown>, hash);
+}
+
+const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/**
+ * Owner: read-modify-write a public space's `_rooms` registry through one funnel —
+ * the public twin of {@link updateRoomsRegistry}. Preserves the shared name/image,
+ * runs the mutator over `{ rooms, categories }` (or `null` for a no-op). Public docs
+ * are last-writer-wins (only the owner's own devices race), so no ConflictError loop.
+ */
+async function updatePublicRoomsRegistry(
+  session: Session,
+  spaceId: string,
+  mutator: (cur: { rooms: Room[]; categories: string[] }) => { rooms: Room[]; categories: string[] } | null,
+): Promise<void> {
+  const client = session.accountClient;
+  const { rooms, name, image, categories, hash } = await readPublicRoomsDoc(client, session.userId, spaceId);
+  const next = mutator({ rooms, categories });
+  if (!next) return;
+  const doc: PublicRoomsDoc = {
+    v: 1,
+    rooms: next.rooms,
+    ...(name ? { name } : {}),
+    ...(image ? { image } : {}),
+    ...(next.categories.length ? { categories: next.categories } : {}),
+  };
+  await client.push(pubspaceRoomsPush(session.userId, spaceId), doc as unknown as Record<string, unknown>, hash);
+}
+
+/** Owner: create an (empty) category in a public space. No-op on a duplicate name. */
+export async function createPublicCategory(session: Session, spaceId: string, name: string): Promise<void> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new CategoryError('Enter a category name.');
+  await updatePublicRoomsRegistry(session, spaceId, (cur) =>
+    cur.categories.some((c) => sameName(c, trimmed)) ? null : { rooms: cur.rooms, categories: [...cur.categories, trimmed] },
+  );
+}
+
+/** Owner: rename a public-space category (relabel + rewrite its rooms). */
+export async function renamePublicCategory(
+  session: Session,
+  spaceId: string,
+  oldName: string,
+  newName: string,
+): Promise<void> {
+  const next = newName.trim();
+  if (!next) throw new CategoryError('Enter a category name.');
+  if (sameName(oldName, next)) return;
+  await updatePublicRoomsRegistry(session, spaceId, (cur) => {
+    if (cur.categories.some((c) => sameName(c, next))) throw new CategoryError('A category with that name already exists.');
+    return {
+      rooms: cur.rooms.map((r) => (r.category === oldName ? { ...r, category: next } : r)),
+      categories: cur.categories.map((c) => (c === oldName ? next : c)),
+    };
+  });
+}
+
+/** Owner: delete a public-space category (reassign its rooms to the fallback). */
+export async function deletePublicCategory(
+  session: Session,
+  spaceId: string,
+  name: string,
+  fallback = DEFAULT_CATEGORY,
+): Promise<void> {
+  await updatePublicRoomsRegistry(session, spaceId, (cur) => {
+    const moved = cur.rooms.some((r) => r.category === name);
+    const rooms = cur.rooms.map((r) => (r.category === name ? { ...r, category: fallback } : r));
+    let categories = cur.categories.filter((c) => c !== name);
+    if (moved && !categories.includes(fallback)) categories = [...categories, fallback];
+    return { rooms, categories };
+  });
+}
+
+/** Owner: set the category order for a public space. */
+export async function reorderPublicCategories(session: Session, spaceId: string, order: string[]): Promise<void> {
+  await updatePublicRoomsRegistry(session, spaceId, (cur) => {
+    const next = order.filter((c) => cur.categories.includes(c));
+    for (const c of cur.categories) if (!next.includes(c)) next.push(c);
+    return { rooms: cur.rooms, categories: next };
+  });
+}
+
+/** Owner: move a public-space room into a category (drag-drop / picker). */
+export async function movePublicRoom(session: Session, spaceId: string, roomId: string, category: string): Promise<void> {
+  await updatePublicRoomsRegistry(session, spaceId, (cur) => {
+    const room = cur.rooms.find((r) => r.id === roomId);
+    if (!room || room.category === category) return null;
+    return {
+      rooms: cur.rooms.map((r) => (r.id === roomId ? { ...r, category } : r)),
+      categories: cur.categories.includes(category) ? cur.categories : [...cur.categories, category],
+    };
+  });
 }

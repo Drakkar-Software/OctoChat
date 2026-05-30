@@ -6,6 +6,8 @@ import type { Room } from '@/lib/types';
 import { useProfile } from '@/lib/profile-context';
 import { useRoomSidebarVisible } from '@/lib/use-responsive';
 import { useRooms } from '@/lib/use-rooms';
+import { useSession } from '@/lib/session-context';
+import { useSpaceNav } from '@/lib/use-space-nav';
 import { useSpaces } from '@/lib/use-spaces';
 import { useTheme } from '@/lib/use-theme';
 import { useThreadDigest } from '@/lib/thread-digest-context';
@@ -26,18 +28,25 @@ export function DesktopNav() {
   const pathname = usePathname();
   const params = useGlobalSearchParams<{ id?: string; roomId?: string }>();
   const { profile } = useProfile();
+  const { session } = useSession();
   const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
-  const { categories, loading: roomsLoading, isPublic, memberCount, createRoom } = useRooms(activeId);
+  const { categories, loading: roomsLoading, isPublic, memberCount, isOwner, createRoom, createCategory, moveRoom } =
+    useRooms(activeId);
   const { digest } = useThreadDigest();
+  const { hasThreads, hasPins } = useSpaceNav(activeId);
   const showRoomSidebar = useRoomSidebarVisible();
 
   const space = spaces.find((s) => s.id === activeId) ?? spaces[0];
   const activeRoomId =
     pathname.startsWith('/room/') || pathname.startsWith('/members/')
       ? params.id
-      : pathname.startsWith('/thread')
+      : pathname.startsWith('/thread/')
         ? params.roomId
         : undefined;
+  // The Threads tab lives at /threads (the (tabs) group is unwrapped in the URL).
+  // Strict equality — `startsWith` would also match `/thread/<id>` (a single thread).
+  const threadsActive = pathname === '/threads';
+  const pinnedActive = pathname.startsWith('/pinned');
   const meLabel = (profile?.name ?? '··').slice(0, 2).toUpperCase();
 
   // Recent threads of the open room, shown under its sidebar row. Only when the
@@ -68,7 +77,6 @@ export function DesktopNav() {
         activeId={activeId}
         onSelect={selectSpace}
         onAdd={() => router.push('/join')}
-        onOpenThreads={() => router.push('/(tabs)/threads')}
         meLabel={meLabel}
         meAvatar={profile?.avatar}
         onOpenProfile={() => router.push('/(tabs)/you')}
@@ -80,13 +88,20 @@ export function DesktopNav() {
             isPublic={isPublic}
             memberCount={memberCount}
             categories={categories}
+            userId={session?.userId ?? ''}
             activeRoomId={activeRoomId}
             threads={activeThreads}
             onOpenRoom={openRoom}
             onOpenThread={openThread}
+            onOpenThreads={hasThreads ? () => router.push('/(tabs)/threads') : undefined}
+            threadsActive={threadsActive}
+            onOpenPinned={hasPins ? () => router.push({ pathname: '/pinned/[id]', params: { id: space.id } }) : undefined}
+            pinnedActive={pinnedActive}
             onJumpTo={() => router.push('/search')}
             onOpenSpaceMenu={() => router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
             onCreateRoom={(category, name, kind) => createRoom(name, category, kind)}
+            onMoveRoom={isOwner ? moveRoom : undefined}
+            onCreateCategory={isOwner ? createCategory : undefined}
             loading={roomsLoading}
           />
         ) : (

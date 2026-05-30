@@ -638,11 +638,23 @@ it can show real content — otherwise it would double the placeholder:
 - gated on `enabled` + `preview` (default OFF) read via `await loadNotificationSettings(userId)`
   (the synchronous snapshot is never hydrated in a headless task);
 - rebuilds the session (`sessionFromPersisted`, cached-`derived` fast path, no Argon2id),
-  `await hydrateMemberCaps(userId, {})` (joined-space caps from the kv cache, no network),
-  then `loadLatestMessagePreview` (the same decrypt as the web toast);
+  `await hydrateMemberCaps(userId, {})` (joined private-space caps from the kv cache, no
+  network) **and** `await hydratePubspaceCaps(userId)` (joined public-space link caps),
+  then `loadLatestMessagePreview` (the same read as the web toast);
+- **public spaces are covered too** — `loadLatestMessagePreview` routes `psp-` rooms to a
+  plaintext path (`pubspace` merge-doc → `pubstream` log, no decrypt, cap-authorized) and
+  reuses the same "Sender: text" formatting. So Android patches BOTH private (E2EE) and
+  public (plaintext) room pushes with real content;
 - on success: **cancel-then-replace** — `getDisplayedNotifications()` → cancel the entry
   whose `android.tag === roomId` (the FCM placeholder; FCM's int id isn't predictable, so
-  match by tag), then `displayNotification({ id: roomId, groupId: spaceId, … })`;
+  match by tag), then `displayNotification({ title, id: roomId, groupId: spaceId, … })`;
+- **title shows the space + room** — `loadNotificationLabels` reads the plaintext `_rooms`
+  registry (private via the account cap, public via the link cap) and `notificationTitle`
+  formats it as `"Space › #room"` (matching the in-app `#channel` convention; bare name for
+  a DM). Best-effort and orthogonal to `preview` — names are plaintext metadata, not message
+  content — so a failed/slow lookup degrades to the bare `"OctoChat"` title and never gates
+  the preview body. The web/desktop toast (`notify.ts`) shows the same `"Space › #room"`
+  title, resolved from the already-loaded rooms-registry cache (`nav.ensure`, no extra pull);
 - on any miss (signed out / preview off / decrypt fails / exception): return and leave the
   placeholder standing.
 
@@ -691,6 +703,17 @@ step; bridge `aps['mutable-content']=1` with the generic alert as the timeout
 fallback; build only from the cached `derived` identity (no Argon2id — it blows the
 ~30s NSE budget). Until then iOS keeps the reliable generic banner; `preview` default
 OFF means iOS users lose nothing visible out-of-the-box.
+
+**Public spaces on iOS — also generic, by deliberate choice.** Android's headless task
+patches *both* private and public rooms (see the client section above). iOS shows the
+generic placeholder for *every* room — private **and** public. Public content is plaintext
+and server-readable, so unlike private rooms it *could* be embedded directly in the iOS
+placeholder by the bridge (no NSE needed), covering iOS public rooms. We are **not** doing
+this for now: it would diverge public from private handling, push plaintext message content
+onto the FCM wire and into bridge/FCM logs, and only the NSE path gives uniform real content
+for the private rooms that are the majority case. So iOS public rooms intentionally stay
+generic until the NSE lands. No code change is planned; this paragraph is the record of the
+decision.
 
 ## Sources
 
