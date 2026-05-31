@@ -8,6 +8,8 @@
  * The snapshot seeds with safe defaults so a notification that fires before kv
  * hydrates still reads something sane; the per-identity values overwrite it on load.
  */
+import { Platform } from 'react-native';
+
 import { kvGet, kvSet } from './starfish/kv';
 
 /** Selectable desktop notification chime (synthesized in `notification-sound.ts`).
@@ -36,7 +38,11 @@ export interface NotificationSettings {
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   enabled: true,
-  preview: false,
+  // Default previews on for Android, where the headless handler decrypts and
+  // renders the banner. iOS can't render decrypted previews (the OS builds the
+  // banner from the generic FCM payload), so it stays off and locked; web/desktop
+  // default off for privacy and can be opted in.
+  preview: Platform.OS === 'android',
   sound: true,
   soundName: 'ping',
 };

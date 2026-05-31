@@ -21,7 +21,7 @@ export function DmList({ dms, activeRoomId, onOpen }: DmListProps) {
   if (dms.length === 0) {
     return (
       <EmptyState
-        iconName="people"
+        iconName="dm"
         title="No direct messages yet"
         subtitle="Open someone’s profile and tap Message to start a private, encrypted conversation. You can DM anyone you share a private space with."
       />

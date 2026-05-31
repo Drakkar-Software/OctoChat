@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { isDesktop } from '@/lib/desktop';
@@ -25,6 +25,9 @@ export function NotificationSettingsCard() {
   const { settings, update } = useNotificationSettings();
   const off = !settings.enabled;
   const desktop = isDesktop();
+  // iOS renders its banner from the generic FCM payload, so it can't show a
+  // decrypted preview — lock the toggle off and say so.
+  const previewUnsupported = Platform.OS === 'ios';
 
   return (
     <Card title="NOTIFICATIONS">
@@ -39,10 +42,14 @@ export function NotificationSettingsCard() {
       <ToggleRow
         iconName="eye"
         title="Show message preview"
-        detail="Decrypt and show the message text"
-        value={settings.preview}
+        detail={
+          previewUnsupported
+            ? 'Not yet supported on iOS — the system renders the banner'
+            : 'Decrypt and show the message text'
+        }
+        value={previewUnsupported ? false : settings.preview}
         onValueChange={(preview) => update({ preview })}
-        disabled={off}
+        disabled={off || previewUnsupported}
       />
       {desktop ? (
         <>

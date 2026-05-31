@@ -167,7 +167,7 @@ export function DesktopSpacesRail({
             dmsActive ? glowShadow(colors.glow, 0.3, 8) : null,
           ]}
         >
-          <Icon name="people" size={20} color={dmsActive ? colors.onAccent : colors.inkSoft} />
+          <Icon name="dm" size={20} color={dmsActive ? colors.onAccent : colors.inkSoft} />
         </View>
         {dmUnread ? (
           <View style={styles.badge}>

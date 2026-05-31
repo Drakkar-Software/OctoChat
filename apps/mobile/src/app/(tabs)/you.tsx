@@ -104,10 +104,6 @@ export default function YouScreen() {
         </View>
       </View>
 
-      <Card title="ACCOUNTS">
-        <AccountSwitcher />
-      </Card>
-
       <Card title="ABOUT">
         <View style={styles.field}>
           <Txt variant="micro" weight="semibold" mono uppercase tone="inkMuted">
@@ -126,6 +122,10 @@ export default function YouScreen() {
             }}
           />
         </View>
+      </Card>
+
+      <Card title="ACCOUNTS">
+        <AccountSwitcher />
       </Card>
 
       <Card title="SECURITY">

@@ -103,7 +103,7 @@ export function SpaceRail({ spaces, activeId, onSelect, onAdd, onSelectDms, dmsA
   return (
     <View style={styles.rail}>
       {/* Virtual DM space — pinned first, lists every DM (see lib/dm-home). */}
-      <RailItem label={DM_HOME_SHORT} icon="people" privacy active={!!dmsActive} unread={dmUnread} onPress={onSelectDms} />
+      <RailItem label={DM_HOME_SHORT} icon="dm" privacy active={!!dmsActive} unread={dmUnread} onPress={onSelectDms} />
       {spaces.map((s) => (
         <RailItem
           key={s.id}

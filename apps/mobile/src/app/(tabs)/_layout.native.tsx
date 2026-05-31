@@ -57,11 +57,11 @@ export default function NativeTabsLayout() {
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="threads">
         <NativeTabs.Trigger.Label>Threads</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="message-square" />} />
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="git-pull-request" />} />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="dms">
         <NativeTabs.Trigger.Label>DMs</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="users" />} />
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="message-square" />} />
         <NativeTabs.Trigger.Badge hidden={!dmBadge}>{dmBadge}</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="you">
