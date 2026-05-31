@@ -14,6 +14,7 @@ export default function NotFound() {
           label="Back to rooms"
           variant="primary"
           size="lg"
+          style={styles.cta}
           onPress={() => router.replace('/(tabs)/rooms')}
         />
       </EmptyState>
@@ -23,4 +24,5 @@ export default function NotFound() {
 
 const styles = StyleSheet.create({
   screen: { justifyContent: 'center', padding: spacing.xl },
+  cta: { alignSelf: 'center' },
 });

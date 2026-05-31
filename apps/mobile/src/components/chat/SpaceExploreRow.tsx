@@ -55,8 +55,8 @@ export function SpaceExploreRow({ space, ownerName }: SpaceExploreRowProps) {
         </View>
       </View>
       <View style={styles.tags}>
-        <Pill label="PUBLIC" tone="accent" iconName="globe" />
-        <Pill label={plural(space.rooms, 'channel')} iconName="hash" mono />
+        <Pill label="PUBLIC" tone="accent" iconName="globe" style={styles.tagPill} />
+        <Pill label={plural(space.rooms, 'channel')} iconName="hash" mono style={styles.tagPill} />
       </View>
     </View>
   );
@@ -109,6 +109,7 @@ const styles = StyleSheet.create({
   meta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   owner: { flex: 1 },
   tags: { alignItems: 'flex-end', gap: 5 },
+  tagPill: { alignSelf: 'flex-end' },
   // Skeleton primitives.
   skelAvatar: { width: 42, height: 42, borderRadius: radii.pill },
   skelBar: { height: 12, borderRadius: radii.xs },

@@ -57,7 +57,7 @@ export function AutomationsView({ spaceId, header, inTabs = false }: Automations
         </Callout>
       ) : loading ? null : automatedRooms.length === 0 ? (
         <EmptyState
-          iconName="refresh"
+          iconName="zap"
           title="No automations yet"
           subtitle={
             canCreate
@@ -66,7 +66,7 @@ export function AutomationsView({ spaceId, header, inTabs = false }: Automations
           }
         >
           {canCreate ? (
-            <Button label="New automation" iconName="plus" variant="primary" onPress={() => setCreatorOpen(true)} />
+            <Button label="New automation" iconName="plus" variant="primary" style={styles.cta} onPress={() => setCreatorOpen(true)} />
           ) : null}
         </EmptyState>
       ) : (
@@ -88,7 +88,7 @@ export function AutomationsView({ spaceId, header, inTabs = false }: Automations
             return (
               <View key={r.id} style={styles.item}>
                 <ListRow
-                  iconName={provider?.iconName ?? 'refresh'}
+                  iconName={provider?.iconName ?? 'zap'}
                   label={r.name}
                   onPress={() =>
                     router.push({ pathname: '/room/[id]', params: { id: r.id, name: r.name, kind: 'automated' } })
@@ -132,5 +132,6 @@ const styles = StyleSheet.create({
   item: { gap: 2 },
   statusLine: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs },
   statusText: {},
+  cta: { alignSelf: 'center' },
   createBar: { marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1 },
 });

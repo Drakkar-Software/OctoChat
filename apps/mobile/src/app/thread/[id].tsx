@@ -1,11 +1,11 @@
-import { useCallback } from 'react';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { BackHandler, StyleSheet } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
 import { useRoomsRegistry } from '@/lib/rooms-registry-context';
 import { threadDraftKey } from '@/lib/use-draft';
+import { useHardwareBack } from '@/lib/use-hardware-back';
 import { useRoom } from '@/lib/use-room';
 import { useRoomSend } from '@/lib/use-room-send';
 import { useStreamRoom } from '@/lib/use-stream-room';
@@ -53,16 +53,11 @@ export default function ThreadScreen() {
   // link today, but the guard costs one line and futureproofs). Same shape for
   // the Android hardware back via useFocusEffect + BackHandler.
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/rooms'));
-  useFocusEffect(
-    useCallback(() => {
-      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        if (router.canGoBack()) return false;
-        router.replace('/(tabs)/rooms');
-        return true;
-      });
-      return () => sub.remove();
-    }, []),
-  );
+  useHardwareBack(() => {
+    if (router.canGoBack()) return false;
+    router.replace('/(tabs)/rooms');
+    return true;
+  });
 
   return (
     <StackScreen

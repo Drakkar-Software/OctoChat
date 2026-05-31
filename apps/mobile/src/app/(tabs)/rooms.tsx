@@ -107,7 +107,7 @@ export default function RoomsScreen() {
               <SidebarLinkRow iconName="thread" label="Threads" onPress={() => router.push('/(tabs)/threads')} />
               {showAutomations && activeId ? (
                 <SidebarLinkRow
-                  iconName="refresh"
+                  iconName="zap"
                   label="Automations"
                   onPress={() =>
                     router.push({ pathname: '/automations/[spaceId]', params: { spaceId: activeId } })

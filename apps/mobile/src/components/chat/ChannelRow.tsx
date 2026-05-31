@@ -29,7 +29,7 @@ export function ChannelRow({ room, active = false, onPress, onLongPress, rowRef,
       avatarImage={room.kind === 'dm' ? avatarImage : undefined}
       iconName={
         room.kind === 'automated'
-          ? 'refresh'
+          ? 'zap'
           : room.kind === 'stream'
           ? 'stream'
           : room.kind === 'private'

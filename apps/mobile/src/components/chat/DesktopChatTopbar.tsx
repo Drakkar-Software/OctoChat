@@ -3,6 +3,8 @@ import { StyleSheet, View } from 'react-native';
 import { layout, spacing } from '@/theme';
 import type { RoomKind } from '@/lib/types';
 import { useTheme } from '@/lib/use-theme';
+import { useDms } from '@/lib/use-dms';
+import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { Txt } from '@/components/ui/Txt';
@@ -10,6 +12,8 @@ import { Txt } from '@/components/ui/Txt';
 interface DesktopChatTopbarProps {
   name: string;
   kind?: RoomKind;
+  /** The room's space id — used to resolve a DM peer's avatar (image + monogram). */
+  spaceId?: string;
   onSearch?: () => void;
   onDetails?: () => void;
 }
@@ -20,26 +24,34 @@ interface DesktopChatTopbarProps {
  * {@link AppBar} when the app is in shell mode — so it must carry the same
  * right-hand affordances (the info button routes to space details, or an
  * automated room's settings sheet).
+ *
+ * A DM header shows the PEER's real avatar (image with monogram fallback) — the
+ * same {@link Avatar} the chat messages use — instead of a generic people glyph,
+ * resolved from the shared DM list (same profile cache, no extra request).
  */
-export function DesktopChatTopbar({ name, kind = 'channel', onSearch, onDetails }: DesktopChatTopbarProps) {
+export function DesktopChatTopbar({ name, kind = 'channel', spaceId, onSearch, onDetails }: DesktopChatTopbarProps) {
   const { colors } = useTheme();
+  const dms = useDms();
+  const dm = kind === 'dm' ? dms.find((d) => d.spaceId === spaceId) : undefined;
   return (
     <View style={[styles.bar, { height: layout.desktopTopbarHeight, backgroundColor: colors.paper, borderBottomColor: colors.lineSoft }]}>
-      <Icon
-        name={
-          kind === 'automated'
-            ? 'refresh'
-            : kind === 'dm'
-            ? 'people'
-            : kind === 'stream'
-            ? 'stream'
-            : kind === 'private'
-            ? 'lock'
-            : 'hash'
-        }
-        size={16}
-        color={colors.inkSoft}
-      />
+      {kind === 'dm' ? (
+        <Avatar label={dm?.initials ?? name.slice(0, 2).toUpperCase()} image={dm?.image} size={24} />
+      ) : (
+        <Icon
+          name={
+            kind === 'automated'
+              ? 'zap'
+              : kind === 'stream'
+              ? 'stream'
+              : kind === 'private'
+              ? 'lock'
+              : 'hash'
+          }
+          size={16}
+          color={colors.inkSoft}
+        />
+      )}
       <Txt variant="subhead" weight="semibold" numberOfLines={1} style={styles.name}>
         {name}
       </Txt>

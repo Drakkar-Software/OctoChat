@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { BackHandler, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useAutomationCommands } from '@/lib/automations/use-automation-commands';
@@ -10,6 +10,7 @@ import { useSession } from '@/lib/session-context';
 import { useRoomsRegistry } from '@/lib/rooms-registry-context';
 import { roomDraftKey } from '@/lib/use-draft';
 import { useMessageEditing } from '@/lib/use-message-editing';
+import { useHardwareBack } from '@/lib/use-hardware-back';
 import { useRoom } from '@/lib/use-room';
 import { useRoomSend } from '@/lib/use-room-send';
 import { useStreamRoom } from '@/lib/use-stream-room';
@@ -126,19 +127,12 @@ export default function RoomScreen() {
 
   // Android hardware back: same rule as the AppBar arrow — let RN pop normally
   // when a parent screen exists; otherwise redirect to `/rooms` and consume the
-  // event so the OS doesn't background the app. Gated on focus so it only runs
-  // when THIS room is the foreground screen. iOS has no hardware back, and on web
-  // BackHandler is a no-op stub; both are fine, the listener simply never fires.
-  useFocusEffect(
-    useCallback(() => {
-      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-        if (router.canGoBack()) return false;
-        router.replace('/(tabs)/rooms');
-        return true;
-      });
-      return () => sub.remove();
-    }, []),
-  );
+  // event so the OS doesn't background the app.
+  useHardwareBack(() => {
+    if (router.canGoBack()) return false;
+    router.replace('/(tabs)/rooms');
+    return true;
+  });
   const openThread = (msgId: string) =>
     router.push({ pathname: '/thread/[id]', params: { id: msgId, roomId: id, roomName: name, kind } });
   // Pass the room context so a public-stream room's space screen can surface the
@@ -170,7 +164,7 @@ export default function RoomScreen() {
           }
         />
       }
-      desktopHeader={<DesktopChatTopbar name={name} kind={kind} onSearch={openSearch} onDetails={openMembers} />}
+      desktopHeader={<DesktopChatTopbar name={name} kind={kind} spaceId={spaceId} onSearch={openSearch} onDetails={openMembers} />}
       footer={
         canWrite ? (
           <Composer
@@ -211,7 +205,7 @@ export default function RoomScreen() {
           />
         ) : (
           <EmptyState iconName="alert" title="Couldn't open room" subtitle={openError}>
-            <Button label="Try again" iconName="refresh" onPress={reload} />
+            <Button label="Try again" iconName="refresh" style={styles.cta} onPress={reload} />
           </EmptyState>
         )
       ) : store ? (
@@ -272,4 +266,5 @@ export default function RoomScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingTop: spacing.xs, paddingBottom: spacing.md },
+  cta: { alignSelf: 'center' },
 });

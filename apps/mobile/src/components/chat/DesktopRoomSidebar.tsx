@@ -201,7 +201,7 @@ export function DesktopRoomSidebar({
             ) : null}
             {onOpenAutomations ? (
               <SidebarLinkRow
-                iconName="refresh"
+                iconName="zap"
                 label="Automations"
                 active={automationsActive}
                 onPress={onOpenAutomations}
