@@ -148,7 +148,7 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
         accessibilityLabel="Dismiss"
       >
         <Pressable style={[styles.sheet, { backgroundColor: colors.paper }]} onPress={() => undefined}>
-          <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
             <Txt variant="micro" weight="bold" mono uppercase tone="inkMuted">
               Automation
             </Txt>
@@ -246,6 +246,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radii.sheet,
     borderTopRightRadius: radii.sheet,
   },
+  scroll: { flexShrink: 1 },
   body: { gap: spacing.sm, padding: spacing.lg },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs },
   rowLabel: { flex: 1 },

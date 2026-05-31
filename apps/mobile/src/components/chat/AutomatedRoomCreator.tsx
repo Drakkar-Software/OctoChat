@@ -95,7 +95,7 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
       >
         <Pressable style={[styles.sheet, { backgroundColor: colors.paper }]} onPress={() => undefined}>
           <View style={[styles.grabber, { backgroundColor: colors.lineSoft }]} />
-          <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
             <View style={styles.header}>
               <View style={styles.headerText}>
                 <Txt variant="micro" weight="bold" mono uppercase tone="inkMuted">
@@ -223,6 +223,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginTop: spacing.sm,
   },
+  scroll: { flexShrink: 1 },
   body: { gap: spacing.sm, padding: spacing.lg },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
   headerText: { flex: 1, gap: 2 },
