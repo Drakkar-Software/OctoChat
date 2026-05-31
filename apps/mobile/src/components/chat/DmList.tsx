@@ -40,7 +40,15 @@ export function DmList({ dms, activeRoomId, onOpen }: DmListProps) {
           avatar: dm.initials,
           unread: dm.unread,
         };
-        return <ChannelRow key={dm.spaceId} room={room} active={dm.roomId === activeRoomId} onPress={() => onOpen(dm)} />;
+        return (
+          <ChannelRow
+            key={dm.spaceId}
+            room={room}
+            avatarImage={dm.image}
+            active={dm.roomId === activeRoomId}
+            onPress={() => onOpen(dm)}
+          />
+        );
       })}
     </>
   );

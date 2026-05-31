@@ -16,6 +16,8 @@ interface ListRowProps {
   iconName?: IconName;
   /** Render the leading slot as an {@link Avatar} monogram (DM rows) instead of an icon. */
   avatarLabel?: string;
+  /** Peer's uploaded avatar image for DM rows; falls back to `avatarLabel` monogram. */
+  avatarImage?: string;
   active?: boolean;
   /** Unread count badge on the right. */
   unread?: number;
@@ -46,6 +48,7 @@ export function ListRow({
   label,
   iconName,
   avatarLabel,
+  avatarImage,
   active = false,
   unread,
   mention,
@@ -80,7 +83,7 @@ export function ListRow({
     >
       {active ? <View style={[styles.rail, { backgroundColor: colors.accent }]} /> : null}
       {avatarLabel != null ? (
-        <Avatar label={avatarLabel} size={22} />
+        <Avatar label={avatarLabel} image={avatarImage} size={22} />
       ) : iconName ? (
         <Icon name={iconName} size={15} color={active ? colors.accent : emphasized ? colors.ink : colors.inkMuted} />
       ) : null}

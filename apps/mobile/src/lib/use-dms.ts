@@ -6,7 +6,7 @@
  */
 import { useMemo } from 'react';
 
-import { usePseudos } from './use-pseudos';
+import { usePseudos, useAvatars } from './use-pseudos';
 import { useUnread } from './unread-context';
 import { useDmMap } from './spaces-context';
 import { dmRoomId } from './starfish/dm';
@@ -17,8 +17,10 @@ export interface DmEntry {
   peerUserId: string;
   /** Peer's display name (their pseudo, or a hex fallback until it resolves). */
   name: string;
-  /** Two-letter monogram for the DM avatar. */
+  /** Two-letter monogram for the DM avatar (fallback when no image). */
   initials: string;
+  /** Peer's uploaded avatar (data URI), or undefined until it resolves. */
+  image?: string;
   unread: number;
 }
 
@@ -27,6 +29,9 @@ export function useDms(): DmEntry[] {
   const dms = useDmMap();
   const peerIds = useMemo(() => Object.keys(dms), [dms]);
   const pseudo = usePseudos(peerIds);
+  // Same shared profile cache as pseudos — no extra request — so the DM row shows
+  // the peer's real picture (image with monogram fallback), like the chat avatar.
+  const avatar = useAvatars(peerIds);
   const { unreadByRoom } = useUnread();
 
   // `pseudo` reads a module cache the React Compiler can't track; the joined ids +
@@ -43,12 +48,13 @@ export function useDms(): DmEntry[] {
           peerUserId,
           name,
           initials: name.slice(0, 2).toUpperCase(),
+          image: avatar(peerUserId),
           unread: unreadByRoom[roomId] ?? 0,
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [peerIds, dms, unreadByRoom, pseudo]);
+  }, [peerIds, dms, unreadByRoom, pseudo, avatar]);
 }
 
 /** Total unread across every DM — the virtual DM space's rail-tile badge count. */
