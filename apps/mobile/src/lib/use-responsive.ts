@@ -49,16 +49,16 @@ export function useInShell(): boolean {
   return isWide && !!session && segments[0] !== '(onboarding)';
 }
 
-/** Personal tabs that aren't scoped to a space, so they drop the room sidebar. */
-const PERSONAL_TABS = ['you'];
+/** Root routes that aren't scoped to a space, so they drop the room sidebar. */
+const PERSONAL_ROUTES = ['you'];
 
 /**
  * Whether the active route is a space view that warrants the room sidebar.
- * The personal tab (`you`) is global, not scoped to a space, so it hides the
+ * The profile route (`/you`) is global, not scoped to a space, so it hides the
  * sidebar and lets the routed content use the full shell width. Every other
- * route (rooms, room, thread, space, members, search) keeps it.
+ * route (rooms, room, thread, space, members, search, threads) keeps it.
  */
 export function useRoomSidebarVisible(): boolean {
   const segments = useSegments() as string[];
-  return !(segments[0] === '(tabs)' && PERSONAL_TABS.includes(segments[1]));
+  return !PERSONAL_ROUTES.includes(segments[0]);
 }

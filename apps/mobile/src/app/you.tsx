@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useProfile } from '@/lib/profile-context';
+import { useInShell } from '@/lib/use-responsive';
 import { useSession } from '@/lib/session-context';
 import { useTheme } from '@/lib/use-theme';
 import { AccountSwitcher } from '@/components/account/AccountSwitcher';
@@ -25,14 +26,19 @@ import { Txt } from '@/components/ui/Txt';
 
 export default function YouScreen() {
   const { colors } = useTheme();
+  const inShell = useInShell();
   const { fullSignOut, accounts, activeBootstrapOrigin } = useSession();
   const nostrPubHex = activeBootstrapOrigin?.kind === 'secp256k1' ? activeBootstrapOrigin.pubHex : null;
   const { profile, draft, setDraft, dirty, save, saving, avatarDraft, pickAvatar, removeAvatar, avatarError } =
     useProfile();
 
+  // Reached by pushing /you from the Chat header (mobile) — needs a back action;
+  // on the desktop shell it sits in the main pane, where the sidebar is the nav.
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/rooms'));
+
   if (!profile) {
     return (
-      <StackScreen inTabs header={<AppBar title="Profile" />}>
+      <StackScreen header={<AppBar title="Profile" onBack={inShell ? undefined : goBack} />}>
         <SignInPrompt subtitle="Create an identity to view your profile." />
       </StackScreen>
     );
@@ -42,12 +48,12 @@ export default function YouScreen() {
 
   return (
     <StackScreen
-      inTabs
       scroll
       contentStyle={styles.content}
       header={
         <AppBar
           title="Profile"
+          onBack={inShell ? undefined : goBack}
           right={
             <Pressable
               accessibilityRole="button"

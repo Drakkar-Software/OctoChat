@@ -5,7 +5,6 @@ import { fonts } from '@/theme';
 import { useResponsive } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
 import { useUnread } from '@/lib/unread-context';
-import { useTotalDmUnread } from '@/lib/use-dms';
 
 /**
  * Native (iOS / Android) bottom tabs. Renders the real platform tab bar —
@@ -15,9 +14,10 @@ import { useTotalDmUnread } from '@/lib/use-dms';
  * native), which is also where the desktop sidebar swap and the OTA update
  * banner live.
  *
- * The `search` route is not a tab here: it lives at the app root and is reached
- * via `router.push('/search')` from the rooms header and room screen — native
- * tabs have no `href: null` equivalent (a `hidden` trigger is non-navigable).
+ * The tabs ARE the four workspace modes (Chat · Agents · Docs · Projects).
+ * `search`, `threads` and `you` are NOT tabs: they live at the app root and are
+ * reached via `router.push(...)` from the Chat tab / its header — native tabs
+ * have no `href: null` equivalent (a `hidden` trigger is non-navigable).
  *
  * Icons stay on the app's Feather line-art vocabulary (via `VectorIcon`) so the
  * tab glyphs match the rest of the UI; the native feel comes from the bar
@@ -30,8 +30,6 @@ export default function NativeTabsLayout() {
   const { isWide } = useResponsive();
   const { totalUnread } = useUnread();
   const badge = totalUnread > 0 ? (totalUnread > 99 ? '99+' : String(totalUnread)) : undefined;
-  const dmUnread = useTotalDmUnread();
-  const dmBadge = dmUnread > 0 ? (dmUnread > 99 ? '99+' : String(dmUnread)) : undefined;
   return (
     <NativeTabs
       // On wide native layouts (iPad / foldable) the AppFrame desktop sidebar
@@ -51,22 +49,21 @@ export default function NativeTabsLayout() {
       }}
     >
       <NativeTabs.Trigger name="rooms">
-        <NativeTabs.Trigger.Label>Rooms</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="hash" />} />
+        <NativeTabs.Trigger.Label>Chat</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="message-circle" />} />
         <NativeTabs.Trigger.Badge hidden={!badge}>{badge}</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="threads">
-        <NativeTabs.Trigger.Label>Threads</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="git-pull-request" />} />
+      <NativeTabs.Trigger name="agents">
+        <NativeTabs.Trigger.Label>Agents</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="cpu" />} />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="dms">
-        <NativeTabs.Trigger.Label>DMs</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="message-square" />} />
-        <NativeTabs.Trigger.Badge hidden={!dmBadge}>{dmBadge}</NativeTabs.Trigger.Badge>
+      <NativeTabs.Trigger name="docs">
+        <NativeTabs.Trigger.Label>Docs</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="book-open" />} />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="you">
-        <NativeTabs.Trigger.Label>You</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="user" />} />
+      <NativeTabs.Trigger name="projects">
+        <NativeTabs.Trigger.Label>Projects</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="target" />} />
       </NativeTabs.Trigger>
     </NativeTabs>
   );

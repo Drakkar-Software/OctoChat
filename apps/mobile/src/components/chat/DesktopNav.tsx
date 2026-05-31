@@ -102,7 +102,7 @@ export function DesktopNav() {
         onAdd={() => router.push('/join')}
         meLabel={meLabel}
         meAvatar={profile?.avatar}
-        onOpenProfile={() => router.push('/(tabs)/you')}
+        onOpenProfile={() => router.push('/you')}
         onReorder={(ids) => void reorderSpaces(ids)}
       />
       {showRoomSidebar &&
@@ -127,7 +127,7 @@ export function DesktopNav() {
             threads={activeThreads}
             onOpenRoom={openRoom}
             onOpenThread={openThread}
-            onOpenThreads={hasThreads ? () => router.push('/(tabs)/threads') : undefined}
+            onOpenThreads={hasThreads ? () => router.push('/threads') : undefined}
             threadsActive={threadsActive}
             onOpenPinned={hasPins ? () => router.push({ pathname: '/pinned/[id]', params: { id: space.id } }) : undefined}
             pinnedActive={pinnedActive}

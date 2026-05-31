@@ -4,33 +4,36 @@ import { StyleSheet, View } from 'react-native';
 import { spacing } from '@/theme';
 import { useOnline } from '@/lib/connectivity';
 import { DM_HOME_ID, isDmHomeId } from '@/lib/dm-home';
+import { useProfile } from '@/lib/profile-context';
 import { useInShell } from '@/lib/use-responsive';
 import { useSession } from '@/lib/session-context';
 import { useSpaceNav } from '@/lib/use-space-nav';
 import { excludeAutomatedRooms, useRooms } from '@/lib/use-rooms';
-import { DOCS_SECTIONS, PROJECTS_SECTIONS } from '@/lib/work-placeholder';
 import { useSpaces } from '@/lib/use-spaces';
 import { useDms, useTotalDmUnread, type DmEntry } from '@/lib/use-dms';
-import { useViewMode } from '@/lib/view-mode';
 import type { Room } from '@/lib/types';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
-import { AgentsPanel } from '@/components/chat/AgentsPanel';
 import { ChannelListSkeleton } from '@/components/chat/ChannelListSkeleton';
 import { DmList } from '@/components/chat/DmList';
-import { ModeSwitcher } from '@/components/chat/ModeSwitcher';
 import { OfflineBanner } from '@/components/chat/OfflineBanner';
 import { RoomCategoryList } from '@/components/chat/RoomCategoryList';
 import { SidebarLinkRow } from '@/components/chat/SidebarLinkRow';
 import { SpaceHeader } from '@/components/chat/SpaceHeader';
-import { WorkPanel } from '@/components/work/WorkPanel';
 
+/**
+ * Chat bottom tab — the space's rooms, threads and pins. One of the four mode
+ * tabs (Chat · Agents · Docs · Projects); the in-list mode switcher it used to
+ * carry now lives in the tab bar. DMs are reached via the space rail's DM tile
+ * (rendered here when DM-home is the active space); Threads/Pinned via the link
+ * rows below the header.
+ */
 export default function RoomsScreen() {
   const { session } = useSession();
   const inShell = useInShell();
   const online = useOnline();
-  const { mode, setMode } = useViewMode();
+  const { profile } = useProfile();
   const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
   const isDmHome = isDmHomeId(activeId);
   const { categories, loading: roomsLoading, isPublic, memberCount, isOwner, createRoom, createCategory, moveRoom } =
@@ -39,11 +42,7 @@ export default function RoomsScreen() {
   const { hasPins } = useSpaceNav(isDmHome ? null : activeId);
   const dms = useDms();
   const dmUnread = useTotalDmUnread();
-  // Surface the Automations destination whenever the space could carry one — to
-  // owners (so they can create the first) and to members of any space that
-  // already has at least one automated room (so they can browse them).
-  const hasAutomations = categories.some((c) => c.rooms.some((r) => r.kind === 'automated'));
-  const showAutomations = !!session && !!activeId && isPublic && (isOwner || hasAutomations);
+  const meLabel = (profile?.name ?? '··').slice(0, 2).toUpperCase();
 
   const openRoom = (room: Room) =>
     router.push({ pathname: '/room/[id]', params: { id: room.id, name: room.name, kind: room.kind } });
@@ -85,7 +84,9 @@ export default function RoomsScreen() {
           onAddSpace={() => router.push('/join')}
           onSearch={() => router.push('/search')}
           onOpenSpace={() => space && router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
-          onMenu={() => router.push('/join')}
+          onProfile={() => router.push('/you')}
+          meLabel={meLabel}
+          meAvatar={profile?.avatar}
         />
       }
     >
@@ -101,56 +102,32 @@ export default function RoomsScreen() {
         </View>
       ) : (
         <>
-          {/* Notion-style mode switch — swaps this list (Chat / Agents / Work)
-              while the same space stays active. Mirrors the desktop sidebar. */}
-          <View style={styles.switcher}>
-            <ModeSwitcher mode={mode} onChange={setMode} />
-          </View>
-          {mode === 'agents' ? (
-            <AgentsPanel
-              categories={categories}
-              isPublic={isPublic}
-              onOpenRoom={openRoom}
-              onOpenAutomations={
-                showAutomations && activeId
-                  ? () => router.push({ pathname: '/automations/[spaceId]', params: { spaceId: activeId } })
-                  : undefined
-              }
-            />
-          ) : mode === 'docs' ? (
-            <WorkPanel sections={DOCS_SECTIONS} note="Docs and knowledge live here soon — a preview of the workspace." />
-          ) : mode === 'projects' ? (
-            <WorkPanel sections={PROJECTS_SECTIONS} note="Projects and boards live here soon — a preview of the workspace." />
+          {/* Hoisted above the empty-state so an offline user is always told WHY the
+              list is sparse — even when the cache is empty and they see "No rooms yet". */}
+          {!online ? <OfflineBanner message="You’re offline — showing your last-synced rooms." /> : null}
+          {categories.length === 0 && !isOwner ? (
+            <EmptyState iconName="hash" title="No rooms yet" subtitle="Create a channel to get started." />
           ) : (
             <>
-              {/* Hoisted above the empty-state so an offline user is always told WHY the
-                  list is sparse — even when the cache is empty and they see "No rooms yet". */}
-              {!online ? <OfflineBanner message="You’re offline — showing your last-synced rooms." /> : null}
-              {categories.length === 0 && !isOwner ? (
-                <EmptyState iconName="hash" title="No rooms yet" subtitle="Create a channel to get started." />
-              ) : (
-                <>
-                  {/* Threads is a global shortcut anchored inside the active space;
-                      Automations now lives under the Agents mode above. */}
-                  <SidebarLinkRow iconName="thread" label="Threads" onPress={() => router.push('/(tabs)/threads')} />
-                  {hasPins && activeId ? (
-                    <SidebarLinkRow
-                      iconName="pin"
-                      label="Pinned"
-                      onPress={() => router.push({ pathname: '/pinned/[id]', params: { id: activeId } })}
-                    />
-                  ) : null}
-                  <RoomCategoryList
-                    categories={excludeAutomatedRooms(categories)}
-                    userId={session.userId}
-                    spaceId={activeId ?? space?.id ?? ''}
-                    onOpenRoom={openRoom}
-                    onCreateRoom={(category, name, kind) => createRoom(name, category, kind)}
-                    onMoveRoom={isOwner ? moveRoom : undefined}
-                    onCreateCategory={isOwner ? createCategory : undefined}
-                  />
-                </>
-              )}
+              {/* Threads + Pinned are space-scoped destinations; automations live in
+                  the Agents tab, so automated rooms are stripped from this list. */}
+              <SidebarLinkRow iconName="thread" label="Threads" onPress={() => router.push('/threads')} />
+              {hasPins && activeId ? (
+                <SidebarLinkRow
+                  iconName="pin"
+                  label="Pinned"
+                  onPress={() => router.push({ pathname: '/pinned/[id]', params: { id: activeId } })}
+                />
+              ) : null}
+              <RoomCategoryList
+                categories={excludeAutomatedRooms(categories)}
+                userId={session.userId}
+                spaceId={activeId ?? space?.id ?? ''}
+                onOpenRoom={openRoom}
+                onCreateRoom={(category, name, kind) => createRoom(name, category, kind)}
+                onMoveRoom={isOwner ? moveRoom : undefined}
+                onCreateCategory={isOwner ? createCategory : undefined}
+              />
             </>
           )}
         </>
@@ -161,6 +138,5 @@ export default function RoomsScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: 96 },
-  switcher: { paddingHorizontal: spacing.xs, paddingBottom: spacing.sm },
   dmHome: { minHeight: 320 },
 });

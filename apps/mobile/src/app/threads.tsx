@@ -3,6 +3,7 @@ import { StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
 import type { CrossRoomThread } from '@/lib/cross-room';
+import { useInShell } from '@/lib/use-responsive';
 import { useSession } from '@/lib/session-context';
 import { useSpaces } from '@/lib/use-spaces';
 import { useThreads } from '@/lib/use-threads';
@@ -13,9 +14,14 @@ import { ThreadList } from '@/components/chat/ThreadList';
 
 export default function ThreadsScreen() {
   const { session } = useSession();
+  const inShell = useInShell();
   const { spaces, activeId } = useSpaces();
   const { threads, loading } = useThreads(activeId);
   const space = spaces.find((s) => s.id === activeId);
+
+  // Reached by pushing /threads from the Chat tab (mobile) — needs a back action;
+  // on the desktop shell it sits in the main pane, where the sidebar is the nav.
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/rooms'));
 
   const open = (t: CrossRoomThread) =>
     router.push({
@@ -24,7 +30,7 @@ export default function ThreadsScreen() {
     });
 
   return (
-    <StackScreen inTabs header={<AppBar title="Threads" subtitle={space?.name} />} contentStyle={styles.content}>
+    <StackScreen header={<AppBar title="Threads" subtitle={space?.name} onBack={inShell ? undefined : goBack} />} contentStyle={styles.content}>
       {!session ? (
         <SignInPrompt />
       ) : (

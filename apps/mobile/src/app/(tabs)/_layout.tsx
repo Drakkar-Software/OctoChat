@@ -56,10 +56,12 @@ export default function TabsLayout() {
         </View>
       )}
     >
-      <Tabs.Screen name="rooms" options={{ title: 'Rooms', tabBarIcon: tabIcon('hash') }} />
-      <Tabs.Screen name="threads" options={{ title: 'Threads', tabBarIcon: tabIcon('thread') }} />
-      <Tabs.Screen name="dms" options={{ title: 'DMs', tabBarIcon: tabIcon('dm') }} />
-      <Tabs.Screen name="you" options={{ title: 'You', tabBarIcon: tabIcon('user') }} />
+      {/* The four workspace modes (Chat · Agents · Docs · Projects) ARE the tabs.
+          Threads, DMs and Profile are reached from inside Chat / its header. */}
+      <Tabs.Screen name="rooms" options={{ title: 'Chat', tabBarIcon: tabIcon('chat') }} />
+      <Tabs.Screen name="agents" options={{ title: 'Agents', tabBarIcon: tabIcon('agents') }} />
+      <Tabs.Screen name="docs" options={{ title: 'Docs', tabBarIcon: tabIcon('book') }} />
+      <Tabs.Screen name="projects" options={{ title: 'Projects', tabBarIcon: tabIcon('target') }} />
     </Tabs>
   );
 }

@@ -30,7 +30,12 @@ interface SpaceHeaderProps {
   dmUnread?: number;
   onAddSpace?: () => void;
   onSearch?: () => void;
-  onMenu?: () => void;
+  /** Open the current identity's profile (/you) — the trailing avatar button. */
+  onProfile?: () => void;
+  /** Initials fallback for the profile avatar. */
+  meLabel?: string;
+  /** The current identity's uploaded avatar (data URI), if any. */
+  meAvatar?: string;
   /** Tap the space title to open its info + settings screen. */
   onOpenSpace?: () => void;
 }
@@ -49,7 +54,9 @@ export function SpaceHeader({
   dmUnread,
   onAddSpace,
   onSearch,
-  onMenu,
+  onProfile,
+  meLabel,
+  meAvatar,
   onOpenSpace,
 }: SpaceHeaderProps) {
   const { colors } = useTheme();
@@ -87,7 +94,9 @@ export function SpaceHeader({
           <View style={styles.titleRow} />
         )}
         <IconButton name="search" onPress={onSearch} accessibilityLabel="Search" />
-        <IconButton name="plus" onPress={onMenu} accessibilityLabel="Join or create a space" />
+        <Pressable accessibilityRole="button" accessibilityLabel="Your profile" onPress={onProfile} hitSlop={6}>
+          <Avatar label={meLabel ?? '··'} image={meAvatar} size={30} />
+        </Pressable>
       </View>
       <SpaceRail
         spaces={spaces}
