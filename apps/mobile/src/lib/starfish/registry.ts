@@ -65,6 +65,11 @@ interface SpacesDoc {
   /** Peer userId → shared DM-space id (see {@link DmMap}). Shares this doc like `caps`
    *  so DM dedup + the non-initiator's accepted-space pointer hydrate cross-device. */
   dms: DmMap;
+  /** The user's quick-reaction emoji palette (see `quick-reactions-settings.ts`). Shares
+   *  this doc like `mutes`/`reads` so a fresh device hydrates the palette in the same
+   *  pull and an edit on one device propagates cross-device. Stored loosely (a string
+   *  array); the strict 6-slot coercion happens at hydrate. */
+  quickReactions: string[];
   hash: string | null;
 }
 
@@ -98,6 +103,14 @@ function coerceReads(raw: unknown): ReadPrefs {
   return { rooms };
 }
 
+/** Coerce a doc's raw `quickReactions` field into a string array (tolerant of a
+ *  missing/garbage value — a doc predating the feature reads back empty). Loose by
+ *  design: the strict 6-slot/positional-default coercion lives in
+ *  `quick-reactions-settings.coerce()` and runs at hydrate (kept here to avoid a cycle). */
+function coerceQuickReactions(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : [];
+}
+
 /**
  * Pull the raw spaces doc, normalizing its keys. A 404 (no doc yet) returns an
  * empty doc with `hash: null` so a first write can create it. Any OTHER error
@@ -111,7 +124,15 @@ async function pullSpacesDoc(client: StarfishClient, userId: string): Promise<Sp
     throw err;
   });
   const data = res?.data as
-    | { spaces?: Space[]; caps?: CapMap; mutes?: unknown; reads?: unknown; pubAccess?: PubAccessMap; dms?: unknown }
+    | {
+        spaces?: Space[];
+        caps?: CapMap;
+        mutes?: unknown;
+        reads?: unknown;
+        pubAccess?: PubAccessMap;
+        dms?: unknown;
+        quickReactions?: unknown;
+      }
     | undefined;
   return {
     spaces: Array.isArray(data?.spaces) ? data!.spaces! : [],
@@ -120,6 +141,7 @@ async function pullSpacesDoc(client: StarfishClient, userId: string): Promise<Sp
     reads: coerceReads(data?.reads),
     pubAccess: data?.pubAccess && typeof data.pubAccess === 'object' ? data.pubAccess : {},
     dms: coerceDms(data?.dms),
+    quickReactions: coerceQuickReactions(data?.quickReactions),
     hash: res?.hash ?? null,
   };
 }
@@ -135,7 +157,7 @@ export async function readSpaces(
     // reads as an empty account (e.g. a desktop build baked against an unreachable
     // server). Surface it; the caller still degrades to empty.
     console.error('[readSpaces] failed to pull spaces registry', err);
-    return { spaces: [], caps: {}, mutes: coerceMutes(undefined), reads: coerceReads(undefined), pubAccess: {}, dms: {}, hash: null };
+    return { spaces: [], caps: {}, mutes: coerceMutes(undefined), reads: coerceReads(undefined), pubAccess: {}, dms: {}, quickReactions: [], hash: null };
   }
 }
 
@@ -157,16 +179,17 @@ export async function updateSpacesDoc(
 ): Promise<void> {
   const MAX_ATTEMPTS = 3;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { spaces, caps, mutes, reads, pubAccess, dms, hash } = await pullSpacesDoc(client, userId);
+    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, hash } = await pullSpacesDoc(client, userId);
     const cur = { spaces, caps, pubAccess };
     const next = mutator(cur);
     if (next === cur) return; // no-op mutation (e.g. already joined) — skip the write
     try {
-      // `mutes`, `reads` and `dms` are read fresh and threaded through unchanged so a
-      // spaces/caps edit never drops a sibling key (the twin of how `caps` is preserved).
+      // `mutes`, `reads`, `dms` and `quickReactions` are read fresh and threaded through
+      // unchanged so a spaces/caps edit never drops a sibling key (the twin of how `caps`
+      // is preserved).
       await client.push(
         spacesPush(userId),
-        { v: 1, spaces: next.spaces, caps: next.caps, mutes, reads, pubAccess: next.pubAccess, dms },
+        { v: 1, spaces: next.spaces, caps: next.caps, mutes, reads, pubAccess: next.pubAccess, dms, quickReactions },
         hash,
       );
       return;
@@ -190,13 +213,13 @@ export async function updateMutesDoc(
 ): Promise<void> {
   const MAX_ATTEMPTS = 3;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { spaces, caps, mutes, reads, pubAccess, dms, hash } = await pullSpacesDoc(client, userId);
+    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, hash } = await pullSpacesDoc(client, userId);
     const next = mutator(mutes);
     if (!next) return; // no-op
     try {
-      // Thread `spaces`/`caps`/`reads`/`pubAccess`/`dms` through unchanged — a mute edit must
-      // never drop a sibling key (the twin of how `mutes` is preserved by updateSpacesDoc).
-      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes: next, reads, pubAccess, dms }, hash);
+      // Thread `spaces`/`caps`/`reads`/`pubAccess`/`dms`/`quickReactions` through unchanged — a
+      // mute edit must never drop a sibling key (the twin of how `mutes` is preserved by updateSpacesDoc).
+      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes: next, reads, pubAccess, dms, quickReactions }, hash);
       return;
     } catch (err) {
       if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
@@ -220,13 +243,13 @@ export async function updateReadsDoc(
 ): Promise<void> {
   const MAX_ATTEMPTS = 3;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { spaces, caps, mutes, reads, pubAccess, dms, hash } = await pullSpacesDoc(client, userId);
+    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, hash } = await pullSpacesDoc(client, userId);
     const next = mutator(reads);
     if (!next) return; // no-op (nothing newer than the server already has)
     try {
-      // Thread `spaces`/`caps`/`mutes`/`pubAccess`/`dms` through unchanged — a reads edit must
-      // never drop a sibling key (the twin of how `mutes` is preserved by updateSpacesDoc).
-      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads: next, pubAccess, dms }, hash);
+      // Thread `spaces`/`caps`/`mutes`/`pubAccess`/`dms`/`quickReactions` through unchanged — a
+      // reads edit must never drop a sibling key (the twin of how `mutes` is preserved by updateSpacesDoc).
+      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads: next, pubAccess, dms, quickReactions }, hash);
       return;
     } catch (err) {
       if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
@@ -249,13 +272,41 @@ export async function updateDmsDoc(
 ): Promise<void> {
   const MAX_ATTEMPTS = 3;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { spaces, caps, mutes, reads, pubAccess, dms, hash } = await pullSpacesDoc(client, userId);
+    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, hash } = await pullSpacesDoc(client, userId);
     const next = mutator(dms);
     if (!next) return; // no-op
     try {
-      // Thread `spaces`/`caps`/`mutes`/`reads`/`pubAccess` through unchanged — a dms edit must
-      // never drop a sibling key (the twin of how `mutes` is preserved by updateSpacesDoc).
-      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads, pubAccess, dms: next }, hash);
+      // Thread `spaces`/`caps`/`mutes`/`reads`/`pubAccess`/`quickReactions` through unchanged — a
+      // dms edit must never drop a sibling key (the twin of how `mutes` is preserved by updateSpacesDoc).
+      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads, pubAccess, dms: next, quickReactions }, hash);
+      return;
+    } catch (err) {
+      if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
+      throw err;
+    }
+  }
+}
+
+/**
+ * Read-modify-write the `quickReactions` key of the `_spaces` doc through the same
+ * conflict-retrying funnel as {@link updateMutesDoc}, preserving every sibling key. The
+ * mutator runs on FRESH server state and returns the next palette (or `null` for a
+ * no-op). Last-writer-wins on the array, which only races across a user's own devices.
+ */
+export async function updateQuickReactionsDoc(
+  client: StarfishClient,
+  userId: string,
+  mutator: (cur: string[]) => string[] | null,
+): Promise<void> {
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, hash } = await pullSpacesDoc(client, userId);
+    const next = mutator(quickReactions);
+    if (!next) return; // no-op
+    try {
+      // Thread `spaces`/`caps`/`mutes`/`reads`/`pubAccess`/`dms` through unchanged — a palette edit
+      // must never drop a sibling key (the twin of how `mutes` is preserved by updateSpacesDoc).
+      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads, pubAccess, dms, quickReactions: next }, hash);
       return;
     } catch (err) {
       if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;

@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
 import { createUnionMerge } from '@drakkar.software/starfish-client';
-import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 import { useSyncInit } from '@drakkar.software/starfish-client/zustand';
 
 import { SYNC_BASE, SYNC_NAMESPACE } from './starfish/config';
-import { capProviderFor, ensureRoomInitialized, makeClient } from './starfish/client';
+import { capProviderFor } from './starfish/client';
 import { fetchWithTimeout } from './starfish/fetch-timeout';
-import { registerPull, onSseStatus } from './room-events-bus';
 import { reportReachability } from './connectivity';
 import {
   loadAttachment as loadAttachmentDoc,
@@ -17,14 +14,15 @@ import {
 } from './starfish/attachments';
 import { getMemberCap } from './starfish/member-caps';
 import { pullCache, PULL_CACHE_MAX_AGE_MS } from './starfish/pull-cache';
-import { getSpaceEncryptor } from './starfish/space-encryptor';
 import { isPublicSpaceId, publicSpaceAuth } from './starfish/pubspace';
 import { pubspaceRoomPull, pubspaceRoomPush, roomPull, roomPush, spaceIdFromRoomId } from './starfish/paths';
+import { messageDeleteEvent, messageEditEvent, pinToggleEvent, reactionToggleEvent } from './reactions';
 import type { MessageEditEvent, PinEvent, ReactionEvent } from './types';
-import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
 import { makeEmptyConversationStore, type ConversationStore } from './use-conversation-data';
-import { useRoomOpenState } from './use-room-open';
+import { useRoomOpen } from './use-room-open-flow';
+import { useRoomLiveSync } from './use-room-live-sync';
+import type { RoomHook } from './use-room-types';
 import { randomId } from './ids';
 
 /**
@@ -35,71 +33,32 @@ import { randomId } from './ids';
  *    (joiner) or the account cap (owner) and sync the plaintext `pubspaces/…` doc.
  * Live updates via the shared SSE bus with a polling fallback (uniform web+native).
  *
+ * The crypto/auth open is shared with {@link useStreamRoom} via {@link useRoomOpen};
+ * the focus/poll/SSE choreography via {@link useRoomLiveSync}; the append-only event
+ * shapes via the builders in {@link ./reactions}.
+ *
  * MUST be called from a router screen: it gates its live pull on `useFocusEffect`,
  * which needs a navigator context. Both callers (room/[id], thread/[id]) are screens.
  */
-export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
+export function useRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomHook {
   // `enabled` lets a screen call this AND useStreamRoom unconditionally (React hook
   // rules) and pick one by the room's kind. When false this hook opens nothing.
   const enabled = opts.enabled ?? true;
   const { session } = useSession();
-  const { ensure: ensureRegistry } = useRoomsRegistryActions();
   const spaceId = spaceIdFromRoomId(roomId);
   const isPublic = isPublicSpaceId(spaceId);
-  const [encryptor, setEncryptor] = useState<Encryptor | null>(null);
-  const [client, setClient] = useState<StarfishClient | null>(null);
-  // Shared open-state machine (offline-classification + reconnect re-open) — see
-  // {@link useRoomOpenState}. Offline-first: the space `_keyring` now comes from the
-  // SDK pull cache, so the encryptor (and the SDK store) build even offline; the store
-  // paints last-synced messages from its cache. Reachability is no longer proven by the
-  // encryptor build — it's derived from the store's first FRESH (non-stale) pull below.
-  const { opening, openError, offline, reloadNonce, reload, beginOpen, finishOpening, failOpen } =
-    useRoomOpenState();
 
-  useEffect(() => {
-    let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: reset room crypto/open state before reopening when room or session changes
-    setEncryptor(null);
-    setClient(null);
-    beginOpen();
-    if (!enabled || !session) return;
-    (async () => {
-      try {
-        if (isPublic) {
-          // Public space: no keyring, no encryptor. Authorize with the invite cap
-          // (joiner) or the account cap (owner) — see publicSpaceAuth.
-          const auth = publicSpaceAuth(session, spaceId);
-          if (!cancelled) {
-            setEncryptor(null);
-            setClient(makeClient(auth.cap, auth.signingKey));
-            finishOpening(); // public open did no network call — proves no reachability
-          }
-          return;
-        }
-        // PRIVATE: the keyring is space-wide (cached per space; see getSpaceEncryptor),
-        // the room doc is per-room. With no stored member cap we need the registry
-        // owner for the owner-vs-no-access decision — read it once via the SHARED rooms
-        // registry rather than a private `readRooms`, so the room screen and sidebar
-        // don't each pull it. `ensureRoomInitialized` is per-ROOM, so it runs here.
-        const reg = getMemberCap(spaceId) ? null : await ensureRegistry(spaceId);
-        const { encryptor: enc, client: roomClient, isOwnerOpen } = await getSpaceEncryptor(spaceId, session, reg);
-        if (isOwnerOpen) await ensureRoomInitialized(session.chatClient, enc, roomId);
-        if (!cancelled) {
-          setEncryptor(enc);
-          setClient(roomClient);
-          // NOTE: no openReached() here — building the encryptor may have used the
-          // cached keyring (offline). Reachability is reported from the store's first
-          // fresh pull (the liveReady effect below).
-          finishOpening();
-        }
-      } catch (e) {
-        if (!cancelled) failOpen(e);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, session, roomId, spaceId, isPublic, ensureRegistry, reloadNonce, beginOpen, finishOpening, failOpen]);
+  // Shared crypto/auth open (+ opening/error/offline flags & reconnect). Merge-doc owner
+  // opens seed the room doc, hence `initializeRoom: true`. Offline-first: the encryptor
+  // builds from the SDK pull cache even offline; reachability is reported below from the
+  // store's first FRESH pull, not from the open.
+  const { encryptor, client, opening, openError, offline, reload } = useRoomOpen({
+    roomId,
+    spaceId,
+    isPublic,
+    enabled,
+    initializeRoom: true,
+  });
 
   const config = useMemo(() => {
     if (!enabled || !session || !client) return null;
@@ -198,46 +157,18 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
     );
   }, [store]);
 
-  // Track the global SSE stream's health for the fallback poll below. Always on
-  // (even while this screen is backgrounded) so the poll's gate stays accurate.
-  const [sseUp, setSseUp] = useState(false);
-  useEffect(() => onSseStatus(setSseUp), []);
-
-  // Live updates, gated on this room screen being FOCUSED. On focus we pull once
-  // and register a pull on the global SSE bus so new messages arrive live while
-  // the room is open (UnreadProvider holds the single shared SSE connection — no
-  // second connection here). Registering ONLY while focused is the crux of the
-  // unread-badge fix: a room screen left mounted *underneath* a pushed screen (you
-  // opened another channel or a thread) must release its registration, or
-  // UnreadProvider's dispatchRoomChange keeps treating it as the active room and
-  // silently pulls its change-events instead of bumping the unread count. On blur
-  // we unregister so a backgrounded room accrues unread like any unopened one.
-  // Tradeoff: a backgrounded room no longer live-updates its (invisible) message
-  // store — the pull-on-focus refresh covers re-entry. This is intentional.
-  // The sync store already pulls once when it's created (SDK `useSyncInit`), so skip
-  // the duplicate pull on the FIRST focus right after a store appears; re-focus
-  // (returning from a thread, or re-entering the room) still pulls to catch up.
-  // Keyed by store identity so a fresh store (room switch / reopen) also skips its own
-  // init-pull's first focus.
-  const initPulledStore = useRef<unknown>(null);
-  useFocusEffect(
-    useCallback(() => {
-      if (!store) { setSyncError(null); return; }
-      if (initPulledStore.current === store) pull();
-      else initPulledStore.current = store;
-      return registerPull(roomId, pull);
-    }, [store, roomId, pull]),
-  );
-
-  // Fallback: poll only while the SSE stream is unreachable/disconnected, so a
-  // client without the gateway still receives new messages. Public rooms now ride
-  // the same /events stream as private ones (the proxy open-gates `psp-` spaces),
-  // so they poll only when SSE is down — no longer on every tick.
-  useEffect(() => {
-    if (!store || sseUp) return;
-    const id = setInterval(pull, 4000);
-    return () => clearInterval(id);
-  }, [store, sseUp, pull]);
+  // Live updates while focused: pull on focus + register on the shared SSE bus, poll
+  // only while SSE is down (see useRoomLiveSync). The SDK store self-pulls on creation,
+  // so skip the duplicate first-focus pull — keyed on the store object so a same-room
+  // reopen also skips its own init-pull.
+  useRoomLiveSync({
+    roomId,
+    ready: !!store,
+    pull,
+    skipFirstFocus: true,
+    firstFocusKey: store,
+    onIdle: () => setSyncError(null),
+  });
 
   // `id` lets a queued (offline) message reuse the id its pending bubble already
   // showed, so when it finally syncs it dedups against the bubble instead of
@@ -283,33 +214,29 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
     [client, encryptor, roomId],
   );
 
+  // Reactions/edits/deletes/pins are append-only events folded at render. The event
+  // shapes (incl. the reaction net-toggle) come from shared builders in `./reactions`,
+  // so the merge-doc and append-log paths can't drift; only the WRITE differs — here it's
+  // a `set` into the live doc (reading the latest events inside the updater).
   const toggleReaction = useCallback(
     (msgId: string, emoji: string) => {
       if (!liveStore || !session) return;
       const me = session.userId;
       liveStore.getState().set((d: Record<string, unknown>) => {
-        const events = ((d.reactions as ReactionEvent[]) ?? []).slice();
-        const net = events
-          .filter((e) => e.msgId === msgId && e.emoji === emoji && e.userId === me)
-          .reduce((n, e) => n + (e.kind === 'add' ? 1 : -1), 0);
-        events.push({ id: randomId(), msgId, emoji, userId: me, kind: net > 0 ? 'remove' : 'add', ts: Date.now() });
-        return { ...d, reactions: events };
+        const events = (d.reactions as ReactionEvent[]) ?? [];
+        return { ...d, reactions: [...events, reactionToggleEvent(events, msgId, emoji, me, Date.now())] };
       });
     },
     [liveStore, session],
   );
 
-  // Edit/delete are append-only events keyed by msgId (mirrors `toggleReaction`),
-  // folded at render by `resolveEdit`. The author check there is the real guard;
-  // these only fire from the UI for the viewer's own messages.
   const editMessage = useCallback(
     (msgId: string, text: string) => {
       const t = text.trim();
       if (!liveStore || !session || !t) return;
       liveStore.getState().set((d: Record<string, unknown>) => {
-        const events = ((d.edits as MessageEditEvent[]) ?? []).slice();
-        events.push({ id: randomId(), msgId, userId: session.userId, kind: 'edit', text: t, ts: Date.now() });
-        return { ...d, edits: events };
+        const events = (d.edits as MessageEditEvent[]) ?? [];
+        return { ...d, edits: [...events, messageEditEvent(msgId, session.userId, t, Date.now())] };
       });
     },
     [liveStore, session],
@@ -319,25 +246,19 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}) {
     (msgId: string) => {
       if (!liveStore || !session) return;
       liveStore.getState().set((d: Record<string, unknown>) => {
-        const events = ((d.edits as MessageEditEvent[]) ?? []).slice();
-        events.push({ id: randomId(), msgId, userId: session.userId, kind: 'delete', ts: Date.now() });
-        return { ...d, edits: events };
+        const events = (d.edits as MessageEditEvent[]) ?? [];
+        return { ...d, edits: [...events, messageDeleteEvent(msgId, session.userId, Date.now())] };
       });
     },
     [liveStore, session],
   );
 
-  // Pin/unpin are append-only events keyed by msgId (mirrors edit/delete), folded at
-  // render by `resolvePinned`. Unlike edits the guard there is the SPACE OWNER, not
-  // the author — these only fire from the UI for the owner, but the fold is the real
-  // gate. `pin` re-sends idempotently; the latest event by `ts` wins.
   const setPinned = useCallback(
     (msgId: string, kind: 'pin' | 'unpin') => {
       if (!liveStore || !session) return;
       liveStore.getState().set((d: Record<string, unknown>) => {
-        const events = ((d.pins as PinEvent[]) ?? []).slice();
-        events.push({ id: randomId(), msgId, userId: session.userId, kind, ts: Date.now() });
-        return { ...d, pins: events };
+        const events = (d.pins as PinEvent[]) ?? [];
+        return { ...d, pins: [...events, pinToggleEvent(msgId, session.userId, kind, Date.now())] };
       });
     },
     [liveStore, session],

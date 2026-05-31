@@ -64,6 +64,9 @@ export function DesktopNav() {
   // Recent threads of the open room, shown under its sidebar row. Only when the
   // published digest is for the row we're highlighting (it's cleared on leave).
   const activeRoom = activeRoomId ? categories.flatMap((c) => c.rooms).find((r) => r.id === activeRoomId) : undefined;
+  // DMs live in the virtual home (no `categories`), so resolve the open DM from the
+  // DM list to give `openThread` the peer name + dm kind.
+  const activeDm = activeRoomId ? dms.find((d) => d.roomId === activeRoomId) : undefined;
   const activeThreads = digest && digest.roomId === activeRoomId ? digest.threads : undefined;
 
   const openRoom = (room: Room) =>
@@ -73,7 +76,12 @@ export function DesktopNav() {
     if (!activeRoomId) return; // only reachable while a room (the digest's) is open
     router.push({
       pathname: '/thread/[id]',
-      params: { id: parentId, roomId: activeRoomId, roomName: activeRoom?.name ?? activeRoomId, kind: activeRoom?.kind ?? 'channel' },
+      params: {
+        id: parentId,
+        roomId: activeRoomId,
+        roomName: activeRoom?.name ?? activeDm?.name ?? activeRoomId,
+        kind: activeRoom?.kind ?? (activeDm ? 'dm' : 'channel'),
+      },
     });
   };
 
@@ -104,7 +112,9 @@ export function DesktopNav() {
             dms={dms}
             userId={session?.userId ?? ''}
             activeRoomId={activeRoomId}
+            threads={activeThreads}
             onOpenRoom={openRoom}
+            onOpenThread={openThread}
           />
         ) : space ? (
           <DesktopRoomSidebar

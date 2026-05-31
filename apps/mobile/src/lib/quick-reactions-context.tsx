@@ -1,28 +1,13 @@
 /**
  * Shared quick-reaction palette, mounted once near the root (below the session,
- * above the message UI that consumes it). Loads the signed-in identity's palette
- * from kv on session change and exposes a reactive view + an `update` action. The
- * underlying snapshot lives in `quick-reactions-settings.ts` so the pattern mirrors
- * `notification-settings`.
+ * above the message UI that consumes it). Exposes a reactive view of the synced
+ * palette + an `update` action that writes through to the server. The underlying
+ * snapshot lives in `quick-reactions-settings.ts` (hydrated from the `_spaces` doc by
+ * session-context, like `mutes`); this provider only reads it and wires `update`.
  */
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useSyncExternalStore,
-  type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 
-import {
-  getQuickReactions,
-  loadQuickReactions,
-  resetQuickReactions,
-  saveQuickReactions,
-  setQuickReactions,
-  subscribeQuickReactions,
-} from './quick-reactions-settings';
+import { getQuickReactions, saveQuickReactions, subscribeQuickReactions } from './quick-reactions-settings';
 import { useSession } from './session-context';
 
 interface QuickReactionsValue {
@@ -36,30 +21,14 @@ const Ctx = createContext<QuickReactionsValue | null>(null);
 
 export function QuickReactionsProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
-  const userId = session?.userId ?? null;
   const emojis = useSyncExternalStore(subscribeQuickReactions, getQuickReactions, getQuickReactions);
-
-  // Load the identity's persisted palette; reset to defaults when signed out.
-  useEffect(() => {
-    if (!userId) {
-      resetQuickReactions();
-      return;
-    }
-    let active = true;
-    void loadQuickReactions(userId).then((next) => {
-      if (active) setQuickReactions(next);
-    });
-    return () => {
-      active = false;
-    };
-  }, [userId]);
 
   const update = useCallback(
     (next: string[]) => {
-      if (!userId) return;
-      void saveQuickReactions(userId, next);
+      if (!session) return;
+      void saveQuickReactions(session, next);
     },
-    [userId],
+    [session],
   );
 
   const value = useMemo<QuickReactionsValue>(() => ({ emojis, update }), [emojis, update]);

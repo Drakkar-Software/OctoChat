@@ -17,6 +17,7 @@ import { recoverPubspaceAccess } from './starfish/pubspace';
 import { clearPubspaceCaps, hydratePubspaceCaps } from './starfish/pubspace-caps';
 import { readSpaces } from './starfish/registry';
 import { hydrateMutes, resetMutes } from './mutes';
+import { hydrateQuickReactions, resetQuickReactions } from './quick-reactions-settings';
 import { flushReadsNow, hydrateReads, resetReads } from './reads';
 import { activeAccountOf, sessionFromPersisted } from './starfish/session-restore';
 import { clearSpaceEncryptors } from './starfish/space-encryptor';
@@ -136,6 +137,7 @@ function resetAccountScopedState(): void {
   void flushReadsNow();
   resetMutes();
   resetReads();
+  resetQuickReactions();
 }
 
 async function hydrateCapsFor(session: Session): Promise<void> {
@@ -145,7 +147,7 @@ async function hydrateCapsFor(session: Session): Promise<void> {
   // prime SpacesProvider with the list; neither then re-reads the identical doc. Pass
   // the seed-authenticated accountClient (readSpaces degrades to empty on failure,
   // which leaves the local cap cache intact).
-  const { spaces, caps, mutes, reads, pubAccess } = await readSpaces(session.accountClient, session.userId);
+  const { spaces, caps, mutes, reads, pubAccess, quickReactions } = await readSpaces(session.accountClient, session.userId);
   await hydrateMemberCaps(session.userId, caps);
   await hydratePubspaceCaps(session.userId);
   // Public-space credentials carry a bearer secret, so they ride the synced doc SEALED
@@ -161,6 +163,10 @@ async function hydrateCapsFor(session: Session): Promise<void> {
   // Read marks share the same `_spaces` doc — feed them to the read cache (max-merged
   // with local so an offline read survives). No second pull. See `reads.ts`.
   await hydrateReads(session.userId, reads);
+  // Quick-reaction palette shares the same `_spaces` doc — feed it to the palette
+  // snapshot (server-authoritative; an offline read degrades to `[]` upstream, which
+  // hydrates to the defaults and a later successful sync re-heals). No second pull.
+  hydrateQuickReactions(quickReactions);
   primeSpaces(session.userId, spaces);
   // Seed the shared public-profile cache with our own pseudo so `use-pseudos`
   // (message authors, sidebar) never fires a separate fetch for self — the editable

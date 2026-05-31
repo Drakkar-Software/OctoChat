@@ -1,4 +1,5 @@
-import type { Reaction, ReactionEvent } from './types';
+import { randomId } from './ids';
+import type { MessageEditEvent, PinEvent, Reaction, ReactionEvent } from './types';
 
 /** Wider emoji set for the composer's insert palette — shown in a single
  *  horizontal scroller (never wraps to a second line). */
@@ -42,4 +43,41 @@ export function replyCounts(messages: { parentId?: string }[]): Map<string, numb
     if (m.parentId) out.set(m.parentId, (out.get(m.parentId) ?? 0) + 1);
   }
   return out;
+}
+
+// ── Append-only event builders ───────────────────────────────────────────────
+// Shared by both room hooks (merge-doc `useRoom` writes them into the doc; append-log
+// `useStreamRoom` wraps them in an envelope). Pure + id/ts-injected so the net-toggle
+// logic — the bit most prone to drift between the two paths — lives in ONE place and is
+// unit-testable. Each hook keeps its own WRITE; only the event shape is shared.
+
+/** The toggle a tap implies: if the user currently has a net-add for this (msg, emoji),
+ *  the tap REMOVES it, else it ADDS. `current` is the live reaction-event list; `now`
+ *  and the random id are injected by the caller (the store mutator / append). */
+export function reactionToggleEvent(
+  current: ReactionEvent[],
+  msgId: string,
+  emoji: string,
+  userId: string,
+  now: number,
+): ReactionEvent {
+  const net = current
+    .filter((e) => e.msgId === msgId && e.emoji === emoji && e.userId === userId)
+    .reduce((n, e) => n + (e.kind === 'add' ? 1 : -1), 0);
+  return { id: randomId(), msgId, emoji, userId, kind: net > 0 ? 'remove' : 'add', ts: now };
+}
+
+/** An edit event (folded at render by `resolveEdit`; the author check there is the guard). */
+export function messageEditEvent(msgId: string, userId: string, text: string, now: number): MessageEditEvent {
+  return { id: randomId(), msgId, userId, kind: 'edit', text, ts: now };
+}
+
+/** A delete (tombstone) event — same `edits` log as {@link messageEditEvent}, kind 'delete'. */
+export function messageDeleteEvent(msgId: string, userId: string, now: number): MessageEditEvent {
+  return { id: randomId(), msgId, userId, kind: 'delete', ts: now };
+}
+
+/** A pin/unpin event (folded by `resolvePinned` with the space owner as the guard). */
+export function pinToggleEvent(msgId: string, userId: string, kind: 'pin' | 'unpin', now: number): PinEvent {
+  return { id: randomId(), msgId, userId, kind, ts: now };
 }

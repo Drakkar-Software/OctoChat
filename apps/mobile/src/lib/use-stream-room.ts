@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
 import { AppendLogCursor } from '@drakkar.software/starfish-client';
-import type { AppendElement, Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
+import type { AppendElement } from '@drakkar.software/starfish-client';
 
-import { makeClient } from './starfish/client';
-import { getSpaceEncryptor } from './starfish/space-encryptor';
-import { getMemberCap } from './starfish/member-caps';
 import { isPublicSpaceId, publicSpaceAuth } from './starfish/pubspace';
 import { kvGet, kvSet } from './starfish/kv';
-import { registerPull, onSseStatus } from './room-events-bus';
 import { reportReachability } from './connectivity';
 import {
   pubstreamRoomPull,
@@ -18,11 +13,13 @@ import {
   spaceIdFromRoomId,
 } from './starfish/paths';
 import type { AttachmentRef } from './starfish/attachments';
-import { useRoomsRegistryActions } from './rooms-registry-context';
+import { messageDeleteEvent, messageEditEvent, pinToggleEvent, reactionToggleEvent } from './reactions';
 import { useSession } from './session-context';
 import { randomId } from './ids';
 import { makeEmptyConversationStore, type ConversationStore } from './use-conversation-data';
-import { useRoomOpenState } from './use-room-open';
+import { useRoomOpen } from './use-room-open-flow';
+import { useRoomLiveSync } from './use-room-live-sync';
+import type { RoomHook } from './use-room-types';
 import type { StoredMsg } from './message-view';
 import type { MessageEditEvent, PinEvent, ReactionEvent } from './types';
 
@@ -38,9 +35,12 @@ import type { MessageEditEvent, PinEvent, ReactionEvent } from './types';
  * by feeding a synthetic store (data = {messages,reactions,edits}) to `RoomConversation`
  * — `useStarfishData` only ever reads `store.data`, so a plain zustand store suffices.
  *
- * Returns the SAME shape as {@link useRoom} so a room screen can use either by `kind`.
- * `enabled` lets the screen call this AND `useRoom` unconditionally (React hook rules)
- * and pick one — when false this hook does no network and holds no store.
+ * Returns the SAME shape as {@link useRoom} ({@link RoomHook}) so a room screen can use
+ * either by `kind`. The crypto/auth open is shared via {@link useRoomOpen}; the
+ * focus/poll/SSE choreography via {@link useRoomLiveSync}; the append-only event shapes
+ * via the builders in {@link ./reactions}. `enabled` lets the screen call this AND
+ * `useRoom` unconditionally (React hook rules) and pick one — when false this hook does
+ * no network and holds no store.
  */
 /** One append-log element: a typed envelope so a single log carries messages,
  *  reactions and edits. `t` discriminates; `e` is the payload (a StoredMsg /
@@ -120,23 +120,23 @@ function fanOut(items: AppendElement[]): StreamData {
 }
 
 
-export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) {
+export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomHook {
   const enabled = opts.enabled ?? true;
   const { session } = useSession();
-  const { ensure: ensureRegistry } = useRoomsRegistryActions();
   const spaceId = spaceIdFromRoomId(roomId);
   const isPublic = isPublicSpaceId(spaceId);
-  const [encryptor, setEncryptor] = useState<Encryptor | null>(null);
-  const [client, setClient] = useState<StarfishClient | null>(null);
-  // Shared open-state machine (offline-classification + reconnect re-open) — see
-  // {@link useRoomOpenState}. The synthetic store still renders offline (warm history +
-  // pending bubbles), so an unreachable open degrades to an offline shell, not an error.
-  // Offline-first: the space keyring now comes from the SDK pull cache, so the
-  // encryptor builds offline and the warm-started log (persisted ciphertext) paints
-  // without the network. So building the encryptor no longer proves reachability —
-  // that's reported from a fresh cursor `pull()` below, not from `openReached`.
-  const { opening, openError, offline, reloadNonce, reload, beginOpen, finishOpening, failOpen } =
-    useRoomOpenState();
+
+  // Shared crypto/auth open (+ opening/error/offline flags & reconnect). An append-only
+  // stream has no merge doc to seed, so `initializeRoom` stays false. The synthetic store
+  // still renders offline (warm history + pending bubbles); reachability is reported from
+  // a fresh cursor `pull()` below, not from the open.
+  const { encryptor, client, opening, openError, offline, reload } = useRoomOpen({
+    roomId,
+    spaceId,
+    isPublic,
+    enabled,
+    initializeRoom: false,
+  });
 
   // The synthetic store lives for this room's lifetime, keyed by roomId so a room switch
   // (the screen stays mounted) starts fresh rather than flashing the previous room's log.
@@ -157,45 +157,6 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
   // recreated on room switch — same lifetime as the store above. Held in a ref so `pull`
   // reads the latest without re-subscribing every callback.
   const cursorRef = useRef<{ id: string; cursor: AppendLogCursor } | null>(null);
-
-  // Open: resolve the sync client (+ encryptor for a private space). Mirrors useRoom's
-  // open branches — public spaces authorize with the invite/account cap and carry no
-  // encryptor; private spaces open the space keyring encryptor (cached per space).
-  useEffect(() => {
-    let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset open state before reopening on room/session change
-    setEncryptor(null);
-    setClient(null);
-    beginOpen();
-    if (!enabled || !session) return;
-    (async () => {
-      try {
-        if (isPublic) {
-          const auth = publicSpaceAuth(session, spaceId);
-          if (!cancelled) {
-            setEncryptor(null);
-            setClient(makeClient(auth.cap, auth.signingKey));
-            finishOpening(); // public open did no network call — proves no reachability
-          }
-          return;
-        }
-        const reg = getMemberCap(spaceId) ? null : await ensureRegistry(spaceId);
-        const { encryptor: enc, client: roomClient } = await getSpaceEncryptor(spaceId, session, reg);
-        if (!cancelled) {
-          setEncryptor(enc);
-          setClient(roomClient);
-          // No openReached() — the keyring may have come from cache (offline). The
-          // cursor pull reports reachability (see `pull` below).
-          finishOpening();
-        }
-      } catch (e) {
-        if (!cancelled) failOpen(e);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, session, roomId, spaceId, isPublic, ensureRegistry, reloadNonce, beginOpen, finishOpening, failOpen]);
 
   // Auth + path for this stream room (owner/joiner cap on public; member/space cap on
   // private). `signingKey` is the request-signing key the cap is bound to.
@@ -312,30 +273,18 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
     [client, route, encryptor, pull],
   );
 
-  // Live updates: pull on focus + on the shared SSE bus, with a poll fallback only
-  // while the SSE stream is down. Public streams now ride /events too (the proxy
-  // open-gates `psp-` spaces), so they no longer poll on every tick.
-  // Unlike useRoom, we pull on EVERY focus including the first: useRoom skips its first
-  // focus only because the SDK's useSyncInit store self-pulls on creation, but this
-  // synthetic store's `pull` is a no-op — so without a first-focus pull, opening a
+  // Live updates: pull on focus + on the shared SSE bus, poll only while SSE is down
+  // (see useRoomLiveSync). `ready` requires the client (not just the store, which is the
+  // always-present synthetic one). Unlike useRoom we pull on EVERY focus including the
+  // first (skipFirstFocus omitted): the SDK store self-pulls on creation, but this
+  // synthetic store's `pull` is a cursor fetch — without a first-focus pull, opening a
   // stream room would show nothing until an SSE push or a re-focus.
-  const [sseUp, setSseUp] = useState(false);
-  useEffect(() => onSseStatus(setSseUp), []);
-  useFocusEffect(
-    useCallback(() => {
-      if (!store || !client) {
-        setSyncError(null);
-        return;
-      }
-      void pull();
-      return registerPull(roomId, () => void pull());
-    }, [store, client, roomId, pull]),
-  );
-  useEffect(() => {
-    if (!store || !client || sseUp) return;
-    const id = setInterval(() => void pull(), 4000);
-    return () => clearInterval(id);
-  }, [store, client, sseUp, pull]);
+  useRoomLiveSync({
+    roomId,
+    ready: !!store && !!client,
+    pull: () => void pull(),
+    onIdle: () => setSyncError(null),
+  });
 
   // Signature matches useRoom's `send` so a screen can consume either hook by `kind`
   // (the union call-site stays type-clean). `attachment` is ignored — stream rooms
@@ -350,24 +299,20 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
       if (parentId) msg.parentId = parentId;
       // Return the append promise (not `void`) so the screen can await + catch a
       // failed (offline) send and divert the message to the outbox. useRoom.send is
-      // sync/void; `await send(…)` works for both since awaiting undefined is a no-op.
+      // sync/boolean; `await send(…)` works for both since awaiting a boolean is a no-op.
       return append({ t: 'msg', e: msg });
     },
     [session, append],
   );
 
+  // Reactions/edits/deletes/pins append a typed envelope. The event shapes (incl. the
+  // reaction net-toggle) come from shared builders in `./reactions`, so the merge-doc and
+  // append-log paths can't drift; only the WRITE differs — here it's an `append`.
   const toggleReaction = useCallback(
     (msgId: string, emoji: string) => {
       if (!session) return;
-      const me = session.userId;
       const cur = (store?.getState() as { data: StreamData } | undefined)?.data.reactions ?? [];
-      const net = cur
-        .filter((e) => e.msgId === msgId && e.emoji === emoji && e.userId === me)
-        .reduce((n, e) => n + (e.kind === 'add' ? 1 : -1), 0);
-      void append({
-        t: 'reaction',
-        e: { id: randomId(), msgId, emoji, userId: me, kind: net > 0 ? 'remove' : 'add', ts: Date.now() },
-      });
+      void append({ t: 'reaction', e: reactionToggleEvent(cur, msgId, emoji, session.userId, Date.now()) });
     },
     [session, store, append],
   );
@@ -376,7 +321,7 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
     (msgId: string, text: string) => {
       const t = text.trim();
       if (!session || !t) return;
-      void append({ t: 'edit', e: { id: randomId(), msgId, userId: session.userId, kind: 'edit', text: t, ts: Date.now() } });
+      void append({ t: 'edit', e: messageEditEvent(msgId, session.userId, t, Date.now()) });
     },
     [session, append],
   );
@@ -384,24 +329,22 @@ export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}) 
   const deleteMessage = useCallback(
     (msgId: string) => {
       if (!session) return;
-      void append({ t: 'edit', e: { id: randomId(), msgId, userId: session.userId, kind: 'delete', ts: Date.now() } });
+      void append({ t: 'edit', e: messageDeleteEvent(msgId, session.userId, Date.now()) });
     },
     [session, append],
   );
 
-  // Pin/unpin append a `pin` envelope (mirrors edit/delete); folded by `resolvePinned`
-  // with the space owner as the guard. UI only fires these for the owner.
   const pinMessage = useCallback(
     (msgId: string) => {
       if (!session) return;
-      void append({ t: 'pin', e: { id: randomId(), msgId, userId: session.userId, kind: 'pin', ts: Date.now() } });
+      void append({ t: 'pin', e: pinToggleEvent(msgId, session.userId, 'pin', Date.now()) });
     },
     [session, append],
   );
   const unpinMessage = useCallback(
     (msgId: string) => {
       if (!session) return;
-      void append({ t: 'pin', e: { id: randomId(), msgId, userId: session.userId, kind: 'unpin', ts: Date.now() } });
+      void append({ t: 'pin', e: pinToggleEvent(msgId, session.userId, 'unpin', Date.now()) });
     },
     [session, append],
   );

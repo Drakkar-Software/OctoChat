@@ -1,22 +1,30 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
 import type { CrossRoomThread } from '@/lib/cross-room';
 import { useSession } from '@/lib/session-context';
-import { useSpaces } from '@/lib/use-spaces';
 import { useThreads } from '@/lib/use-threads';
 import { AppBar } from '@/components/ui/AppBar';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { ThreadList } from '@/components/chat/ThreadList';
 
-export default function ThreadsScreen() {
+/**
+ * Every thread of a single space, as a pushed (back-navigable) screen — the full
+ * counterpart to the 3-thread digest the sidebar shows under a room. Reached from
+ * a DM's header ("all threads with this person"), scoped to that DM's `dm-` space.
+ * Reuses {@link useThreads} + {@link ThreadList}, the same pair behind the Threads
+ * tab; only the chrome differs (a back arrow + the peer's name).
+ */
+export default function SpaceThreadsScreen() {
+  const params = useLocalSearchParams<{ spaceId: string; peer?: string }>();
+  const spaceId = params.spaceId;
   const { session } = useSession();
-  const { spaces, activeId } = useSpaces();
-  const { threads, loading } = useThreads(activeId);
-  const space = spaces.find((s) => s.id === activeId);
+  const { threads, loading } = useThreads(spaceId);
 
+  // Cold-start safety: a deep link here may have no parent to pop back to.
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/rooms'));
   const open = (t: CrossRoomThread) =>
     router.push({
       pathname: '/thread/[id]',
@@ -24,7 +32,7 @@ export default function ThreadsScreen() {
     });
 
   return (
-    <StackScreen inTabs header={<AppBar title="Threads" subtitle={space?.name} />} contentStyle={styles.content}>
+    <StackScreen header={<AppBar title="Threads" subtitle={params.peer} onBack={goBack} />} contentStyle={styles.content}>
       {!session ? (
         <SignInPrompt />
       ) : (

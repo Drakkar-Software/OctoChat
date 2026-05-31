@@ -6,9 +6,20 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('expo-router', () => ({ router: { push: vi.fn() } }));
 vi.mock('react-native', () => ({ Platform: { OS: 'web' }, Linking: { openURL: vi.fn() } }));
 
-import { dayLabel, mergePendingMessages, resolvePinned, sameDay, type StoredMsg } from './message-view';
+import {
+  GROUP_WINDOW_MS,
+  dayLabel,
+  isContinuation,
+  lastEditableMessageId,
+  mergePendingMessages,
+  resolveEdit,
+  resolvePinned,
+  sameDay,
+  toDisplayMessage,
+  type StoredMsg,
+} from './message-view';
 import type { OutboxMessage } from './outbox';
-import type { PinEvent } from './types';
+import type { MessageEditEvent, PinEvent, ReactionEvent } from './types';
 
 const at = (y: number, m: number, d: number, h = 12) => new Date(y, m, d, h).getTime();
 
@@ -124,5 +135,101 @@ describe('mergePendingMessages', () => {
     const merged = mergePendingMessages([{ id: 'p1', authorId: 'u1', text: 'synced', ts: 5 }], [out('p1')]);
     expect(merged.map((m) => m.id)).toEqual(['p1']);
     expect(merged[0].text).toBe('synced'); // the confirmed copy wins
+  });
+});
+
+const m = (over: Partial<StoredMsg>): StoredMsg => ({ id: 'm1', authorId: 'u1', ts: 1000, ...over });
+
+describe('isContinuation', () => {
+  it('is false with no previous message', () => {
+    expect(isContinuation(m({}))).toBe(false);
+  });
+
+  it('groups the same author within the window', () => {
+    expect(isContinuation(m({ ts: 1000 + GROUP_WINDOW_MS - 1 }), m({ ts: 1000 }))).toBe(true);
+  });
+
+  it('breaks the group at/after the window', () => {
+    expect(isContinuation(m({ ts: 1000 + GROUP_WINDOW_MS }), m({ ts: 1000 }))).toBe(false);
+  });
+
+  it('breaks the group on a different author (bot vs human)', () => {
+    expect(isContinuation(m({ authorId: 'bot-r1' }), m({ authorId: 'u1' }))).toBe(false);
+  });
+
+  it('breaks on an out-of-order (negative-gap) timestamp', () => {
+    expect(isContinuation(m({ ts: 900 }), m({ ts: 1000 }))).toBe(false);
+  });
+});
+
+describe('resolveEdit (author-guarded fold)', () => {
+  const edits: MessageEditEvent[] = [
+    { id: 'e1', msgId: 'm1', userId: 'u1', kind: 'edit', text: 'first', ts: 1 },
+    { id: 'e2', msgId: 'm1', userId: 'u1', kind: 'edit', text: 'latest', ts: 3 },
+    { id: 'e3', msgId: 'm1', userId: 'attacker', kind: 'delete', ts: 99 }, // not the author
+  ];
+
+  it('takes the latest event authored by the message author', () => {
+    expect(resolveEdit(edits, 'm1', 'u1')?.text).toBe('latest');
+  });
+
+  it('ignores events not authored by the message author — a forged later delete cannot win', () => {
+    expect(resolveEdit(edits, 'm1', 'u1')?.kind).toBe('edit');
+  });
+});
+
+describe('toDisplayMessage', () => {
+  const noReactions: ReactionEvent[] = [];
+
+  it('folds an edit over the stored body and flags `edited`', () => {
+    const edits: MessageEditEvent[] = [{ id: 'e1', msgId: 'm1', userId: 'u1', kind: 'edit', text: 'new', ts: 5 }];
+    const d = toDisplayMessage(m({ text: 'old' }), noReactions, 'me', { edits });
+    expect(d.text).toBe('new');
+    expect(d.edited).toBe(true);
+    expect(d.deleted).toBe(false);
+  });
+
+  it('hides the body and marks `deleted` on a tombstone', () => {
+    const edits: MessageEditEvent[] = [{ id: 'e1', msgId: 'm1', userId: 'u1', kind: 'delete', ts: 5 }];
+    const d = toDisplayMessage(m({ text: 'secret' }), noReactions, 'me', { edits });
+    expect(d.deleted).toBe(true);
+    expect(d.text).toBeUndefined();
+  });
+
+  it('marks unread relative to lastReadAt', () => {
+    expect(toDisplayMessage(m({ ts: 100 }), noReactions, 'me', { lastReadAt: 50 }).unread).toBe(true);
+    expect(toDisplayMessage(m({ ts: 100 }), noReactions, 'me', { lastReadAt: 150 }).unread).toBe(false);
+  });
+
+  it('carries the thread reply count through to the display message', () => {
+    expect(toDisplayMessage(m({}), noReactions, 'me', { threadCount: 3 }).threadCount).toBe(3);
+  });
+});
+
+describe('lastEditableMessageId', () => {
+  it('returns the viewer’s most recent non-deleted text message', () => {
+    const msgs: StoredMsg[] = [
+      m({ id: 'a', authorId: 'me', text: 'first', ts: 1 }),
+      m({ id: 'b', authorId: 'me', text: 'second', ts: 2 }),
+      m({ id: 'c', authorId: 'other', text: 'theirs', ts: 3 }),
+    ];
+    expect(lastEditableMessageId(msgs, [], 'me')).toBe('b');
+  });
+
+  it('skips a message the viewer has since deleted', () => {
+    const msgs: StoredMsg[] = [
+      m({ id: 'a', authorId: 'me', text: 'keep', ts: 1 }),
+      m({ id: 'b', authorId: 'me', text: 'gone', ts: 2 }),
+    ];
+    const edits: MessageEditEvent[] = [{ id: 'e', msgId: 'b', userId: 'me', kind: 'delete', ts: 3 }];
+    expect(lastEditableMessageId(msgs, edits, 'me')).toBe('a');
+  });
+
+  it('ignores replies (parentId set)', () => {
+    const msgs: StoredMsg[] = [
+      m({ id: 'a', authorId: 'me', text: 'root', ts: 1 }),
+      m({ id: 'b', authorId: 'me', text: 'reply', ts: 2, parentId: 'a' }),
+    ];
+    expect(lastEditableMessageId(msgs, [], 'me')).toBe('a');
   });
 });

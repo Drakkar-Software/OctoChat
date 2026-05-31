@@ -134,7 +134,9 @@ export function DesktopRoomSidebar({
           <DmList
             dms={dms}
             activeRoomId={activeRoomId}
+            threads={threads}
             onOpen={(dm) => onOpenRoom({ id: dm.roomId, spaceId: dm.spaceId, category: '', name: dm.name, kind: 'dm' })}
+            onOpenThread={onOpenThread}
           />
         </ScrollView>
       </View>

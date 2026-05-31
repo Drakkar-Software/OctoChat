@@ -1,13 +1,22 @@
+import { Fragment } from 'react';
+
 import type { Room } from '@/lib/types';
+import type { ThreadSummary } from '@/lib/threads';
 import type { DmEntry } from '@/lib/use-dms';
 import { EmptyState } from '@/components/ui/EmptyState';
 
 import { ChannelRow } from './ChannelRow';
+import { ThreadRow } from './ThreadRow';
 
 interface DmListProps {
   dms: DmEntry[];
   activeRoomId?: string;
+  /** Recent threads of the active DM — rendered indented under its row (desktop
+   *  sidebar), mirroring a channel's thread digest. Omit to show none. */
+  threads?: ThreadSummary[];
   onOpen: (dm: DmEntry) => void;
+  /** Open one of the active DM's threads (the reply target's message id). */
+  onOpenThread?: (parentId: string) => void;
 }
 
 /**
@@ -15,9 +24,10 @@ interface DmListProps {
  * (reusing the `kind:'dm'` person-monogram + unread path), or an empty state that
  * explains how to start a DM. Used by the mobile rooms screen AND the desktop room
  * sidebar so both surfaces stay identical. Each DM's name/initials are the PEER's
- * (viewer-correct — see `use-dms`).
+ * (viewer-correct — see `use-dms`). The active DM trails its most recent threads
+ * (when supplied), exactly like a channel row in {@link RoomCategorySection}.
  */
-export function DmList({ dms, activeRoomId, onOpen }: DmListProps) {
+export function DmList({ dms, activeRoomId, threads, onOpen, onOpenThread }: DmListProps) {
   if (dms.length === 0) {
     return (
       <EmptyState
@@ -41,13 +51,19 @@ export function DmList({ dms, activeRoomId, onOpen }: DmListProps) {
           unread: dm.unread,
         };
         return (
-          <ChannelRow
-            key={dm.spaceId}
-            room={room}
-            avatarImage={dm.image}
-            active={dm.roomId === activeRoomId}
-            onPress={() => onOpen(dm)}
-          />
+          <Fragment key={dm.spaceId}>
+            <ChannelRow
+              room={room}
+              avatarImage={dm.image}
+              active={dm.roomId === activeRoomId}
+              onPress={() => onOpen(dm)}
+            />
+            {dm.roomId === activeRoomId && threads?.length
+              ? threads.map((t) => (
+                  <ThreadRow key={t.parentId} thread={t} onPress={() => onOpenThread?.(t.parentId)} />
+                ))
+              : null}
+          </Fragment>
         );
       })}
     </>

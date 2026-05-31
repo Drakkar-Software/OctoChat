@@ -148,6 +148,10 @@ export default function RoomScreen() {
   };
   const openSearch = () => router.push('/search');
   const openProfile = (userId: string) => router.push({ pathname: '/profile/[id]', params: { id: userId } });
+  // DM only: the full thread history with this peer (the sidebar shows just the top
+  // few). The Threads tab is space-scoped and the virtual DM-home has no Threads row,
+  // so DMs get their own pushed list keyed by the dm- space.
+  const openDmThreads = () => router.push({ pathname: '/threads/[spaceId]', params: { spaceId, peer: name } });
 
   return (
     <StackScreen
@@ -158,13 +162,25 @@ export default function RoomScreen() {
           onBack={goBack}
           right={
             <>
+              {kind === 'dm' ? (
+                <IconButton name="thread" accessibilityLabel="All threads with this person" onPress={openDmThreads} />
+              ) : null}
               <IconButton name="search" accessibilityLabel="Search in room" onPress={openSearch} />
               <IconButton name="info" accessibilityLabel="Space details" onPress={openMembers} />
             </>
           }
         />
       }
-      desktopHeader={<DesktopChatTopbar name={name} kind={kind} spaceId={spaceId} onSearch={openSearch} onDetails={openMembers} />}
+      desktopHeader={
+        <DesktopChatTopbar
+          name={name}
+          kind={kind}
+          spaceId={spaceId}
+          onSearch={openSearch}
+          onDetails={openMembers}
+          onThreads={kind === 'dm' ? openDmThreads : undefined}
+        />
+      }
       footer={
         canWrite ? (
           <Composer

@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
-import { StyleSheet } from 'react-native';
-import { LegendList } from '@legendapp/list/react-native';
+import { useEffect, useMemo, useRef } from 'react';
+import { Platform, StyleSheet } from 'react-native';
+import { LegendList, type LegendListRef } from '@legendapp/list/react-native';
 
 import { authorFor, dayLabel, isContinuation, mergePendingMessages, resolvePinned, sameDay, toDisplayMessage } from '@/lib/message-view';
 import type { OutboxMessage } from '@/lib/outbox';
@@ -109,8 +109,27 @@ export function RoomConversation({
     [editingId, reactions, edits, pins, ownerId, pendingStatus, threadCounts],
   );
 
+  // When an inline editor opens, lift its row into the keyboard-shrunk viewport. The
+  // screen's KeyboardAvoidingView shrinks this list when the editor's input focuses, but
+  // doesn't scroll the edited row up — so a row low on screen ends up under the keyboard.
+  // Place it ~a third from the top of the (shrunk) list, above the keyboard. Native only:
+  // on web the keyboard never overlays, so an edit-click shouldn't jump the scroll. The
+  // short delay lets the editor mount + the keyboard frame settle before we measure.
+  const listRef = useRef<LegendListRef>(null);
+  const topRef = useRef(top);
+  topRef.current = top;
+  useEffect(() => {
+    if (Platform.OS === 'web' || !editingId) return;
+    const t = setTimeout(() => {
+      const index = topRef.current.findIndex((m) => m.id === editingId);
+      if (index >= 0) void listRef.current?.scrollToIndex({ index, viewPosition: 0.3, animated: true });
+    }, 250);
+    return () => clearTimeout(t);
+  }, [editingId]);
+
   return (
     <LegendList
+      ref={listRef}
       style={styles.list}
       data={top}
       keyExtractor={(m) => m.id}

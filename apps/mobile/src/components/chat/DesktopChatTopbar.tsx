@@ -16,6 +16,8 @@ interface DesktopChatTopbarProps {
   spaceId?: string;
   onSearch?: () => void;
   onDetails?: () => void;
+  /** DM only: open the full thread list with this peer. Omit to hide the action. */
+  onThreads?: () => void;
 }
 
 /**
@@ -29,7 +31,7 @@ interface DesktopChatTopbarProps {
  * same {@link Avatar} the chat messages use — instead of a generic people glyph,
  * resolved from the shared DM list (same profile cache, no extra request).
  */
-export function DesktopChatTopbar({ name, kind = 'channel', spaceId, onSearch, onDetails }: DesktopChatTopbarProps) {
+export function DesktopChatTopbar({ name, kind = 'channel', spaceId, onSearch, onDetails, onThreads }: DesktopChatTopbarProps) {
   const { colors } = useTheme();
   const dms = useDms();
   const dm = kind === 'dm' ? dms.find((d) => d.spaceId === spaceId) : undefined;
@@ -55,6 +57,9 @@ export function DesktopChatTopbar({ name, kind = 'channel', spaceId, onSearch, o
       <Txt variant="subhead" weight="semibold" numberOfLines={1} style={styles.name}>
         {name}
       </Txt>
+      {onThreads ? (
+        <IconButton name="thread" size={16} onPress={onThreads} accessibilityLabel="All threads with this person" />
+      ) : null}
       <IconButton name="search" size={16} onPress={onSearch} accessibilityLabel="Search in room" />
       <IconButton name="info" size={16} onPress={onDetails} accessibilityLabel="Space details" />
     </View>
