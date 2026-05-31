@@ -9,11 +9,15 @@ import { DM_HOME_NAME } from '@/lib/dm-home';
 import type { DmEntry } from '@/lib/use-dms';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
+import { useViewMode } from '@/lib/view-mode';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
+import { WorkPanel } from '@/components/work/WorkPanel';
 
+import { AgentsPanel } from './AgentsPanel';
 import { ChannelListSkeleton } from './ChannelListSkeleton';
 import { DmList } from './DmList';
+import { ModeSwitcher } from './ModeSwitcher';
 import { OfflineBanner } from './OfflineBanner';
 import { RoomCategoryList } from './RoomCategoryList';
 import { SidebarLinkRow } from './SidebarLinkRow';
@@ -109,6 +113,7 @@ export function DesktopRoomSidebar({
 }: DesktopRoomSidebarProps) {
   const { colors } = useTheme();
   const online = useOnline();
+  const { mode, setMode } = useViewMode();
   const headerHover = useHover();
   const jumpHover = useHover();
 
@@ -161,6 +166,10 @@ export function DesktopRoomSidebar({
         <Icon name="gear" size={15} color={colors.inkMuted} />
       </Pressable>
 
+      <View style={styles.switcher}>
+        <ModeSwitcher mode={mode} onChange={setMode} />
+      </View>
+
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Jump to a room"
@@ -180,56 +189,64 @@ export function DesktopRoomSidebar({
       </Pressable>
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
-        {!online ? (
-          <View style={styles.banner}>
-            <OfflineBanner message="You’re offline — showing your last-synced rooms." />
-          </View>
-        ) : null}
-        {/* Top-of-sidebar destinations (non-room): full-width labeled rows that
-            sit ABOVE the channel categories so the sidebar reads as one nav
-            stack. Replaces the old tiny IconButton hidden at the foot of the
-            spaces rail — a labeled row in the natural reading column is far
-            more discoverable on wide web. */}
-        {onOpenExplore || onOpenThreads || onOpenPinned || onOpenAutomations ? (
-          <View style={styles.navGroup}>
-            {onOpenExplore ? (
-              <SidebarLinkRow iconName="globe" label="Explore" active={exploreActive} onPress={onOpenExplore} />
-            ) : null}
-            {onOpenThreads ? (
-              <SidebarLinkRow iconName="thread" label="Threads" active={threadsActive} onPress={onOpenThreads} />
-            ) : null}
-            {onOpenPinned ? (
-              <SidebarLinkRow iconName="pin" label="Pinned" active={pinnedActive} onPress={onOpenPinned} />
-            ) : null}
-            {onOpenAutomations ? (
-              <SidebarLinkRow
-                iconName="zap"
-                label="Automations"
-                active={automationsActive}
-                onPress={onOpenAutomations}
-              />
-            ) : null}
-          </View>
-        ) : null}
-        {loading ? (
-          <ChannelListSkeleton />
-        ) : categories.length === 0 && !onCreateCategory ? (
-          <Txt variant="footnote" tone="inkMuted" style={styles.empty}>
-            No rooms yet.
-          </Txt>
-        ) : (
-          <RoomCategoryList
+        {/* The mode switcher swaps THIS list only — the open room in the main
+            pane is untouched. Agents = this space's automations; Work = the
+            docs/projects/knowledge placeholder; Chat = rooms, threads & pins. */}
+        {mode === 'agents' ? (
+          <AgentsPanel
             categories={categories}
-            userId={userId}
-            spaceId={space?.id ?? ''}
+            isPublic={isPublic}
             activeRoomId={activeRoomId}
-            threads={threads}
             onOpenRoom={onOpenRoom}
-            onOpenThread={onOpenThread}
-            onCreateRoom={onCreateRoom}
-            onMoveRoom={onMoveRoom}
-            onCreateCategory={onCreateCategory}
+            onOpenAutomations={onOpenAutomations}
+            automationsActive={automationsActive}
           />
+        ) : mode === 'work' ? (
+          <WorkPanel />
+        ) : (
+          <>
+            {!online ? (
+              <View style={styles.banner}>
+                <OfflineBanner message="You’re offline — showing your last-synced rooms." />
+              </View>
+            ) : null}
+            {/* Top-of-sidebar destinations (non-room): full-width labeled rows that
+                sit ABOVE the channel categories so the sidebar reads as one nav
+                stack. Automations moved to the Agents mode above. */}
+            {onOpenExplore || onOpenThreads || onOpenPinned ? (
+              <View style={styles.navGroup}>
+                {onOpenExplore ? (
+                  <SidebarLinkRow iconName="globe" label="Explore" active={exploreActive} onPress={onOpenExplore} />
+                ) : null}
+                {onOpenThreads ? (
+                  <SidebarLinkRow iconName="thread" label="Threads" active={threadsActive} onPress={onOpenThreads} />
+                ) : null}
+                {onOpenPinned ? (
+                  <SidebarLinkRow iconName="pin" label="Pinned" active={pinnedActive} onPress={onOpenPinned} />
+                ) : null}
+              </View>
+            ) : null}
+            {loading ? (
+              <ChannelListSkeleton />
+            ) : categories.length === 0 && !onCreateCategory ? (
+              <Txt variant="footnote" tone="inkMuted" style={styles.empty}>
+                No rooms yet.
+              </Txt>
+            ) : (
+              <RoomCategoryList
+                categories={categories}
+                userId={userId}
+                spaceId={space?.id ?? ''}
+                activeRoomId={activeRoomId}
+                threads={threads}
+                onOpenRoom={onOpenRoom}
+                onOpenThread={onOpenThread}
+                onCreateRoom={onCreateRoom}
+                onMoveRoom={onMoveRoom}
+                onCreateCategory={onCreateCategory}
+              />
+            )}
+          </>
         )}
       </ScrollView>
     </View>
@@ -248,6 +265,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerText: { flex: 1, minWidth: 0, gap: 2 },
+  switcher: { paddingHorizontal: spacing.md, paddingTop: spacing.sm },
   jump: {
     flexDirection: 'row',
     alignItems: 'center',

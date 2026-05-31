@@ -19,6 +19,7 @@ import { useAutomationBackground } from '@/lib/automations/use-automation-backgr
 import { SpacesProvider } from '@/lib/spaces-context';
 import { ThreadDigestProvider } from '@/lib/thread-digest-context';
 import { UnreadProvider } from '@/lib/unread-context';
+import { ViewModeProvider } from '@/lib/view-mode';
 
 import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
@@ -104,14 +105,18 @@ export default function RootLayout() {
                 <UnreadProvider>
                   <ProfileProvider>
                     <ThreadDigestProvider>
-                      <AppFrame>
-                        <Stack
-                          screenOptions={{
-                            headerShown: false,
-                            contentStyle: { backgroundColor: palette.canvas },
-                          }}
-                        />
-                      </AppFrame>
+                      {/* Workspace view mode (Chat/Agents/Work) — a global UI pref
+                          read by the desktop sidebar and the mobile rooms screen. */}
+                      <ViewModeProvider>
+                        <AppFrame>
+                          <Stack
+                            screenOptions={{
+                              headerShown: false,
+                              contentStyle: { backgroundColor: palette.canvas },
+                            }}
+                          />
+                        </AppFrame>
+                      </ViewModeProvider>
                     </ThreadDigestProvider>
                   </ProfileProvider>
                 </UnreadProvider>

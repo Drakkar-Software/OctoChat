@@ -71,6 +71,13 @@ const ICONS = {
   globe: { lib: Ionicons, n: 'globe-outline' },
   folder: { lib: Feather, n: 'folder' },
   share: { lib: Feather, n: 'share' },
+  // Workspace mode switcher (Chat / Agents / Work) + Work-mode group glyphs.
+  chat: { lib: Feather, n: 'message-circle' },
+  agents: { lib: Feather, n: 'cpu' },
+  work: { lib: Feather, n: 'briefcase' },
+  book: { lib: Feather, n: 'book-open' },
+  target: { lib: Feather, n: 'target' },
+  layers: { lib: Feather, n: 'layers' },
 } satisfies Record<string, IconDef>;
 
 export type IconName = keyof typeof ICONS;
