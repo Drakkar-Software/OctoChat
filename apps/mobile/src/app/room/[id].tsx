@@ -38,9 +38,18 @@ export default function RoomScreen() {
   const params = useLocalSearchParams<{ id: string; name?: string; kind?: string }>();
   const id = params.id;
   const name = params.name ?? id;
-  const kind = (params.kind ?? 'channel') as RoomKind;
+  const spaceId = spaceIdFromRoomId(id);
   const { session } = useSession();
   const { markRoomRead, lastReadAt, hydrated } = useUnread();
+  // `kind` picks the read hook (stream vs merge-doc), so it MUST be authoritative.
+  // A notification open carries no `kind` on the wire (chat is E2EE) and the route
+  // param then defaults to 'channel' — which would load an automated/stream room via
+  // the wrong hook + storage path and show it empty. The shared rooms registry
+  // (resolves for owned, joined AND public spaces) is the source of truth; the route
+  // param is only an interim fallback while the registry read settles.
+  const { owner, rooms } = useRoomsRegistry(spaceId);
+  const registryRoom = rooms.find((r) => r.id === id) ?? null;
+  const kind = (registryRoom?.kind ?? params.kind ?? 'channel') as RoomKind;
   // A stream room is append-only (useStreamRoom); a channel/dm is a merge-doc room
   // (useRoom). An automated room is a stream room with a runner attached — same
   // pubstream storage, same hook. Both hooks are called unconditionally (React rules)
@@ -57,16 +66,12 @@ export default function RoomScreen() {
   // connection (handled in the Composer's onSend below).
   const { online, pending, retry, sendText } = useRoomSend({ roomId: id, kind, send });
 
-  // Owner-only "Connect a bot" panel for a PUBLIC stream room (mints a createPublicLink
-  // audience cap). Private streams enroll bots as keyring members instead, so no panel.
-  const spaceId = spaceIdFromRoomId(id);
-
-  // The space owner gates the per-message pin affordance, AND is the only author whose
-  // pin events count when folding `pinned` at render (see resolvePinned) — so every
-  // viewer needs it, not just the owner. Read from the shared registry (resolves for
-  // owned, joined AND public spaces); `use-room`'s own registry read is null for joiners.
-  const { owner, rooms } = useRoomsRegistry(spaceId);
-  const automatedRoom = isAutomated ? rooms.find((r) => r.id === id) ?? null : null;
+  // `owner`/`rooms` come from the shared registry read above (the kind source of
+  // truth). `owner` gates the per-message pin affordance AND is the only author whose
+  // pin events count when folding `pinned` at render (see resolvePinned), so every
+  // viewer needs it — `use-room`'s own registry read is null for joiners.
+  // Owner-only "Connect a bot" panel for a PUBLIC stream room is gated below.
+  const automatedRoom = isAutomated ? registryRoom : null;
   // Drive scheduled ticks + slash-command replies while the room is foreground.
   // Both hooks no-op when the room isn't automated or the device isn't the elected
   // runner (`automation.runOnDeviceId !== session.keys.edPub`).
