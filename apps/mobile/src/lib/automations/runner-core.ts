@@ -17,10 +17,12 @@ import type { AutomationProvider, RunResult } from './types';
 
 /** `fetch` bound to the global. Providers receive `httpFetch` and call it as
  *  `ctx.httpFetch(...)` — a method call whose receiver would be `ctx`. The native
- *  `fetch` rejects any receiver that isn't the global ("Failed to execute 'fetch'
- *  on 'Window': Illegal invocation"), so hand providers a receiver-independent
- *  wrapper instead of the bare reference. */
-const boundFetch: typeof fetch = (...args) => fetch(...args);
+ *  `fetch` brand-checks its receiver and rejects anything that isn't the global
+ *  ("Failed to execute 'fetch' on 'Window': Illegal invocation") — and that
+ *  includes `undefined`, so a bare `fetch(...args)` call (receiver `undefined`)
+ *  fails too. Invoke it explicitly as a method of `globalThis` so the receiver is
+ *  the global object. */
+const boundFetch: typeof fetch = (...args) => globalThis.fetch(...args);
 
 export type TickKind = 'scheduled' | { kind: 'command'; cmd: string; args: string[] };
 
