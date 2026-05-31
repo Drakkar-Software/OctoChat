@@ -6,18 +6,20 @@ import {
   deleteAutomatedRoom,
   rotateAutomatedRoomCredential,
   runAutomationTick,
+  tickStatusPatch,
   updateAutomatedRoom,
 } from '@/lib/automations/orchestrator';
 import { getProvider } from '@/lib/automations/providers';
 import { loadAutomationSecrets, saveAutomationSecrets } from '@/lib/automations/secrets';
 import type { Session } from '@/lib/starfish/identity';
 import type { Room } from '@/lib/types';
+import { useRoomsRegistryActions } from '@/lib/rooms-registry-context';
 import { useTheme } from '@/lib/use-theme';
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { CopyField } from '@/components/ui/CopyField';
-import { IntervalPicker } from '@/components/chat/IntervalPicker';
+import { IntervalPicker, type Cadence } from '@/components/chat/IntervalPicker';
 import { TextField } from '@/components/ui/TextField';
 import { Toggle } from '@/components/ui/Toggle';
 import { Txt } from '@/components/ui/Txt';
@@ -33,11 +35,15 @@ interface Props {
  *  explaining the room is managed elsewhere. */
 export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }: Props) {
   const { colors } = useTheme();
+  const { refresh, patchRoomAutomationLocal } = useRoomsRegistryActions();
   const auto = room.automation;
   const provider = auto ? getProvider(auto.providerId) : null;
   const [params, setParams] = useState<Record<string, unknown>>(auto?.params ?? {});
   const [secrets, setSecrets] = useState<Record<string, unknown>>({});
-  const [interval, setInterval] = useState<number>(auto?.intervalMin ?? 0);
+  const [cadence, setCadence] = useState<Cadence>({
+    intervalMin: auto?.intervalMin ?? 0,
+    onOpen: auto?.onOpen ?? false,
+  });
   const [enabled, setEnabled] = useState<boolean>(auto?.enabled ?? true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -87,13 +93,16 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
       await updateAutomatedRoom({
         session,
         room,
-        patch: { params, intervalMin: interval, enabled },
+        patch: { params, intervalMin: cadence.intervalMin, onOpen: cadence.onOpen, enabled },
       });
     });
 
   const runNow = () =>
     wrap('runNow', async () => {
-      await runAutomationTick({ session, room, trigger: 'scheduled', now: Date.now() });
+      const now = Date.now();
+      const outcome = await runAutomationTick({ session, room, trigger: 'scheduled', now });
+      // Reflect the run into the cache so the foreground driver doesn't immediately re-fire.
+      patchRoomAutomationLocal(room.spaceId, room.id, tickStatusPatch(outcome, now));
     });
 
   const takeOver = () =>
@@ -106,6 +115,7 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
   const remove = () =>
     wrap('delete', async () => {
       await deleteAutomatedRoom(session, room);
+      await refresh(room.spaceId);
       onDeleted();
     });
 
@@ -133,7 +143,7 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
               <Toggle value={enabled} onValueChange={setEnabled} accessibilityLabel="Enable automation" />
             </View>
 
-            <IntervalPicker value={interval} onChange={setInterval} />
+            <IntervalPicker value={cadence} onChange={setCadence} />
 
             {provider.paramFields.length ? (
               <>

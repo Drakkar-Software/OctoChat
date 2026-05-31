@@ -3,6 +3,17 @@ import type { Reaction, ReactionEvent } from './types';
 /** Emoji offered in the quick-reaction palette when adding a reaction. */
 export const QUICK_REACTIONS = ['👍', '😀', '😂', '❤️', '🎉', '🐙'] as const;
 
+/** Wider emoji set for the composer's insert palette — shown in a single
+ *  horizontal scroller (never wraps to a second line). */
+export const COMPOSER_EMOJIS = [
+  '👍', '👎', '👏', '🙏', '🙌', '🤝', '💪', '🫶',
+  '😀', '😄', '😂', '🤣', '😊', '😍', '😘', '😉',
+  '😎', '🤔', '😴', '😅', '😭', '😡', '🥳', '🤯',
+  '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '💯',
+  '🔥', '✨', '⭐', '🌊', '⚓', '🚀', '🎉', '🎊',
+  '✅', '❌', '⚠️', '💡', '👀', '👋', '🐙', '🦑',
+] as const;
+
 /** Fold append-only reaction events into per-emoji counts for one message. */
 export function aggregateReactions(events: ReactionEvent[], msgId: string, me: string): Reaction[] {
   const byEmoji = new Map<string, Set<string>>();

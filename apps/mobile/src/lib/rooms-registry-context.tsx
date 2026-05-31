@@ -31,7 +31,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import type { Room } from '@/lib/types';
+import type { AutomationMeta, Room } from '@/lib/types';
 
 import { kvGet, kvSet } from './starfish/kv';
 import { readRooms, reconcileSpaceMeta } from './starfish/registry';
@@ -108,6 +108,10 @@ interface RoomsRegistryActions {
   ensure: (spaceId: string) => Promise<RoomsRegistryEntry>;
   /** Force a fresh read (after an owner write). */
   refresh: (spaceId: string) => Promise<RoomsRegistryEntry>;
+  /** Optimistically merge a patch into a cached room's `automation` meta and
+   *  notify subscribers. In-memory only — the server write already happened in
+   *  `runAutomationTick`; this keeps the live cache from re-firing a just-run tick. */
+  patchRoomAutomationLocal: (spaceId: string, roomId: string, patch: Partial<AutomationMeta>) => void;
   /** Subscribe a consumer to a space (triggers `ensure`); returns an unsubscribe. */
   subscribe: (spaceId: string, cb: () => void) => () => void;
 }
@@ -205,6 +209,22 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
     return runFetch(spaceId);
   }, [runFetch]);
 
+  const patchRoomAutomationLocal = useCallback(
+    (spaceId: string, roomId: string, patch: Partial<AutomationMeta>) => {
+      const entry = entries.current.get(spaceId);
+      if (!entry) return;
+      const idx = entry.rooms.findIndex((r) => r.id === roomId);
+      if (idx === -1) return;
+      const room = entry.rooms[idx]!;
+      if (!room.automation) return;
+      const rooms = [...entry.rooms];
+      rooms[idx] = { ...room, automation: { ...room.automation, ...patch } };
+      entries.current.set(spaceId, { ...entry, rooms });
+      notify(spaceId);
+    },
+    [notify],
+  );
+
   const subscribe = useCallback((spaceId: string, cb: () => void) => {
     let set = listeners.current.get(spaceId);
     if (!set) {
@@ -243,8 +263,8 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
   }, [userId, notify]);
 
   const value = useMemo<RoomsRegistryActions>(
-    () => ({ get, ensure, refresh, subscribe }),
-    [get, ensure, refresh, subscribe],
+    () => ({ get, ensure, refresh, subscribe, patchRoomAutomationLocal }),
+    [get, ensure, refresh, subscribe, patchRoomAutomationLocal],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -1,6 +1,6 @@
 import { useCallback, useState, type MutableRefObject } from 'react';
 import type { NativeSyntheticEvent, StyleProp, TextInputKeyPressEventData, TextStyle } from 'react-native';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { fonts, glowShadow, radii, spacing, type as typeScale } from '@/theme';
@@ -9,7 +9,7 @@ import { useDraft } from '@/lib/use-draft';
 import { formatBytes } from '@/lib/format';
 import { tapFeedback } from '@/lib/haptics';
 import { pickFile, type PickedFile } from '@/lib/pick-file';
-import { QUICK_REACTIONS } from '@/lib/reactions';
+import { COMPOSER_EMOJIS } from '@/lib/reactions';
 import { useEmojiAutocomplete } from '@/lib/use-emoji-autocomplete';
 import { useFileDrop } from '@/lib/use-file-drop';
 import { useImagePaste } from '@/lib/use-image-paste';
@@ -112,8 +112,14 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey, offline }:
       ) : null}
 
       {emojiOpen && !emoji.open ? (
-        <View style={[styles.palette, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
-          {QUICK_REACTIONS.map((glyph) => (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          style={[styles.palette, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}
+          contentContainerStyle={styles.paletteRow}
+        >
+          {COMPOSER_EMOJIS.map((glyph) => (
             <Pressable
               key={glyph}
               accessibilityRole="button"
@@ -124,7 +130,7 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey, offline }:
               <Txt variant="subhead">{glyph}</Txt>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
       ) : null}
 
       {pending ? (
@@ -241,14 +247,18 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
   },
   palette: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-    alignSelf: 'flex-start',
+    // Single horizontal scroller — never wraps to a second line. flexGrow:0 keeps
+    // the bar's height tight to one row of items instead of stretching.
+    flexGrow: 0,
     marginBottom: spacing.sm,
-    padding: spacing.xs,
     borderRadius: radii.md,
     borderWidth: 1,
+  },
+  paletteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    padding: spacing.xs,
   },
   paletteItem: {
     width: 34,

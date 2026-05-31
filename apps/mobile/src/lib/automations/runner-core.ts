@@ -96,6 +96,7 @@ export function isDueForScheduledTick(room: Room, deviceId: string, now: number)
   const a = room.automation;
   if (!a || !a.enabled) return false;
   if (a.runOnDeviceId !== deviceId) return false;
+  if (a.onOpen) return true; // explicit always-on-open mode — no time gate
   if (a.intervalMin <= 0) return false;
   if (a.lastRunAt === null) return true;
   return now - a.lastRunAt >= a.intervalMin * 60_000;

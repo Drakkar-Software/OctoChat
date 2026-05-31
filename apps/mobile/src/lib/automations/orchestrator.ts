@@ -40,6 +40,7 @@ export async function createAutomatedRoom(opts: {
   params: Record<string, unknown>;
   secrets: Record<string, unknown>;
   intervalMin: number;
+  onOpen: boolean;
 }): Promise<Room> {
   const { session, spaceId } = opts;
   if (!isPublicSpaceId(spaceId)) throw new AutomationsNotSupportedHere();
@@ -56,6 +57,7 @@ export async function createAutomatedRoom(opts: {
     providerId: opts.providerId,
     params: opts.params,
     intervalMin: opts.intervalMin,
+    onOpen: opts.onOpen,
     enabled: true,
     credential,
     runOnDeviceId: session.keys.edPub,
@@ -94,6 +96,14 @@ export async function deleteAutomatedRoom(session: Session, room: Room): Promise
   await deleteRoomFromRegistry(session, room.spaceId, room.id);
 }
 
+/** The registry patch a tick outcome implies — `lastRunAt` advances (and the
+ *  error clears) unless the tick failed, in which case only `lastError` is set.
+ *  Shared by the server write-back AND the optimistic local cache update so the
+ *  two never drift. */
+export function tickStatusPatch(outcome: TickOutcome, now: number): Partial<AutomationMeta> {
+  return outcome.kind === 'failed' ? { lastError: outcome.error } : { lastRunAt: now, lastError: null };
+}
+
 /** Run one tick (scheduled or command) + write back lastRunAt / lastError. */
 export async function runAutomationTick(opts: {
   session: Session;
@@ -110,10 +120,7 @@ export async function runAutomationTick(opts: {
     trigger: opts.trigger,
     now: opts.now,
   });
-  const patch: Partial<AutomationMeta> =
-    outcome.kind === 'failed'
-      ? { lastError: outcome.error }
-      : { lastRunAt: opts.now, lastError: null };
+  const patch = tickStatusPatch(outcome, opts.now);
   // Best-effort registry update — a failure here doesn't undo the post that
   // already happened, it just means status is stale on other devices.
   try {

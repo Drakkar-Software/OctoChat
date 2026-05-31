@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
-import { IntervalPicker } from '@/components/chat/IntervalPicker';
+import { IntervalPicker, type Cadence } from '@/components/chat/IntervalPicker';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
@@ -34,7 +34,9 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
   const [params, setParams] = useState<Record<string, unknown>>({});
   const [secrets, setSecrets] = useState<Record<string, unknown>>({});
   const [name, setName] = useState('');
-  const [interval, setInterval] = useState<number>(provider?.fetch ? 60 : 0);
+  const [cadence, setCadence] = useState<Cadence>(
+    provider?.fetch ? { intervalMin: 60, onOpen: false } : { intervalMin: 0, onOpen: false },
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +47,7 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
     setParams({ ...p.defaults });
     setSecrets({});
     if (!name) setName(p.name.toLowerCase().replace(/\s+/g, '-'));
-    setInterval(p.fetch ? 60 : 0);
+    setCadence(p.fetch ? { intervalMin: 60, onOpen: false } : { intervalMin: 0, onOpen: false });
   };
 
   const submit = async () => {
@@ -73,7 +75,8 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
         providerId: picked.id,
         params,
         secrets,
-        intervalMin: interval,
+        intervalMin: cadence.intervalMin,
+        onOpen: cadence.onOpen,
       });
       onCreated(room.id);
     } catch (e) {
@@ -177,7 +180,7 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
                 })}
 
                 {picked.fetch ? (
-                  <IntervalPicker value={interval} onChange={setInterval} />
+                  <IntervalPicker value={cadence} onChange={setCadence} />
                 ) : (
                   <Callout tone="info" iconName="info">
                     Commands-only — this integration doesn't poll on a schedule.

@@ -100,6 +100,10 @@ export interface AutomationMeta {
   params: Record<string, unknown>;
   /** Scheduled-fetch cadence in minutes; `0` = commands-only (no scheduled run). */
   intervalMin: number;
+  /** When set, the automation fires on every room open / background check,
+   *  bypassing the `intervalMin` time gate (still single-runner + enabled-gated).
+   *  Optional → absent on pre-existing rooms, read as `false`. */
+  onOpen?: boolean;
   /** Off → ticker skips and `onCommand` ignores; the room itself still renders. */
   enabled: boolean;
   /** Bot write credential minted via `createStreamBotCredential` — token + endpoint. */

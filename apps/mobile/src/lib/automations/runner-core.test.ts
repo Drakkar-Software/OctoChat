@@ -50,6 +50,16 @@ describe('isDueForScheduledTick', () => {
     expect(isDueForScheduledTick(room({ lastRunAt: now - 16 * 60_000 }), 'device-A', now)).toBe(true); // 16 min ago
   });
 
+  it('onOpen is due even when last run was a moment ago', () => {
+    const now = 1_000_000;
+    expect(isDueForScheduledTick(room({ onOpen: true, lastRunAt: now - 1_000 }), 'device-A', now)).toBe(true);
+  });
+
+  it('onOpen still respects enabled + elected device', () => {
+    expect(isDueForScheduledTick(room({ onOpen: true, enabled: false }), 'device-A', 0)).toBe(false);
+    expect(isDueForScheduledTick(room({ onOpen: true }), 'device-B', 0)).toBe(false);
+  });
+
   it('returns false when room has no automation', () => {
     const r: Room = { id: 'r1', spaceId: 'psp-1', category: 'x', name: 'n', kind: 'channel' };
     expect(isDueForScheduledTick(r, 'device-A', 0)).toBe(false);

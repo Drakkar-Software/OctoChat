@@ -80,9 +80,11 @@ export function AutomationsView({ spaceId, header, inTabs = false }: Automations
               ? 'Disabled'
               : r.automation.lastError
                 ? 'Failed'
-                : r.automation.intervalMin === 0
-                  ? 'Commands-only'
-                  : `Every ${r.automation.intervalMin} min`;
+                : r.automation.onOpen
+                  ? 'On open'
+                  : r.automation.intervalMin === 0
+                    ? 'Commands-only'
+                    : `Every ${r.automation.intervalMin} min`;
             return (
               <View key={r.id} style={styles.item}>
                 <ListRow

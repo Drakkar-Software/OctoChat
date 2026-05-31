@@ -4,25 +4,36 @@ import { radii, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
 import { Txt } from '@/components/ui/Txt';
 
-/** Scheduled-fetch cadence presets for automated rooms. `0` = commands-only. */
-export const INTERVAL_OPTIONS: { label: string; min: number }[] = [
-  { label: 'Off', min: 0 },
-  { label: '15 min', min: 15 },
-  { label: '30 min', min: 30 },
-  { label: '1 h', min: 60 },
-  { label: '6 h', min: 360 },
-  { label: '24 h', min: 1440 },
+/** A scheduled-fetch cadence for an automated room. `onOpen` fires every room
+ *  open / background check (no time gate); otherwise `intervalMin` minutes is the
+ *  minimum gap (`0` = commands-only / off). The two are mutually exclusive in the UI. */
+export interface Cadence {
+  intervalMin: number;
+  onOpen: boolean;
+}
+
+/** Cadence presets, in display order. `onOpen` and the timed gaps are distinct
+ *  pills — no magic `intervalMin` value stands in for "always". */
+export const CADENCE_OPTIONS: { label: string; cadence: Cadence }[] = [
+  { label: 'Off', cadence: { intervalMin: 0, onOpen: false } },
+  { label: 'On open', cadence: { intervalMin: 0, onOpen: true } },
+  { label: '15 min', cadence: { intervalMin: 15, onOpen: false } },
+  { label: '30 min', cadence: { intervalMin: 30, onOpen: false } },
+  { label: '1 h', cadence: { intervalMin: 60, onOpen: false } },
+  { label: '6 h', cadence: { intervalMin: 360, onOpen: false } },
+  { label: '24 h', cadence: { intervalMin: 1440, onOpen: false } },
 ];
 
+const sameCadence = (a: Cadence, b: Cadence) => a.onOpen === b.onOpen && a.intervalMin === b.intervalMin;
+
 interface Props {
-  value: number;
-  onChange: (min: number) => void;
+  value: Cadence;
+  onChange: (cadence: Cadence) => void;
 }
 
 /** Schedule picker for automated rooms — a "Schedule" heading, a pill row of
- *  interval presets, and a best-effort-in-background note (shown once a cadence is
- *  set). Shared by the room creator and the settings sheet so the cadence UX and
- *  copy stay in one place. */
+ *  cadence presets, and a cadence-specific note. Shared by the room creator and
+ *  the settings sheet so the cadence UX and copy stay in one place. */
 export function IntervalPicker({ value, onChange }: Props) {
   const { colors } = useTheme();
   return (
@@ -31,13 +42,13 @@ export function IntervalPicker({ value, onChange }: Props) {
         Schedule
       </Txt>
       <View style={[styles.pillRow, { borderColor: colors.lineSoft }]}>
-        {INTERVAL_OPTIONS.map((opt) => {
-          const on = opt.min === value;
+        {CADENCE_OPTIONS.map((opt) => {
+          const on = sameCadence(opt.cadence, value);
           return (
             <Pressable
-              key={opt.min}
+              key={opt.label}
               accessibilityRole="button"
-              onPress={() => onChange(opt.min)}
+              onPress={() => onChange(opt.cadence)}
               style={[styles.pill, { backgroundColor: on ? colors.accentSoft : 'transparent' }]}
             >
               <Txt variant="caption" weight={on ? 'semibold' : 'regular'} color={on ? colors.accentInk : colors.inkMuted}>
@@ -47,7 +58,11 @@ export function IntervalPicker({ value, onChange }: Props) {
           );
         })}
       </View>
-      {value > 0 ? (
+      {value.onOpen ? (
+        <Txt variant="caption" tone="inkMuted">
+          Runs every time the room opens (and on each background check).
+        </Txt>
+      ) : value.intervalMin > 0 ? (
         <Txt variant="caption" tone="inkMuted">
           Runs exactly on schedule while the room is open. In the background the OS decides
           timing (best-effort, ~15 min minimum; paused while the device is off or locked).
