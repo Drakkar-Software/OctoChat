@@ -30,17 +30,21 @@ function RailItem({
   active,
   unread,
   isPublic,
+  privacy,
   muted,
   onPress,
 }: {
   label: string;
   image?: string;
-  /** When set, render this glyph centered instead of an image/monogram, and drop the
-   *  privacy corner — used by the virtual DM tile. */
+  /** When set, render this glyph centered instead of an image/monogram. The privacy
+   *  corner is dropped for icon tiles UNLESS `privacy` is set — used by the virtual
+   *  DM tile, which is an E2EE private space and shows the same lock as any space. */
   icon?: IconName;
   active: boolean;
   unread?: number;
   isPublic?: boolean;
+  /** Force-show the privacy corner even on an icon tile (the virtual DM tile). */
+  privacy?: boolean;
   muted?: boolean;
   onPress?: () => void;
 }) {
@@ -73,7 +77,7 @@ function RailItem({
           </Txt>
         )}
       </View>
-      {icon ? null : (
+      {icon && !privacy ? null : (
         <View style={[styles.corner, { backgroundColor: colors.paper, borderColor: colors.lineSoft }]}>
           <Icon name={isPublic ? 'globe' : 'lock'} size={8} color={colors.inkMuted} />
         </View>
@@ -99,7 +103,7 @@ export function SpaceRail({ spaces, activeId, onSelect, onAdd, onSelectDms, dmsA
   return (
     <View style={styles.rail}>
       {/* Virtual DM space — pinned first, lists every DM (see lib/dm-home). */}
-      <RailItem label={DM_HOME_SHORT} icon="people" active={!!dmsActive} unread={dmUnread} onPress={onSelectDms} />
+      <RailItem label={DM_HOME_SHORT} icon="people" privacy active={!!dmsActive} unread={dmUnread} onPress={onSelectDms} />
       {spaces.map((s) => (
         <RailItem
           key={s.id}

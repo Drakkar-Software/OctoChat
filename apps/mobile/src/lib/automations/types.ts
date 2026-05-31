@@ -6,7 +6,7 @@
  *   - `onCommand(cmd, args, params, ctx)` — slash-command reply: a user typed
  *     `/<cmd> args` in the room, the runner dispatches here, the bot posts the
  *     `{ text }` reply (or `{ skip: true }` for silent commands).
- * Both are optional — `rss` is fetch-only, `echo` is command-only.
+ * Both are optional — `rss` is fetch-only, `http` is command-only.
  */
 import type { IconName } from '@/components/ui/Icon';
 

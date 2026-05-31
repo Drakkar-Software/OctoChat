@@ -4,16 +4,13 @@ import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
 import { getProvider } from '@/lib/automations/providers';
 import type { Room } from '@/lib/types';
-import { useTheme } from '@/lib/use-theme';
 import { Callout } from '@/components/ui/Callout';
-import { Txt } from '@/components/ui/Txt';
 
 /** Tiny status + command-hint chip rendered in an automated room. Tells the
  *  viewer (a) which provider runs here, (b) which device is the runner, and
  *  (c) the available `/<commands>`. Hidden when the kind isn't automated. */
 export function AutomationHints({ room }: { room: Room }) {
   const { session } = useSession();
-  const { colors } = useTheme();
   const auto = room.automation;
   if (!auto) return null;
   const provider = getProvider(auto.providerId);
@@ -37,20 +34,16 @@ export function AutomationHints({ room }: { room: Room }) {
     ? 'Running on another device'
     : 'No device elected to run';
   const tone: 'info' | 'warning' = auto.lastError ? 'warning' : 'info';
+  // The provider name is the Callout title (its own line); status + the command
+  // hint go in the body, newline-joined — Callout wraps children in a single
+  // <Txt>, so sibling <Txt> nodes would render inline ("RSS feedRunning on…").
+  const hint = provider.commands?.length
+    ? `Try ${provider.commands.map((c) => c.usage).join(' · ')}`
+    : null;
   return (
     <View style={styles.wrap}>
-      <Callout tone={tone} iconName={tone === 'warning' ? 'alert' : 'info'}>
-        <Txt variant="footnote" weight="semibold">
-          {provider.name}
-        </Txt>
-        <Txt variant="caption" tone="inkMuted">
-          {statusLabel}
-        </Txt>
-        {provider.commands && provider.commands.length ? (
-          <Txt variant="caption" tone="inkMuted" style={{ color: colors.inkMuted }}>
-            Try {provider.commands.map((c) => c.usage).join(' · ')}
-          </Txt>
-        ) : null}
+      <Callout tone={tone} iconName={tone === 'warning' ? 'alert' : 'info'} title={provider.name}>
+        {hint ? `${statusLabel}\n${hint}` : statusLabel}
       </Callout>
     </View>
   );

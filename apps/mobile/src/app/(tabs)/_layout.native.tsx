@@ -5,6 +5,7 @@ import { fonts } from '@/theme';
 import { useResponsive } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
 import { useUnread } from '@/lib/unread-context';
+import { useTotalDmUnread } from '@/lib/use-dms';
 
 /**
  * Native (iOS / Android) bottom tabs. Renders the real platform tab bar —
@@ -29,6 +30,8 @@ export default function NativeTabsLayout() {
   const { isWide } = useResponsive();
   const { totalUnread } = useUnread();
   const badge = totalUnread > 0 ? (totalUnread > 99 ? '99+' : String(totalUnread)) : undefined;
+  const dmUnread = useTotalDmUnread();
+  const dmBadge = dmUnread > 0 ? (dmUnread > 99 ? '99+' : String(dmUnread)) : undefined;
   return (
     <NativeTabs
       // On wide native layouts (iPad / foldable) the AppFrame desktop sidebar
@@ -56,9 +59,10 @@ export default function NativeTabsLayout() {
         <NativeTabs.Trigger.Label>Threads</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="message-square" />} />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="automations">
-        <NativeTabs.Trigger.Label>Automations</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="refresh-cw" />} />
+      <NativeTabs.Trigger name="dms">
+        <NativeTabs.Trigger.Label>DMs</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="users" />} />
+        <NativeTabs.Trigger.Badge hidden={!dmBadge}>{dmBadge}</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="you">
         <NativeTabs.Trigger.Label>You</NativeTabs.Trigger.Label>

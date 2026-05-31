@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { echoProvider } from './providers/echo';
 import { httpProvider } from './providers/http';
 import { rssProvider } from './providers/rss';
 import { getProvider, PROVIDERS } from './providers';
@@ -14,27 +13,12 @@ const ctx = (over: Partial<RunCtx> = {}): RunCtx => ({
 });
 
 describe('catalog', () => {
-  it('exports rss/http/echo by id', () => {
-    expect(PROVIDERS.map((p) => p.id).sort()).toEqual(['echo', 'http', 'rss']);
+  it('exports rss/http by id', () => {
+    expect(PROVIDERS.map((p) => p.id).sort()).toEqual(['http', 'rss']);
   });
   it('getProvider returns null for unknown ids', () => {
     expect(getProvider('nope')).toBeNull();
-    expect(getProvider('echo')?.id).toBe('echo');
-  });
-});
-
-describe('echo provider', () => {
-  it('replies with the argument text', async () => {
-    const r = (await echoProvider.onCommand!('echo', ['hello', 'world'], {}, ctx())) as { text: string };
-    expect(r.text).toBe('hello world');
-  });
-  it('skips an unknown command', async () => {
-    const r = (await echoProvider.onCommand!('weather', [], {}, ctx())) as RunResult;
-    expect(r).toEqual({ skip: true });
-  });
-  it('returns usage on empty input', async () => {
-    const r = (await echoProvider.onCommand!('echo', [], {}, ctx())) as { text: string };
-    expect(r.text).toMatch(/Usage/);
+    expect(getProvider('rss')?.id).toBe('rss');
   });
 });
 

@@ -94,7 +94,7 @@ export type RoomKind = 'channel' | 'private' | 'dm' | 'stream' | 'automated';
  *  Secret provider params (API keys etc.) live in device-local kv instead — see
  *  `src/lib/automations/secrets.ts`. */
 export interface AutomationMeta {
-  /** FK into the built-in provider catalog (e.g. 'rss' / 'http' / 'echo'). */
+  /** FK into the built-in provider catalog (e.g. 'rss' / 'http'). */
   providerId: string;
   /** Non-secret provider params (URLs, locations, etc.). */
   params: Record<string, unknown>;

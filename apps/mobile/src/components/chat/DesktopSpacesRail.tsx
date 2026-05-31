@@ -141,6 +141,10 @@ export function DesktopSpacesRail({
             <Badge count={dmUnread} />
           </View>
         ) : null}
+        {/* DMs are E2EE private spaces — same lock corner as any private space. */}
+        <View style={[styles.corner, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
+          <Icon name="lock" size={9} color={colors.inkMuted} />
+        </View>
       </Pressable>
       {spaces.map((s) => (
         <SpaceTile

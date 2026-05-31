@@ -4,7 +4,7 @@ import { isDueForScheduledTick } from './runner-core';
 import type { AutomationMeta, Room } from '../types';
 
 const META: AutomationMeta = {
-  providerId: 'echo',
+  providerId: 'rss',
   params: {},
   intervalMin: 15,
   enabled: true,
