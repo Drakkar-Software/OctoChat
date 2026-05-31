@@ -16,11 +16,12 @@ import { Txt } from '@/components/ui/Txt';
  * only reports the result of the check.
  */
 export function UpdateSettingsCard() {
-  const { version, status, checking, pending, check } = useUpdateCheck();
+  const { version, updatedAt, status, checking, pending, check } = useUpdateCheck();
 
   return (
     <Card title="APP">
       <Row iconName="info" title="Version" detail={version} detailMono />
+      {updatedAt ? <Row iconName="clock" title="Last update" detail={updatedAt} detailMono /> : null}
       <Divider style={styles.divider} />
       <View style={styles.action}>
         <Button

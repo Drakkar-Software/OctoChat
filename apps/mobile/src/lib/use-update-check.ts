@@ -14,9 +14,22 @@ export function appVersion(): string {
   return desktopVersion() ?? Constants.expoConfig?.version ?? '—';
 }
 
+/** When the currently-running OTA bundle was published, formatted for display.
+ *  Null in dev, on web, and on desktop where expo-updates is a no-op (so we
+ *  never show a bogus date); a real EAS build reports `Updates.createdAt`. */
+function lastUpdateDate(): string | null {
+  if (isDesktop() || !Updates.isEnabled) return null;
+  return Updates.createdAt
+    ? Updates.createdAt.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+    : null;
+}
+
 interface UpdateCheck {
   /** The running app version, for display. */
   version: string;
+  /** When the running OTA bundle was published, formatted; null where
+   *  expo-updates is a no-op (dev, web, desktop). */
+  updatedAt: string | null;
   /** Result of the last check (or `idle` before one runs). */
   status: UpdateStatus;
   /** A check is in flight. */
@@ -93,5 +106,12 @@ export function useUpdateCheck(): UpdateCheck {
     }
   };
 
-  return { version: appVersion(), status, checking: status === 'checking', pending, check };
+  return {
+    version: appVersion(),
+    updatedAt: lastUpdateDate(),
+    status,
+    checking: status === 'checking',
+    pending,
+    check,
+  };
 }

@@ -5,6 +5,7 @@ import { BackHandler, StyleSheet } from 'react-native';
 import { spacing } from '@/theme';
 import { useAutomationCommands } from '@/lib/automations/use-automation-commands';
 import { useAutomationDriver } from '@/lib/automations/use-automation-driver';
+import { useIsAutomationLeader } from '@/lib/automations/leader';
 import { useSession } from '@/lib/session-context';
 import { useRoomsRegistry } from '@/lib/rooms-registry-context';
 import { roomDraftKey } from '@/lib/use-draft';
@@ -74,9 +75,12 @@ export default function RoomScreen() {
   const automatedRoom = isAutomated ? registryRoom : null;
   // Drive scheduled ticks + slash-command replies while the room is foreground.
   // Both hooks no-op when the room isn't automated or the device isn't the elected
-  // runner (`automation.runOnDeviceId !== session.keys.edPub`).
-  useAutomationDriver({ session, room: automatedRoom });
-  useAutomationCommands({ session, room: automatedRoom, store });
+  // runner (`automation.runOnDeviceId !== session.keys.edPub`). `isLeader` further
+  // serializes across same-account instances (two web tabs share an edPub) so one
+  // instance ticks / replies, not both (see leader.ts).
+  const isLeader = useIsAutomationLeader(isAutomated ? id : null);
+  useAutomationDriver({ session, room: automatedRoom, active: isLeader });
+  useAutomationCommands({ session, room: automatedRoom, store, active: isLeader });
   const [showAutomationSheet, setShowAutomationSheet] = useState(false);
   const isOwner = !!owner && session?.userId === owner;
   const onPinMessage = (msgId: string, pin: boolean) => (pin ? pinMessage(msgId) : unpinMessage(msgId));

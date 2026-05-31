@@ -10,6 +10,12 @@
  */
 import { kvGet, kvSet } from './starfish/kv';
 
+/** Selectable desktop notification chime (synthesized in `notification-sound.ts`).
+ *  Web/desktop-only; ignored on native (push sound is OS/channel-controlled). */
+export type NotificationSound = 'ping' | 'pop' | 'chime' | 'blip';
+
+export const NOTIFICATION_SOUNDS: NotificationSound[] = ['ping', 'pop', 'chime', 'blip'];
+
 export interface NotificationSettings {
   /** Master switch — off silences everything (web/desktop toasts AND native push
    *  topic subscriptions). */
@@ -22,12 +28,17 @@ export interface NotificationSettings {
   preview: boolean;
   /** Play a sound with the notification (web/desktop: the toast isn't silent). */
   sound: boolean;
+  /** Which chime to play on desktop (the renderer synthesizes it; see
+   *  `notification-sound.ts`). Honored only on desktop — web toasts use the OS
+   *  default sound and native push follows the platform channel. */
+  soundName: NotificationSound;
 }
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   enabled: true,
   preview: false,
   sound: true,
+  soundName: 'ping',
 };
 
 const settingsKey = (userId: string) => `octochat.notifications.${userId}`;
@@ -63,9 +74,14 @@ export function resetNotificationSettings(): void {
 function coerce(raw: unknown): NotificationSettings {
   if (!raw || typeof raw !== 'object') return DEFAULT_NOTIFICATION_SETTINGS;
   const r = raw as Partial<Record<keyof NotificationSettings, unknown>>;
-  const pick = (k: keyof NotificationSettings) =>
+  const pick = (k: 'enabled' | 'preview' | 'sound') =>
     typeof r[k] === 'boolean' ? (r[k] as boolean) : DEFAULT_NOTIFICATION_SETTINGS[k];
-  return { enabled: pick('enabled'), preview: pick('preview'), sound: pick('sound') };
+  // soundName is a string enum, not a boolean — an unknown/garbage value falls
+  // back to the default rather than passing through.
+  const soundName = NOTIFICATION_SOUNDS.includes(r.soundName as NotificationSound)
+    ? (r.soundName as NotificationSound)
+    : DEFAULT_NOTIFICATION_SETTINGS.soundName;
+  return { enabled: pick('enabled'), preview: pick('preview'), sound: pick('sound'), soundName };
 }
 
 /** Read this identity's persisted settings (does NOT mutate the snapshot — the

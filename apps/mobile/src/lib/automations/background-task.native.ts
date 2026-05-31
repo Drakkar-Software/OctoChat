@@ -77,6 +77,10 @@ TaskManager.defineTask(AUTOMATION_TASK, async () => {
         const rooms = await readPublicRooms(client, ownerId, space.id);
         for (const room of rooms) {
           if (!room.automation) continue;
+          // `onOpen` automations fire on an in-app open event (focus / AppState-active);
+          // a headless wake has no "open", so running them here would turn "on open" into
+          // "every ~15 min in the background". Skip them — timed cadences only.
+          if (room.automation.onOpen) continue;
           // Gate enforces enabled + this device is the elected runner + intervalMin > 0
           // + elapsed since lastRunAt — a cheap no-op otherwise.
           if (!isDueForScheduledTick(room, session.keys.edPub, now)) continue;

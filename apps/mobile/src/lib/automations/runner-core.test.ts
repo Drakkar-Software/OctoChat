@@ -8,7 +8,8 @@ const META: AutomationMeta = {
   params: {},
   intervalMin: 15,
   enabled: true,
-  credential: { token: 't', endpoint: 'e', signPath: '/push/x' },
+  // Sealed in production; `isDueForScheduledTick` never reads it, so a placeholder is fine.
+  credential: {} as AutomationMeta['credential'],
   runOnDeviceId: 'device-A',
   lastRunAt: null,
   lastError: null,

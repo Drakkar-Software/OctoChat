@@ -106,18 +106,27 @@ export interface AutomationMeta {
   onOpen?: boolean;
   /** Off → ticker skips and `onCommand` ignores; the room itself still renders. */
   enabled: boolean;
-  /** Bot write credential minted via `createStreamBotCredential` — token + endpoint. */
-  credential: {
-    token: string;
-    endpoint: string;
-    signPath: string;
-    expiresAt?: number;
-  };
+  /** Bot write credential (`createStreamBotCredential`: token + endpoint + signPath),
+   *  SEALED to the minting account key (see `account-seal.ts` `sealToSelf`) before it
+   *  enters this synced PLAINTEXT registry doc. The token is a bearer audience cap;
+   *  sealing keeps a space reader from lifting it to forge bot posts. Opened by the
+   *  runner before posting + the settings sheet to display it. Like the `pubAccess` and
+   *  DM-keyring seals, it binds to the SEED-derived key, so it opens on the minting
+   *  device or a seed-restored device — NOT a QR-paired device (fresh keypair). Manage
+   *  automations from the primary device; `rotateAutomatedRoomCredential` re-seals to
+   *  whichever device rotates. A LEGACY pre-seal room stored this in the clear — see
+   *  `openStreamBotCredential` for the back-compat read. */
+  credential: SealedBlob;
   /** The deterministic id of the device elected to run this automation. Other
    *  devices see status but never fire — single-runner election avoids dup posts. */
   runOnDeviceId: string | null;
   /** Last successful tick (epoch ms) — synced for cross-device status display. */
   lastRunAt: number | null;
+  /** Hash of the last text a scheduled fetch posted. The runner re-hashes each
+   *  fetch and skips the post when it matches, so an unchanged feed/endpoint isn't
+   *  reposted every interval. Optional → absent on pre-existing rooms (read null).
+   *  Only scheduled fetches write it; slash-command posts never touch it. */
+  lastFetchHash?: string | null;
   /** Last error message — set on throw, cleared on success. */
   lastError: string | null;
 }

@@ -16,6 +16,7 @@
  */
 import { createPublicLink } from '@drakkar.software/starfish-sharing';
 
+import { unsealFromSelf, type SealedBlob } from './account-seal';
 import { SYNC_BASE } from './config';
 import type { Session } from './identity';
 import { pubstreamRoomPush, pubstreamBotScope } from './paths';
@@ -30,6 +31,19 @@ export interface StreamBotCredential {
   signPath: string;
   /** Absolute expiry (unix seconds) of the credential, if a TTL was set. */
   expiresAt?: number;
+}
+
+/** Open a stored automation bot credential. Current rooms store it SEALED to the owner
+ *  key (`mintSealedCredential`) — unseal with the seed. A LEGACY room (created before
+ *  the seal) stored the credential in the clear; detect that by its `token` and return
+ *  it as-is so the automation keeps working until the owner rotates (which re-seals).
+ *  No new exposure: a legacy credential was already plaintext in the synced doc. */
+export async function openStreamBotCredential(
+  session: Session,
+  stored: SealedBlob | StreamBotCredential,
+): Promise<StreamBotCredential> {
+  if (typeof (stored as Partial<StreamBotCredential>).token === 'string') return stored as StreamBotCredential;
+  return JSON.parse(await unsealFromSelf(session, stored as SealedBlob)) as StreamBotCredential;
 }
 
 /**

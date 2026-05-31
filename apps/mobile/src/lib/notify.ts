@@ -16,8 +16,10 @@
  */
 import { router } from 'expo-router';
 
-import { focusDesktopWindow } from './desktop';
+import { focusDesktopWindow, isDesktop } from './desktop';
 import { APP_NAME, notificationTitle } from './notification-format';
+import { playNotificationSound } from './notification-sound';
+import type { NotificationSound } from './notification-settings';
 import {
   openRoomFromNotification,
   type OpenRoomFromNotificationDeps,
@@ -40,6 +42,8 @@ export function ensureNotifyPermission(): void {
 interface NotifyOptions {
   /** When true the toast is shown without a sound. */
   silent?: boolean;
+  /** Desktop only: which chime to synthesize (ignored when `silent`). */
+  soundName?: NotificationSound;
   /** Toast title — the resolved "Space › #room" header; defaults to the app name. */
   title?: string;
   /**
@@ -55,19 +59,19 @@ export function notifyNewMessage(roomId: string, body = GENERIC_BODY, options: N
   // Don't notify while the user is actively looking at the app.
   if (typeof document !== 'undefined' && document.hasFocus()) return;
   try {
-    // Per-room tag so each room's latest toast stays distinct and clickable
-    // (a single shared tag would collapse them all into one). A repeat message in
-    // the same room reuses the tag, so the OS *replaces* the prior toast rather
-    // than stacking a duplicate — `renotify` re-alerts (sound/banner) on that
-    // replacement so a follow-up message isn't silently swapped in. This mirrors
-    // the per-room grouping the native push sets (`tag` on Android, `thread-id`
-    // on iOS); see docs/push-fcm.md "Notification grouping".
+    // On desktop the toast sound is unreliable (Chromium's Windows toast often
+    // shows but stays silent), and the HTML5 API can't pick a sound anyway. So
+    // there we fire the toast *silent* and synthesize our own selectable chime
+    // (see `notification-sound.ts`); on plain web the OS toast sound is fine, so
+    // we keep driving it with the `silent` flag.
+    const desktop = isDesktop();
     const n = new Notification(options.title ?? APP_NAME, {
       body,
       tag: `octochat-message-${roomId}`,
       renotify: true,
-      silent: options.silent,
+      silent: desktop ? true : options.silent,
     } as NotificationOptions & { renotify: boolean });
+    if (desktop && !options.silent) playNotificationSound(options.soundName ?? 'ping');
     n.onclick = () => {
       focusDesktopWindow(); // no-op on web; brings the Electron window forward
       // Resolve name/kind + focus the space when deps are wired (same path as the
@@ -119,5 +123,5 @@ export async function notifyRoomChange(
     const preview = await loadLatestMessagePreview(session, roomId).catch(() => null);
     if (preview) body = preview;
   }
-  notifyNewMessage(roomId, body, { silent: !settings.sound, nav, title });
+  notifyNewMessage(roomId, body, { silent: !settings.sound, soundName: settings.soundName, nav, title });
 }

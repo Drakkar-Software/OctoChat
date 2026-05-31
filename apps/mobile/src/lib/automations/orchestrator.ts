@@ -4,8 +4,9 @@
  * (settings sheet, add-room flow, command watcher) calls a single function per
  * operation rather than re-orchestrating each time.
  */
+import { sealToSelf, type SealedBlob } from '../starfish/account-seal';
 import { isPublicSpaceId, publicSpaceAuth, createPublicRoom } from '../starfish/pubspace';
-import { createStreamBotCredential, type StreamBotCredential } from '../starfish/stream-bots';
+import { createStreamBotCredential } from '../starfish/stream-bots';
 import type { Session } from '../starfish/identity';
 import type { AutomationMeta, Room } from '../types';
 
@@ -16,16 +17,22 @@ import { getProvider } from './providers';
 
 const BOT_TTL_SEC = 365 * 24 * 3600;
 
-/** Build a fresh credential for an automated room. Pure side-effect on the bot
- *  link mint — the caller persists the result into the registry. */
-async function mintCredential(
+/** Mint a fresh bot credential for an automated room and SEAL it to the minting
+ *  account key, so the bearer token never enters the synced registry in the clear
+ *  (a space reader would otherwise lift it and forge bot posts). The caller persists
+ *  the sealed blob into the registry; the runner / settings sheet open it with the seed
+ *  (`openStreamBotCredential`). The seal binds to the seed-derived key — it opens on the
+ *  minting device or a seed-restored device, NOT a QR-paired device (which has a fresh
+ *  keypair), exactly like the `pubAccess` + DM-keyring seals. */
+async function mintSealedCredential(
   session: Session,
   spaceId: string,
   roomId: string,
-): Promise<StreamBotCredential> {
+): Promise<SealedBlob> {
   if (!isPublicSpaceId(spaceId)) throw new AutomationsNotSupportedHere();
   const { ownerId } = publicSpaceAuth(session, spaceId);
-  return createStreamBotCredential(session, ownerId, spaceId, roomId, { ttlSec: BOT_TTL_SEC });
+  const cred = await createStreamBotCredential(session, ownerId, spaceId, roomId, { ttlSec: BOT_TTL_SEC });
+  return sealToSelf(session, JSON.stringify(cred));
 }
 
 /** Public-space-only: create a new automated room AND stamp its automation meta
@@ -50,8 +57,8 @@ export async function createAutomatedRoom(opts: {
   const room = await createPublicRoom(session, spaceId, opts.name, opts.category ?? 'AUTOMATIONS', 'automated');
   // 2. Save secret params under the new room id.
   await saveAutomationSecrets(session.userId, room.id, opts.secrets);
-  // 3. Mint the bot credential scoped to THIS room.
-  const credential = await mintCredential(session, spaceId, room.id);
+  // 3. Mint the bot credential scoped to THIS room (sealed to the owner key).
+  const credential = await mintSealedCredential(session, spaceId, room.id);
   // 4. Stamp the automation meta — device elects itself as the runner by default.
   const meta: AutomationMeta = {
     providerId: opts.providerId,
@@ -85,7 +92,7 @@ export async function updateAutomatedRoom(opts: {
  *  Doesn't revoke the old one (audience caps aren't revocable client-side); the
  *  old credential becomes orphaned and expires per its TTL. */
 export async function rotateAutomatedRoomCredential(session: Session, room: Room): Promise<void> {
-  const credential = await mintCredential(session, room.spaceId, room.id);
+  const credential = await mintSealedCredential(session, room.spaceId, room.id);
   await patchRoomAutomation(session, room.spaceId, room.id, { credential });
 }
 
@@ -98,10 +105,16 @@ export async function deleteAutomatedRoom(session: Session, room: Room): Promise
 
 /** The registry patch a tick outcome implies — `lastRunAt` advances (and the
  *  error clears) unless the tick failed, in which case only `lastError` is set.
+ *  A scheduled post also carries `lastFetchHash` so the next tick can dedup.
  *  Shared by the server write-back AND the optimistic local cache update so the
- *  two never drift. */
+ *  two never drift — keeping `lastFetchHash` on THIS patch is load-bearing: it's
+ *  what carries the cursor into the in-memory cache, without which the next open
+ *  re-hashes against a stale value and reposts (the bug `lastRunAt` had). */
 export function tickStatusPatch(outcome: TickOutcome, now: number): Partial<AutomationMeta> {
-  return outcome.kind === 'failed' ? { lastError: outcome.error } : { lastRunAt: now, lastError: null };
+  if (outcome.kind === 'failed') return { lastError: outcome.error };
+  const patch: Partial<AutomationMeta> = { lastRunAt: now, lastError: null };
+  if (outcome.kind === 'posted' && outcome.hash !== undefined) patch.lastFetchHash = outcome.hash;
+  return patch;
 }
 
 /** Run one tick (scheduled or command) + write back lastRunAt / lastError. */
@@ -110,6 +123,8 @@ export async function runAutomationTick(opts: {
   room: Room;
   trigger: TickKind;
   now: number;
+  /** Bypass the content-hash dedup — set by a manual "Run now" so it always posts. */
+  force?: boolean;
 }): Promise<TickOutcome> {
   const provider = opts.room.automation && getProvider(opts.room.automation.providerId);
   if (!provider) return { kind: 'skipped' };
@@ -119,6 +134,7 @@ export async function runAutomationTick(opts: {
     provider,
     trigger: opts.trigger,
     now: opts.now,
+    force: opts.force,
   });
   const patch = tickStatusPatch(outcome, opts.now);
   // Best-effort registry update — a failure here doesn't undo the post that

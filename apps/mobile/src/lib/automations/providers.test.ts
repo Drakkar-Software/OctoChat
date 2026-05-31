@@ -42,6 +42,30 @@ describe('http provider', () => {
     await httpProvider.onCommand!('get', ['users/1'], { baseUrl: 'https://api.example.com' }, ctx({ httpFetch }));
     expect(seen).toBe('https://api.example.com/users/1');
   });
+  it('scheduled fetch skips when no poll URL is set', async () => {
+    const r = (await httpProvider.fetch!({}, ctx())) as RunResult;
+    expect(r).toEqual({ skip: true });
+  });
+  it('scheduled fetch GETs the poll URL and posts status + body', async () => {
+    const httpFetch = (async () => new Response('live', { status: 200 })) as typeof fetch;
+    const r = (await httpProvider.fetch!({ pollUrl: 'https://x.test/s' }, ctx({ httpFetch }))) as { text: string };
+    expect(r.text).toContain('GET https://x.test/s → 200');
+    expect(r.text).toContain('live');
+  });
+  it('scheduled fetch POSTs with the configured body', async () => {
+    let seenInit: RequestInit | undefined;
+    const httpFetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      seenInit = init;
+      return new Response('ok', { status: 201 });
+    }) as typeof fetch;
+    const r = (await httpProvider.fetch!(
+      { pollUrl: 'https://x.test/s', pollMethod: 'post', pollBody: '{"a":1}' },
+      ctx({ httpFetch }),
+    )) as { text: string };
+    expect(seenInit?.method).toBe('POST');
+    expect(seenInit?.body).toBe('{"a":1}');
+    expect(r.text).toContain('POST https://x.test/s → 201');
+  });
 });
 
 describe('rss provider', () => {

@@ -81,6 +81,11 @@ function createWindow(): void {
       // Keep timers/JS running at full rate when the window is hidden in the
       // tray, so the SSE stream and notification path don't get throttled.
       backgroundThrottling: false,
+      // Let the notification chime (Web Audio, see mobile `notification-sound.ts`)
+      // play even with no recent user gesture — a toast fires after the window
+      // has sat idle in the tray, when Chromium's default policy would otherwise
+      // keep a resumed AudioContext silent.
+      autoplayPolicy: 'no-user-gesture-required',
       additionalArguments: [`--app-version=${app.getVersion()}`],
     },
   });

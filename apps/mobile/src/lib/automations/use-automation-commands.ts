@@ -36,8 +36,9 @@ export function useAutomationCommands(opts: {
   session: Session | null;
   room: Room | null;
   store: ConversationStore | null;
+  active?: boolean;
 }) {
-  const { session, room, store } = opts;
+  const { session, room, store, active = true } = opts;
   const processedRef = useRef<Set<string>>(new Set());
   const baselineRef = useRef<number>(0);
 
@@ -48,6 +49,7 @@ export function useAutomationCommands(opts: {
   }, [room?.id]);
 
   useEffect(() => {
+    if (!active) return; // not the elected leader instance (see leader.ts) — don't reply twice
     if (!session || !room || !room.automation || !store) return;
     if (room.automation.runOnDeviceId !== session.keys.edPub) return; // only the elected runner replies
     if (!room.automation.enabled) return;
@@ -78,5 +80,5 @@ export function useAutomationCommands(opts: {
       const data = (state as unknown as { data?: StreamData }).data;
       if (data?.messages) dispatch(data.messages);
     });
-  }, [session, room, store]);
+  }, [active, session, room, store]);
 }

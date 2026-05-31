@@ -13,7 +13,7 @@
  */
 import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 import { mintMemberCap } from '@drakkar.software/starfish-sharing';
-import { StarfishHttpError } from '@drakkar.software/starfish-client';
+import { ConflictError, StarfishHttpError } from '@drakkar.software/starfish-client';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { PubAccessMap, Room, RoomKind, Space } from '@/lib/types';
@@ -392,17 +392,32 @@ export async function updatePublicRoomsRegistry(
   mutator: (cur: { rooms: Room[]; categories: string[] }) => { rooms: Room[]; categories: string[] } | null,
 ): Promise<void> {
   const client = session.accountClient;
-  const { rooms, name, image, categories, hash } = await readPublicRoomsDoc(client, session.userId, spaceId);
-  const next = mutator({ rooms, categories });
-  if (!next) return;
-  const doc: PublicRoomsDoc = {
-    v: 1,
-    rooms: next.rooms,
-    ...(name ? { name } : {}),
-    ...(image ? { image } : {}),
-    ...(next.categories.length ? { categories: next.categories } : {}),
-  };
-  await client.push(pubspaceRoomsPush(session.userId, spaceId), doc as unknown as Record<string, unknown>, hash);
+  // Read-modify-write through a bounded conflict-retry loop — the public-registry
+  // twin of `updateRoomsRegistry`. Every automation tick rewrites this whole doc to
+  // bump `lastRunAt`/`lastFetchHash`, so ticks contend with each other and with user
+  // edits; without re-reading on a 409 a concurrent write throws and the dedup cursor
+  // never persists (→ a duplicate repost on the next device). The mutator runs on
+  // FRESH state each attempt so it can't clobber a sibling's write.
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const { rooms, name, image, categories, hash } = await readPublicRoomsDoc(client, session.userId, spaceId);
+    const next = mutator({ rooms, categories });
+    if (!next) return;
+    const doc: PublicRoomsDoc = {
+      v: 1,
+      rooms: next.rooms,
+      ...(name ? { name } : {}),
+      ...(image ? { image } : {}),
+      ...(next.categories.length ? { categories: next.categories } : {}),
+    };
+    try {
+      await client.push(pubspaceRoomsPush(session.userId, spaceId), doc as unknown as Record<string, unknown>, hash);
+      return;
+    } catch (err) {
+      if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
+      throw err;
+    }
+  }
 }
 
 /** Owner: create an (empty) category in a public space. No-op on a duplicate name. */

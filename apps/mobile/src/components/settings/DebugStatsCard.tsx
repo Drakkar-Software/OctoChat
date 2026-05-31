@@ -1,7 +1,7 @@
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { SYNC_BASE, SYNC_NAMESPACE } from '@/lib/starfish/config';
+import { SYNC_BASE } from '@/lib/starfish/config';
 import { useFcmTopicCount } from '@/lib/push/use-fcm-topic-count';
 import { useServerHealth, type HealthStatus } from '@/lib/use-server-health';
 import { useTheme } from '@/lib/use-theme';
@@ -51,17 +51,6 @@ export function DebugStatsCard() {
               {STATUS_LABEL[status]}
             </Txt>
           </View>
-        }
-      />
-      <Divider style={styles.divider} />
-      <Row
-        iconName="globe"
-        title="Namespace"
-        detail="Path prefix baked into this build"
-        right={
-          <Txt variant="callout" weight="semibold" mono>
-            {SYNC_NAMESPACE ? `/v1/${SYNC_NAMESPACE}` : '(none)'}
-          </Txt>
         }
       />
       {Platform.OS !== 'web' ? (

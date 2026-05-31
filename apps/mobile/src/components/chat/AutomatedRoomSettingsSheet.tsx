@@ -11,6 +11,7 @@ import {
 } from '@/lib/automations/orchestrator';
 import { getProvider } from '@/lib/automations/providers';
 import { loadAutomationSecrets, saveAutomationSecrets } from '@/lib/automations/secrets';
+import { openStreamBotCredential, type StreamBotCredential } from '@/lib/starfish/stream-bots';
 import type { Session } from '@/lib/starfish/identity';
 import type { Room } from '@/lib/types';
 import { useRoomsRegistryActions } from '@/lib/rooms-registry-context';
@@ -47,6 +48,10 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
   const [enabled, setEnabled] = useState<boolean>(auto?.enabled ?? true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The bot credential rides the synced doc SEALED to the owner key — unseal it here
+  // (any owner device can) to surface the copyable token/endpoint. Re-runs on rotate
+  // (the sealed `ct` changes). Stays null on a non-owner / failed unseal → fields hidden.
+  const [cred, setCred] = useState<StreamBotCredential | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +62,21 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
       cancelled = true;
     };
   }, [session.userId, room.id]);
+
+  useEffect(() => {
+    if (!auto) return;
+    let cancelled = false;
+    void openStreamBotCredential(session, auto.credential)
+      .then((c) => {
+        if (!cancelled) setCred(c);
+      })
+      .catch(() => {
+        if (!cancelled) setCred(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [session, auto?.credential.ct]);
 
   if (!auto || !provider) {
     return (
@@ -100,7 +120,8 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
   const runNow = () =>
     wrap('runNow', async () => {
       const now = Date.now();
-      const outcome = await runAutomationTick({ session, room, trigger: 'scheduled', now });
+      // force: a manual run always posts, even if the content is unchanged.
+      const outcome = await runAutomationTick({ session, room, trigger: 'scheduled', now, force: true });
       // Reflect the run into the cache so the foreground driver doesn't immediately re-fire.
       patchRoomAutomationLocal(room.spaceId, room.id, tickStatusPatch(outcome, now));
     });
@@ -193,8 +214,12 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
             <Txt variant="footnote" weight="semibold">
               Bot credential
             </Txt>
-            <CopyField label="Token" value={auto.credential.token} lines={3} />
-            <CopyField label="Endpoint" value={auto.credential.endpoint} lines={2} />
+            {cred ? (
+              <>
+                <CopyField label="Token" value={cred.token} lines={3} />
+                <CopyField label="Endpoint" value={cred.endpoint} lines={2} />
+              </>
+            ) : null}
             <Button label="Rotate credential" iconName="refresh" variant="ghost" onPress={rotate} loading={busy === 'rotate'} />
 
             {error ? (

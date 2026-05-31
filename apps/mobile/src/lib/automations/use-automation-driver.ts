@@ -28,16 +28,26 @@ import type { Room } from '../types';
 import { runAutomationTick, tickStatusPatch } from './orchestrator';
 import { isDueForScheduledTick } from './runner-core';
 
-export function useAutomationDriver(opts: { session: Session | null; room: Room | null }) {
-  const { session, room } = opts;
+/** Min gap between two `onOpen` fires. `onOpen` has no time gate in the due-check, so
+ *  an AppState→active storm (pulling and dismissing the notification shade re-fires
+ *  'active' each time) would otherwise re-tick it repeatedly — collapse those into one. */
+const ONOPEN_DEBOUNCE_MS = 30_000;
+
+export function useAutomationDriver(opts: { session: Session | null; room: Room | null; active?: boolean }) {
+  const { session, room, active = true } = opts;
   const { patchRoomAutomationLocal } = useRoomsRegistryActions();
   const inFlight = useRef(false);
+  const lastFireRef = useRef(0);
 
   const maybeTick = useCallback(async () => {
     if (inFlight.current) return; // reentrancy guard — focus + AppState can fire together
+    if (!active) return; // not the elected leader instance (see leader.ts) — stay passive
     if (!session || !room || !room.automation) return;
     const now = Date.now();
     if (!isDueForScheduledTick(room, session.keys.edPub, now)) return;
+    // Debounce ungated `onOpen` re-fires (timed cadences are already gated by lastRunAt).
+    if (room.automation.onOpen && now - lastFireRef.current < ONOPEN_DEBOUNCE_MS) return;
+    lastFireRef.current = now;
     inFlight.current = true;
     try {
       const outcome = await runAutomationTick({ session, room, trigger: 'scheduled', now });
@@ -47,7 +57,7 @@ export function useAutomationDriver(opts: { session: Session | null; room: Room 
     } finally {
       inFlight.current = false;
     }
-  }, [session, room, patchRoomAutomationLocal]);
+  }, [active, session, room, patchRoomAutomationLocal]);
 
   // Stable handle for the discrete-event triggers (focus / AppState). Reading
   // through a ref keeps their callbacks identity-stable, so the re-render from a
@@ -73,6 +83,14 @@ export function useAutomationDriver(opts: { session: Session | null; room: Room 
     });
     return () => sub.remove();
   }, []);
+
+  // Tick when this instance BECOMES the leader — a lock handoff (another tab closed) or a
+  // grant that lands just after the focus tick already ran would otherwise leave a due
+  // automation waiting for the next focus/interval. Gated by isDue + inFlight, so it's a
+  // cheap no-op when nothing's due.
+  useEffect(() => {
+    if (active) void maybeTick();
+  }, [active, maybeTick]);
 
   // Periodic re-check for TIMED cadences only — an "on open" automation fires on the
   // open event (focus / AppState-active), not repeatedly while the room sits open.
