@@ -15,6 +15,13 @@ import { dedupeFetch } from './hash';
 import { loadAutomationSecrets } from './secrets';
 import type { AutomationProvider, RunResult } from './types';
 
+/** `fetch` bound to the global. Providers receive `httpFetch` and call it as
+ *  `ctx.httpFetch(...)` — a method call whose receiver would be `ctx`. The native
+ *  `fetch` rejects any receiver that isn't the global ("Failed to execute 'fetch'
+ *  on 'Window': Illegal invocation"), so hand providers a receiver-independent
+ *  wrapper instead of the bare reference. */
+const boundFetch: typeof fetch = (...args) => fetch(...args);
+
 export type TickKind = 'scheduled' | { kind: 'command'; cmd: string; args: string[] };
 
 export type TickOutcome =
@@ -61,14 +68,14 @@ export async function tickRoom(opts: {
       result = await provider.fetch(mergedParams, {
         lastRunAt: auto.lastRunAt,
         secretParams: secrets,
-        httpFetch: fetch,
+        httpFetch: boundFetch,
       });
     } else {
       if (!provider.onCommand) return { kind: 'skipped' };
       result = await provider.onCommand(trigger.cmd, trigger.args, mergedParams, {
         lastRunAt: auto.lastRunAt,
         secretParams: secrets,
-        httpFetch: fetch,
+        httpFetch: boundFetch,
       });
     }
   } catch (e) {
