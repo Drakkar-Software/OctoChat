@@ -60,7 +60,7 @@ describe('updateSpacesDoc', () => {
     }));
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: { x: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {} },
+      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: { x: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {}, quickReactions: [] },
       'h1',
     );
   });
@@ -75,7 +75,7 @@ describe('updateSpacesDoc', () => {
     }));
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'a' }], caps: { x: '1', y: '2' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {} },
+      { v: 1, spaces: [{ id: 'a' }], caps: { x: '1', y: '2' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {}, quickReactions: [] },
       'h1',
     );
   });
@@ -94,7 +94,7 @@ describe('updateSpacesDoc', () => {
     }));
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { a: sealed }, dms: {} },
+      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { a: sealed }, dms: {}, quickReactions: [] },
       'h1',
     );
   });
@@ -133,7 +133,7 @@ describe('updateSpacesDoc', () => {
     }));
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [], caps: { a: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {} },
+      { v: 1, spaces: [], caps: { a: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {}, quickReactions: [] },
       null,
     );
   });
@@ -155,7 +155,7 @@ describe('addJoinedSpaceWithCap', () => {
     await addJoinedSpaceWithCap(fakeClient(pull, push), 'u', SPACE('a'), 'CAP');
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'a' }], caps: { a: 'CAP' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {} },
+      { v: 1, spaces: [{ id: 'a' }], caps: { a: 'CAP' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {}, quickReactions: [] },
       'h',
     );
   });
@@ -166,7 +166,7 @@ describe('addJoinedSpaceWithCap', () => {
     await addJoinedSpaceWithCap(fakeClient(pull, push), 'u', SPACE('b'), 'CB');
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: { a: 'CA', b: 'CB' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {} },
+      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: { a: 'CA', b: 'CB' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {}, quickReactions: [] },
       'h',
     );
   });
@@ -180,7 +180,7 @@ describe('addJoinedPublicSpaceWithAccess', () => {
     await addJoinedPublicSpaceWithAccess(fakeClient(pull, push), 'u', SPACE('p'), sealed);
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'a' }, SPACE('p')], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { p: sealed }, dms: {} },
+      { v: 1, spaces: [{ id: 'a' }, SPACE('p')], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { p: sealed }, dms: {}, quickReactions: [] },
       'h',
     );
   });
@@ -195,7 +195,7 @@ describe('addJoinedPublicSpaceWithAccess', () => {
     await addJoinedPublicSpaceWithAccess(fakeClient(pull, push), 'u', SPACE('p'), sealed);
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'p' }], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { p: sealed }, dms: {} },
+      { v: 1, spaces: [{ id: 'p' }], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { p: sealed }, dms: {}, quickReactions: [] },
       'h',
     );
   });
@@ -229,6 +229,7 @@ describe('updateReadsDoc', () => {
         reads: { rooms: { r1: 100, r2: 200 } },
         pubAccess: { a: sealed },
         dms: {},
+        quickReactions: [],
       },
       'h1',
     );
@@ -278,6 +279,7 @@ describe('updateDmsDoc / setDmMapping', () => {
         reads: { rooms: { r1: 100 } },
         pubAccess: {},
         dms: { peerA: 'dm-1', peerB: 'dm-2' },
+        quickReactions: [],
       },
       'h1',
     );
@@ -293,7 +295,7 @@ describe('updateDmsDoc / setDmMapping', () => {
     }));
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [], caps: { a: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: { p: 'dm-x' } },
+      { v: 1, spaces: [], caps: { a: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: { p: 'dm-x' }, quickReactions: [] },
       'h',
     );
   });
@@ -304,7 +306,7 @@ describe('updateDmsDoc / setDmMapping', () => {
     await setDmMapping(fakeClient(pull, push), 'u', 'peerA', 'dm-1');
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: { peerA: 'dm-1' } },
+      { v: 1, spaces: [], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: { peerA: 'dm-1' }, quickReactions: [] },
       'h',
     );
   });
@@ -326,6 +328,7 @@ describe('readSpaces', () => {
     expect(res.caps).toEqual({});
     expect(res.pubAccess).toEqual({});
     expect(res.dms).toEqual({});
+    expect(res.quickReactions).toEqual([]);
     expect(res.spaces).toEqual([{ id: 'a' }]);
   });
 
@@ -341,6 +344,7 @@ describe('readSpaces', () => {
       reads: { rooms: {} },
       pubAccess: {},
       dms: {},
+      quickReactions: [],
       hash: null,
     });
   });
