@@ -1,9 +1,10 @@
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { layout, radii, spacing } from '@/theme';
+import { layout, spacing } from '@/theme';
 import type { Room, RoomKind, Space } from '@/lib/types';
 import type { ThreadSummary } from '@/lib/threads';
-import type { RoomCategory } from '@/lib/use-rooms';
+import { excludeAutomatedRooms, type RoomCategory } from '@/lib/use-rooms';
+import { DOCS_SECTIONS, PROJECTS_SECTIONS } from '@/lib/work-placeholder';
 import { useOnline } from '@/lib/connectivity';
 import { DM_HOME_NAME } from '@/lib/dm-home';
 import type { DmEntry } from '@/lib/use-dms';
@@ -115,7 +116,6 @@ export function DesktopRoomSidebar({
   const online = useOnline();
   const { mode, setMode } = useViewMode();
   const headerHover = useHover();
-  const jumpHover = useHover();
 
   // The virtual DM space: same sidebar shell, a "Direct Messages" header over the full
   // DM list — no jump-to, nav group or categories (none apply to DMs).
@@ -167,26 +167,8 @@ export function DesktopRoomSidebar({
       </Pressable>
 
       <View style={styles.switcher}>
-        <ModeSwitcher mode={mode} onChange={setMode} />
+        <ModeSwitcher mode={mode} onChange={setMode} onSearch={onJumpTo} />
       </View>
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Jump to a room"
-        onPress={onJumpTo}
-        {...jumpHover.hoverProps}
-        style={[styles.jump, { backgroundColor: colors.fill, borderColor: jumpHover.hovered ? colors.accentBorder : colors.lineFaint }]}
-      >
-        <Icon name="search" size={12} color={colors.inkMuted} />
-        <Txt variant="footnote" tone="inkMuted" style={styles.jumpLabel}>
-          Jump to…
-        </Txt>
-        {Platform.OS === 'web' ? (
-          <Txt variant="micro" mono tone="inkMuted">
-            ⌘K
-          </Txt>
-        ) : null}
-      </Pressable>
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
         {/* The mode switcher swaps THIS list only — the open room in the main
@@ -201,8 +183,10 @@ export function DesktopRoomSidebar({
             onOpenAutomations={onOpenAutomations}
             automationsActive={automationsActive}
           />
-        ) : mode === 'work' ? (
-          <WorkPanel />
+        ) : mode === 'docs' ? (
+          <WorkPanel sections={DOCS_SECTIONS} note="Docs and knowledge live here soon — a preview of the workspace." />
+        ) : mode === 'projects' ? (
+          <WorkPanel sections={PROJECTS_SECTIONS} note="Projects and boards live here soon — a preview of the workspace." />
         ) : (
           <>
             {!online ? (
@@ -234,7 +218,7 @@ export function DesktopRoomSidebar({
               </Txt>
             ) : (
               <RoomCategoryList
-                categories={categories}
+                categories={excludeAutomatedRooms(categories)}
                 userId={userId}
                 spaceId={space?.id ?? ''}
                 activeRoomId={activeRoomId}
@@ -266,18 +250,6 @@ const styles = StyleSheet.create({
   },
   headerText: { flex: 1, minWidth: 0, gap: 2 },
   switcher: { paddingHorizontal: spacing.md, paddingTop: spacing.sm },
-  jump: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    height: 30,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-  },
-  jumpLabel: { flex: 1 },
   list: { flex: 1 },
   listContent: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.lg },
   navGroup: { paddingBottom: spacing.sm },

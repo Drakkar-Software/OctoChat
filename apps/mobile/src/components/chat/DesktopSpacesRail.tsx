@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 
 import { glowShadow, layout, radii, spacing } from '@/theme';
@@ -145,60 +145,63 @@ export function DesktopSpacesRail({
     : undefined;
   return (
     <View style={[styles.rail, { width: layout.railWidth, backgroundColor: colors.paperAlt, borderRightColor: colors.lineSoft }]}>
-      {/* Virtual DM space — pinned first, lists every DM (see lib/dm-home). */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={DM_HOME_NAME}
-        onPress={onSelectDms}
-        style={styles.tileWrap}
-      >
-        <View
-          style={[
-            styles.tile,
-            {
-              borderRadius: dmsActive ? radii.lg : radii.xl,
-              backgroundColor: dmsActive ? colors.accent : colors.fill,
-              borderColor: dmsActive ? 'transparent' : colors.lineFaint,
-              borderWidth: dmsActive ? 0 : 1,
-            },
-            dmsActive ? glowShadow(colors.glow, 0.3, 8) : null,
-          ]}
+      {/* The tile column scrolls vertically when spaces outgrow the viewport; the
+          identity foot stays pinned below it. */}
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Virtual DM space — pinned first, lists every DM (see lib/dm-home). */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={DM_HOME_NAME}
+          onPress={onSelectDms}
+          style={styles.tileWrap}
         >
-          <Icon name="dm" size={20} color={dmsActive ? colors.onAccent : colors.inkSoft} />
-        </View>
-        {dmUnread ? (
-          <View style={styles.badge}>
-            <Badge count={dmUnread} />
+          <View
+            style={[
+              styles.tile,
+              {
+                borderRadius: dmsActive ? radii.lg : radii.xl,
+                backgroundColor: dmsActive ? colors.accent : colors.fill,
+                borderColor: dmsActive ? 'transparent' : colors.lineFaint,
+                borderWidth: dmsActive ? 0 : 1,
+              },
+              dmsActive ? glowShadow(colors.glow, 0.3, 8) : null,
+            ]}
+          >
+            <Icon name="dm" size={20} color={dmsActive ? colors.onAccent : colors.inkSoft} />
           </View>
-        ) : null}
-        {/* DMs are E2EE private spaces — same lock corner as any private space. */}
-        <View style={[styles.corner, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
-          <Icon name="lock" size={9} color={colors.inkMuted} />
-        </View>
-      </Pressable>
-      {spaces.map((s) => (
-        <SpaceTile
-          key={s.id}
-          spaceId={s.id}
-          label={s.short}
-          image={s.image}
-          active={s.id === activeId}
-          unread={s.unread}
-          isPublic={(s.type ?? 'private') === 'public'}
-          muted={isSpaceMuted(s.id)}
-          onPress={() => onSelect?.(s.id)}
-          onDropSpace={onDropSpace}
-        />
-      ))}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Create or join a space"
-        onPress={onAdd}
-        style={[styles.tile, styles.add, { borderColor: colors.lineSoft }]}
-      >
-        <Icon name="plus" size={16} color={colors.inkMuted} />
-      </Pressable>
-      <View style={styles.spacer} />
+          {dmUnread ? (
+            <View style={styles.badge}>
+              <Badge count={dmUnread} />
+            </View>
+          ) : null}
+          {/* DMs are E2EE private spaces — same lock corner as any private space. */}
+          <View style={[styles.corner, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
+            <Icon name="lock" size={9} color={colors.inkMuted} />
+          </View>
+        </Pressable>
+        {spaces.map((s) => (
+          <SpaceTile
+            key={s.id}
+            spaceId={s.id}
+            label={s.short}
+            image={s.image}
+            active={s.id === activeId}
+            unread={s.unread}
+            isPublic={(s.type ?? 'private') === 'public'}
+            muted={isSpaceMuted(s.id)}
+            onPress={() => onSelect?.(s.id)}
+            onDropSpace={onDropSpace}
+          />
+        ))}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Create or join a space"
+          onPress={onAdd}
+          style={[styles.tile, styles.add, { borderColor: colors.lineSoft }]}
+        >
+          <Icon name="plus" size={16} color={colors.inkMuted} />
+        </Pressable>
+      </ScrollView>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Accounts"
@@ -219,6 +222,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
+  scroll: { alignSelf: 'stretch', flex: 1 },
+  // Vertical padding clears the absolutely-positioned unread badges from the scroll clip.
+  scrollContent: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
   tileWrap: { position: 'relative' },
   tile: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   add: { borderRadius: radii.xl, borderWidth: 1, borderStyle: 'dashed' },
@@ -245,6 +251,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  spacer: { flex: 1 },
   foot: { alignItems: 'center', gap: spacing.sm },
 });

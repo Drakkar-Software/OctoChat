@@ -10,6 +10,10 @@ import { Txt } from '@/components/ui/Txt';
 interface ModeSwitcherProps {
   mode: ViewMode;
   onChange: (mode: ViewMode) => void;
+  /** Trailing search affordance, pinned to the end of the row in the same
+   *  segment style (icon-only). Desktop passes this in place of the old
+   *  "Jump to…" input; mobile omits it (its header carries search). */
+  onSearch?: () => void;
 }
 
 /**
@@ -19,7 +23,7 @@ interface ModeSwitcherProps {
  * {@link useViewMode}. Reused verbatim in the desktop sidebar and the mobile
  * rooms screen, so it carries no width or platform assumptions.
  */
-export function ModeSwitcher({ mode, onChange }: ModeSwitcherProps) {
+export function ModeSwitcher({ mode, onChange, onSearch }: ModeSwitcherProps) {
   return (
     <View style={styles.row}>
       {VIEW_MODES.map((m) => (
@@ -31,6 +35,13 @@ export function ModeSwitcher({ mode, onChange }: ModeSwitcherProps) {
           onPress={() => onChange(m.key)}
         />
       ))}
+      {onSearch ? (
+        <>
+          <View style={styles.spacer} />
+          {/* Never "active" — an icon-only segment that routes to search. */}
+          <ModeSegment active={false} label="Search" iconName="search" onPress={onSearch} />
+        </>
+      ) : null}
     </View>
   );
 }
@@ -72,6 +83,7 @@ function ModeSegment({
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  spacer: { flex: 1 },
   segment: {
     flexDirection: 'row',
     alignItems: 'center',

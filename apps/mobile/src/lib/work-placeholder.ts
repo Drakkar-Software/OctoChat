@@ -1,12 +1,12 @@
 /**
- * Placeholder content for the **Work** view mode — docs, projects and knowledge
- * management land here later. For now it ships a Notion-style page tree so the
- * mode reads as a real surface ("to have a look") without any backing data or
- * routing. Every row is inert; the {@link WorkSection.future} flag dims a group
- * the feature hasn't reached yet.
+ * Placeholder content for the **Docs** and **Projects** view modes — docs,
+ * knowledge, projects and boards land here later. For now each ships a
+ * Notion-style page tree so the modes read as real surfaces ("to have a look")
+ * without any backing data or routing. Every row is inert; the
+ * {@link WorkSection.future} flag dims a group the feature hasn't reached yet.
  *
  * Lives in `lib` (not a component) so the sidebar/screen stay declarative and
- * the sample tree is swapped for live data in one place when Work ships.
+ * the sample trees are swapped for live data in one place when these ship.
  */
 import type { IconName } from '@/components/ui/Icon';
 
@@ -28,7 +28,8 @@ export interface WorkSection {
   future?: boolean;
 }
 
-export const WORK_SECTIONS: WorkSection[] = [
+/** The **Docs** mode tree — written documents plus the knowledge base. */
+export const DOCS_SECTIONS: WorkSection[] = [
   {
     title: 'Docs',
     iconName: 'book',
@@ -40,6 +41,20 @@ export const WORK_SECTIONS: WorkSection[] = [
     ],
   },
   {
+    title: 'Knowledge',
+    iconName: 'layers',
+    items: [
+      { id: 'kn-security', emoji: '🛡️', label: 'Security Audits', hint: 'Restricted' },
+      { id: 'kn-playbook', emoji: '💬', label: 'Support Playbook', hint: 'Shared' },
+      { id: 'kn-glossary', emoji: '📖', label: 'Glossary', hint: 'Knowledge base' },
+    ],
+    future: true,
+  },
+];
+
+/** The **Projects** mode tree — initiatives plus their boards. */
+export const PROJECTS_SECTIONS: WorkSection[] = [
+  {
     title: 'Projects',
     iconName: 'target',
     items: [
@@ -47,15 +62,14 @@ export const WORK_SECTIONS: WorkSection[] = [
       { id: 'proj-design', emoji: '🎨', label: 'Design System', hint: 'Shared' },
       { id: 'proj-launch', emoji: '🚀', label: 'Launch Plan', hint: 'Draft' },
     ],
-    future: true,
   },
   {
-    title: 'Knowledge',
+    title: 'Boards',
     iconName: 'layers',
     items: [
-      { id: 'kn-security', emoji: '🛡️', label: 'Security Audits', hint: 'Restricted' },
-      { id: 'kn-playbook', emoji: '💬', label: 'Support Playbook', hint: 'Shared' },
-      { id: 'kn-glossary', emoji: '📖', label: 'Glossary', hint: 'Knowledge base' },
+      { id: 'board-sprint', emoji: '🏃', label: 'Current Sprint', hint: 'Kanban' },
+      { id: 'board-backlog', emoji: '📋', label: 'Backlog', hint: 'Prioritized' },
+      { id: 'board-bugs', emoji: '🐛', label: 'Bug Triage', hint: 'Open issues' },
     ],
     future: true,
   },

@@ -29,6 +29,19 @@ export interface RoomCategory {
   rooms: Room[];
 }
 
+/**
+ * Drop `kind: 'automated'` rooms from the category list — they belong to the
+ * **Agents** view, not the **Chat** room list ({@link ModeSwitcher}). A category
+ * that held only agents is removed too, so Chat shows no empty header; a category
+ * that was already empty (an owner's freshly-created, unfilled one) is kept so the
+ * owner can still add rooms to it.
+ */
+export function excludeAutomatedRooms(categories: RoomCategory[]): RoomCategory[] {
+  return categories
+    .map((c) => ({ ...c, rooms: c.rooms.filter((r) => r.kind !== 'automated') }))
+    .filter((c, i) => c.rooms.length > 0 || categories[i].rooms.length === 0);
+}
+
 /** Adding a channel/category writes the `space:owner`-gated room registry, so only
  *  the owner may do it; a member is told to ask rather than the call rejecting. */
 const NOT_OWNER_MESSAGE = 'Only the space owner can manage channels — ask the owner to do this.';

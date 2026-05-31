@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 
 import { radii, spacing } from '@/theme';
@@ -101,7 +101,12 @@ export function SpaceRail({ spaces, activeId, onSelect, onAdd, onSelectDms, dmsA
   const { colors } = useTheme();
   const { isSpaceMuted } = useMutes();
   return (
-    <View style={styles.rail}>
+    // Horizontal scroll so a long space list pans sideways instead of clipping.
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.rail}
+    >
       {/* Virtual DM space — pinned first, lists every DM (see lib/dm-home). */}
       <RailItem label={DM_HOME_SHORT} icon="dm" privacy active={!!dmsActive} unread={dmUnread} onPress={onSelectDms} />
       {spaces.map((s) => (
@@ -124,12 +129,13 @@ export function SpaceRail({ spaces, activeId, onSelect, onAdd, onSelectDms, dmsA
       >
         <Icon name="plus" size={16} color={colors.inkMuted} />
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  rail: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
+  // Top padding clears the absolutely-positioned unread badges from the scroll clip.
+  rail: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center', paddingTop: spacing.xs, paddingRight: spacing.sm },
   itemWrap: { position: 'relative' },
   tile: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   add: { borderRadius: radii.lg, borderWidth: 1, borderStyle: 'dashed' },

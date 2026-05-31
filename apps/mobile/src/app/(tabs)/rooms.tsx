@@ -7,7 +7,8 @@ import { DM_HOME_ID, isDmHomeId } from '@/lib/dm-home';
 import { useInShell } from '@/lib/use-responsive';
 import { useSession } from '@/lib/session-context';
 import { useSpaceNav } from '@/lib/use-space-nav';
-import { useRooms } from '@/lib/use-rooms';
+import { excludeAutomatedRooms, useRooms } from '@/lib/use-rooms';
+import { DOCS_SECTIONS, PROJECTS_SECTIONS } from '@/lib/work-placeholder';
 import { useSpaces } from '@/lib/use-spaces';
 import { useDms, useTotalDmUnread, type DmEntry } from '@/lib/use-dms';
 import { useViewMode } from '@/lib/view-mode';
@@ -116,8 +117,10 @@ export default function RoomsScreen() {
                   : undefined
               }
             />
-          ) : mode === 'work' ? (
-            <WorkPanel />
+          ) : mode === 'docs' ? (
+            <WorkPanel sections={DOCS_SECTIONS} note="Docs and knowledge live here soon — a preview of the workspace." />
+          ) : mode === 'projects' ? (
+            <WorkPanel sections={PROJECTS_SECTIONS} note="Projects and boards live here soon — a preview of the workspace." />
           ) : (
             <>
               {/* Hoisted above the empty-state so an offline user is always told WHY the
@@ -138,7 +141,7 @@ export default function RoomsScreen() {
                     />
                   ) : null}
                   <RoomCategoryList
-                    categories={categories}
+                    categories={excludeAutomatedRooms(categories)}
                     userId={session.userId}
                     spaceId={activeId ?? space?.id ?? ''}
                     onOpenRoom={openRoom}

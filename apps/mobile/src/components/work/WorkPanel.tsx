@@ -3,25 +3,33 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { radii, spacing } from '@/theme';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
-import { WORK_SECTIONS, type WorkItem, type WorkSection } from '@/lib/work-placeholder';
+import { type WorkItem, type WorkSection } from '@/lib/work-placeholder';
 import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 
+interface WorkPanelProps {
+  /** The placeholder tree to render (e.g. Docs or Projects sections). */
+  sections: WorkSection[];
+  /** Lead-in callout copy describing what the mode will hold. */
+  note: string;
+}
+
 /**
- * Body of the **Work** view mode — a placeholder docs / projects / knowledge
- * tree styled after Notion's sidebar so the mode reads as a real surface before
- * the feature exists. Rows are inert (no routing yet); future areas dim. Data
- * comes from {@link WORK_SECTIONS}. A plain `<View>` to nest cleanly inside the
- * desktop sidebar scroll and the mobile rooms scroll alike.
+ * Body of the placeholder workspace modes (**Docs**, **Projects**) — a
+ * Notion-style page tree styled after Notion's sidebar so each mode reads as a
+ * real surface before the feature exists. Rows are inert (no routing yet);
+ * future areas dim. The {@link sections} tree comes from `work-placeholder`. A
+ * plain `<View>` to nest cleanly inside the desktop sidebar scroll and the
+ * mobile rooms scroll alike.
  */
-export function WorkPanel() {
+export function WorkPanel({ sections, note }: WorkPanelProps) {
   return (
     <View style={styles.panel}>
       <Callout tone="info" iconName="info">
-        Docs, projects and knowledge live here soon — a preview of the workspace.
+        {note}
       </Callout>
-      {WORK_SECTIONS.map((section) => (
+      {sections.map((section) => (
         <WorkSectionGroup key={section.title} section={section} />
       ))}
     </View>
