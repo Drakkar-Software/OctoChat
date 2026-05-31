@@ -24,7 +24,7 @@ import { usePathname } from 'expo-router';
 
 import type { DmMap, Space } from '@/lib/types';
 
-import { createSpace as createSpaceDoc, onSpaceMeta, readSpaces } from './starfish/registry';
+import { createSpace as createSpaceDoc, onSpaceMeta, readSpaces, reorderSpaces as reorderSpacesDoc } from './starfish/registry';
 import { healDmMap, isDmSpaceId, reconcileDmInbox } from './starfish/dm';
 import { createPublicSpace } from './starfish/pubspace';
 import { consumePrimedSpaces } from './spaces-prime';
@@ -44,6 +44,10 @@ interface SpacesContextValue {
   loading: boolean;
   refresh: () => Promise<void>;
   createSpace: (name: string, type?: 'private' | 'public') => Promise<Space | null>;
+  /** Persist a new rail order (an explicit list of rail space ids). Reorders the local
+   *  list optimistically, then writes it to the synced doc so it follows the user across
+   *  devices; re-reads to recover if the write fails. */
+  reorderSpaces: (orderedRailIds: string[]) => Promise<void>;
 }
 
 /** Drop DM spaces — they never belong in the space rail / switcher. */
@@ -195,9 +199,30 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     [session, refresh],
   );
 
+  const reorderSpaces = useCallback(
+    async (orderedRailIds: string[]) => {
+      if (!session) return;
+      // Optimistic: reorder the local rail to match the dropped order immediately, so the
+      // tile lands without waiting for the round-trip. Tail entries `orderedRailIds`
+      // didn't mention (shouldn't happen for the rail, but defensive) keep their place.
+      const order = new Map(orderedRailIds.map((id, i) => [id, i]));
+      const reordered = (list: Space[]) =>
+        [...list].sort((a, b) => (order.get(a.id) ?? Infinity) - (order.get(b.id) ?? Infinity));
+      setSpaces((prev) => reordered(prev));
+      try {
+        await reorderSpacesDoc(session.accountClient, session.userId, orderedRailIds);
+      } catch {
+        // Write failed — re-read the authoritative doc so the rail can't drift from the
+        // server (e.g. a stuck optimistic order the next device never sees).
+        void refresh().catch(() => {});
+      }
+    },
+    [session, refresh],
+  );
+
   const value = useMemo<SpacesContextValue>(
-    () => ({ spaces, dms, activeId, setActiveId, loading, refresh, createSpace }),
-    [spaces, dms, activeId, loading, refresh, createSpace],
+    () => ({ spaces, dms, activeId, setActiveId, loading, refresh, createSpace, reorderSpaces }),
+    [spaces, dms, activeId, loading, refresh, createSpace, reorderSpaces],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

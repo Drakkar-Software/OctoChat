@@ -31,7 +31,7 @@ export function DesktopNav() {
   const params = useGlobalSearchParams<{ id?: string; roomId?: string }>();
   const { profile } = useProfile();
   const { session } = useSession();
-  const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
+  const { spaces, activeId, setActiveId, loading: spacesLoading, reorderSpaces } = useSpaces();
   const isDmHome = isDmHomeId(activeId);
   const navId = isDmHome ? null : activeId; // the virtual DM space has no registry doc
   const { categories, loading: roomsLoading, isPublic, memberCount, isOwner, createRoom, createCategory, moveRoom } =
@@ -95,6 +95,7 @@ export function DesktopNav() {
         meLabel={meLabel}
         meAvatar={profile?.avatar}
         onOpenProfile={() => router.push('/(tabs)/you')}
+        onReorder={(ids) => void reorderSpaces(ids)}
       />
       {showRoomSidebar &&
         (isDmHome ? (

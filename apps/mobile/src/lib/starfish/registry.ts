@@ -293,6 +293,39 @@ export async function writeSpaces(
   await updateSpacesDoc(client, userId, (cur) => ({ spaces, caps: cur.caps, pubAccess: cur.pubAccess }));
 }
 
+/**
+ * Reorder the joined-space list to match `order` (an explicit list of space ids).
+ * Mirrors {@link reorderCategories}: the FRESH server array is sorted to follow
+ * `order`, then any id NOT in `order` is appended in its existing relative position —
+ * so a space joined on another device (or a DM space, which the rail filters out and
+ * never lists in `order`) is never orphaned out of the doc. Conflict-retried via
+ * {@link updateSpacesDoc}; last-writer-wins on the array, which only races across a
+ * user's own devices. A no-op (order already matches) skips the write.
+ */
+export async function reorderSpaces(
+  client: StarfishClient,
+  userId: string,
+  order: string[],
+): Promise<void> {
+  await updateSpacesDoc(client, userId, (cur) => {
+    const byId = new Map(cur.spaces.map((s) => [s.id, s]));
+    const next: Space[] = [];
+    for (const id of order) {
+      const s = byId.get(id);
+      if (s) {
+        next.push(s);
+        byId.delete(id);
+      }
+    }
+    // Append anything `order` didn't mention (DMs, or a space joined elsewhere),
+    // preserving the fresh array's relative order for those tail entries.
+    for (const s of cur.spaces) if (byId.has(s.id)) next.push(s);
+    const unchanged = next.length === cur.spaces.length && next.every((s, i) => s === cur.spaces[i]);
+    if (unchanged) return cur; // no-op — updateSpacesDoc skips the push
+    return { spaces: next, caps: cur.caps, pubAccess: cur.pubAccess };
+  });
+}
+
 /** Opaque, dedicated space id — independent of any userId. Ownership is recorded
  *  in the registry doc's `owner` field, not derivable from the id. Unguessable
  *  (CSPRNG): the server grants the first writer of `spaces/<id>/_rooms` ownership,

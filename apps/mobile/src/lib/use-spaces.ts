@@ -14,7 +14,7 @@ import { useUnread } from './unread-context';
  * unread provider to avoid a circular dependency.)
  */
 export function useSpaces() {
-  const { spaces, activeId, setActiveId, loading, createSpace } = useSpacesContext();
+  const { spaces, activeId, setActiveId, loading, createSpace, reorderSpaces } = useSpacesContext();
   const { unreadBySpace } = useUnread();
 
   const spacesWithUnread = useMemo<Space[]>(
@@ -22,5 +22,5 @@ export function useSpaces() {
     [spaces, unreadBySpace],
   );
 
-  return { spaces: spacesWithUnread, activeId, setActiveId, loading, createSpace };
+  return { spaces: spacesWithUnread, activeId, setActiveId, loading, createSpace, reorderSpaces };
 }

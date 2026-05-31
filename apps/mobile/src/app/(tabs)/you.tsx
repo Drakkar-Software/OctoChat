@@ -1,13 +1,14 @@
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { spacing, verificationColor } from '@/theme';
+import { spacing } from '@/theme';
 import { useProfile } from '@/lib/profile-context';
 import { useSession } from '@/lib/session-context';
 import { useTheme } from '@/lib/use-theme';
 import { AccountSwitcher } from '@/components/account/AccountSwitcher';
 import { DebugStatsCard } from '@/components/settings/DebugStatsCard';
 import { NotificationSettingsCard } from '@/components/settings/NotificationSettingsCard';
+import { QuickReactionsCard } from '@/components/settings/QuickReactionsCard';
 import { UpdateSettingsCard } from '@/components/settings/UpdateSettingsCard';
 import { AppBar } from '@/components/ui/AppBar';
 import { Avatar } from '@/components/ui/Avatar';
@@ -27,7 +28,6 @@ export default function YouScreen() {
   const nostrPubHex = activeBootstrapOrigin?.kind === 'secp256k1' ? activeBootstrapOrigin.pubHex : null;
   const { profile, draft, setDraft, dirty, save, saving, avatarDraft, pickAvatar, removeAvatar, avatarError } =
     useProfile();
-  const verified = verificationColor(colors, 'verified');
 
   if (!profile) {
     return (
@@ -38,7 +38,6 @@ export default function YouScreen() {
   }
 
   const initials = profile.name.slice(0, 2).toUpperCase();
-  const check = <Icon name="check-circle" size={16} color={verified} />;
 
   return (
     <StackScreen
@@ -127,14 +126,6 @@ export default function YouScreen() {
             }}
           />
         </View>
-        <View style={styles.field}>
-          <Txt variant="micro" weight="semibold" mono uppercase tone="inkMuted">
-            User ID
-          </Txt>
-          <Txt variant="callout" mono>
-            {profile.userId}
-          </Txt>
-        </View>
       </Card>
 
       <Card title="SECURITY">
@@ -160,11 +151,11 @@ export default function YouScreen() {
           detail="Show pairing QR · PIN-sealed"
           onPress={() => router.push('/account/add-device')}
         />
-        <Divider style={styles.divider} />
-        <Row iconName="key" title="Identity fingerprint" detail={profile.fingerprint} detailMono right={check} />
       </Card>
 
       <NotificationSettingsCard />
+
+      <QuickReactionsCard />
 
       <UpdateSettingsCard />
 

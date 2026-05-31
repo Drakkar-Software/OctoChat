@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { paperBorder, radii, shadows, spacing } from '@/theme';
 import { tapFeedback } from '@/lib/haptics';
-import { QUICK_REACTIONS } from '@/lib/reactions';
+import { useQuickReactions } from '@/lib/quick-reactions-context';
 import { useTheme } from '@/lib/use-theme';
 import { IconButton } from '@/components/ui/IconButton';
 import { Txt } from '@/components/ui/Txt';
@@ -35,6 +35,7 @@ interface MessageActionsProps {
  */
 export function MessageActions({ visible, onReact, onReply, onEdit, onDelete, onPin, pinned, mine }: MessageActionsProps) {
   const { colors } = useTheme();
+  const { emojis } = useQuickReactions();
   const [picking, setPicking] = useState(false);
   const [confirming, setConfirming] = useState(false);
   if (!visible && !picking && !confirming) return null;
@@ -69,9 +70,9 @@ export function MessageActions({ visible, onReact, onReply, onEdit, onDelete, on
         </>
       ) : picking ? (
         <>
-          {QUICK_REACTIONS.map((emoji) => (
+          {emojis.map((emoji, i) => (
             <Pressable
-              key={emoji}
+              key={i}
               accessibilityRole="button"
               accessibilityLabel={`React with ${emoji}`}
               onPress={() => pick(emoji)}

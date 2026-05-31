@@ -5,8 +5,6 @@ import { useUpdateCheck, type UpdateStatus } from '@/lib/use-update-check';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Card } from '@/components/ui/Card';
-import { Divider } from '@/components/ui/Divider';
-import { Row } from '@/components/ui/Row';
 import { Txt } from '@/components/ui/Txt';
 
 /**
@@ -20,20 +18,28 @@ export function UpdateSettingsCard() {
 
   return (
     <Card title="APP">
-      <Row iconName="info" title="Version" detail={version} detailMono />
-      {updatedAt ? <Row iconName="clock" title="Last update" detail={updatedAt} detailMono /> : null}
-      <Divider style={styles.divider} />
       <View style={styles.action}>
-        <Button
-          label={checking ? 'Checking…' : 'Check for updates'}
-          variant="secondary"
-          size="md"
-          full
-          iconName="refresh"
-          loading={checking}
-          disabled={checking}
-          onPress={() => void check()}
-        />
+        <View style={styles.head}>
+          <View style={styles.info}>
+            <Txt variant="callout" mono>
+              {version}
+            </Txt>
+            {updatedAt ? (
+              <Txt variant="micro" mono tone="inkMuted" numberOfLines={1}>
+                Updated {updatedAt}
+              </Txt>
+            ) : null}
+          </View>
+          <Button
+            label={checking ? 'Checking…' : 'Check for updates'}
+            variant="secondary"
+            size="md"
+            iconName="refresh"
+            loading={checking}
+            disabled={checking}
+            onPress={() => void check()}
+          />
+        </View>
         {/* A staged update (banner already up) always wins the note, so the card
             never reads "latest version" while the banner says "Update ready". */}
         <UpdateStatusNote status={pending ? 'downloaded' : status} />
@@ -75,6 +81,7 @@ function UpdateStatusNote({ status }: { status: UpdateStatus }) {
 }
 
 const styles = StyleSheet.create({
-  divider: { marginVertical: spacing.xs },
   action: { gap: spacing.sm },
+  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+  info: { flex: 1, gap: 2 },
 });

@@ -12,6 +12,7 @@ import { MutesProvider } from '@/lib/mutes-context';
 import { NotificationSettingsProvider } from '@/lib/notification-settings-context';
 import { OutboxProvider } from '@/lib/outbox-context';
 import { ProfileProvider } from '@/lib/profile-context';
+import { QuickReactionsProvider } from '@/lib/quick-reactions-context';
 import { RoomsRegistryProvider } from '@/lib/rooms-registry-context';
 import { SessionProvider } from '@/lib/session-context';
 import { useAutomationBackground } from '@/lib/automations/use-automation-background';
@@ -96,6 +97,7 @@ export default function RootLayout() {
               `useRooms` consumer, below UnreadProvider. ProfileProvider only needs the
               session. */}
           <NotificationSettingsProvider>
+            <QuickReactionsProvider>
             <MutesProvider>
             <SpacesProvider>
               <RoomsRegistryProvider>
@@ -116,6 +118,7 @@ export default function RootLayout() {
               </RoomsRegistryProvider>
             </SpacesProvider>
             </MutesProvider>
+            </QuickReactionsProvider>
           </NotificationSettingsProvider>
           </OutboxProvider>
         </SessionProvider>

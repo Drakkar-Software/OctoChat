@@ -7,6 +7,7 @@ import type { Space } from '@/lib/types';
 import { DM_HOME_NAME } from '@/lib/dm-home';
 import { useHover } from '@/lib/use-hover';
 import { useMutes } from '@/lib/mutes-context';
+import { reorderBy, useReorderableSpace } from '@/lib/use-space-reorder';
 import { useTheme } from '@/lib/use-theme';
 import { AccountSwitcherPopover } from '@/components/account/AccountSwitcherPopover';
 import { Avatar } from '@/components/ui/Avatar';
@@ -31,9 +32,13 @@ interface DesktopSpacesRailProps {
   /** The current identity's uploaded avatar (data URI), if any. */
   meAvatar?: string;
   onOpenProfile?: () => void;
+  /** Persist a new rail order after a drag-and-drop reorder (web only). Omitted ⇒
+   *  tiles are not draggable. */
+  onReorder?: (orderedIds: string[]) => void;
 }
 
 function SpaceTile({
+  spaceId,
   label,
   image,
   active,
@@ -41,7 +46,9 @@ function SpaceTile({
   isPublic,
   muted,
   onPress,
+  onDropSpace,
 }: {
+  spaceId: string;
   label: string;
   image?: string;
   active: boolean;
@@ -49,19 +56,38 @@ function SpaceTile({
   isPublic?: boolean;
   muted?: boolean;
   onPress?: () => void;
+  /** Fires when another tile is dropped onto this one (web drag-reorder). Omitted ⇒
+   *  the tile isn't a drag source/target. */
+  onDropSpace?: (draggedId: string, targetId: string) => void;
 }) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
+  const [over, setOver] = useState(false);
+  // Web-only: makes the tile draggable + a drop target. `onDropSpace` undefined keeps
+  // the ref inert (the hook still binds, but nothing reorders). Native returns an inert
+  // ref regardless (see use-space-reorder.native).
+  const dragRef = useReorderableSpace(
+    spaceId,
+    (draggedId) => onDropSpace?.(draggedId, spaceId),
+    onDropSpace ? setOver : undefined,
+  );
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} {...hoverProps} style={styles.tileWrap}>
+    <Pressable
+      ref={onDropSpace ? dragRef : undefined}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      {...hoverProps}
+      style={styles.tileWrap}
+    >
       <View
         style={[
           styles.tile,
           {
-            borderRadius: active ? radii.lg : hovered ? radii.lg : radii.xl,
+            borderRadius: active ? radii.lg : hovered || over ? radii.lg : radii.xl,
             backgroundColor: active ? colors.accent : hovered ? colors.accentBg : colors.fill,
-            borderColor: active ? 'transparent' : hovered ? colors.accentBorder : colors.lineFaint,
-            borderWidth: active ? 0 : 1,
+            borderColor: over ? colors.accent : active ? 'transparent' : hovered ? colors.accentBorder : colors.lineFaint,
+            borderWidth: active && !over ? 0 : 1,
           },
           active ? glowShadow(colors.glow, 0.3, 8) : null,
         ]}
@@ -107,10 +133,17 @@ export function DesktopSpacesRail({
   meLabel,
   meAvatar,
   onOpenProfile,
+  onReorder,
 }: DesktopSpacesRailProps) {
   const { colors } = useTheme();
   const { isSpaceMuted } = useMutes();
   const [menuOpen, setMenuOpen] = useState(false);
+  // A tile reports (dragged, target); compute the resulting id order from the current
+  // list (which the rail holds) and hand it to the persister. No-op moves return the
+  // same array, which the provider/registry treat as a no-write.
+  const onDropSpace = onReorder
+    ? (draggedId: string, targetId: string) => onReorder(reorderBy(spaces.map((s) => s.id), draggedId, targetId))
+    : undefined;
   return (
     <View style={[styles.rail, { width: layout.railWidth, backgroundColor: colors.paperAlt, borderRightColor: colors.lineSoft }]}>
       <Octopus size={28} />
@@ -149,6 +182,7 @@ export function DesktopSpacesRail({
       {spaces.map((s) => (
         <SpaceTile
           key={s.id}
+          spaceId={s.id}
           label={s.short}
           image={s.image}
           active={s.id === activeId}
@@ -156,6 +190,7 @@ export function DesktopSpacesRail({
           isPublic={(s.type ?? 'private') === 'public'}
           muted={isSpaceMuted(s.id)}
           onPress={() => onSelect?.(s.id)}
+          onDropSpace={onDropSpace}
         />
       ))}
       <Pressable
