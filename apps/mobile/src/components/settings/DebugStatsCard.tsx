@@ -29,27 +29,28 @@ export function DebugStatsCard() {
 
   const dotColor =
     status === 'ok' ? colors.success : status === 'down' ? colors.danger : colors.warning;
-  const serverDetail =
-    status === 'ok'
-      ? `${SYNC_BASE} · ${latencyMs}ms`
-      : status === 'down'
-        ? SYNC_BASE
-        : `${SYNC_BASE} · checking…`;
 
   return (
     <Card title="DIAGNOSTICS">
       <Row
         iconName="globe"
         title="Server"
-        detail={serverDetail}
+        detail={SYNC_BASE}
         detailMono
         onPress={recheck}
         right={
-          <View style={styles.statusGroup}>
-            <View style={[styles.dot, { backgroundColor: dotColor }]} />
-            <Txt variant="caption" weight="semibold" mono>
-              {STATUS_LABEL[status]}
-            </Txt>
+          <View style={styles.statusColumn}>
+            <View style={styles.statusGroup}>
+              <View style={[styles.dot, { backgroundColor: dotColor }]} />
+              <Txt variant="caption" weight="semibold" mono>
+                {STATUS_LABEL[status]}
+              </Txt>
+            </View>
+            {status === 'ok' ? (
+              <Txt variant="caption" tone="inkMuted" mono>
+                {latencyMs}ms
+              </Txt>
+            ) : null}
           </View>
         }
       />
@@ -74,6 +75,7 @@ export function DebugStatsCard() {
 
 const styles = StyleSheet.create({
   divider: { marginVertical: spacing.xs },
+  statusColumn: { alignItems: 'flex-end', gap: spacing.xs },
   statusGroup: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   dot: { width: 8, height: 8, borderRadius: 4 },
 });

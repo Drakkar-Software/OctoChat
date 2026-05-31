@@ -6,6 +6,7 @@ import { useProfile } from '@/lib/profile-context';
 import { useSession } from '@/lib/session-context';
 import { useTheme } from '@/lib/use-theme';
 import { AccountSwitcher } from '@/components/account/AccountSwitcher';
+import { AppLockRow } from '@/components/settings/AppLockRow';
 import { DebugStatsCard } from '@/components/settings/DebugStatsCard';
 import { NotificationSettingsCard } from '@/components/settings/NotificationSettingsCard';
 import { QuickReactionsCard } from '@/components/settings/QuickReactionsCard';
@@ -151,6 +152,7 @@ export default function YouScreen() {
           detail="Show pairing QR · PIN-sealed"
           onPress={() => router.push('/account/add-device')}
         />
+        <AppLockRow />
       </Card>
 
       <NotificationSettingsCard />

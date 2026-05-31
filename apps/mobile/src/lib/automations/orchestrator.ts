@@ -10,7 +10,7 @@ import { createStreamBotCredential } from '../starfish/stream-bots';
 import type { Session } from '../starfish/identity';
 import type { AutomationMeta, Room } from '../types';
 
-import { AutomationsNotSupportedHere, deleteRoomFromRegistry, patchRoomAutomation, setRoomAutomation } from './registry-write';
+import { AutomationsNotSupportedHere, deleteRoomFromRegistry, patchRoomAutomation, renameRoomInRegistry, setRoomAutomation } from './registry-write';
 import { tickRoom, type TickKind, type TickOutcome } from './runner-core';
 import { clearAutomationSecrets, saveAutomationSecrets } from './secrets';
 import { getProvider } from './providers';
@@ -88,12 +88,21 @@ export async function updateAutomatedRoom(opts: {
   await patchRoomAutomation(session, room.spaceId, room.id, patch);
 }
 
+/** Rename an automated room — the bot's display name in the channel list and chat
+ *  header. Separate from {@link updateAutomatedRoom} (which patches AutomationMeta);
+ *  the name lives on the Room itself. Caller refreshes the registry to repaint. */
+export async function renameAutomatedRoom(session: Session, room: Room, name: string): Promise<void> {
+  await renameRoomInRegistry(session, room.spaceId, room.id, name);
+}
+
 /** Rotate the bot credential — generate a new audience cap and patch the room.
  *  Doesn't revoke the old one (audience caps aren't revocable client-side); the
- *  old credential becomes orphaned and expires per its TTL. */
-export async function rotateAutomatedRoomCredential(session: Session, room: Room): Promise<void> {
+ *  old credential becomes orphaned and expires per its TTL. Returns the new sealed
+ *  blob so the caller can reflect it into its in-memory cache without a re-read. */
+export async function rotateAutomatedRoomCredential(session: Session, room: Room): Promise<SealedBlob> {
   const credential = await mintSealedCredential(session, room.spaceId, room.id);
   await patchRoomAutomation(session, room.spaceId, room.id, { credential });
+  return credential;
 }
 
 /** Delete an automated room — drops it from the registry AND clears its

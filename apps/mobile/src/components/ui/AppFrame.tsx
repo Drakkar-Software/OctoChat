@@ -7,6 +7,7 @@ import { useSession } from '@/lib/session-context';
 import { useTheme } from '@/lib/use-theme';
 import { layout } from '@/theme';
 import { DesktopNav } from '@/components/chat/DesktopNav';
+import { AppLockGate } from './AppLockGate';
 import { DesktopUpdateBanner } from './DesktopUpdateBanner';
 
 /**
@@ -59,6 +60,9 @@ export function AppFrame({ children }: { children: ReactNode }) {
           <ActivityIndicator color={colors.accent} />
         </View>
       ) : null}
+      {/* Topmost child so the native biometric lock covers everything above (renders
+          nothing on web / when the lock is off). */}
+      <AppLockGate />
     </View>
   );
 }

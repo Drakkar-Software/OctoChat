@@ -20,14 +20,17 @@ import { hydrateMutes, resetMutes } from './mutes';
 import { flushReadsNow, hydrateReads, resetReads } from './reads';
 import { activeAccountOf, sessionFromPersisted } from './starfish/session-restore';
 import { clearSpaceEncryptors } from './starfish/space-encryptor';
-import { passkeyEnrollable } from './starfish/passkey';
+import { enrollPasskey, passkeyEnrollable } from './starfish/passkey';
 import {
+  addPasskeyToVault,
   clearVault,
   loadVault,
+  removePasskeyFromVault,
   saveVault,
   unlockVault,
   vaultMethods,
 } from './starfish/storage';
+import { disableBiometricLock } from './app-lock';
 import type { PersistedSession, SeedLock, UnlockMethod, Vault } from './starfish/storage-types';
 import { clearRoomEventsBus } from './room-events-bus';
 import { clearPrimedSpaces, primeSpaces } from './spaces-prime';
@@ -97,6 +100,14 @@ interface SessionContextValue {
   verifyLock: (method: UnlockMethod, pin?: string) => Promise<void>;
   /** Enrolled lock methods for the active (unlocked) vault — for a re-auth prompt (web). */
   lockMethods: () => UnlockMethod[];
+  /** Whether a passkey is currently enrolled as a vault unlock (web). Reactive so the
+   *  security-card toggle reflects enroll/remove without a reload. */
+  passkeyEnrolled: boolean;
+  /** Enroll a WebAuthn passkey on the unlocked vault as a faster unlock than the PIN
+   *  (web; runs the browser passkey prompt). Throws on cancel/failure. */
+  enablePasskey: () => Promise<void>;
+  /** Remove the enrolled passkey, leaving the PIN as the unlock (web). */
+  disablePasskey: () => Promise<void>;
 }
 
 const Ctx = createContext<SessionContextValue | null>(null);
@@ -198,6 +209,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, []);
+  // Whether a passkey is enrolled on the persisted vault (web; always false on native,
+  // where vaultMethods() is empty). Recomputed whenever the vault or lock state changes,
+  // and set directly by enable/disable below — those mutate only the wraps, not the
+  // in-memory Vault object, so the effect alone wouldn't observe them.
+  const [passkeyEnrolled, setPasskeyEnrolled] = useState(false);
+  useEffect(() => {
+    setPasskeyEnrolled(vaultMethods().includes('passkey'));
+  }, [vault, status]);
 
   const commitVault = (v: Vault | null) => {
     vaultRef.current = v;
@@ -446,6 +465,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           const remaining = cur.accounts.filter((a) => a.derived?.userId !== userId);
           if (remaining.length === 0) {
             await clearVault();
+            // Last account gone → drop the native biometric lock flag too, so it can't
+            // strand a future signed-out welcome screen behind a prompt (no-op on web).
+            void disableBiometricLock();
             resetAccountScopedState();
             commitVault(null);
             setSession(null);
@@ -491,6 +513,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       },
       fullSignOut: async () => {
         await clearVault();
+        void disableBiometricLock();
         resetAccountScopedState();
         commitVault(null);
         setSession(null);
@@ -501,6 +524,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       activeBootstrapOrigin,
       verifyLock,
       lockMethods,
+      passkeyEnrolled,
+      enablePasskey: async () => {
+        // Enroll on the live gesture, then wrap the unlocked VMK under its PRF secret.
+        const passkey = await enrollPasskey('OctoChat');
+        await addPasskeyToVault(passkey);
+        setPasskeyEnrolled(true);
+      },
+      disablePasskey: async () => {
+        await removePasskeyFromVault();
+        setPasskeyEnrolled(false);
+      },
     }),
     [
       session,
@@ -514,6 +548,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       activeBootstrapOrigin,
       verifyLock,
       lockMethods,
+      passkeyEnrolled,
     ],
   );
 

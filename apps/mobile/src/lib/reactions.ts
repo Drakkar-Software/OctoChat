@@ -32,3 +32,14 @@ export function aggregateReactions(events: ReactionEvent[], msgId: string, me: s
 export function replyCount(messages: { parentId?: string }[], msgId: string): number {
   return messages.filter((m) => m.parentId === msgId).length;
 }
+
+/** Reply count per parent id in a single O(n) pass. Used to bust the message-list
+ *  row memo when a reply arrives (the parent row reads its count from this map), and
+ *  to avoid an O(n²) `replyCount` call per rendered row. */
+export function replyCounts(messages: { parentId?: string }[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const m of messages) {
+    if (m.parentId) out.set(m.parentId, (out.get(m.parentId) ?? 0) + 1);
+  }
+  return out;
+}

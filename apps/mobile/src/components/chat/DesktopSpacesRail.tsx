@@ -13,7 +13,6 @@ import { AccountSwitcherPopover } from '@/components/account/AccountSwitcherPopo
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/Icon';
-import { Octopus } from '@/components/brand/Octopus';
 import { Txt } from '@/components/ui/Txt';
 
 interface DesktopSpacesRailProps {
@@ -118,8 +117,8 @@ function SpaceTile({
 }
 
 /**
- * Vertical spaces rail pinned to the left edge of the desktop shell: the brand
- * mark, one monogram tile per space (active tile squares off, others stay
+ * Vertical spaces rail pinned to the left edge of the desktop shell: the DM-home
+ * tile, one monogram tile per space (active tile squares off, others stay
  * rounded), an add button, then the current identity at the foot.
  */
 export function DesktopSpacesRail({
@@ -146,8 +145,6 @@ export function DesktopSpacesRail({
     : undefined;
   return (
     <View style={[styles.rail, { width: layout.railWidth, backgroundColor: colors.paperAlt, borderRightColor: colors.lineSoft }]}>
-      <Octopus size={28} />
-      <View style={[styles.rule, { backgroundColor: colors.lineFaint }]} />
       {/* Virtual DM space — pinned first, lists every DM (see lib/dm-home). */}
       <Pressable
         accessibilityRole="button"
@@ -222,7 +219,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  rule: { width: 28, height: 1, marginVertical: spacing.xs },
   tileWrap: { position: 'relative' },
   tile: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   add: { borderRadius: radii.xl, borderWidth: 1, borderStyle: 'dashed' },

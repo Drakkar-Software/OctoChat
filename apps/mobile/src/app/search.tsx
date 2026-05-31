@@ -22,11 +22,13 @@ export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const { results, loading } = useSearch(query, activeId);
 
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/rooms'));
+
   const open = (r: CrossRoomMessage) =>
     router.push({ pathname: '/room/[id]', params: { id: r.room.id, name: r.room.name, kind: r.room.kind } });
 
   return (
-    <StackScreen header={<AppBar title="Search" />} contentStyle={styles.content}>
+    <StackScreen header={<AppBar title="Search" onBack={goBack} />} contentStyle={styles.content}>
       <TextField
         leadingIcon="search"
         value={query}

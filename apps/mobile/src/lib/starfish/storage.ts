@@ -25,7 +25,7 @@ import { openWithPassphrase, sealWithPassphrase } from '@drakkar.software/starfi
 
 import { evalPasskey, passkeySupported as webauthnSupported } from './passkey';
 import { bytesToHex } from './paths';
-import type { PersistedSession, SeedLock, UnlockMethod, Vault, VaultLoad } from './storage-types';
+import type { PasskeyEnrollment, PersistedSession, SeedLock, UnlockMethod, Vault, VaultLoad } from './storage-types';
 
 export type { PersistedSession } from './storage-types';
 
@@ -296,6 +296,41 @@ export async function saveVault(vault: Vault, lock?: SeedLock): Promise<void> {
 
 export function passkeySupported(): boolean {
   return webauthnSupported();
+}
+
+/**
+ * Add a passkey unlock to an ALREADY-UNLOCKED vault (the settings flow). The VMK is
+ * live in memory, so we wrap it under the new PRF secret with one fast AES-GCM op —
+ * no Argon2id, so no fresh-gesture timing to choreograph — and write the resulting
+ * `passkeyWrap` beside the existing `pinWrap`. The vault block is unchanged (same VMK),
+ * so it is reused as-is. The UI enrolls the passkey on a fresh gesture and hands the
+ * enrollment here.
+ */
+export async function addPasskeyToVault(passkey: PasskeyEnrollment): Promise<void> {
+  if (!vmk) throw new Error('Unlock your account before adding a passkey.');
+  const stored = readStored();
+  if (!stored || stored.v !== 4) throw new Error('No unlocked vault to add a passkey to.');
+  const { credentialId, salt, secretHex } = passkey;
+  const { iv, ct } = await aesGcmSeal(secretHex, hexToBytes(vmk));
+  writeEnvelope({
+    v: 4,
+    pinWrap: stored.pinWrap,
+    passkeyWrap: { credentialId, salt, kind: 'aes-gcm', iv, ct },
+    vault: stored.vault,
+  });
+}
+
+/**
+ * Drop the passkey unlock from the vault (the settings flow). Idempotent when none is
+ * enrolled. Refuses to remove the only unlock method — a PIN wrap MUST remain, so a
+ * user can never lock themselves out by toggling the passkey off.
+ */
+export async function removePasskeyFromVault(): Promise<void> {
+  const stored = readStored();
+  if (!stored || stored.v !== 4) throw new Error('No unlocked vault.');
+  if (!stored.passkeyWrap) return;
+  if (!stored.pinWrap) throw new Error('Cannot remove the only unlock method.');
+  writeEnvelope({ v: 4, pinWrap: stored.pinWrap, vault: stored.vault });
 }
 
 export async function clearVault(): Promise<void> {

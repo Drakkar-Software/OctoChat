@@ -8,7 +8,7 @@
  */
 import * as SecureStore from 'expo-secure-store';
 
-import type { PersistedSession, SeedLock, UnlockMethod, Vault, VaultLoad } from './storage-types';
+import type { PasskeyEnrollment, PersistedSession, SeedLock, UnlockMethod, Vault, VaultLoad } from './storage-types';
 
 export type { PersistedSession } from './storage-types';
 
@@ -61,6 +61,17 @@ export async function unlockVault(_method: UnlockMethod, _pin?: string): Promise
 
 export function passkeySupported(): boolean {
   return false;
+}
+
+// Passkeys are a web-vault concept (storage.ts). Native has no PIN/VMK to wrap, so the
+// app-lock here is OS biometrics (see app-lock.native.ts), not a passkey. These keep
+// the cross-platform contract so session-context can call them unconditionally.
+export async function addPasskeyToVault(_passkey: PasskeyEnrollment): Promise<void> {
+  throw new Error('Passkeys are not used on native.');
+}
+
+export async function removePasskeyFromVault(): Promise<void> {
+  /* no passkey wrap on native — nothing to remove */
 }
 
 // No app-lock on native (the OS protects the store), so there is nothing to re-prompt.

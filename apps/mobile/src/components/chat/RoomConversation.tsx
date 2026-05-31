@@ -4,7 +4,7 @@ import { LegendList } from '@legendapp/list/react-native';
 
 import { authorFor, dayLabel, isContinuation, mergePendingMessages, resolvePinned, sameDay, toDisplayMessage } from '@/lib/message-view';
 import type { OutboxMessage } from '@/lib/outbox';
-import { replyCount } from '@/lib/reactions';
+import { replyCounts } from '@/lib/reactions';
 import type { AttachmentRef } from '@/lib/starfish/attachments';
 import { useConversationData, type ConversationStore } from '@/lib/use-conversation-data';
 
@@ -99,9 +99,14 @@ export function RoomConversation({
   // stream rooms preserve message identity across delta pulls, so the row would only update
   // on a full re-open (room switch) — hence reactions appearing to need a refresh. These
   // refs change only when their content changes, so an idle pull triggers no re-render.
+  // Reply count per parent id. In `extraData` so a new reply (which changes `messages`
+  // but NOT the parent row's own object) busts the LegendList row memo — without this a
+  // thread's "N replies" badge only updates on a full re-open in stream/automated rooms,
+  // which preserve message identity across delta pulls (same memo gap as reactions/edits).
+  const threadCounts = useMemo(() => replyCounts(messages), [messages]);
   const extraData = useMemo(
-    () => ({ editingId, reactions, edits, pins, ownerId, pendingStatus }),
-    [editingId, reactions, edits, pins, ownerId, pendingStatus],
+    () => ({ editingId, reactions, edits, pins, ownerId, pendingStatus, threadCounts }),
+    [editingId, reactions, edits, pins, ownerId, pendingStatus, threadCounts],
   );
 
   return (
@@ -120,7 +125,7 @@ export function RoomConversation({
       maintainVisibleContentPosition
       renderItem={({ item: m, index }) => {
         const prev = top[index - 1];
-        const rc = replyCount(messages, m.id);
+        const rc = threadCounts.get(m.id) ?? 0;
         // A divider opens each new calendar day; the "New" rule fires once, at the
         // first message past the read mark that has a read message above it (so it
         // never lands at the very top of a never-read room).

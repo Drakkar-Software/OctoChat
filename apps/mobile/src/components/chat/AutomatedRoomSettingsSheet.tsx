@@ -4,6 +4,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { radii, spacing } from '@/theme';
 import {
   deleteAutomatedRoom,
+  renameAutomatedRoom,
   rotateAutomatedRoomCredential,
   runAutomationTick,
   tickStatusPatch,
@@ -20,6 +21,7 @@ import { useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { CopyField } from '@/components/ui/CopyField';
+import { Icon } from '@/components/ui/Icon';
 import { IntervalPicker, type Cadence } from '@/components/chat/IntervalPicker';
 import { TextField } from '@/components/ui/TextField';
 import { Toggle } from '@/components/ui/Toggle';
@@ -39,6 +41,7 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
   const { refresh, patchRoomAutomationLocal } = useRoomsRegistryActions();
   const auto = room.automation;
   const provider = auto ? getProvider(auto.providerId) : null;
+  const [name, setName] = useState(room.name);
   const [params, setParams] = useState<Record<string, unknown>>(auto?.params ?? {});
   const [secrets, setSecrets] = useState<Record<string, unknown>>({});
   const [cadence, setCadence] = useState<Cadence>({
@@ -48,6 +51,9 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
   const [enabled, setEnabled] = useState<boolean>(auto?.enabled ?? true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Bot credential is rarely needed after setup — collapse it so it doesn't bury the
+  // common save/run/delete actions in a long scroll.
+  const [showCred, setShowCred] = useState(false);
   // The bot credential rides the synced doc SEALED to the owner key — unseal it here
   // (any owner device can) to surface the copyable token/endpoint. Re-runs on rotate
   // (the sealed `ct` changes). Stays null on a non-owner / failed unseal → fields hidden.
@@ -115,6 +121,23 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
         room,
         patch: { params, intervalMin: cadence.intervalMin, onOpen: cadence.onOpen, enabled },
       });
+      // The registry write doesn't refresh the in-memory cache, so reflect the edit
+      // locally — else the driver keeps reading the stale meta (e.g. disabling wouldn't
+      // stop ticking, a reschedule wouldn't apply) until a cold reload. Optimistic, not
+      // `refresh`: a re-read flips the cached entry to empty mid-write and unmounts this
+      // sheet. Safe — the awaited write above isn't caught here, so a failure throws first.
+      patchRoomAutomationLocal(room.spaceId, room.id, {
+        params,
+        intervalMin: cadence.intervalMin,
+        onOpen: cadence.onOpen,
+        enabled,
+      });
+      // Name lives on the Room (not AutomationMeta); rename only when it changed.
+      // It can't ride the local automation patch above, so repaint from the server.
+      if (name.trim() && name.trim() !== room.name) {
+        await renameAutomatedRoom(session, room, name);
+        await refresh(room.spaceId);
+      }
     });
 
   const runNow = () =>
@@ -129,9 +152,18 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
   const takeOver = () =>
     wrap('takeOver', async () => {
       await updateAutomatedRoom({ session, room, patch: { runOnDeviceId: session.keys.edPub } });
+      // Reflect the runner change so the gate elects this device live (else `runsHere`
+      // and the driver keep reading the stale runOnDeviceId until a cold reload).
+      patchRoomAutomationLocal(room.spaceId, room.id, { runOnDeviceId: session.keys.edPub });
     });
 
-  const rotate = () => wrap('rotate', async () => rotateAutomatedRoomCredential(session, room));
+  const rotate = () =>
+    wrap('rotate', async () => {
+      const credential = await rotateAutomatedRoomCredential(session, room);
+      // Reflect the new sealed blob so the `cred` effect (keyed on credential.ct)
+      // re-unseals and shows the rotated token without a re-read / remount.
+      patchRoomAutomationLocal(room.spaceId, room.id, { credential });
+    });
 
   const remove = () =>
     wrap('delete', async () => {
@@ -142,12 +174,15 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable
-        style={[styles.backdrop, { backgroundColor: colors.scrim }]}
-        onPress={onClose}
-        accessibilityLabel="Dismiss"
-      >
-        <Pressable style={[styles.sheet, { backgroundColor: colors.paper }]} onPress={() => undefined}>
+      {/* Backdrop is a plain View with an absolute-fill dismiss Pressable BEHIND the
+          sheet — NOT a Pressable wrapping the sheet. Wrapping the ScrollView in a
+          Pressable makes the scroll gesture depend on JS-thread responder negotiation,
+          which an in-flight automation tick (fetch + crypto) can stall → intermittent
+          "stuck" scroll. With the ScrollView free of any Pressable parent, the native
+          scroller takes the gesture directly. */}
+      <View style={[styles.backdrop, { backgroundColor: colors.scrim }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Dismiss" />
+        <View style={[styles.sheet, { backgroundColor: colors.paper }]}>
           <ScrollView style={styles.scroll} contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
             <Txt variant="micro" weight="bold" mono uppercase tone="inkMuted">
               Automation
@@ -156,6 +191,19 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
             <Txt variant="caption" tone="inkMuted">
               {provider.description}
             </Txt>
+
+            <View style={styles.field}>
+              <Txt variant="caption" tone="inkMuted">
+                Name
+              </Txt>
+              <TextField
+                value={name}
+                onChangeText={setName}
+                placeholder="my-automation"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
 
             <View style={styles.row}>
               <Txt variant="footnote" weight="semibold" style={styles.rowLabel}>
@@ -200,8 +248,14 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
             ) : null}
 
             <View style={styles.actions}>
-              <Button label="Save" iconName="check" onPress={save} loading={busy === 'save'} />
-              <Button label="Run now" iconName="refresh" variant="secondary" onPress={runNow} loading={busy === 'runNow'} />
+              <View style={styles.actionRow}>
+                <View style={styles.actionCell}>
+                  <Button label="Save" iconName="check" onPress={save} loading={busy === 'save'} full />
+                </View>
+                <View style={styles.actionCell}>
+                  <Button label="Run now" iconName="refresh" variant="secondary" onPress={runNow} loading={busy === 'runNow'} full />
+                </View>
+              </View>
               {runsHere ? (
                 <Txt variant="caption" tone="inkMuted">
                   Running on this device.
@@ -211,16 +265,28 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
               )}
             </View>
 
-            <Txt variant="footnote" weight="semibold">
-              Bot credential
-            </Txt>
-            {cred ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Toggle bot credential"
+              onPress={() => setShowCred((v) => !v)}
+              style={styles.collapseHeader}
+            >
+              <Txt variant="footnote" weight="semibold" style={styles.collapseLabel}>
+                Bot credential
+              </Txt>
+              <Icon name={showCred ? 'chevron-up' : 'chevron-down'} size={16} color={colors.inkMuted} />
+            </Pressable>
+            {showCred ? (
               <>
-                <CopyField label="Token" value={cred.token} lines={3} />
-                <CopyField label="Endpoint" value={cred.endpoint} lines={2} />
+                {cred ? (
+                  <>
+                    <CopyField label="Token" value={cred.token} lines={3} />
+                    <CopyField label="Endpoint" value={cred.endpoint} lines={2} />
+                  </>
+                ) : null}
+                <Button label="Rotate credential" iconName="refresh" variant="ghost" onPress={rotate} loading={busy === 'rotate'} />
               </>
             ) : null}
-            <Button label="Rotate credential" iconName="refresh" variant="ghost" onPress={rotate} loading={busy === 'rotate'} />
 
             {error ? (
               <Callout tone="warning" iconName="alert">
@@ -231,10 +297,9 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
             <View style={styles.danger}>
               <Button label="Delete automation" iconName="trash" variant="danger" onPress={remove} loading={busy === 'delete'} />
             </View>
-            <Button label="Close" variant="ghost" onPress={onClose} />
           </ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -252,5 +317,9 @@ const styles = StyleSheet.create({
   rowLabel: { flex: 1 },
   field: { gap: 4 },
   actions: { gap: spacing.sm, paddingTop: spacing.xs },
+  actionRow: { flexDirection: 'row', gap: spacing.sm },
+  actionCell: { flex: 1 },
+  collapseHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs },
+  collapseLabel: { flex: 1 },
   danger: { paddingTop: spacing.lg },
 });

@@ -52,13 +52,31 @@ export async function buildSpaceEncryptor(
 }
 
 export async function loadAllMessages(session: Session, spaceId: string): Promise<CrossRoomMessage[]> {
+  const out: CrossRoomMessage[] = [];
+
+  if (isPublicSpaceId(spaceId)) {
+    // Public space: plaintext docs (no keyring/decrypt) read with the public client.
+    const auth = publicSpaceAuth(session, spaceId);
+    const client = publicSpaceClient(session, spaceId);
+    const { rooms } = await readPublicRoomsDoc(client, auth.ownerId, spaceId);
+    for (const room of rooms) {
+      try {
+        const res = await client.pull(pubspaceRoomPull(auth.ownerId, spaceId, room.id)).catch(() => null);
+        const data = res?.data as { messages?: StoredMsg[] } | undefined;
+        for (const m of data?.messages ?? []) out.push({ room, msg: m });
+      } catch {
+        /* skip rooms we can't read */
+      }
+    }
+    return out;
+  }
+
+  // Private space: one encryptor for the space decrypts every channel's per-room doc.
   const { rooms } = await readRooms(session.accountClient, spaceId);
-  // One encryptor for the space decrypts every channel's per-room doc.
   const space = await buildSpaceEncryptor(session, spaceId);
   if (!space) return [];
   const { client, enc } = space;
 
-  const out: CrossRoomMessage[] = [];
   for (const room of rooms) {
     try {
       const res = await client.pull(roomPull(room.id)).catch(() => null);

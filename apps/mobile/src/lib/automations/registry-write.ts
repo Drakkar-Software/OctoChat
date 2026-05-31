@@ -50,6 +50,30 @@ export async function patchRoomAutomation(
   });
 }
 
+/** Rename a room (its display name in the channel list / chat header). Public-space
+ *  only — automations don't exist elsewhere. No-op when the room is gone, the name is
+ *  blank, or it's unchanged. Like the other writers here it rewrites the whole
+ *  `rooms[]` array through the conflict-retrying funnel. */
+export async function renameRoomInRegistry(
+  session: Session,
+  spaceId: string,
+  roomId: string,
+  name: string,
+): Promise<void> {
+  if (!isPublicSpaceId(spaceId)) throw new AutomationsNotSupportedHere();
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  await updatePublicRoomsRegistry(session, spaceId, (cur) => {
+    const idx = cur.rooms.findIndex((r) => r.id === roomId);
+    if (idx === -1) return null;
+    const room: Room = cur.rooms[idx]!;
+    if (room.name === trimmed) return null;
+    const rooms = [...cur.rooms];
+    rooms[idx] = { ...room, name: trimmed };
+    return { rooms, categories: cur.categories };
+  });
+}
+
 export async function deleteRoomFromRegistry(
   session: Session,
   spaceId: string,
