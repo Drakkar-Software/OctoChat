@@ -31,6 +31,9 @@ export interface Palette {
   /** Translucent ink overlays for layering on top of varied surfaces. */
   surface: string;
   surfaceStrong: string;
+  /** Recessed fill + hairline for inline/fenced code in chat messages. */
+  codeBg: string;
+  codeBorder: string;
 
   // ── Ink (text + icons), strongest → faintest ─────────────────────────────
   ink: string;
@@ -115,6 +118,8 @@ const light: Palette = {
   fillDeep: '#d2dfe6',
   surface: 'rgba(20,38,52,0.04)',
   surfaceStrong: 'rgba(20,38,52,0.08)',
+  codeBg: 'rgba(20,38,52,0.06)',
+  codeBorder: 'rgba(20,38,52,0.12)',
 
   ink: '#142634',
   inkSoft: '#3d566c',
@@ -176,6 +181,8 @@ const dark: Palette = {
   fillDeep: '#283f4f',
   surface: 'rgba(216,230,238,0.05)',
   surfaceStrong: 'rgba(216,230,238,0.09)',
+  codeBg: 'rgba(216,230,238,0.07)',
+  codeBorder: 'rgba(216,230,238,0.14)',
 
   ink: '#d8e6ee',
   inkSoft: '#a9bdc9',

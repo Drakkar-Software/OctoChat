@@ -9,11 +9,11 @@ import { useHover, useRowHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
-import { LinkText } from '@/components/ui/LinkText';
 import { Pill } from '@/components/ui/Pill';
 import { Txt } from '@/components/ui/Txt';
 
 import { AttachmentView } from './AttachmentView';
+import { MessageBody } from './MessageBody';
 import { MessageActions } from './MessageActions';
 import { MessageEditor } from './MessageEditor';
 import { ReactionBar } from './ReactionBar';
@@ -237,16 +237,14 @@ export function MessageGroup({
           <>
             {message.pinned ? <Pill label="Pinned" iconName="pin" tone="accent" /> : null}
             {message.text ? (
-              <LinkText
-                variant="body"
+              <MessageBody
+                body={message.text}
                 tone="inkSoft"
                 resolveRoom={resolveRoom}
                 resolveUser={resolveUser}
                 onPressUser={onOpenMention}
                 currentUserName={currentUserName}
-              >
-                {message.text}
-              </LinkText>
+              />
             ) : null}
             {message.edited ? (
               <Txt variant="micro" tone="inkFaint">
