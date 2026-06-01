@@ -14,7 +14,7 @@ import { useUnread } from '@/lib/unread-context';
  * native), which is also where the desktop sidebar swap and the OTA update
  * banner live.
  *
- * The tabs ARE the four workspace modes (Chat · Agents · Docs · Projects).
+ * The tabs ARE the workspace modes (Chat · Agents · Work).
  * `search`, `threads` and `you` are NOT tabs: they live at the app root and are
  * reached via `router.push(...)` from the Chat tab / its header — native tabs
  * have no `href: null` equivalent (a `hidden` trigger is non-navigable).
@@ -57,13 +57,9 @@ export default function NativeTabsLayout() {
         <NativeTabs.Trigger.Label>Agents</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="cpu" />} />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="docs">
-        <NativeTabs.Trigger.Label>Docs</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="book-open" />} />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="projects">
-        <NativeTabs.Trigger.Label>Projects</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="target" />} />
+      <NativeTabs.Trigger name="work">
+        <NativeTabs.Trigger.Label>Work</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="briefcase" />} />
       </NativeTabs.Trigger>
     </NativeTabs>
   );

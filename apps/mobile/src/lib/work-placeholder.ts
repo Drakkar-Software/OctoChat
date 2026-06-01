@@ -52,7 +52,7 @@ export const DOCS_SECTIONS: WorkSection[] = [
   },
 ];
 
-/** The **Projects** mode tree — initiatives plus their boards. */
+/** The **Projects** sub-tree — initiatives plus their boards. */
 export const PROJECTS_SECTIONS: WorkSection[] = [
   {
     title: 'Projects',
@@ -74,3 +74,6 @@ export const PROJECTS_SECTIONS: WorkSection[] = [
     future: true,
   },
 ];
+
+/** The **Work** tree — docs, knowledge, projects and boards in one surface. */
+export const WORK_SECTIONS: WorkSection[] = [...DOCS_SECTIONS, ...PROJECTS_SECTIONS];

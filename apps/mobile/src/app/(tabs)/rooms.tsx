@@ -3,14 +3,13 @@ import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useOnline } from '@/lib/connectivity';
-import { DM_HOME_ID, isDmHomeId } from '@/lib/dm-home';
-import { useProfile } from '@/lib/profile-context';
+import { isDmHomeId } from '@/lib/dm-home';
 import { useInShell } from '@/lib/use-responsive';
 import { useSession } from '@/lib/session-context';
 import { useSpaceNav } from '@/lib/use-space-nav';
 import { excludeAutomatedRooms, useRooms } from '@/lib/use-rooms';
 import { useSpaces } from '@/lib/use-spaces';
-import { useDms, useTotalDmUnread, type DmEntry } from '@/lib/use-dms';
+import { useDms, type DmEntry } from '@/lib/use-dms';
 import type { Room } from '@/lib/types';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
@@ -20,29 +19,25 @@ import { DmList } from '@/components/chat/DmList';
 import { OfflineBanner } from '@/components/chat/OfflineBanner';
 import { RoomCategoryList } from '@/components/chat/RoomCategoryList';
 import { SidebarLinkRow } from '@/components/chat/SidebarLinkRow';
-import { SpaceHeader } from '@/components/chat/SpaceHeader';
+import { SpaceTabHeader } from '@/components/chat/SpaceTabHeader';
 
 /**
- * Chat bottom tab — the space's rooms, threads and pins. One of the four mode
- * tabs (Chat · Agents · Docs · Projects); the in-list mode switcher it used to
- * carry now lives in the tab bar. DMs are reached via the space rail's DM tile
- * (rendered here when DM-home is the active space); Threads/Pinned via the link
- * rows below the header.
+ * Chat bottom tab — the space's rooms, threads and pins. One of the three mode
+ * tabs (Chat · Agents · Work); the in-list mode switcher it used to carry now
+ * lives in the tab bar. DMs are reached via the header's space switcher (DM
+ * home); Threads/Pinned via the link rows below the header.
  */
 export default function RoomsScreen() {
   const { session } = useSession();
   const inShell = useInShell();
   const online = useOnline();
-  const { profile } = useProfile();
-  const { spaces, activeId, setActiveId, loading: spacesLoading } = useSpaces();
+  const { spaces, activeId, loading: spacesLoading } = useSpaces();
   const isDmHome = isDmHomeId(activeId);
-  const { categories, loading: roomsLoading, isPublic, memberCount, isOwner, createRoom, createCategory, moveRoom } =
+  const { categories, loading: roomsLoading, isOwner, createRoom, createCategory, moveRoom } =
     useRooms(isDmHome ? null : activeId); // the virtual DM space has no registry doc
   const space = isDmHome ? undefined : spaces.find((s) => s.id === activeId) ?? spaces[0];
   const { hasPins } = useSpaceNav(isDmHome ? null : activeId);
   const dms = useDms();
-  const dmUnread = useTotalDmUnread();
-  const meLabel = (profile?.name ?? '··').slice(0, 2).toUpperCase();
 
   const openRoom = (room: Room) =>
     router.push({ pathname: '/room/[id]', params: { id: room.id, name: room.name, kind: room.kind } });
@@ -66,29 +61,9 @@ export default function RoomsScreen() {
     <StackScreen
       inTabs
       scroll
+      collapsibleHeader
       contentStyle={styles.content}
-      header={
-        // The DM space is always present (it's virtual), so the header always renders
-        // — `space` is undefined when DM-home is selected. The rail + DM tile live here.
-        <SpaceHeader
-          space={space}
-          isDmHome={isDmHome}
-          spaces={spaces}
-          activeId={activeId ?? DM_HOME_ID}
-          isPublic={isPublic}
-          memberCount={memberCount}
-          onSelectSpace={setActiveId}
-          onSelectDms={() => setActiveId(DM_HOME_ID)}
-          dmsActive={isDmHome}
-          dmUnread={dmUnread}
-          onAddSpace={() => router.push('/join')}
-          onSearch={() => router.push('/search')}
-          onOpenSpace={() => space && router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
-          onProfile={() => router.push('/you')}
-          meLabel={meLabel}
-          meAvatar={profile?.avatar}
-        />
-      }
+      header={<SpaceTabHeader />}
     >
       {!session ? (
         <SignInPrompt subtitle="Create an identity to see your spaces." />

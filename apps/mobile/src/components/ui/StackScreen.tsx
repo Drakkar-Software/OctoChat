@@ -1,8 +1,14 @@
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, {
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { layout } from '@/theme';
 import { useInShell } from '@/lib/use-responsive';
@@ -29,6 +35,9 @@ interface StackScreenProps {
   contentStyle?: StyleProp<ViewStyle>;
   /** When inside the tab navigator, the tab bar owns the bottom inset. */
   inTabs?: boolean;
+  /** Mobile-only: let the header slide away on scroll-down and return on
+   *  scroll-up (requires `scroll`). Ignored in the desktop shell. */
+  collapsibleHeader?: boolean;
 }
 
 /**
@@ -44,11 +53,66 @@ export function StackScreen({
   background = 'canvas',
   contentStyle,
   inTabs = false,
+  collapsibleHeader = false,
 }: StackScreenProps) {
   const { colors } = useTheme();
   const inShell = useInShell();
+  const insets = useSafeAreaInsets();
   const bg = background === 'paper' ? colors.paper : colors.canvas;
   const headerNode = inShell ? (desktopHeader ?? header) : header;
+
+  // Hide-on-scroll plumbing. Hooks run unconditionally (rules of hooks); only the
+  // collapsible branch below consumes them, so the default path is unaffected.
+  const collapsible = collapsibleHeader && scroll && !inShell && !!headerNode;
+  const [headerH, setHeaderH] = useState(layout.headerMinHeight + insets.top); // seeded so paddingTop doesn't jump
+  const headerY = useSharedValue(0);
+  const lastY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler(
+    {
+      onScroll: (e) => {
+        const y = e.contentOffset.y;
+        const dy = y - lastY.value;
+        lastY.value = y;
+        // Near the top the header is always shown (no blank strip); below that,
+        // accumulate scroll delta clamped to [-headerH, 0].
+        headerY.value = y <= headerH ? 0 : Math.min(0, Math.max(-headerH, headerY.value - dy));
+      },
+    },
+    [headerH],
+  );
+  const headerAnim = useAnimatedStyle(() => ({ transform: [{ translateY: headerY.value }] }));
+
+  if (collapsible) {
+    return (
+      <View style={[styles.root, { backgroundColor: bg }]}>
+        {background === 'canvas' ? <DepthBackdrop /> : null}
+        <KAV style={styles.flex}>
+          <View style={inShell ? styles.centerFull : styles.center}>
+            <Animated.ScrollView
+              style={styles.flex}
+              contentContainerStyle={[styles.scrollContent, { paddingTop: headerH }, contentStyle]}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              onScroll={onScroll}
+              scrollEventThrottle={16}
+            >
+              {children}
+            </Animated.ScrollView>
+          </View>
+          {!inTabs ? <SafeAreaView edges={['bottom']} style={{ backgroundColor: bg }} /> : null}
+        </KAV>
+        {/* Absolute header overlays the scroll content and slides out on scroll-down. */}
+        <Animated.View
+          style={[styles.absHeader, headerAnim]}
+          onLayout={(e) => setHeaderH(e.nativeEvent.layout.height)}
+        >
+          <SafeAreaView edges={['top']} style={{ backgroundColor: colors.paper }}>
+            {headerNode}
+          </SafeAreaView>
+        </Animated.View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.root, { backgroundColor: bg }]}>
@@ -114,4 +178,5 @@ const styles = StyleSheet.create({
   centerFull: { flex: 1, width: '100%' },
   flex: { flex: 1 },
   scrollContent: { flexGrow: 1 },
+  absHeader: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
 });

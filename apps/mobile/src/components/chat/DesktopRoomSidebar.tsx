@@ -4,7 +4,7 @@ import { layout, radii, spacing } from '@/theme';
 import type { Room, RoomKind, Space } from '@/lib/types';
 import type { ThreadSummary } from '@/lib/threads';
 import { excludeAutomatedRooms, type RoomCategory } from '@/lib/use-rooms';
-import { DOCS_SECTIONS, PROJECTS_SECTIONS } from '@/lib/work-placeholder';
+import { WORK_SECTIONS } from '@/lib/work-placeholder';
 import { useOnline } from '@/lib/connectivity';
 import { DM_HOME_NAME } from '@/lib/dm-home';
 import type { DmEntry } from '@/lib/use-dms';
@@ -202,10 +202,8 @@ export function DesktopRoomSidebar({
             onOpenAutomations={onOpenAutomations}
             automationsActive={automationsActive}
           />
-        ) : mode === 'docs' ? (
-          <WorkPanel sections={DOCS_SECTIONS} note="Docs and knowledge live here soon — a preview of the workspace." />
-        ) : mode === 'projects' ? (
-          <WorkPanel sections={PROJECTS_SECTIONS} note="Projects and boards live here soon — a preview of the workspace." />
+        ) : mode === 'work' ? (
+          <WorkPanel sections={WORK_SECTIONS} note="Docs and projects live here soon — a preview of the workspace." />
         ) : (
           <>
             {!online ? (
