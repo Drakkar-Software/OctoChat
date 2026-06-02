@@ -38,6 +38,10 @@ interface StackScreenProps {
   /** Mobile-only: let the header slide away on scroll-down and return on
    *  scroll-up (requires `scroll`). Ignored in the desktop shell. */
   collapsibleHeader?: boolean;
+  /** Native-only: a real navigation-stack header sits above this screen, so it
+   *  owns the top safe-area inset. Skip the in-screen header + top SafeAreaView so
+   *  the body starts flush under the native bar (no doubled inset). */
+  headerProvidedNatively?: boolean;
 }
 
 /**
@@ -54,6 +58,7 @@ export function StackScreen({
   contentStyle,
   inTabs = false,
   collapsibleHeader = false,
+  headerProvidedNatively = false,
 }: StackScreenProps) {
   const { colors } = useTheme();
   const inShell = useInShell();
@@ -131,8 +136,10 @@ export function StackScreen({
           surface is meant to read as a solid sheet. Header/footer paint opaque
           paper on top, so the gradient shows through the message area only. */}
       {background === 'canvas' ? <DepthBackdrop /> : null}
-      {/* In the desktop shell the pane has no top inset — the header sits flush. */}
-      {inShell ? (
+      {/* A native nav-stack header already painted the top inset — render no header
+          chrome here. Otherwise: in the desktop shell the pane has no top inset (the
+          header sits flush); on mobile a SafeAreaView paints the notch. */}
+      {headerProvidedNatively ? null : inShell ? (
         headerNode
       ) : (
         <SafeAreaView edges={['top']} style={{ backgroundColor: headerNode ? colors.paper : bg }}>
