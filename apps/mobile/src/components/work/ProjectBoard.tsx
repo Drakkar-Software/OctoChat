@@ -1,15 +1,16 @@
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { layout, paperBorder, radii, shadows, spacing } from '@/theme';
+import { layout, opacity, paperBorder, radii, shadows, spacing } from '@/theme';
 import { useInlineEdit } from '@/lib/use-inline-edit';
 import { useProject } from '@/lib/use-project';
-import { useRowHover } from '@/lib/use-hover';
+import { useRevealActions } from '@/lib/use-reveal-actions';
 import { useTheme } from '@/lib/use-theme';
 import { MessageEditor } from '@/components/chat/MessageEditor';
 import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { Txt } from '@/components/ui/Txt';
+import { ObjectHero } from '@/components/work/ObjectHero';
 
 const STATUS_DONE = 'done';
 
@@ -26,23 +27,23 @@ export function ProjectBoard({ spaceId, objectId, emoji, title }: { spaceId: str
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.hero}>
-        {emoji ? <Txt style={styles.emoji}>{emoji}</Txt> : null}
-        <View style={styles.heroText}>
-          <Txt variant="display" weight="bold">{title || 'Untitled'}</Txt>
-          <Txt variant="caption" tone="inkFaint">{board.done}/{board.total} done</Txt>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Add column"
-          disabled={!ready}
-          onPress={() => addColumn('New column')}
-          style={[styles.add, { borderColor: colors.lineFaint, opacity: ready ? 1 : 0.5 }]}
-        >
-          <Icon name="plus" size={12} color={colors.inkMuted} />
-          <Txt variant="caption" tone="inkMuted">Column</Txt>
-        </Pressable>
-      </View>
+      <ObjectHero
+        emoji={emoji}
+        title={title}
+        subtitle={`${board.done}/${board.total} done`}
+        trailing={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add column"
+            disabled={!ready}
+            onPress={() => addColumn('New column')}
+            style={[styles.add, { borderColor: colors.lineFaint, opacity: ready ? 1 : opacity.disabled }]}
+          >
+            <Icon name="plus" size={12} color={colors.inkMuted} />
+            <Txt variant="caption" tone="inkMuted">Column</Txt>
+          </Pressable>
+        }
+      />
 
       {offline ? (
         <Callout tone="info" iconName="info">Offline — showing the last synced board.</Callout>
@@ -112,7 +113,7 @@ export function ProjectBoard({ spaceId, objectId, emoji, title }: { spaceId: str
                 accessibilityLabel="Add task"
                 disabled={!ready}
                 onPress={() => addTask(col.id, 'New task')}
-                style={[styles.addCard, { borderColor: colors.lineFaint, opacity: ready ? 1 : 0.5 }]}
+                style={[styles.addCard, { borderColor: colors.lineFaint, opacity: ready ? 1 : opacity.disabled }]}
               >
                 <Icon name="plus" size={12} color={colors.inkFaint} />
                 <Txt variant="caption" tone="inkFaint">Add card</Txt>
@@ -126,31 +127,39 @@ export function ProjectBoard({ spaceId, objectId, emoji, title }: { spaceId: str
 }
 
 /** One kanban card: tap the glyph to toggle done, the title to rename; a delete
- *  affordance reveals on hover. */
+ *  affordance reveals on hover (web) or long-press (native) via {@link useRevealActions}. */
 function TaskCard({ title, done, onToggle, onEdit, onDelete }: { title: string; done: boolean; onToggle: () => void; onEdit: () => void; onDelete: () => void }) {
   const { colors } = useTheme();
-  const { hovered, hoverProps } = useRowHover();
+  const { revealed, rowProps, onLongPress, hide } = useRevealActions();
   return (
-    <View {...hoverProps} style={[styles.card, { backgroundColor: colors.fill, borderColor: colors.lineFaint }]}>
+    <View {...rowProps} style={[styles.card, { backgroundColor: colors.fill, borderColor: colors.lineFaint }]}>
       <Pressable accessibilityRole="button" accessibilityLabel={done ? 'Mark not done' : 'Mark done'} onPress={onToggle} hitSlop={6}>
         <Icon name={done ? 'check' : 'target'} size={13} color={done ? colors.success : colors.inkFaint} />
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Rename ${title}`} onPress={onEdit} style={styles.cardText}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Rename ${title}`} onPress={onEdit} onLongPress={onLongPress} style={styles.cardText}>
         <Txt variant="subhead" numberOfLines={2} style={done ? styles.cardDone : undefined}>
           {title}
         </Txt>
       </Pressable>
-      {hovered ? <IconButton name="trash" size={14} color={colors.inkMuted} onPress={onDelete} accessibilityLabel="Delete task" /> : null}
+      {revealed ? (
+        <IconButton
+          name="trash"
+          size={14}
+          color={colors.inkMuted}
+          onPress={() => {
+            hide();
+            onDelete();
+          }}
+          accessibilityLabel="Delete task"
+        />
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { gap: spacing.md },
-  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  heroText: { flex: 1, gap: 2 },
-  emoji: { fontSize: 34 },
-  add: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: radii.xs, borderWidth: 1 },
+  add: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: radii.xs, borderWidth: 1 },
   columns: { gap: spacing.sm, paddingBottom: spacing.sm },
   column: { width: layout.boardColumnWidth, borderRadius: radii.card, borderWidth: 1, padding: spacing.sm, gap: spacing.xs },
   colHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: 2, paddingBottom: spacing.xs },
@@ -158,6 +167,6 @@ const styles = StyleSheet.create({
   colEdit: { flex: 1 },
   card: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs, padding: spacing.sm, borderRadius: radii.md, borderWidth: 1 },
   cardText: { flex: 1 },
-  cardDone: { textDecorationLine: 'line-through', opacity: 0.6 },
+  cardDone: { textDecorationLine: 'line-through', opacity: opacity.muted },
   addCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 6, borderRadius: radii.md, borderWidth: 1, borderStyle: 'dashed' },
 });

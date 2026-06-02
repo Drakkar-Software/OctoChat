@@ -381,6 +381,8 @@ export const motion = {
 export const opacity = {
   /** Dimmed pressable/control while disabled or blocked by an async action. */
   disabled: 0.45,
+  /** De-emphasized content that is still present (e.g. a completed/struck task). */
+  muted: 0.6,
 } as const;
 
 export const layout = {
@@ -399,6 +401,8 @@ export const layout = {
   /** Object tree (sidebar + Work): per-depth indent step and disclosure row height. */
   objectTreeIndent: 16,
   objectTreeRowHeight: 34,
+  /** Emoji glyph size in a Work doc/project hero header (larger than the title text). */
+  objectHeroEmoji: 34,
   /** Top toolbar above the main pane on desktop. */
   desktopTopbarHeight: 52,
   /**

@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { radii, spacing } from '@/theme';
+import { opacity, radii, spacing } from '@/theme';
 import { blockMarkdown, useDoc } from '@/lib/use-doc';
 import { useInlineEdit } from '@/lib/use-inline-edit';
 import { useTheme } from '@/lib/use-theme';
@@ -8,6 +8,7 @@ import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 import { MarkdownBlock } from '@/components/doc/MarkdownBlock';
+import { ObjectHero } from '@/components/work/ObjectHero';
 
 /**
  * Live doc body for one `doc` Object — the synced block list (merge-doc) rendered
@@ -34,12 +35,7 @@ export function DocView({ spaceId, objectId, emoji, title }: { spaceId: string; 
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.hero}>
-        {emoji ? <Txt style={styles.emoji}>{emoji}</Txt> : null}
-        <Txt variant="display" weight="bold">
-          {title || 'Untitled'}
-        </Txt>
-      </View>
+      <ObjectHero emoji={emoji} title={title} />
 
       {offline ? (
         <Callout tone="info" iconName="info">
@@ -79,7 +75,7 @@ export function DocView({ spaceId, objectId, emoji, title }: { spaceId: string; 
         accessibilityLabel="Add block"
         disabled={!ready}
         onPress={addBlock}
-        style={[styles.add, { borderColor: colors.lineFaint, opacity: ready ? 1 : 0.5 }]}
+        style={[styles.add, { borderColor: colors.lineFaint, opacity: ready ? 1 : opacity.disabled }]}
       >
         <Icon name="plus" size={13} color={colors.inkMuted} />
         <Txt variant="caption" tone="inkMuted">
@@ -92,7 +88,5 @@ export function DocView({ spaceId, objectId, emoji, title }: { spaceId: string; 
 
 const styles = StyleSheet.create({
   wrap: { gap: spacing.md },
-  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  emoji: { fontSize: 34 },
-  add: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: radii.md, borderWidth: 1 },
+  add: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start', paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radii.md, borderWidth: 1 },
 });

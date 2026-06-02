@@ -111,11 +111,9 @@ export function useMergeDoc(opts: MergeDocOptions): MergeDocResult {
 
   const store = useSyncInit(config);
 
-  const [ready, setReady] = useState(false);
   const [doc, setDoc] = useState<Record<string, unknown> | null>(null);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset gate + data when the store identity changes (space/object switch or reopen)
-    setReady(false);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset data when the store identity changes (space/object switch or reopen)
     setDoc(null);
     if (!store) return;
     const read = () => {
@@ -123,26 +121,26 @@ export function useMergeDoc(opts: MergeDocOptions): MergeDocResult {
       setDoc(s.data ?? null);
     };
     read();
-    let prevSyncing = (store.getState() as { syncing?: boolean }).syncing ?? false;
-    return store.subscribe((s: { syncing?: boolean; stale?: boolean; error?: unknown }) => {
-      read();
-      if (prevSyncing && !s.syncing && !s.error && !s.stale) setReady(true);
-      prevSyncing = s.syncing ?? false;
-    });
+    return store.subscribe(() => read());
   }, [store]);
 
-  const liveStore = ready ? store : null;
+  // Writable as soon as the store is open (client + encryptor resolved) — we do
+  // NOT wait for a fresh pull to settle. These docs are union-merged (by `id` +
+  // `updatedAt`), so a node/block created offline-first merges cleanly with server
+  // state on the next pull; gating writes on a settled sync instead left creation
+  // permanently dead whenever the first pull never settles (offline / unreachable
+  // server / a brand-new empty doc) — e.g. the Work tab on mobile.
   const apply = useCallback(
     (update: (doc: Record<string, unknown>) => Record<string, unknown>) => {
-      if (!liveStore) return false;
-      liveStore.getState().set((d: Record<string, unknown>) => update(d));
+      if (!store) return false;
+      store.getState().set((d: Record<string, unknown>) => update(d));
       return true;
     },
-    [liveStore],
+    [store],
   );
   const pull = useCallback(() => {
     if (store) void (store.getState() as { pull?: () => Promise<unknown> }).pull?.();
   }, [store]);
 
-  return { doc, ready: !!liveStore, opening: enabled ? opening : false, openError, offline, reload, apply, pull };
+  return { doc, ready: !!store, opening: enabled ? opening : false, openError, offline, reload, apply, pull };
 }

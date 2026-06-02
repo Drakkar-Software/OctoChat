@@ -559,12 +559,16 @@ export async function createSpace(session: Session, name: string): Promise<Space
   const trimmed = name.trim() || 'New Space';
   const id = newSpaceId();
   const space: Space = { id, name: trimmed, short: trimmed.slice(0, 2).toUpperCase(), members: 1 };
-  await writeSpaces(accountClient, userId, [...spaces, space], hash);
-  // Stamp ownership (TOFU: this first write claims the space) + the shared name so
-  // invited members read it from the access record.
+  // Order matters for crash-safety. Stamp ownership first (TOFU: this first write claims
+  // the space + the shared name) so the keyring write below passes `space:owner`, then
+  // seed the encrypted object index with one `general` channel (mints the keyring). Only
+  // once the space is fully formed do we add it to the user's `_spaces` list — so a failed
+  // seed leaves an unreferenced (harmless, unguessable-id) `_rooms`/keyring orphan rather
+  // than a space that shows up EMPTY in the rail (with the migration gone, nothing would
+  // ever re-seed it).
   await writeRooms(accountClient, id, userId, [], null, { name: trimmed });
-  // Seed the encrypted object index with one `general` channel (mints the keyring).
   await seedSpaceObjectIndex(session, id, [{ id: `${id}-general`, name: 'general', kind: 'channel', category: DEFAULT_CATEGORY }]);
+  await writeSpaces(accountClient, userId, [...spaces, space], hash);
   return space;
 }
 
