@@ -3,18 +3,19 @@
  * keyring for (i.e. rooms it has opened), and flatten their messages. Rooms
  * never opened have no keyring yet and are simply skipped.
  */
-import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
-
-import { buildEncryptor, makeClient } from './starfish/client';
-import { getMemberCap } from './starfish/member-caps';
 import type { Session } from './starfish/identity';
-import { ownerTrustedAdders } from './starfish/identity';
-import { pubspaceRoomPull, roomPull } from './starfish/paths';
+import { readIndexRooms } from './starfish/object-index';
+import { objIndexPull, pubspaceRoomPull, roomPull } from './starfish/paths';
 import { isPublicSpaceId, publicSpaceAuth, publicSpaceClient, readPublicRoomsDoc } from './starfish/pubspace';
 import { readRooms } from './starfish/registry';
+import { buildSpaceEncryptor } from './starfish/space-encryptor';
 import type { StoredMsg } from './message-view';
 import { buildThreadDigest, type ThreadSummary } from './threads';
 import type { MessageEditEvent, PinEvent, Room } from './types';
+
+// Re-export so existing importers (space-stats, notification-preview) keep reaching for
+// the soft space encryptor through `./cross-room`; its home is now `space-encryptor.ts`.
+export { buildSpaceEncryptor } from './starfish/space-encryptor';
 
 export interface CrossRoomMessage {
   room: Room;
@@ -24,31 +25,6 @@ export interface CrossRoomMessage {
 export interface CrossRoomThread {
   room: Room;
   thread: ThreadSummary;
-}
-
-/**
- * Resolve a space-wide client + soft decryptor for the signed-in identity.
- * Keyring + access are space-wide, not per-room: a joined space uses its member
- * cap (keyed by spaceId) with the cap's issuer as the trusted keyring adder; an
- * owned space uses the account's chat client and our own key. Returns null when
- * the identity has no keyring for the space yet (a space it has never opened).
- */
-export async function buildSpaceEncryptor(
-  session: Session,
-  spaceId: string,
-): Promise<{ client: StarfishClient; enc: Encryptor } | null> {
-  const memberCap = getMemberCap(spaceId);
-  let client = session.chatClient;
-  // Owned space: the root key signed the keyring (== device key for seed/Nostr;
-  // the cap-cert issuer for a paired device). Overridden below for joined spaces.
-  let trustedAdders = ownerTrustedAdders(session);
-  if (memberCap) {
-    const cap = JSON.parse(memberCap) as { iss?: string };
-    client = makeClient(cap, session.keys.edPriv);
-    if (cap.iss) trustedAdders = [cap.iss];
-  }
-  const enc = await buildEncryptor(client, session.keys, spaceId, trustedAdders);
-  return enc ? { client, enc } : null;
 }
 
 export async function loadAllMessages(session: Session, spaceId: string): Promise<CrossRoomMessage[]> {
@@ -71,11 +47,12 @@ export async function loadAllMessages(session: Session, spaceId: string): Promis
     return out;
   }
 
-  // Private space: one encryptor for the space decrypts every channel's per-room doc.
-  const { rooms } = await readRooms(session.accountClient, spaceId);
+  // Private space: one encryptor for the space decrypts the index AND every channel's
+  // per-room doc.
   const space = await buildSpaceEncryptor(session, spaceId);
   if (!space) return [];
   const { client, enc } = space;
+  const rooms = (await readIndexRooms(client, enc, objIndexPull(spaceId), spaceId))?.rooms ?? [];
 
   for (const room of rooms) {
     try {
@@ -104,10 +81,10 @@ export async function loadAllThreads(
   spaceId: string,
   readBefore: (roomId: string) => number,
 ): Promise<CrossRoomThread[]> {
-  const { rooms } = await readRooms(session.accountClient, spaceId);
   const space = await buildSpaceEncryptor(session, spaceId);
   if (!space) return [];
   const { client, enc } = space;
+  const rooms = (await readIndexRooms(client, enc, objIndexPull(spaceId), spaceId))?.rooms ?? [];
 
   const out: CrossRoomThread[] = [];
   for (const room of rooms) {
@@ -171,12 +148,14 @@ export async function loadAllPins(session: Session, spaceId: string): Promise<Cr
       }
     }
   } else {
-    // Private space: one space encryptor decrypts every channel's per-room doc.
-    const { rooms, owner } = await readRooms(session.accountClient, spaceId);
+    // Private space: one space encryptor decrypts the index AND every channel's doc.
+    // `owner` (the only pin authority) stays in the `_rooms` access record.
+    const { owner } = await readRooms(session.accountClient, spaceId);
     if (!owner) return [];
     const space = await buildSpaceEncryptor(session, spaceId);
     if (!space) return [];
     const { client, enc } = space;
+    const rooms = (await readIndexRooms(client, enc, objIndexPull(spaceId), spaceId))?.rooms ?? [];
     for (const room of rooms) {
       try {
         const res = await client.pull(roomPull(room.id)).catch(() => null);

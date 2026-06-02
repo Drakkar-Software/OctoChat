@@ -358,7 +358,7 @@ describe('readRooms', () => {
       throw new StarfishHttpError(404, '');
     });
     const res = await readRooms(fakeClient(pull, vi.fn()), 'sp-1');
-    expect(res).toEqual({ rooms: [], owner: null, members: [], name: null, image: null, categories: [], hash: null });
+    expect(res).toEqual({ owner: null, members: [], name: null, image: null, hash: null });
   });
 
   // The linchpin of the offline fix: a network failure must PROPAGATE (not collapse to

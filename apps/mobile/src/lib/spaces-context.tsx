@@ -191,7 +191,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       const space =
         type === 'public'
           ? await createPublicSpace(session, name)
-          : await createSpaceDoc(session.accountClient, session.userId, name);
+          : await createSpaceDoc(session, name);
       await refresh();
       setActiveId(space.id);
       return space;

@@ -34,54 +34,24 @@ import {
 import type { AutomationMeta, Room } from '@/lib/types';
 
 import { kvGet, kvSet } from './starfish/kv';
-import { readRooms, reconcileSpaceMeta, DEFAULT_CATEGORY } from './starfish/registry';
+import { readRooms, reconcileSpaceMeta } from './starfish/registry';
 import { getSpaceEncryptor } from './starfish/space-encryptor';
+import { readIndexRooms } from './starfish/object-index';
 import { objIndexPull, pubObjIndexPull } from './starfish/paths';
-import { objectsToRoomCategories } from './starfish/objects';
 import {
   isPublicSpaceId,
   publicSpaceAuth,
   publicSpaceClient,
   readPublicRoomsDoc,
 } from './starfish/pubspace';
-import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
-import type { ObjectNode } from '@/lib/types';
 import type { Session } from './starfish/identity';
 import { useSession } from './session-context';
 import { useSpacesContext } from './spaces-context';
 
-/**
- * Read + project the unified OBJECT INDEX's room/category nodes into the legacy
- * `{ rooms, categories }` shape, so EVERY registry consumer (room screen kind lookup,
- * unread, push, automations) is served index-sourced rooms through this one provider.
- * Headless: pull the index doc, decrypt it (private spaces) and project. Returns null
- * on ANY failure or an empty/unmigrated index, so the caller falls back to the legacy
- * `_rooms` room list — chat is never left blank by an index hiccup.
- */
-async function readIndexRooms(
-  client: StarfishClient,
-  encryptor: Encryptor | null,
-  indexPath: string,
-  spaceId: string,
-): Promise<{ rooms: Room[]; categories: string[] } | null> {
-  try {
-    const res = await client.pull(indexPath).catch(() => null);
-    if (!res?.data) return null;
-    const plain = encryptor ? await encryptor.decrypt(res.data as Record<string, unknown>) : (res.data as Record<string, unknown>);
-    const nodes = Array.isArray((plain as { objects?: unknown }).objects) ? ((plain as { objects: ObjectNode[] }).objects) : [];
-    const cats = objectsToRoomCategories(nodes, spaceId, DEFAULT_CATEGORY);
-    if (!cats) return null; // index holds no room/category nodes yet (unmigrated)
-    return { rooms: cats.flatMap((c) => c.rooms), categories: cats.map((c) => c.name) };
-  } catch {
-    return null;
-  }
-}
-
 /** Private-space index read: open the (cached) space encryptor, then {@link readIndexRooms}.
  *  Skipped when the owner is unknown (unreadable/legacy registry): `getSpaceEncryptor`
  *  treats a null owner as self and could MINT a keyring as a side effect of this passive
- *  read — so we only attempt the index read once the access record names an owner, and
- *  fall back to the legacy `_rooms` list otherwise. */
+ *  read — so we only attempt the index read once the access record names an owner. */
 async function readPrivateIndexRooms(s: Session, spaceId: string, owner: string | null, members: string[]): Promise<{ rooms: Room[]; categories: string[] } | null> {
   if (owner === null) return null;
   try {
@@ -220,12 +190,14 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
         loaded: true,
       };
     }
-    const { rooms, owner, members, name, image, categories, hash } = await readRooms(s.accountClient, spaceId);
+    const { owner, members, name, image, hash } = await readRooms(s.accountClient, spaceId);
     void reconcileSpaceMeta(s.accountClient, s.userId, spaceId, { name, image }, spacesRef.current).catch(() => {});
-    // Prefer the unified index (decrypted via the space keyring); fall back to the
-    // legacy `_rooms` list while a space hasn't migrated or the keyring isn't open.
+    // The encrypted object index is the SOLE source of the room/category list now that
+    // `_rooms` is just the access record. A failed/empty index read yields an empty list
+    // (the keyring not being open yet is the only transient case, and it resolves on the
+    // next read once the space is opened) rather than the old legacy `_rooms` fallback.
     const idx = await readPrivateIndexRooms(s, spaceId, owner, members);
-    return { rooms: idx?.rooms ?? rooms, owner, members, name, image, categories: idx?.categories ?? categories, hash, loading: false, loaded: true };
+    return { rooms: idx?.rooms ?? [], owner, members, name, image, categories: idx?.categories ?? [], hash, loading: false, loaded: true };
   }, []);
 
   // Run one read for a space, sharing the in-flight promise and publishing the

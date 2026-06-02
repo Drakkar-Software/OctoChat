@@ -14,7 +14,7 @@
  */
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { DmMap, Room, Space } from '@/lib/types';
+import type { DmMap, Space } from '@/lib/types';
 
 import { ensureRoomInitialized, ownerEnsureKeyring } from './client';
 import { acceptSpaceInvite, inviteToSpace } from './members';
@@ -23,7 +23,9 @@ import { dmRoomId, dmWinner, isDmSpaceId, newDmSpaceId } from './dm-ids';
 import { appendDmInvite, scanDmInbox } from './dm-inbox';
 import type { PeerKeys } from './dm-keys';
 import { ownerTrustedAdders, type Session } from './identity';
-import { addJoinedSpace, DEFAULT_CATEGORY, readRooms, readSpaces, setDmMapping, writeRooms } from './registry';
+import { DEFAULT_CATEGORY } from './objects';
+import { pushIndexSeed } from './object-index';
+import { addJoinedSpace, readRooms, readSpaces, setDmMapping, writeRooms } from './registry';
 import { getSpaceEncryptor } from './space-encryptor';
 
 // Re-export the pure id/dedup helpers so existing importers can keep reaching for them
@@ -44,10 +46,11 @@ async function createDmSpace(session: Session, peerPseudo: string): Promise<DmRe
   // Seed the space keyring (owner = this session) and the room's empty encrypted doc.
   const enc = await ownerEnsureKeyring(session.chatClient, session.keys, spaceId, ownerTrustedAdders(session));
   await ensureRoomInitialized(session.chatClient, enc, roomId);
-  // Claim ownership (TOFU first write) + register the one DM room. Members start empty;
-  // inviteToSpace adds the peer to the roster.
-  const room: Room = { id: roomId, spaceId, category: DEFAULT_CATEGORY, name: peerPseudo, kind: 'dm' };
-  await writeRooms(session.chatClient, spaceId, [room], session.userId, [], null, { name: peerPseudo });
+  // Claim ownership (TOFU first write) in the access record; members start empty
+  // (inviteToSpace adds the peer to the roster). The single `kind:'dm'` room now lives
+  // in the encrypted object index — seed it with the keyring we just opened.
+  await writeRooms(session.chatClient, spaceId, session.userId, [], null, { name: peerPseudo });
+  await pushIndexSeed(session.chatClient, enc, spaceId, [{ id: roomId, name: peerPseudo, kind: 'dm', category: DEFAULT_CATEGORY }]);
   // Record in our own space list (filtered out of the rail by isDmSpaceId). The stored
   // name is cosmetic — the DM list always derives the peer's pseudo per viewer.
   const space: Space = { id: spaceId, name: peerPseudo, short: peerPseudo.slice(0, 2).toUpperCase(), members: 2 };

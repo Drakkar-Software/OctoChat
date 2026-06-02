@@ -13,7 +13,7 @@
  */
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
-import { makeClient, openEncryptor, ownerEnsureKeyring } from './client';
+import { buildEncryptor, makeClient, openEncryptor, ownerEnsureKeyring } from './client';
 import type { Session } from './identity';
 import { ownerTrustedAdders } from './identity';
 import { getMemberCap } from './member-caps';
@@ -95,4 +95,30 @@ export function getSpaceEncryptor(
   cache.set(spaceId, p);
   p.catch(() => cache.delete(spaceId)); // a failed open must not stick
   return p;
+}
+
+/**
+ * SOFT resolve a private space's encryptor + client for a read-only consumer (cross-room
+ * search/threads/pins, space stats, notification labels, the headless index read). Unlike
+ * {@link getSpaceEncryptor} this NEVER mints a keyring and NEVER throws on missing access:
+ * a joined space uses its member cap (the cap's issuer is the trusted adder); an owned
+ * space uses the account chat client + our own key. Returns null when the identity has no
+ * keyring for the space yet (a space it has never opened), so the caller simply skips it.
+ */
+export async function buildSpaceEncryptor(
+  session: Session,
+  spaceId: string,
+): Promise<{ client: StarfishClient; enc: Encryptor } | null> {
+  const memberCap = getMemberCap(spaceId);
+  let client = session.chatClient;
+  // Owned space: the root key signed the keyring (== device key for seed/Nostr; the
+  // cap-cert issuer for a paired device). Overridden below for joined spaces.
+  let trustedAdders = ownerTrustedAdders(session);
+  if (memberCap) {
+    const cap = JSON.parse(memberCap) as { iss?: string };
+    client = makeClient(cap, session.keys.edPriv);
+    if (cap.iss) trustedAdders = [cap.iss];
+  }
+  const enc = await buildEncryptor(client, session.keys, spaceId, trustedAdders);
+  return enc ? { client, enc } : null;
 }

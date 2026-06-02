@@ -26,9 +26,9 @@ import { buildSpaceEncryptor } from './cross-room';
 import { resolveEdit, type StoredMsg } from './message-view';
 import { makeClient } from './starfish/client';
 import type { Session } from './starfish/identity';
-import { pubspaceRoomPull, pubstreamRoomPull, roomPull, streamRoomPull } from './starfish/paths';
+import { readIndexRooms } from './starfish/object-index';
+import { objIndexPull, pubspaceRoomPull, pubstreamRoomPull, roomPull, streamRoomPull } from './starfish/paths';
 import { isPublicSpaceId, publicSpaceAuth, readPublicRoomsDoc } from './starfish/pubspace';
-import { readRooms } from './starfish/registry';
 import { buildThreadDigest } from './threads';
 import type { MessageEditEvent, Room } from './types';
 
@@ -163,15 +163,15 @@ export async function loadSpaceStats(session: Session, spaceId: string): Promise
         ? publicStreamLog(client, auth.ownerId, spaceId, room.id)
         : publicMergeLog(client, auth.ownerId, spaceId, room.id);
   } else {
-    rooms = (await readRooms(session.accountClient, spaceId).catch(() => null))?.rooms ?? [];
     const space = await buildSpaceEncryptor(session, spaceId);
     if (!space) {
-      // No keyring for this space yet — we can report the room count but nothing else.
-      stats.rooms = rooms.length;
-      stats.partial = rooms.length > 0;
+      // No keyring for this space yet — the room list now lives in the ENCRYPTED index,
+      // so without a keyring we can't even count rooms. Report an empty (non-partial)
+      // snapshot rather than a misleading count.
       return stats;
     }
     const { client, enc } = space;
+    rooms = (await readIndexRooms(client, enc, objIndexPull(spaceId), spaceId).catch(() => null))?.rooms ?? [];
     foldRoom = (room) =>
       room.kind === 'stream' ? privateStreamLog(client, enc, room.id) : privateMergeLog(client, enc, room.id);
   }

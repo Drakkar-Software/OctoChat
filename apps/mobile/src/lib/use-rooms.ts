@@ -1,16 +1,16 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import type { ObjectNode, Room, RoomKind } from '@/lib/types';
 
-import { CategoryError, DEFAULT_CATEGORY } from './starfish/registry';
+import { CategoryError } from './starfish/registry';
 import {
   addObject,
   categoryId,
+  DEFAULT_CATEGORY,
   objectsToRoomCategories,
   patchObject,
   reparentObject,
   roomKindToSubtype,
-  roomsToObjects,
 } from './starfish/objects';
 import { isPublicSpaceId } from './starfish/pubspace';
 import { roomSlug } from './ids';
@@ -61,40 +61,17 @@ export function useRooms(spaceId: string | null) {
   const reg = useRoomsRegistry(spaceId);
   const { refresh } = useRoomsRegistryActions();
   const objects = useObjects(sid, { enabled });
-  const { nodes, ready, mutate, seedIfEmpty } = objects;
+  const { nodes, ready, mutate } = objects;
   const publicSpace = !!spaceId && isPublicSpaceId(sid);
 
-  // ── TEMP MIGRATION (remove once every space is on the object index) ──────────
-  // Seed the unified index from a space's legacy `_rooms` rooms/categories the first
-  // time we see the index empty but the registry populated. Idempotent (seedIfEmpty
-  // no-ops once the index has anything), so it runs at most once per space and never
-  // clobbers index-native rooms.
-  //
-  // The tail is CLOSED: `RoomsRegistryProvider.fetchEntry` now sources rooms/categories
-  // from the index too (headless decrypt, with `_rooms` fallback), so every registry
-  // consumer — room screen kind lookup, unread, push, automations — is served the SAME
-  // index rooms. This hook reads the LIVE index for instant sidebar/tab updates and
-  // `refresh()`es the provider after writes so those consumers converge.
-  useEffect(() => {
-    if (!enabled || !ready || !reg.loaded) return;
-    const hasIndexRooms = nodes.some((n) => n.type === 'room' || n.type === 'category');
-    if (hasIndexRooms || reg.rooms.length === 0) return;
-    seedIfEmpty(roomsToObjects(reg.rooms, reg.categories, Date.now()));
-    // Re-read the provider once the seed lands so the index-backed registry (room
-    // screen kind, unread, push, automations) picks up the migrated rooms. Best-effort
-    // + eventually-consistent: a too-early read just keeps the legacy fallback and the
-    // next provider read converges.
-    void refresh(sid);
-  }, [enabled, ready, reg.loaded, reg.rooms, reg.categories, nodes, seedIfEmpty, refresh, sid]);
-
-  // Room list: prefer the index projection; fall back to the legacy `_rooms` list while
-  // a space hasn't migrated yet (index still empty), so chat shows rooms immediately.
+  // Room list, sourced from the unified OBJECT INDEX (the sole source now that `_rooms`
+  // is just the access record). An empty/opening index yields an empty list — the
+  // sidebar shows its loading state until `ready`, then the projected rooms.
   const categories = useMemo<RoomCategory[]>(() => {
-    const fromIndex = objectsToRoomCategories(nodes, sid, DEFAULT_CATEGORY);
-    const base: RoomCategory[] = fromIndex ?? legacyCategories(reg.rooms, reg.categories);
+    const base = objectsToRoomCategories(nodes, sid, DEFAULT_CATEGORY) ?? [];
     // Overlay live unread counts so ChannelRow badges light up.
     return base.map((c) => ({ ...c, rooms: c.rooms.map((r) => ({ ...r, unread: unreadByRoom[r.id] ?? 0 })) }));
-  }, [nodes, sid, reg.rooms, reg.categories, unreadByRoom]);
+  }, [nodes, sid, unreadByRoom]);
 
   const rooms = useMemo<Room[]>(() => categories.flatMap((c) => c.rooms), [categories]);
 
@@ -237,16 +214,4 @@ export function useRooms(spaceId: string | null) {
     reorderCategories,
     moveRoom,
   };
-}
-
-/** Pre-migration fallback: group the legacy `_rooms` rooms by their stored category
- *  order (the old behaviour) so chat still lists rooms before the index seeds. */
-function legacyCategories(rooms: Room[], categoryNames: string[]): RoomCategory[] {
-  const map = new Map<string, Room[]>();
-  for (const name of categoryNames) map.set(name, []);
-  for (const r of rooms) {
-    if (!map.has(r.category)) map.set(r.category, []);
-    map.get(r.category)!.push(r);
-  }
-  return [...map.entries()].map(([name, rs]) => ({ name, rooms: rs }));
 }

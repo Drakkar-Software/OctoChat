@@ -38,9 +38,6 @@ export interface ObjectsHook {
   /** Apply an arbitrary stamped reducer to the node list (for composite ops like the
    *  room/category helpers in {@link useRooms}). Returns false when not writable yet. */
   mutate: (reducer: (nodes: ObjectNode[], now: number) => ObjectNode[]) => boolean;
-  /** One-shot seed used by the (temporary) legacy-rooms migration: write `seed` only
-   *  when the index is still empty, so it can't clobber a populated index. */
-  seedIfEmpty: (seed: ObjectNode[]) => void;
 }
 
 export function useObjects(spaceId: string, opts: { enabled?: boolean } = {}): ObjectsHook {
@@ -107,14 +104,10 @@ export function useObjects(spaceId: string, opts: { enabled?: boolean } = {}): O
     return applyNodes((cur) => reducer(cur, now));
   }, [stamp, applyNodes]);
 
-  const seedIfEmpty = useCallback((seed: ObjectNode[]) => {
-    applyNodes((cur) => (cur.length ? cur : seed));
-  }, [applyNodes]);
-
   const tree = useMemo(() => buildTree(objects), [objects]);
   const nodes = useMemo(() => objects.filter((n) => !n.archived), [objects]);
   const breadcrumbs = useCallback((id: ID) => breadcrumbsOf(objects, id), [objects]);
   const get = useCallback((id: ID) => objects.find((n) => n.id === id), [objects]);
 
-  return { tree, nodes, breadcrumbs, get, opening, openError, offline, ready, reload, create, rename, move, reorder, archive, mutate, seedIfEmpty };
+  return { tree, nodes, breadcrumbs, get, opening, openError, offline, ready, reload, create, rename, move, reorder, archive, mutate };
 }

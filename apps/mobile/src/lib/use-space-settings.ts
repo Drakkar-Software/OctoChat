@@ -144,13 +144,13 @@ export function useSpaceSettings(spaceId: string) {
       if (isPublic) {
         await updatePublicSpaceMeta(session, spaceId, { name: nextName, image: nextImage });
       } else {
-        const { rooms, owner, members: roster, categories, hash } = await readRooms(session.accountClient, spaceId);
-        // Preserve `categories` — push replaces the whole `_rooms` doc, so a name/image
-        // save would otherwise drop the ordered category list.
-        await writeRooms(session.accountClient, spaceId, rooms, owner ?? session.userId, roster, hash, {
+        const { owner, members: roster, hash } = await readRooms(session.accountClient, spaceId);
+        // `_rooms` is the access record now (owner/members + shared name/image); the
+        // room/category list lives in the encrypted index and is untouched by a meta save.
+        await writeRooms(session.accountClient, spaceId, owner ?? session.userId, roster, hash, {
           name: nextName,
           image: nextImage,
-        }, categories);
+        });
       }
       const short = nextName.slice(0, 2).toUpperCase();
       const { spaces, hash } = await readSpaces(session.accountClient, session.userId);

@@ -17,6 +17,13 @@
 import type { AutomationMeta, ID, ObjectNode, ObjectType, Room, RoomSubtype } from '@/lib/types';
 import { randomId, roomSlug } from '../ids';
 
+/** The bucket new/unfiled rooms land in, and the fallback a deleted category's
+ *  rooms are reassigned to. The seed category in `createSpace`/`createDmSpace`. Lives
+ *  here (the cycle-free pure module) so both `registry` and the headless
+ *  `object-index` seed/read helpers can share it without importing each other;
+ *  `registry` re-exports it for its existing consumers. */
+export const DEFAULT_CATEGORY = 'CHANNELS';
+
 /** Deterministic category-node id from its name, so two devices that concurrently
  *  create (or auto-migrate) the SAME category mint the SAME id → the union-merge
  *  dedupes them instead of leaving duplicate category headers in the tree. (Random
@@ -257,46 +264,41 @@ export function objectsToRoomCategories(nodes: ObjectNode[], spaceId: string, fa
   return [...buckets.entries()].map(([name, rs]) => ({ name, rooms: rs }));
 }
 
-// ── Migration: legacy `_rooms` → unified index ────────────────────────────────
+// ── Seed: build the initial index nodes for a freshly-created space ────────────
+
+/** A minimal room descriptor the {@link seedIndexNodes} builder turns into nodes —
+ *  the create-time seed (a space's `general` channel, a DM's single room). */
+export interface SeedRoom {
+  id: ID;
+  name: string;
+  kind: Room['kind'];
+  category: string;
+}
 
 /**
- * Seed an object index from a space's legacy `_rooms` registry: each category
- * becomes a `category` node and each room a `room` node parented to its category
- * (replacing the old `room.category` string ref). Ordering follows the registry's
- * category order, then room insertion order within a category. Pure — the hook
- * decides WHEN to run it (only when the index is still empty) and persists the result.
+ * Build the initial `ObjectNode[]` for a brand-new space's index: a `category` node
+ * per distinct category and a `room` node per seed room parented under it. Pure +
+ * deterministic (category ids via {@link categoryId}); the headless seed in
+ * `object-index.ts` encrypts + pushes the result. Replaces the old `roomsToObjects`
+ * migration builder now that every existing space has migrated and only NEW spaces
+ * need seeding.
  */
-export function roomsToObjects(rooms: Room[], categories: string[], now: number): ObjectNode[] {
+export function seedIndexNodes(rooms: SeedRoom[], now: number): ObjectNode[] {
   const out: ObjectNode[] = [];
   const catId = new Map<string, ID>();
   let catOrder = 0;
-  for (const name of categories) {
-    const id = categoryId(name);
-    catId.set(name, id);
-    out.push({ id, type: 'category', parentId: null, order: catOrder++, title: name, updatedAt: now });
-  }
-  // Any room whose category wasn't in the list still needs a parent bucket.
-  const orderInCat = new Map<ID | null, number>();
   for (const r of rooms) {
-    let parentId = catId.get(r.category) ?? null;
-    if (parentId == null && r.category) {
-      const id = categoryId(r.category);
-      catId.set(r.category, id);
-      parentId = id;
-      out.push({ id, type: 'category', parentId: null, order: catOrder++, title: r.category, updatedAt: now });
-    }
+    if (catId.has(r.category)) continue;
+    const id = categoryId(r.category);
+    catId.set(r.category, id);
+    out.push({ id, type: 'category', parentId: null, order: catOrder++, title: r.category, updatedAt: now });
+  }
+  const orderInCat = new Map<ID, number>();
+  for (const r of rooms) {
+    const parentId = catId.get(r.category)!;
     const order = (orderInCat.get(parentId) ?? 0) + 1;
     orderInCat.set(parentId, order);
-    out.push({
-      id: r.id,
-      type: 'room',
-      subtype: roomKindToSubtype(r.kind),
-      parentId,
-      order,
-      title: r.name,
-      ...(r.automation ? { automation: r.automation } : {}),
-      updatedAt: now,
-    });
+    out.push({ id: r.id, type: 'room', subtype: roomKindToSubtype(r.kind), parentId, order, title: r.name, updatedAt: now });
   }
   return out;
 }

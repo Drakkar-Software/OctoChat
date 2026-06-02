@@ -9,6 +9,7 @@ vi.mock('./cross-room', () => ({ buildSpaceEncryptor: vi.fn() }));
 vi.mock('./message-view', () => ({ resolveEdit: vi.fn() }));
 vi.mock('./starfish/client', () => ({ makeClient: vi.fn() }));
 vi.mock('./starfish/paths', () => ({
+  objIndexPull: (id: string) => `objindex/${id}`,
   roomPull: (id: string) => `merge/${id}`,
   streamRoomPull: (id: string) => `stream/${id}`,
   pubspaceRoomPull: (_o: string, _s: string, id: string) => `pub/${id}`,
@@ -19,14 +20,15 @@ vi.mock('./starfish/pubspace', () => ({
   publicSpaceAuth: vi.fn(),
   readPublicRoomsDoc: vi.fn(),
 }));
-vi.mock('./starfish/registry', () => ({ readRooms: vi.fn() }));
+// The private room list now comes from the encrypted object index, not `_rooms`.
+vi.mock('./starfish/object-index', () => ({ readIndexRooms: vi.fn() }));
 vi.mock('./threads', () => ({ buildThreadDigest: vi.fn(() => []) }));
 
 import { loadSpaceStats } from './space-stats';
 import { buildSpaceEncryptor } from './cross-room';
 import { resolveEdit } from './message-view';
 import { isPublicSpaceId, publicSpaceAuth, readPublicRoomsDoc } from './starfish/pubspace';
-import { readRooms } from './starfish/registry';
+import { readIndexRooms } from './starfish/object-index';
 import { buildThreadDigest } from './threads';
 import type { StoredMsg } from './message-view';
 import type { Room } from './types';
@@ -36,7 +38,7 @@ const mockResolveEdit = vi.mocked(resolveEdit);
 const mockIsPublicSpaceId = vi.mocked(isPublicSpaceId);
 const mockPublicSpaceAuth = vi.mocked(publicSpaceAuth);
 const mockReadPublicRoomsDoc = vi.mocked(readPublicRoomsDoc);
-const mockReadRooms = vi.mocked(readRooms);
+const mockReadIndexRooms = vi.mocked(readIndexRooms);
 const mockBuildThreadDigest = vi.mocked(buildThreadDigest);
 
 const SESSION = { userId: 'self', accountClient: {} } as never;
@@ -71,7 +73,7 @@ describe('loadSpaceStats — private merge room', () => {
     const pull = vi.fn(async () => ({ data: encDoc }));
     const decrypt = vi.fn(async () => plain);
     mockBuildSpaceEncryptor.mockResolvedValue({ client: { pull } as never, enc: { decrypt } as never } as never);
-    mockReadRooms.mockResolvedValue({ rooms: [room('r1')] } as never);
+    mockReadIndexRooms.mockResolvedValue({ rooms: [room('r1')], categories: [] } as never);
 
     const stats = await loadSpaceStats(SESSION, 'space1');
 
@@ -92,7 +94,7 @@ describe('loadSpaceStats — private merge room', () => {
     const pull = vi.fn(async () => ({ data: plainDoc })); // no _encrypted flag
     const decrypt = vi.fn();
     mockBuildSpaceEncryptor.mockResolvedValue({ client: { pull } as never, enc: { decrypt } as never } as never);
-    mockReadRooms.mockResolvedValue({ rooms: [room('r1')] } as never);
+    mockReadIndexRooms.mockResolvedValue({ rooms: [room('r1')], categories: [] } as never);
 
     const stats = await loadSpaceStats(SESSION, 'space1');
 
@@ -107,7 +109,7 @@ describe('loadSpaceStats — private merge room', () => {
       client: { pull } as never,
       enc: { decrypt: vi.fn() } as never,
     } as never);
-    mockReadRooms.mockResolvedValue({ rooms: [room('r1')] } as never);
+    mockReadIndexRooms.mockResolvedValue({ rooms: [room('r1')], categories: [] } as never);
 
     const stats = await loadSpaceStats(SESSION, 'space1');
 
@@ -127,7 +129,7 @@ describe('loadSpaceStats — failure handling', () => {
       return goodPlain;
     });
     mockBuildSpaceEncryptor.mockResolvedValue({ client: { pull } as never, enc: { decrypt } as never } as never);
-    mockReadRooms.mockResolvedValue({ rooms: [room('good'), room('bad')] } as never);
+    mockReadIndexRooms.mockResolvedValue({ rooms: [room('good'), room('bad')], categories: [] } as never);
 
     const stats = await loadSpaceStats(SESSION, 'space1');
 
@@ -136,22 +138,14 @@ describe('loadSpaceStats — failure handling', () => {
     expect(stats.messages).toBe(1); // the good room still counted
   });
 
-  it('reports room count only and flags partial when there is no keyring', async () => {
-    mockReadRooms.mockResolvedValue({ rooms: [room('r1'), room('r2')] } as never);
+  it('returns an empty snapshot when there is no keyring (the room list lives in the encrypted index)', async () => {
     mockBuildSpaceEncryptor.mockResolvedValue(null); // no keyring for this space yet
 
     const stats = await loadSpaceStats(SESSION, 'space1');
 
-    expect(stats).toEqual({ rooms: 2, messages: 0, threads: 0, attachments: 0, bytes: 0, partial: true });
-  });
-
-  it('does not flag partial for an empty space with no rooms and no keyring', async () => {
-    mockReadRooms.mockResolvedValue({ rooms: [] } as never);
-    mockBuildSpaceEncryptor.mockResolvedValue(null);
-
-    const stats = await loadSpaceStats(SESSION, 'space1');
-
-    expect(stats).toMatchObject({ rooms: 0, partial: false });
+    // Without the keyring we can't read (or even count) the encrypted index, so there is
+    // nothing to report — an empty, non-partial snapshot rather than a misleading count.
+    expect(stats).toEqual({ rooms: 0, messages: 0, threads: 0, attachments: 0, bytes: 0, partial: false });
   });
 });
 

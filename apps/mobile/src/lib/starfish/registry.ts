@@ -1,7 +1,10 @@
 /**
  * Space + room registries (plaintext metadata docs). A user's spaces live at
- * `user/<userId>/_spaces`; each space's rooms at `spaces/<spaceId>/_rooms`.
- * A fresh identity starts with no spaces — the user creates or joins one.
+ * `user/<userId>/_spaces`; each space's ACCESS RECORD (owner/members + shared
+ * name/image) at `spaces/<spaceId>/_rooms`. The room/category LIST no longer lives
+ * here — it moved to the encrypted unified object index (`objects/_index`, see
+ * `object-index.ts` / {@link useObjects}); `_rooms` is now just the owner-only access
+ * record. A fresh identity starts with no spaces — the user creates or joins one.
  */
 import { ConflictError, StarfishHttpError } from '@drakkar.software/starfish-client';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
@@ -12,12 +15,19 @@ import type { SealedBlob } from './account-seal';
 
 import { randomId } from '../ids';
 
+import type { Session } from './identity';
+import { DEFAULT_CATEGORY } from './objects';
+import { seedSpaceObjectIndex } from './object-index';
 import {
   roomsRegistryPull,
   roomsRegistryPush,
   spacesPull,
   spacesPush,
 } from './paths';
+
+// Re-export so existing `import { DEFAULT_CATEGORY } from './registry'` consumers keep
+// working; its canonical home is the cycle-free `objects.ts` (shared with object-index).
+export { DEFAULT_CATEGORY };
 
 /** Owner-set, SHARED space identity, persisted in the `_rooms` registry doc
  *  (plaintext — NOT E2EE, the same as the name has always been). `image` is a
@@ -400,39 +410,40 @@ export function normalizeCategories(rooms: Room[], stored: unknown): string[] {
   return result;
 }
 
+/**
+ * Read a space's `_rooms` ACCESS RECORD: owner, member roster, and the shared
+ * name/image. The room/category LIST is no longer here (it lives in the encrypted
+ * object index — see {@link readIndexRooms}); this returns only what gates access +
+ * the plaintext shared identity.
+ */
 export async function readRooms(
   client: StarfishClient,
   spaceId: string,
 ): Promise<{
-  rooms: Room[];
   owner: string | null;
   members: string[];
   name: string | null;
   image: string | null;
-  categories: string[];
   hash: string | null;
 }> {
   // 404 (no registry yet) → an empty doc a first write can create; any OTHER error
   // (offline / unreachable) PROPAGATES so a caller — the rooms provider, or a write
   // RMW — can tell "empty space" from "couldn't reach the server" instead of silently
-  // collapsing to no-rooms (which wiped the room list offline). Mirrors pullSpacesDoc.
+  // collapsing to no-access. Mirrors pullSpacesDoc.
   const res = await client.pull(roomsRegistryPull(spaceId)).catch((err: unknown) => {
     if (err instanceof StarfishHttpError && err.status === 404) return null;
     throw err;
   });
   const data = res?.data as
-    | { rooms?: Room[]; owner?: string; members?: unknown[]; name?: string; image?: string; categories?: unknown }
+    | { owner?: string; members?: unknown[]; name?: string; image?: string }
     | undefined;
-  const rooms = Array.isArray(data?.rooms) ? data!.rooms! : [];
   return {
-    rooms,
     owner: typeof data?.owner === 'string' ? data.owner : null,
     members: Array.isArray(data?.members)
       ? data!.members!.filter((m): m is string => typeof m === 'string')
       : [],
     name: typeof data?.name === 'string' ? data.name : null,
     image: typeof data?.image === 'string' ? data.image : null,
-    categories: normalizeCategories(rooms, data?.categories),
     hash: res?.hash ?? null,
   };
 }
@@ -440,21 +451,18 @@ export async function readRooms(
 export async function writeRooms(
   client: StarfishClient,
   spaceId: string,
-  rooms: Room[],
   owner: string,
   members: string[],
   hash: string | null,
   meta?: SpaceMeta,
-  categories?: string[],
 ): Promise<void> {
-  // `owner` + `members` are the authoritative access record the server's
-  // space:owner/space:member enricher reads to gate this registry and the space
-  // keyring — stamp both on every write so neither is ever dropped. `name`/`image`
-  // are the shared space identity; callers thread the values they read back through
-  // so a registry write (e.g. adding a channel) never drops them. A falsy value is
-  // omitted — that's how the owner clears the image. `categories` is the ordered
-  // category list; omitted when empty so a pre-feature registry stays byte-identical
-  // (readers re-derive it from the rooms — see normalizeCategories).
+  // The `_rooms` doc is now just the ACCESS RECORD `{ v, owner, members, name, image }`
+  // (the room/category list moved to the encrypted object index). `owner` + `members`
+  // are the authoritative access record the server's space:owner/space:member enricher
+  // reads to gate this registry and the space keyring — stamp both on every write so
+  // neither is ever dropped. `name`/`image` are the shared space identity; callers thread
+  // the values they read back through so a write never drops them. A falsy value is
+  // omitted — that's how the owner clears the image.
   const name = meta?.name?.trim() || undefined;
   const image = meta?.image || undefined;
   await client.push(
@@ -463,10 +471,8 @@ export async function writeRooms(
       v: 1,
       owner,
       members,
-      rooms,
       ...(name ? { name } : {}),
       ...(image ? { image } : {}),
-      ...(categories && categories.length ? { categories } : {}),
     },
     hash,
   );
@@ -480,14 +486,11 @@ export async function addSpaceMember(
   ownerUserId: string,
   memberUserId: string,
 ): Promise<void> {
-  const { rooms, owner, members, name, image, categories, hash } = await readRooms(client, spaceId);
+  const { owner, members, name, image, hash } = await readRooms(client, spaceId);
   if (memberUserId === (owner ?? ownerUserId) || members.includes(memberUserId)) return;
-  // Thread `categories` through so adding a member never drops the ordered category
-  // list — push replaces the whole doc (see writeRooms).
-  await writeRooms(client, spaceId, rooms, owner ?? ownerUserId, [...members, memberUserId], hash, {
-    name,
-    image,
-  }, categories);
+  // Push replaces the whole access-record doc; thread name/image through so adding a
+  // member never drops the shared space identity (see writeRooms).
+  await writeRooms(client, spaceId, owner ?? ownerUserId, [...members, memberUserId], hash, { name, image });
 }
 
 /** Invitee-side: record a joined space in the identity's own space list. Caps are
@@ -542,23 +545,28 @@ export async function addJoinedPublicSpaceWithAccess(
   }));
 }
 
-/** Create a new space (+ a seeded "general" channel) owned by the identity. */
-export async function createSpace(client: StarfishClient, userId: string, name: string): Promise<Space> {
-  const { spaces, hash } = await readSpaces(client, userId);
+/**
+ * Create a new space (+ a seeded "general" channel) owned by the identity. Takes the
+ * full {@link Session} because seeding the channel now means writing the ENCRYPTED object
+ * index (the `_rooms` doc holds only the access record): claim ownership in `_rooms`
+ * first (so `space:owner` is satisfied), then mint the space keyring + push the encrypted
+ * seed node for `general`. With the on-device `_rooms`→index migration removed, this is
+ * the only thing that seeds a freshly-created space's room list.
+ */
+export async function createSpace(session: Session, name: string): Promise<Space> {
+  const { accountClient, userId } = session;
+  const { spaces, hash } = await readSpaces(accountClient, userId);
   const trimmed = name.trim() || 'New Space';
   const id = newSpaceId();
   const space: Space = { id, name: trimmed, short: trimmed.slice(0, 2).toUpperCase(), members: 1 };
-  await writeSpaces(client, userId, [...spaces, space], hash);
-  // Seed one channel + stamp ownership (TOFU: this first write claims the space)
-  // and the shared name so invited members read it from the registry.
-  const general: Room = { id: `${id}-general`, spaceId: id, category: 'CHANNELS', name: 'general', kind: 'channel' };
-  await writeRooms(client, id, [general], userId, [], null, { name: trimmed });
+  await writeSpaces(accountClient, userId, [...spaces, space], hash);
+  // Stamp ownership (TOFU: this first write claims the space) + the shared name so
+  // invited members read it from the access record.
+  await writeRooms(accountClient, id, userId, [], null, { name: trimmed });
+  // Seed the encrypted object index with one `general` channel (mints the keyring).
+  await seedSpaceObjectIndex(session, id, [{ id: `${id}-general`, name: 'general', kind: 'channel', category: DEFAULT_CATEGORY }]);
   return space;
 }
-
-/** The bucket new/unfiled rooms land in, and the fallback a deleted category's
- *  rooms are reassigned to. Mirrors the seed category in `createSpace`. */
-export const DEFAULT_CATEGORY = 'CHANNELS';
 
 /** A user-facing category validation failure (empty/duplicate name). The hook layer
  *  surfaces `message` verbatim, unlike an opaque network/HTTP error. */
