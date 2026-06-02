@@ -6,11 +6,11 @@
 import { ConflictError, StarfishHttpError } from '@drakkar.software/starfish-client';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { CapMap, DmMap, MutePrefs, PubAccessMap, ReadPrefs, Room, RoomKind, Space } from '@/lib/types';
+import type { CapMap, DmMap, MutePrefs, PubAccessMap, ReadPrefs, Room, Space } from '@/lib/types';
 
 import type { SealedBlob } from './account-seal';
 
-import { randomId, roomSlug } from '../ids';
+import { randomId } from '../ids';
 
 import {
   roomsRegistryPull,
@@ -472,36 +472,6 @@ export async function writeRooms(
   );
 }
 
-/**
- * Read-modify-write the `_rooms` registry through one funnel — the rooms-doc twin of
- * {@link updateSpacesDoc}. The mutator runs on FRESH server state (re-read each
- * attempt) and returns the next `{ rooms, categories }` (or `null` for a no-op);
- * owner/members/name/image are preserved automatically. Retries on
- * {@link ConflictError} (a concurrent writer — another device, or a room add racing a
- * category edit). This is what makes the five category mutations + room creation
- * conflict-safe without each re-implementing the loop.
- */
-export async function updateRoomsRegistry(
-  client: StarfishClient,
-  userId: string,
-  spaceId: string,
-  mutator: (cur: { rooms: Room[]; categories: string[] }) => { rooms: Room[]; categories: string[] } | null,
-): Promise<void> {
-  const MAX_ATTEMPTS = 3;
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { rooms, owner, members, name, image, categories, hash } = await readRooms(client, spaceId);
-    const next = mutator({ rooms, categories });
-    if (!next) return; // no-op (e.g. category already exists)
-    try {
-      await writeRooms(client, spaceId, next.rooms, owner ?? userId, members, hash, { name, image }, next.categories);
-      return;
-    } catch (err) {
-      if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
-      throw err;
-    }
-  }
-}
-
 /** Owner-side: add an invitee's userId to the space roster → grants them
  *  `space:member` (read the registry + the space keyring). Idempotent. */
 export async function addSpaceMember(
@@ -593,126 +563,6 @@ export const DEFAULT_CATEGORY = 'CHANNELS';
 /** A user-facing category validation failure (empty/duplicate name). The hook layer
  *  surfaces `message` verbatim, unlike an opaque network/HTTP error. */
 export class CategoryError extends Error {}
-
-const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
-
-/** Append a new room to a space's registry (owner-only write). `kind` is
- *  `'channel'` (default, a normal merge-doc room) or `'stream'` (an append-only
- *  Stream room — only the registry entry differs; the storage collection is chosen
- *  by the room hooks from this kind). */
-export async function createRoom(
-  client: StarfishClient,
-  userId: string,
-  spaceId: string,
-  name: string,
-  category = DEFAULT_CATEGORY,
-  kind: RoomKind = 'channel',
-): Promise<Room> {
-  const room: Room = {
-    id: `${spaceId}-${roomSlug(name)}-${Date.now().toString(36)}`,
-    spaceId,
-    category,
-    name,
-    kind,
-  };
-  // Append the room AND ensure its category is in the ordered list (so creating a
-  // room in a brand-new category registers that category too). Conflict-safe + meta
-  // preserving via the shared funnel.
-  await updateRoomsRegistry(client, userId, spaceId, (cur) => ({
-    rooms: [...cur.rooms, room],
-    categories: cur.categories.includes(category) ? cur.categories : [...cur.categories, category],
-  }));
-  return room;
-}
-
-/** Owner: create an (empty) category. No-op if a category with that name already
- *  exists (case-insensitive) — names are the category key, so they must be unique. */
-export async function createCategory(
-  client: StarfishClient,
-  userId: string,
-  spaceId: string,
-  name: string,
-): Promise<void> {
-  const trimmed = name.trim();
-  if (!trimmed) throw new CategoryError('Enter a category name.');
-  await updateRoomsRegistry(client, userId, spaceId, (cur) =>
-    cur.categories.some((c) => sameName(c, trimmed)) ? null : { rooms: cur.rooms, categories: [...cur.categories, trimmed] },
-  );
-}
-
-/** Owner: rename a category — relabel the list entry AND rewrite every room that
- *  pointed at the old name (the rooms' `category` is the membership key). Rejects a
- *  collision with another existing name. */
-export async function renameCategory(
-  client: StarfishClient,
-  userId: string,
-  spaceId: string,
-  oldName: string,
-  newName: string,
-): Promise<void> {
-  const next = newName.trim();
-  if (!next) throw new CategoryError('Enter a category name.');
-  if (sameName(oldName, next)) return;
-  await updateRoomsRegistry(client, userId, spaceId, (cur) => {
-    if (cur.categories.some((c) => sameName(c, next))) throw new CategoryError('A category with that name already exists.');
-    return {
-      rooms: cur.rooms.map((r) => (r.category === oldName ? { ...r, category: next } : r)),
-      categories: cur.categories.map((c) => (c === oldName ? next : c)),
-    };
-  });
-}
-
-/** Owner: delete a category — reassign its rooms to {@link DEFAULT_CATEGORY} and drop
- *  it from the list. The fallback is (re)added if any room moved into it. */
-export async function deleteCategory(
-  client: StarfishClient,
-  userId: string,
-  spaceId: string,
-  name: string,
-  fallback = DEFAULT_CATEGORY,
-): Promise<void> {
-  await updateRoomsRegistry(client, userId, spaceId, (cur) => {
-    const moved = cur.rooms.some((r) => r.category === name);
-    const rooms = cur.rooms.map((r) => (r.category === name ? { ...r, category: fallback } : r));
-    let categories = cur.categories.filter((c) => c !== name);
-    if (moved && !categories.includes(fallback)) categories = [...categories, fallback];
-    return { rooms, categories };
-  });
-}
-
-/** Owner: set the category order. Trusts the caller's list but appends any current
- *  category it omitted (so a stale UI snapshot can't drop a category). */
-export async function reorderCategories(
-  client: StarfishClient,
-  userId: string,
-  spaceId: string,
-  order: string[],
-): Promise<void> {
-  await updateRoomsRegistry(client, userId, spaceId, (cur) => {
-    const next = order.filter((c) => cur.categories.includes(c));
-    for (const c of cur.categories) if (!next.includes(c)) next.push(c);
-    return { rooms: cur.rooms, categories: next };
-  });
-}
-
-/** Owner: move a room into a category (the explicit drag-drop / picker action). The
- *  room lands at the END of the target (insertion order — no per-room index). */
-export async function moveRoom(
-  client: StarfishClient,
-  userId: string,
-  spaceId: string,
-  roomId: string,
-  category: string,
-): Promise<void> {
-  await updateRoomsRegistry(client, userId, spaceId, (cur) => {
-    const room = cur.rooms.find((r) => r.id === roomId);
-    if (!room || room.category === category) return null;
-    return {
-      rooms: cur.rooms.map((r) => (r.id === roomId ? { ...r, category } : r)),
-      categories: cur.categories.includes(category) ? cur.categories : [...cur.categories, category],
-    };
-  });
-}
 
 /**
  * Member/read side: fold the SHARED name/image (read from the space's `_rooms`

@@ -35,7 +35,6 @@ import type { AccessMap, PubspaceAccess } from './pubspace-caps';
 import {
   addJoinedPublicSpaceWithAccess,
   addJoinedSpace,
-  CategoryError,
   DEFAULT_CATEGORY,
   normalizeCategories,
   updateSpacesDoc,
@@ -378,8 +377,6 @@ export async function updatePublicSpaceMeta(
   await client.push(pubspaceRoomsPush(session.userId, spaceId), doc as unknown as Record<string, unknown>, hash);
 }
 
-const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
-
 /**
  * Owner: read-modify-write a public space's `_rooms` registry through one funnel —
  * the public twin of {@link updateRoomsRegistry}. Preserves the shared name/image,
@@ -418,69 +415,4 @@ export async function updatePublicRoomsRegistry(
       throw err;
     }
   }
-}
-
-/** Owner: create an (empty) category in a public space. No-op on a duplicate name. */
-export async function createPublicCategory(session: Session, spaceId: string, name: string): Promise<void> {
-  const trimmed = name.trim();
-  if (!trimmed) throw new CategoryError('Enter a category name.');
-  await updatePublicRoomsRegistry(session, spaceId, (cur) =>
-    cur.categories.some((c) => sameName(c, trimmed)) ? null : { rooms: cur.rooms, categories: [...cur.categories, trimmed] },
-  );
-}
-
-/** Owner: rename a public-space category (relabel + rewrite its rooms). */
-export async function renamePublicCategory(
-  session: Session,
-  spaceId: string,
-  oldName: string,
-  newName: string,
-): Promise<void> {
-  const next = newName.trim();
-  if (!next) throw new CategoryError('Enter a category name.');
-  if (sameName(oldName, next)) return;
-  await updatePublicRoomsRegistry(session, spaceId, (cur) => {
-    if (cur.categories.some((c) => sameName(c, next))) throw new CategoryError('A category with that name already exists.');
-    return {
-      rooms: cur.rooms.map((r) => (r.category === oldName ? { ...r, category: next } : r)),
-      categories: cur.categories.map((c) => (c === oldName ? next : c)),
-    };
-  });
-}
-
-/** Owner: delete a public-space category (reassign its rooms to the fallback). */
-export async function deletePublicCategory(
-  session: Session,
-  spaceId: string,
-  name: string,
-  fallback = DEFAULT_CATEGORY,
-): Promise<void> {
-  await updatePublicRoomsRegistry(session, spaceId, (cur) => {
-    const moved = cur.rooms.some((r) => r.category === name);
-    const rooms = cur.rooms.map((r) => (r.category === name ? { ...r, category: fallback } : r));
-    let categories = cur.categories.filter((c) => c !== name);
-    if (moved && !categories.includes(fallback)) categories = [...categories, fallback];
-    return { rooms, categories };
-  });
-}
-
-/** Owner: set the category order for a public space. */
-export async function reorderPublicCategories(session: Session, spaceId: string, order: string[]): Promise<void> {
-  await updatePublicRoomsRegistry(session, spaceId, (cur) => {
-    const next = order.filter((c) => cur.categories.includes(c));
-    for (const c of cur.categories) if (!next.includes(c)) next.push(c);
-    return { rooms: cur.rooms, categories: next };
-  });
-}
-
-/** Owner: move a public-space room into a category (drag-drop / picker). */
-export async function movePublicRoom(session: Session, spaceId: string, roomId: string, category: string): Promise<void> {
-  await updatePublicRoomsRegistry(session, spaceId, (cur) => {
-    const room = cur.rooms.find((r) => r.id === roomId);
-    if (!room || room.category === category) return null;
-    return {
-      rooms: cur.rooms.map((r) => (r.id === roomId ? { ...r, category } : r)),
-      categories: cur.categories.includes(category) ? cur.categories : [...cur.categories, category],
-    };
-  });
 }
