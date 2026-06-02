@@ -97,6 +97,16 @@ export function StackScreen({
     return headerH + ownTop;
   }, [contentStyle, headerH]);
 
+  // A transparent native nav header sits above this screen (see SpaceStackLayout):
+  // the body scrolls UNDER it, so pad the content down past the bar + notch (its
+  // own paddingTop ADDED on top) — otherwise the first rows hide behind the bar.
+  const nativeHeaderPadTop = useMemo(() => {
+    if (!headerProvidedNatively) return undefined;
+    const own = StyleSheet.flatten(contentStyle) as ViewStyle | undefined;
+    const ownTop = typeof own?.paddingTop === 'number' ? own.paddingTop : 0;
+    return layout.headerMinHeight + insets.top + ownTop;
+  }, [headerProvidedNatively, contentStyle, insets.top]);
+
   if (collapsible) {
     return (
       <View style={[styles.root, { backgroundColor: bg }]}>
@@ -162,14 +172,28 @@ export function StackScreen({
           {scroll ? (
             <ScrollView
               style={styles.flex}
-              contentContainerStyle={[styles.scrollContent, contentStyle]}
+              // nativeHeaderPadTop last so it ADDS to (doesn't get clobbered by) any
+              // paddingTop the caller set in contentStyle.
+              contentContainerStyle={[
+                styles.scrollContent,
+                contentStyle,
+                nativeHeaderPadTop != null && { paddingTop: nativeHeaderPadTop },
+              ]}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
               {children}
             </ScrollView>
           ) : (
-            <View style={[styles.flex, contentStyle]}>{children}</View>
+            <View
+              style={[
+                styles.flex,
+                contentStyle,
+                nativeHeaderPadTop != null && { paddingTop: nativeHeaderPadTop },
+              ]}
+            >
+              {children}
+            </View>
           )}
         </View>
 

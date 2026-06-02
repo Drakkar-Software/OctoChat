@@ -16,15 +16,18 @@ import { SpaceSwitcherButton } from './SpaceSwitcherButton';
  * profile puck on the right. `expo-router`'s `NativeTabs` can't render a header,
  * so the header lives on this nested Stack instead.
  *
- * No `headerStyle` background is set, so the bar keeps the platform's own chrome
- * — the iOS 26 Liquid Glass / Material translucent material — rather than an
- * opaque paper fill. The switcher renders in `compact` mode (icon + name, name
- * capped so it truncates). Hidden on wide native layouts (iPad / foldable) where
- * the desktop shell owns the chrome.
+ * `headerTransparent` lets the screen body scroll UNDER the bar (the screen pads
+ * its content down past it — see {@link StackScreen} `headerProvidedNatively}),
+ * and `headerBlurEffect` blurs that content through the bar — the iOS 26 Liquid
+ * Glass / Material look. Without transparency the bar would reserve its own opaque
+ * strip and the canvas wouldn't sit behind it, reading as a blank gap. The switcher
+ * renders in `compact` mode (icon + name, name capped so it truncates). Hidden on
+ * wide native layouts (iPad / foldable) where the desktop shell owns the chrome.
  */
 export default function SpaceStackLayout() {
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   const { isWide } = useResponsive();
+  const dark = scheme === 'dark';
 
   if (Platform.OS === 'web') {
     return <Stack screenOptions={{ headerShown: false }} />;
@@ -36,8 +39,13 @@ export default function SpaceStackLayout() {
         headerShown: !isWide,
         headerTitle: '',
         // Tint native title text / glyphs to ink; our custom elements carry their
-        // own theme colors. No headerStyle bg → keep the OS's translucent material.
+        // own theme colors.
         headerTintColor: colors.ink,
+        // Transparent + blur so the canvas scrolls UNDER the bar and shows through
+        // it (the OS translucent material), instead of the bar reserving an opaque
+        // strip that reads as a blank gap on iOS.
+        headerTransparent: true,
+        headerBlurEffect: dark ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight',
         headerLeft: () => <SpaceSwitcherButton compact />,
         headerRight: () => <ProfileButton ring />,
       }}
