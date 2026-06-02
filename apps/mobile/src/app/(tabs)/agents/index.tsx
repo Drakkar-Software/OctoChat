@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
 import { isDmHomeId } from '@/lib/dm-home';
@@ -30,8 +30,19 @@ export default function AgentsScreen() {
   const openRoom = (room: Room) =>
     router.push({ pathname: '/room/[id]', params: { id: room.id, name: room.name, kind: room.kind } });
 
+  // Native gets the shared nav-stack header (see SpaceStackLayout) which owns the
+  // top inset; web keeps the in-screen custom header with hide-on-scroll.
+  const nativeHeader = Platform.OS !== 'web';
+
   return (
-    <StackScreen inTabs scroll collapsibleHeader header={<SpaceTabHeader />} contentStyle={styles.content}>
+    <StackScreen
+      inTabs
+      scroll
+      collapsibleHeader={!nativeHeader}
+      header={nativeHeader ? undefined : <SpaceTabHeader />}
+      headerProvidedNatively={nativeHeader}
+      contentStyle={styles.content}
+    >
       {!session ? (
         <SignInPrompt subtitle="Create an identity to manage agents." />
       ) : (
