@@ -37,6 +37,7 @@ const ICONS = {
   'qr-scan': { lib: MaterialCommunityIcons, n: 'qrcode-scan' },
   check: { lib: Feather, n: 'check' },
   'check-circle': { lib: Feather, n: 'check-circle' },
+  circle: { lib: Feather, n: 'circle' },
   chev: { lib: Feather, n: 'chevron-right' },
   'chevron-down': { lib: Feather, n: 'chevron-down' },
   'chevron-up': { lib: Feather, n: 'chevron-up' },

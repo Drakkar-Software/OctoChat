@@ -10,6 +10,7 @@ import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
 import { ListRow } from './ListRow';
+import { SpaceMigratedCheck } from './SpaceMigratedCheck';
 
 interface SpacePickerProps {
   spaces: Space[];
@@ -81,6 +82,7 @@ export function SpacePicker({
               active={!isDmHome && s.id === activeId}
               unread={s.unread}
               onPress={() => onSelectSpace(s.id)}
+              trailing={<SpaceMigratedCheck spaceId={s.id} />}
             />
           ))}
           {!filtering ? (

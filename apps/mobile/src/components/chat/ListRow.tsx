@@ -1,4 +1,4 @@
-import type { Ref } from 'react';
+import type { ReactNode, Ref } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
@@ -33,6 +33,9 @@ interface ListRowProps {
   rowRef?: Ref<View>;
   /** Accessibility label override (defaults to `label`). */
   accessibilityLabel?: string;
+  /** Optional node rendered after the label, before the unread badge (e.g. a
+   *  status glyph). */
+  trailing?: ReactNode;
 }
 
 /**
@@ -57,6 +60,7 @@ export function ListRow({
   onLongPress,
   rowRef,
   accessibilityLabel,
+  trailing,
 }: ListRowProps) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
@@ -96,6 +100,7 @@ export function ListRow({
       >
         {label}
       </Txt>
+      {trailing}
       {muted ? <Icon name="volume-off" size={14} color={colors.inkMuted} /> : null}
       {muted ? (
         hasBadge ? (
