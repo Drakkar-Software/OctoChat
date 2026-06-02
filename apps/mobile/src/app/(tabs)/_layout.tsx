@@ -56,11 +56,13 @@ export default function TabsLayout() {
         </View>
       )}
     >
-      {/* The workspace modes (Chat · Agents · Work) ARE the tabs. Threads, DMs and
-          Profile are reached from inside Chat / its header. */}
+      {/* The workspace modes (Chat · Agents · Work) ARE the tabs, with global
+          Search as the last tab. Threads, DMs and Profile are reached from inside
+          Chat / its header. */}
       <Tabs.Screen name="rooms" options={{ title: 'Chat', tabBarIcon: tabIcon('chat') }} />
       <Tabs.Screen name="agents" options={{ title: 'Agents', tabBarIcon: tabIcon('agents') }} />
       <Tabs.Screen name="work" options={{ title: 'Work', tabBarIcon: tabIcon('work') }} />
+      <Tabs.Screen name="search" options={{ title: 'Search', tabBarIcon: tabIcon('search') }} />
     </Tabs>
   );
 }

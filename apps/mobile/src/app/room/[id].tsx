@@ -165,7 +165,6 @@ export default function RoomScreen() {
               {kind === 'dm' ? (
                 <IconButton name="thread" accessibilityLabel="All threads with this person" onPress={openDmThreads} />
               ) : null}
-              <IconButton name="search" accessibilityLabel="Search in room" onPress={openSearch} />
               <IconButton name="info" accessibilityLabel="Space details" onPress={openMembers} />
             </>
           }

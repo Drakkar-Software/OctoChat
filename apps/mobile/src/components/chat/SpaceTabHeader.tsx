@@ -8,16 +8,16 @@ import { useTheme } from '@/lib/use-theme';
 import { useSpaces } from '@/lib/use-spaces';
 import { useTotalDmUnread } from '@/lib/use-dms';
 import { Avatar } from '@/components/ui/Avatar';
-import { IconButton } from '@/components/ui/IconButton';
 
 import { SpaceSwitcher } from './SpaceSwitcher';
 
 /**
  * The shared header for the three mobile mode tabs (Chat · Agents · Work): a
- * compact {@link SpaceSwitcher} on the left (tap to change space), and global
- * search + profile actions on the right. Self-contained — it reads the spaces /
- * profile / DM state and wires its own navigation, so each tab page just drops
- * it in. Mobile-only; the desktop shell uses its persistent sidebar instead.
+ * compact {@link SpaceSwitcher} on the left (tap to change space) and a profile
+ * action on the right (global search now lives in the bottom Search tab).
+ * Self-contained — it reads the spaces / profile / DM state and wires its own
+ * navigation, so each tab page just drops it in. Mobile-only; the desktop shell
+ * uses its persistent sidebar instead.
  */
 export function SpaceTabHeader() {
   const { colors } = useTheme();
@@ -40,7 +40,6 @@ export function SpaceTabHeader() {
         onSelectDms={() => setActiveId(DM_HOME_ID)}
         onAddSpace={() => router.push('/join')}
       />
-      <IconButton name="search" onPress={() => router.push('/search')} accessibilityLabel="Search" />
       <Pressable accessibilityRole="button" accessibilityLabel="Your profile" onPress={() => router.push('/you')} hitSlop={6}>
         <Avatar label={meLabel} image={profile?.avatar} size={30} />
       </Pressable>
