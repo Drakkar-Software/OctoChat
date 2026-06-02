@@ -1,4 +1,4 @@
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform } from 'react-native';
 import { Stack } from 'expo-router';
 
 import { useResponsive } from '@/lib/use-responsive';
@@ -16,9 +16,11 @@ import { SpaceSwitcherButton } from './SpaceSwitcherButton';
  * profile puck on the right. `expo-router`'s `NativeTabs` can't render a header,
  * so the header lives on this nested Stack instead.
  *
- * The switcher is width-capped so a long space name truncates rather than
- * overrunning the profile control in the native title region. Hidden on wide
- * native layouts (iPad / foldable) where the desktop shell owns the chrome.
+ * No `headerStyle` background is set, so the bar keeps the platform's own chrome
+ * — the iOS 26 Liquid Glass / Material translucent material — rather than an
+ * opaque paper fill. The switcher renders in `compact` mode (icon + name, name
+ * capped so it truncates). Hidden on wide native layouts (iPad / foldable) where
+ * the desktop shell owns the chrome.
  */
 export default function SpaceStackLayout() {
   const { colors } = useTheme();
@@ -33,22 +35,12 @@ export default function SpaceStackLayout() {
       screenOptions={{
         headerShown: !isWide,
         headerTitle: '',
-        headerLeft: () => (
-          <View style={styles.left}>
-            <SpaceSwitcherButton />
-          </View>
-        ),
-        headerRight: () => <ProfileButton ring />,
-        headerStyle: { backgroundColor: colors.paper },
+        // Tint native title text / glyphs to ink; our custom elements carry their
+        // own theme colors. No headerStyle bg → keep the OS's translucent material.
         headerTintColor: colors.ink,
-        headerShadowVisible: false,
+        headerLeft: () => <SpaceSwitcherButton compact />,
+        headerRight: () => <ProfileButton ring />,
       }}
     />
   );
 }
-
-const styles = StyleSheet.create({
-  // Cap the identity so a long space name truncates instead of crowding the
-  // profile control on the right.
-  left: { maxWidth: 240 },
-});

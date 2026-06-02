@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useOnline } from '@/lib/connectivity';
@@ -57,13 +57,18 @@ export default function RoomsScreen() {
     );
   }
 
+  // Native gets a real nav-stack header (see SpaceStackLayout) so it owns the top
+  // inset; web keeps the in-screen custom header with its hide-on-scroll behavior.
+  const nativeHeader = Platform.OS !== 'web';
+
   return (
     <StackScreen
       inTabs
       scroll
-      collapsibleHeader
+      collapsibleHeader={!nativeHeader}
       contentStyle={styles.content}
-      header={<SpaceTabHeader />}
+      header={nativeHeader ? undefined : <SpaceTabHeader />}
+      headerProvidedNatively={nativeHeader}
     >
       {!session ? (
         <SignInPrompt subtitle="Create an identity to see your spaces." />

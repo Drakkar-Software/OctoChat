@@ -91,6 +91,15 @@ const queuing = createQueuingServerPlugin({
     streamchat: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
     pubstream: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
     pubspace: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
+    // Unified Object collections ride the same per-space SSE topic. The index write
+    // carries no roomId (params {spaceId} only); content writes carry {objectId} —
+    // the client routes on those (see events.shared.ts).
+    objindex: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
+    objdoc: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
+    objlog: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
+    pubobjindex: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
+    pubobjdoc: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
+    pubobjlog: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
   },
 });
 

@@ -69,6 +69,36 @@ export const spacesPush = (userId: string) => push(`user/${userId}/_spaces`);
 export const roomsRegistryPull = (spaceId: string) => pull(`spaces/${spaceId}/_rooms`);
 export const roomsRegistryPush = (spaceId: string) => push(`spaces/${spaceId}/_rooms`);
 
+// ── Unified Object index + content (private/E2EE) ─────────────────────────────
+// `_index` (the union-merged ObjectNode list) is a leaf under `objects/`; doc
+// content lives in the `objects/docs/` subtree and project logs in `objects/logs/`
+// — distinct dir prefixes so a content id is a leaf without colliding with the
+// `_index` leaf or each other (the file-vs-directory rule, see `attachmentName`).
+// Room CONTENT stays in `chat`/`streams`; only docs/projects add content here.
+// Keep in sync with the objindex/objdoc/objlog collections in apps/server.
+export const objIndexName = (spaceId: string) => `spaces/${spaceId}/objects/_index`;
+export const objIndexPull = (spaceId: string) => pull(objIndexName(spaceId));
+export const objIndexPush = (spaceId: string) => push(objIndexName(spaceId));
+export const objDocName = (spaceId: string, objectId: string) => `spaces/${spaceId}/objects/docs/${objectId}`;
+export const objDocPull = (spaceId: string, objectId: string) => pull(objDocName(spaceId, objectId));
+export const objDocPush = (spaceId: string, objectId: string) => push(objDocName(spaceId, objectId));
+export const objLogName = (spaceId: string, objectId: string) => `spaces/${spaceId}/objects/logs/${objectId}`;
+export const objLogPull = (spaceId: string, objectId: string) => pull(objLogName(spaceId, objectId));
+export const objLogPush = (spaceId: string, objectId: string) => push(objLogName(spaceId, objectId));
+
+// ── Unified Object index + content (public/plaintext) ─────────────────────────
+export const pubObjIndexName = (ownerId: string, spaceId: string) => `${pubspaceBase(ownerId, spaceId)}/objects/_index`;
+export const pubObjIndexPull = (ownerId: string, spaceId: string) => pull(pubObjIndexName(ownerId, spaceId));
+export const pubObjIndexPush = (ownerId: string, spaceId: string) => push(pubObjIndexName(ownerId, spaceId));
+export const pubObjDocName = (ownerId: string, spaceId: string, objectId: string) =>
+  `${pubspaceBase(ownerId, spaceId)}/objects/docs/${objectId}`;
+export const pubObjDocPull = (ownerId: string, spaceId: string, objectId: string) => pull(pubObjDocName(ownerId, spaceId, objectId));
+export const pubObjDocPush = (ownerId: string, spaceId: string, objectId: string) => push(pubObjDocName(ownerId, spaceId, objectId));
+export const pubObjLogName = (ownerId: string, spaceId: string, objectId: string) =>
+  `${pubspaceBase(ownerId, spaceId)}/objects/logs/${objectId}`;
+export const pubObjLogPull = (ownerId: string, spaceId: string, objectId: string) => pull(pubObjLogName(ownerId, spaceId, objectId));
+export const pubObjLogPush = (ownerId: string, spaceId: string, objectId: string) => push(pubObjLogName(ownerId, spaceId, objectId));
+
 // ── Public spaces (plaintext; NOT encrypted) ──────────────────────────────────
 // A public space lives under the owner's `pubspaces/{ownerId}/{spaceId}/` subtree:
 // a `_rooms` registry doc + one plaintext message doc per room. The owner manages

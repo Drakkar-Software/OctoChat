@@ -123,6 +123,48 @@ export const config: SyncConfig = {
       maxBodyBytes: 131_072,
       allowedMimeTypes: JSON_ONLY,
     },
+    // UNIFIED OBJECT INDEX (private/E2EE): the union-merged list of every Object in
+    // a space — rooms, categories, automations, docs, projects. Replaces the old
+    // `rooms[]`/`categories[]` half of `_rooms` (which stays the owner-only ACCESS
+    // record). Encryption "delegated" so object titles/emoji are sealed (a privacy
+    // upgrade over `_rooms`, whose names were plaintext). WRITE is `space:member`
+    // (not owner) — any member creates docs/projects/channels. The access record in
+    // `_rooms` remains owner-only, so this can't be used to escalate membership.
+    {
+      name: "objindex",
+      storagePath: "spaces/{spaceId}/objects/_index",
+      readRoles: ["space:member"],
+      writeRoles: ["space:member"],
+      encryption: "delegated",
+      maxBodyBytes: 262_144,
+      allowedMimeTypes: JSON_ONLY,
+    },
+    // Doc content (private/E2EE): one merge-doc per `doc` Object — block list, pulled
+    // /union-merged/pushed like `chat`. Distinct `objects/docs/` subtree (sibling of
+    // the `_index` leaf) keeps the file-vs-directory rule (see `attachments`). Room
+    // CONTENT stays in `chat`/`streamchat`; only docs/projects add new content here.
+    {
+      name: "objdoc",
+      storagePath: "spaces/{spaceId}/objects/docs/{objectId}",
+      readRoles: ["space:member"],
+      writeRoles: ["space:member"],
+      encryption: "delegated",
+      maxBodyBytes: 262_144,
+      allowedMimeTypes: JSON_ONLY,
+    },
+    // Project event log (private/E2EE): append-only `by_timestamp`, one log per
+    // `project` Object. Status changes + task create/update are appended events;
+    // board state is folded client-side. Same append model as `streamchat`.
+    {
+      name: "objlog",
+      storagePath: "spaces/{spaceId}/objects/logs/{objectId}",
+      readRoles: ["space:member"],
+      writeRoles: ["space:member"],
+      encryption: "delegated",
+      appendOnly: { type: "by_timestamp" },
+      maxBodyBytes: 262_144,
+      allowedMimeTypes: JSON_ONLY,
+    },
     // PUBLIC spaces: plaintext, cap-only spaces joined via a space-wide invitation
     // link. NOT end-to-end encrypted — the owner stores plaintext JSON here so a
     // link-bearer can read (or, with a read/write link, write) WITHOUT a keyring, a
@@ -151,6 +193,39 @@ export const config: SyncConfig = {
     {
       name: "pubstream",
       storagePath: "pubspaces/{ownerId}/{spaceId}/streams/{roomId}",
+      readRoles: ["pubspace:reader"],
+      writeRoles: ["pubspace:owner", "pubspace:writer"],
+      encryption: "none",
+      appendOnly: { type: "by_timestamp" },
+      maxBodyBytes: 262_144,
+      allowedMimeTypes: JSON_ONLY,
+    },
+    // UNIFIED OBJECT INDEX (public/plaintext): mirror of `objindex` for public
+    // spaces. Keyed by `{ownerId}`, gated on pubspace:owner/reader/writer (issuer-
+    // bound). `none` encryption — public spaces are plaintext by definition.
+    {
+      name: "pubobjindex",
+      storagePath: "pubspaces/{ownerId}/{spaceId}/objects/_index",
+      readRoles: ["pubspace:reader"],
+      writeRoles: ["pubspace:owner", "pubspace:writer"],
+      encryption: "none",
+      maxBodyBytes: 262_144,
+      allowedMimeTypes: JSON_ONLY,
+    },
+    // Doc content (public/plaintext): mirror of `objdoc`.
+    {
+      name: "pubobjdoc",
+      storagePath: "pubspaces/{ownerId}/{spaceId}/objects/docs/{objectId}",
+      readRoles: ["pubspace:reader"],
+      writeRoles: ["pubspace:owner", "pubspace:writer"],
+      encryption: "none",
+      maxBodyBytes: 262_144,
+      allowedMimeTypes: JSON_ONLY,
+    },
+    // Project event log (public/plaintext): mirror of `objlog`.
+    {
+      name: "pubobjlog",
+      storagePath: "pubspaces/{ownerId}/{spaceId}/objects/logs/{objectId}",
       readRoles: ["pubspace:reader"],
       writeRoles: ["pubspace:owner", "pubspace:writer"],
       encryption: "none",

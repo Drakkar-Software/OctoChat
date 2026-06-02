@@ -8,7 +8,7 @@ import { SpaceSwitcher } from './SpaceSwitcher';
  * {@link useSpaceHeader} so it can drop straight into a header (the native
  * nav-stack `headerLeft`, or the web {@link SpaceTabHeader}) with no prop wiring.
  */
-export function SpaceSwitcherButton() {
+export function SpaceSwitcherButton({ compact = false }: { compact?: boolean }) {
   const { space, isDmHome, spaces, activeId, dmUnread } = useSpaceHeader();
   return (
     <SpaceSwitcher
@@ -17,6 +17,7 @@ export function SpaceSwitcherButton() {
       spaces={spaces}
       activeId={activeId ?? DM_HOME_ID}
       dmUnread={dmUnread}
+      compact={compact}
     />
   );
 }

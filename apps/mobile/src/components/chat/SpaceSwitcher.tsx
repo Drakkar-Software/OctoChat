@@ -18,6 +18,10 @@ interface SpaceSwitcherProps {
   activeId: string;
   /** Aggregate DM unread — feeds the attention dot when DMs are the unread source. */
   dmUnread?: number;
+  /** Header-inline mode (native nav bar): the trigger sizes to its content
+   *  (icon + name, name capped so it truncates) and drops the chevron, so it
+   *  reads as a native title rather than a full-width pill. */
+  compact?: boolean;
 }
 
 /**
@@ -28,7 +32,7 @@ interface SpaceSwitcherProps {
  * slide-in list with a filter field) rather than floating a dropdown, which read
  * poorly on mobile. Mobile-only (the desktop shell keeps its persistent rail).
  */
-export function SpaceSwitcher({ space, isDmHome = false, spaces, activeId, dmUnread = 0 }: SpaceSwitcherProps) {
+export function SpaceSwitcher({ space, isDmHome = false, spaces, activeId, dmUnread = 0, compact = false }: SpaceSwitcherProps) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
 
@@ -43,7 +47,7 @@ export function SpaceSwitcher({ space, isDmHome = false, spaces, activeId, dmUnr
       accessibilityLabel="Switch space"
       onPress={() => router.push('/spaces')}
       {...hoverProps}
-      style={[styles.trigger, { backgroundColor: hovered ? colors.hover : 'transparent' }]}
+      style={[styles.trigger, compact && styles.triggerCompact, { backgroundColor: hovered ? colors.hover : 'transparent' }]}
     >
       <View>
         {isDmHome ? (
@@ -55,10 +59,10 @@ export function SpaceSwitcher({ space, isDmHome = false, spaces, activeId, dmUnr
         )}
         {otherUnread ? <View style={[styles.dot, { backgroundColor: colors.unread, borderColor: colors.paper }]} /> : null}
       </View>
-      <Txt variant="heading" weight="bold" numberOfLines={1} style={styles.name}>
+      <Txt variant="heading" weight="bold" numberOfLines={1} style={[styles.name, compact && styles.nameCompact]}>
         {isDmHome ? DM_HOME_NAME : space?.name ?? ' '}
       </Txt>
-      <Icon name="chevron-down" size={16} color={colors.inkMuted} />
+      {!compact ? <Icon name="chevron-down" size={16} color={colors.inkMuted} /> : null}
     </Pressable>
   );
 }
@@ -74,7 +78,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xs,
     borderRadius: radii.md,
   },
+  // Native header: hug content so the bar lays the icon + name out as a title,
+  // not a stretched pill.
+  triggerCompact: { flex: 0, alignSelf: 'center', paddingHorizontal: 0 },
   dmIcon: { width: 30, height: 30, borderRadius: radii.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   dot: { position: 'absolute', top: -2, right: -2, width: 11, height: 11, borderRadius: 6, borderWidth: 2 },
   name: { flex: 1, minWidth: 0 },
+  // Capped so a long name truncates instead of overrunning the profile control.
+  nameCompact: { flex: 0, maxWidth: 200 },
 });

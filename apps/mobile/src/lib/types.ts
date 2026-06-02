@@ -149,6 +149,49 @@ export interface Room {
   automation?: AutomationMeta;
 }
 
+/** The builtin object types. A space's contents — channels, DMs, stream/automation
+ *  rooms, categories, docs, projects (and a project's tasks) — are all `Object`s of
+ *  one `ObjectType`. A custom (user-defined) type rides the same `string` field, so
+ *  the union stays open-ended; builtins are the ones the app renders today. */
+export type ObjectType = 'room' | 'category' | 'automation' | 'doc' | 'project' | 'task' | (string & {});
+
+/** When `type === 'room'`, which flavour. Maps the legacy {@link RoomKind}:
+ *  `channel`/`private`→`channel`, `dm`→`dm`, `stream`→`stream`, `automated`→`automation`. */
+export type RoomSubtype = 'channel' | 'dm' | 'stream' | 'automation';
+
+/** One entry in a space's object index (`spaces/{spaceId}/objects/_index`). This is
+ *  IDENTITY + TREE POSITION + light metadata ONLY — the heavy content (messages, doc
+ *  blocks, project event log) lives in a per-object content doc keyed by {@link id}.
+ *  The tree is LOGICAL via {@link parentId} (category→room, doc→sub-doc), never path
+ *  nesting, so a move is an O(1) reparent. Sibling order is `(order, id)` for a
+ *  deterministic render across devices. The index is union-merged on `id` keyed by
+ *  {@link updatedAt}, so concurrent member edits don't clobber. */
+export interface ObjectNode {
+  id: ID;
+  type: ObjectType;
+  /** Present when `type === 'room'`. */
+  subtype?: RoomSubtype;
+  /** Parent in the tree; `null` = root. category→room, doc→sub-doc, etc. */
+  parentId: ID | null;
+  /** Sibling sort key; ties broken by `id`. */
+  order: number;
+  title: string;
+  emoji?: string;
+  /** Epoch ms of the last edit to THIS node — the union-merge per-node winner. */
+  updatedAt: number;
+  /** Soft-delete; archiving a node cascade-archives its subtree. */
+  archived?: boolean;
+  /** Present when `subtype === 'automation'` — same config as legacy automated rooms. */
+  automation?: AutomationMeta;
+}
+
+/** The object-index doc: the union-merged list of every object in a space. */
+export interface ObjectsIndex {
+  v: 1;
+  objects: ObjectNode[];
+  updatedAt: number;
+}
+
 export interface Reaction {
   emoji: string;
   count: number;
