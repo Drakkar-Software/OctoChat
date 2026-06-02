@@ -21,7 +21,7 @@ import { SpaceSwitcher } from './SpaceSwitcher';
  */
 export function SpaceTabHeader() {
   const { colors } = useTheme();
-  const { spaces, activeId, setActiveId } = useSpaces();
+  const { spaces, activeId } = useSpaces();
   const { profile } = useProfile();
   const dmUnread = useTotalDmUnread();
   const isDmHome = isDmHomeId(activeId);
@@ -36,9 +36,6 @@ export function SpaceTabHeader() {
         spaces={spaces}
         activeId={activeId ?? DM_HOME_ID}
         dmUnread={dmUnread}
-        onSelectSpace={setActiveId}
-        onSelectDms={() => setActiveId(DM_HOME_ID)}
-        onAddSpace={() => router.push('/join')}
       />
       <Pressable accessibilityRole="button" accessibilityLabel="Your profile" onPress={() => router.push('/you')} hitSlop={6}>
         <Avatar label={meLabel} image={profile?.avatar} size={30} />
