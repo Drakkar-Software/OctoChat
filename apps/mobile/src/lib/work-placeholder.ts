@@ -10,6 +10,9 @@
  */
 import type { IconName } from '@/components/ui/Icon';
 
+/** Which placeholder detail a row opens — a doc viewer or a project board. */
+export type WorkKind = 'doc' | 'project';
+
 export interface WorkItem {
   id: string;
   /** Leading emoji, Notion-style. */
@@ -23,6 +26,8 @@ export interface WorkSection {
   /** Section heading + the area it stands in for. */
   title: string;
   iconName: IconName;
+  /** Which placeholder screen this group's rows open. */
+  kind: WorkKind;
   items: WorkItem[];
   /** Greyed as a not-yet-built area. */
   future?: boolean;
@@ -33,6 +38,7 @@ export const DOCS_SECTIONS: WorkSection[] = [
   {
     title: 'Docs',
     iconName: 'book',
+    kind: 'doc',
     items: [
       { id: 'doc-welcome', emoji: '👋', label: 'Welcome to the workspace', hint: 'Encrypted' },
       { id: 'doc-zk', emoji: '🔐', label: 'Zero-Knowledge Sync', hint: '3 pages' },
@@ -43,6 +49,7 @@ export const DOCS_SECTIONS: WorkSection[] = [
   {
     title: 'Knowledge',
     iconName: 'layers',
+    kind: 'doc',
     items: [
       { id: 'kn-security', emoji: '🛡️', label: 'Security Audits', hint: 'Restricted' },
       { id: 'kn-playbook', emoji: '💬', label: 'Support Playbook', hint: 'Shared' },
@@ -57,6 +64,7 @@ export const PROJECTS_SECTIONS: WorkSection[] = [
   {
     title: 'Projects',
     iconName: 'target',
+    kind: 'project',
     items: [
       { id: 'proj-roadmap', emoji: '🗺️', label: 'Roadmap 2026', hint: 'In progress' },
       { id: 'proj-design', emoji: '🎨', label: 'Design System', hint: 'Shared' },
@@ -66,6 +74,7 @@ export const PROJECTS_SECTIONS: WorkSection[] = [
   {
     title: 'Boards',
     iconName: 'layers',
+    kind: 'project',
     items: [
       { id: 'board-sprint', emoji: '🏃', label: 'Current Sprint', hint: 'Kanban' },
       { id: 'board-backlog', emoji: '📋', label: 'Backlog', hint: 'Prioritized' },

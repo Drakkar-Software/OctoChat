@@ -1,9 +1,10 @@
+import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { paperBorder, radii, shadows, spacing } from '@/theme';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
-import { type WorkItem, type WorkSection } from '@/lib/work-placeholder';
+import { type WorkItem, type WorkKind, type WorkSection } from '@/lib/work-placeholder';
 import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
@@ -61,19 +62,26 @@ function WorkSectionGroup({ section }: { section: WorkSection }) {
         ) : null}
       </View>
       {section.items.map((item) => (
-        <WorkPageRow key={item.id} item={item} />
+        <WorkPageRow key={item.id} item={item} kind={section.kind} />
       ))}
     </View>
   );
 }
 
-function WorkPageRow({ item }: { item: WorkItem }) {
+function WorkPageRow({ item, kind }: { item: WorkItem; kind: WorkKind }) {
   const { colors } = useTheme();
+  const router = useRouter();
   const { hovered, hoverProps } = useHover();
+  const open = () =>
+    router.push({
+      pathname: kind === 'doc' ? '/work/doc/[id]' : '/work/project/[id]',
+      params: { id: item.id, emoji: item.emoji, label: item.label, hint: item.hint ?? '' },
+    });
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={item.label}
+      onPress={open}
       {...hoverProps}
       style={[styles.row, { backgroundColor: hovered ? colors.hover : 'transparent' }]}
     >

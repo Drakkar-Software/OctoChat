@@ -394,6 +394,8 @@ export const layout = {
   railWidth: 64,
   /** Categorized room sidebar between the rail and the main pane. */
   sidebarWidth: 240,
+  /** Fixed width of a kanban column on the Projects placeholder board. */
+  boardColumnWidth: 236,
   /** Top toolbar above the main pane on desktop. */
   desktopTopbarHeight: 52,
   /**
