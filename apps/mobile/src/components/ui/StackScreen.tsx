@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
@@ -82,6 +82,16 @@ export function StackScreen({
   );
   const headerAnim = useAnimatedStyle(() => ({ transform: [{ translateY: headerY.value }] }));
 
+  // The header is an absolute overlay, so the scroll content must be padded down
+  // by its height. Any `paddingTop` the caller set is ADDED on top — a plain
+  // style-array would let `contentStyle` (last) clobber the header offset, hiding
+  // the content behind the bar and killing scroll on short pages.
+  const collapsiblePadTop = useMemo(() => {
+    const own = StyleSheet.flatten(contentStyle) as ViewStyle | undefined;
+    const ownTop = typeof own?.paddingTop === 'number' ? own.paddingTop : 0;
+    return headerH + ownTop;
+  }, [contentStyle, headerH]);
+
   if (collapsible) {
     return (
       <View style={[styles.root, { backgroundColor: bg }]}>
@@ -90,7 +100,7 @@ export function StackScreen({
           <View style={inShell ? styles.centerFull : styles.center}>
             <Animated.ScrollView
               style={styles.flex}
-              contentContainerStyle={[styles.scrollContent, { paddingTop: headerH }, contentStyle]}
+              contentContainerStyle={[styles.scrollContent, contentStyle, { paddingTop: collapsiblePadTop }]}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               onScroll={onScroll}
