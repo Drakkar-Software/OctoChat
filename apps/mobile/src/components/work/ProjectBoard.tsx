@@ -1,22 +1,28 @@
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { layout, paperBorder, radii, shadows, spacing } from '@/theme';
+import { useInlineEdit } from '@/lib/use-inline-edit';
 import { useProject } from '@/lib/use-project';
+import { useRowHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
+import { MessageEditor } from '@/components/chat/MessageEditor';
 import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
+import { IconButton } from '@/components/ui/IconButton';
 import { Txt } from '@/components/ui/Txt';
 
 const STATUS_DONE = 'done';
 
 /**
  * Live kanban board for one `project` Object — columns + cards folded from the
- * append-only event log. Adding a column/task or toggling a card's done status
- * appends a NEW event (the log is never mutated); the board re-folds on the next pull.
+ * append-only event log. Add/toggle/rename/delete each append a NEW event (the log
+ * is never mutated); the board re-folds on the next pull. Title edits reuse the
+ * shared inline editor; edit-which-cell state lives in {@link useInlineEdit}.
  */
 export function ProjectBoard({ spaceId, objectId, emoji, title }: { spaceId: string; objectId: string; emoji?: string; title?: string }) {
   const { colors } = useTheme();
-  const { board, ready, offline, addColumn, addTask, changeStatus } = useProject(spaceId, objectId);
+  const { board, ready, offline, addColumn, addTask, changeStatus, renameTask, deleteTask, renameColumn } = useProject(spaceId, objectId);
+  const edit = useInlineEdit();
 
   return (
     <View style={styles.wrap}>
@@ -49,28 +55,58 @@ export function ProjectBoard({ spaceId, objectId, emoji, title }: { spaceId: str
           {board.columns.map((col) => (
             <View key={col.id} style={[styles.column, paperBorder(colors), shadows.sm]}>
               <View style={styles.colHead}>
-                <Txt variant="caption" weight="bold" tone="inkMuted" numberOfLines={1} style={styles.colTitle}>
-                  {col.title.toUpperCase()}
-                </Txt>
-                <Txt variant="micro" mono tone="inkFaint">{board.tasksByColumn[col.id]?.length ?? 0}</Txt>
+                {edit.isEditing(col.id) ? (
+                  <View style={styles.colEdit}>
+                    <MessageEditor
+                      initialText={col.title}
+                      onSubmit={(t) => {
+                        renameColumn(col.id, t);
+                        edit.close();
+                      }}
+                      onCancel={edit.close}
+                    />
+                  </View>
+                ) : (
+                  <>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Rename column ${col.title}`}
+                      onPress={() => edit.begin(col.id)}
+                      style={styles.colTitle}
+                    >
+                      <Txt variant="caption" weight="bold" tone="inkMuted" numberOfLines={1}>
+                        {col.title.toUpperCase()}
+                      </Txt>
+                    </Pressable>
+                    <Txt variant="micro" mono tone="inkFaint">{board.tasksByColumn[col.id]?.length ?? 0}</Txt>
+                  </>
+                )}
               </View>
-              {(board.tasksByColumn[col.id] ?? []).map((task) => {
-                const done = task.status === STATUS_DONE;
-                return (
-                  <Pressable
+
+              {(board.tasksByColumn[col.id] ?? []).map((task) =>
+                edit.isEditing(task.id) ? (
+                  <View key={task.id} style={[styles.card, { backgroundColor: colors.fill, borderColor: colors.lineFaint }]}>
+                    <MessageEditor
+                      initialText={task.title}
+                      onSubmit={(t) => {
+                        renameTask(task.id, t);
+                        edit.close();
+                      }}
+                      onCancel={edit.close}
+                    />
+                  </View>
+                ) : (
+                  <TaskCard
                     key={task.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={task.title}
-                    onPress={() => changeStatus(task.id, done ? 'todo' : STATUS_DONE, task.status)}
-                    style={[styles.card, { backgroundColor: colors.fill, borderColor: colors.lineFaint }]}
-                  >
-                    <Icon name={done ? 'check' : 'target'} size={13} color={done ? colors.success : colors.inkFaint} />
-                    <Txt variant="subhead" numberOfLines={2} style={[styles.cardText, done && styles.cardDone]}>
-                      {task.title}
-                    </Txt>
-                  </Pressable>
-                );
-              })}
+                    title={task.title}
+                    done={task.status === STATUS_DONE}
+                    onToggle={() => changeStatus(task.id, task.status === STATUS_DONE ? 'todo' : STATUS_DONE, task.status)}
+                    onEdit={() => edit.begin(task.id)}
+                    onDelete={() => deleteTask(task.id)}
+                  />
+                ),
+              )}
+
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Add task"
@@ -89,6 +125,26 @@ export function ProjectBoard({ spaceId, objectId, emoji, title }: { spaceId: str
   );
 }
 
+/** One kanban card: tap the glyph to toggle done, the title to rename; a delete
+ *  affordance reveals on hover. */
+function TaskCard({ title, done, onToggle, onEdit, onDelete }: { title: string; done: boolean; onToggle: () => void; onEdit: () => void; onDelete: () => void }) {
+  const { colors } = useTheme();
+  const { hovered, hoverProps } = useRowHover();
+  return (
+    <View {...hoverProps} style={[styles.card, { backgroundColor: colors.fill, borderColor: colors.lineFaint }]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={done ? 'Mark not done' : 'Mark done'} onPress={onToggle} hitSlop={6}>
+        <Icon name={done ? 'check' : 'target'} size={13} color={done ? colors.success : colors.inkFaint} />
+      </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Rename ${title}`} onPress={onEdit} style={styles.cardText}>
+        <Txt variant="subhead" numberOfLines={2} style={done ? styles.cardDone : undefined}>
+          {title}
+        </Txt>
+      </Pressable>
+      {hovered ? <IconButton name="trash" size={14} color={colors.inkMuted} onPress={onDelete} accessibilityLabel="Delete task" /> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   wrap: { gap: spacing.md },
   hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
@@ -98,7 +154,8 @@ const styles = StyleSheet.create({
   columns: { gap: spacing.sm, paddingBottom: spacing.sm },
   column: { width: layout.boardColumnWidth, borderRadius: radii.card, borderWidth: 1, padding: spacing.sm, gap: spacing.xs },
   colHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: 2, paddingBottom: spacing.xs },
-  colTitle: { flex: 1, letterSpacing: 0.5 },
+  colTitle: { flex: 1 },
+  colEdit: { flex: 1 },
   card: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs, padding: spacing.sm, borderRadius: radii.md, borderWidth: 1 },
   cardText: { flex: 1 },
   cardDone: { textDecorationLine: 'line-through', opacity: 0.6 },

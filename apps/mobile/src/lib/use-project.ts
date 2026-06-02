@@ -26,6 +26,9 @@ export interface ProjectHook {
   addTask: (columnId: ID, title: string) => void;
   moveTask: (taskId: ID, columnId: ID, order: number) => void;
   changeStatus: (taskId: ID, to: string, from?: string) => void;
+  renameTask: (taskId: ID, title: string) => void;
+  deleteTask: (taskId: ID) => void;
+  renameColumn: (columnId: ID, title: string) => void;
 }
 
 const projectLogKey = (objectId: string) => `octochat.projectlog.v1.${objectId}`;
@@ -162,6 +165,9 @@ export function useProject(spaceId: string, objectId: string, opts: { enabled?: 
   );
   const moveTask = useCallback((taskId: ID, columnId: ID, order: number) => void appendEvent({ t: 'task.move', e: { taskId, columnId, order } }), [appendEvent]);
   const changeStatus = useCallback((taskId: ID, to: string, from?: string) => void appendEvent({ t: 'status.change', e: { taskId, to, ...(from ? { from } : {}) } }), [appendEvent]);
+  const renameTask = useCallback((taskId: ID, title: string) => void appendEvent({ t: 'task.update', e: { taskId, title } }), [appendEvent]);
+  const deleteTask = useCallback((taskId: ID) => void appendEvent({ t: 'task.delete', e: { taskId } }), [appendEvent]);
+  const renameColumn = useCallback((columnId: ID, title: string) => void appendEvent({ t: 'column.update', e: { columnId, title } }), [appendEvent]);
 
   return {
     board,
@@ -175,5 +181,8 @@ export function useProject(spaceId: string, objectId: string, opts: { enabled?: 
     addTask,
     moveTask,
     changeStatus,
+    renameTask,
+    deleteTask,
+    renameColumn,
   };
 }

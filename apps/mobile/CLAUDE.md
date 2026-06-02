@@ -56,7 +56,10 @@ Non-negotiable. Follow these for every change:
 - **Styling:** React Native `StyleSheet` for layout + theme tokens for
   color/size. No CSS, no NativeWind.
 - **Text:** render through `<Txt>` (never a bare `<Text>`) so type, weight and
-  color stay consistent.
+  color stay consistent. Inline spans nest more `<Txt>` inside a `<Txt>` (the RN
+  pattern) — see `MessageBody`/`LinkText`. Markdown renders via the generic
+  `components/ui/Markdown` (parser in `lib/markdown.ts`, fenced code via
+  `components/ui/CodeBlock`); chat code spans via `lib/message-format`.
 - **Fonts:** Bricolage Grotesque (display/headings), Hanken Grotesk (body),
   JetBrains Mono (labels, keys, fingerprints, timestamps). Loaded in
   `src/lib/use-app-fonts.ts`; names mirrored in `theme.ts` `fonts`.
