@@ -77,3 +77,17 @@ export const PROJECTS_SECTIONS: WorkSection[] = [
 
 /** The **Work** tree — docs, knowledge, projects and boards in one surface. */
 export const WORK_SECTIONS: WorkSection[] = [...DOCS_SECTIONS, ...PROJECTS_SECTIONS];
+
+/** A top-level area the Work surface stands in for — the hero's facet chips. */
+export interface WorkFacet {
+  iconName: IconName;
+  label: string;
+  /** One-line description of what the facet will hold. */
+  meta: string;
+}
+
+/** The two halves the Work placeholder previews — fed to the hero chips. */
+export const WORK_FACETS: WorkFacet[] = [
+  { iconName: 'book', label: 'Docs', meta: 'Pages & knowledge' },
+  { iconName: 'target', label: 'Projects', meta: 'Boards & roadmaps' },
+];

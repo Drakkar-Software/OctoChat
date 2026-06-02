@@ -73,7 +73,7 @@ const ICONS = {
   share: { lib: Feather, n: 'share' },
   // Workspace mode switcher (Chat / Agents / Work) + Work-mode group glyphs.
   chat: { lib: Feather, n: 'message-circle' },
-  agents: { lib: Feather, n: 'cpu' },
+  agents: { lib: Ionicons, n: 'sparkles-outline' },
   work: { lib: Feather, n: 'briefcase' },
   book: { lib: Feather, n: 'book-open' },
   target: { lib: Feather, n: 'target' },

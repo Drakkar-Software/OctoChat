@@ -10,7 +10,7 @@ import { WorkPanel } from '@/components/work/WorkPanel';
 export default function WorkScreen() {
   return (
     <StackScreen inTabs scroll collapsibleHeader header={<SpaceTabHeader />} contentStyle={styles.content}>
-      <WorkPanel sections={WORK_SECTIONS} note="Docs and projects live here soon — a preview of the workspace." />
+      <WorkPanel sections={WORK_SECTIONS} hero />
     </StackScreen>
   );
 }

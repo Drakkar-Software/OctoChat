@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { radii, spacing } from '@/theme';
+import { paperBorder, radii, shadows, spacing } from '@/theme';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { type WorkItem, type WorkSection } from '@/lib/work-placeholder';
@@ -8,27 +8,34 @@ import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 
+import { WorkHero } from './WorkHero';
+
 interface WorkPanelProps {
   /** The placeholder tree to render (e.g. Docs or Projects sections). */
   sections: WorkSection[];
-  /** Lead-in callout copy describing what the mode will hold. */
-  note: string;
+  /** Lead-in callout copy describing what the mode will hold (compact surfaces). */
+  note?: string;
+  /** Show the full marine hero lockup — the roomy Work tab, not the sidebar rail. */
+  hero?: boolean;
 }
 
 /**
- * Body of the placeholder workspace modes (**Docs**, **Projects**) — a
- * Notion-style page tree styled after Notion's sidebar so each mode reads as a
- * real surface before the feature exists. Rows are inert (no routing yet);
- * future areas dim. The {@link sections} tree comes from `work-placeholder`. A
- * plain `<View>` to nest cleanly inside the desktop sidebar scroll and the
- * mobile rooms scroll alike.
+ * Body of the placeholder workspace mode (**Work** = docs + projects) — each
+ * group is a framed paper tile holding a Notion-style page tree, so the mode
+ * reads as a real surface before the feature exists. Rows are inert (no routing
+ * yet); future areas dim with a SOON pill. The {@link sections} tree comes from
+ * `work-placeholder`. With {@link hero} it leads with {@link WorkHero} (the Work
+ * tab); without it stays compact for the desktop sidebar rail.
  */
-export function WorkPanel({ sections, note }: WorkPanelProps) {
+export function WorkPanel({ sections, note, hero }: WorkPanelProps) {
   return (
     <View style={styles.panel}>
-      <Callout tone="info" iconName="info">
-        {note}
-      </Callout>
+      {hero ? <WorkHero /> : null}
+      {note ? (
+        <Callout tone="info" iconName="info">
+          {note}
+        </Callout>
+      ) : null}
       {sections.map((section) => (
         <WorkSectionGroup key={section.title} section={section} />
       ))}
@@ -39,7 +46,7 @@ export function WorkPanel({ sections, note }: WorkPanelProps) {
 function WorkSectionGroup({ section }: { section: WorkSection }) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.section, section.future && styles.future]}>
+    <View style={[styles.tile, paperBorder(colors), shadows.sm, section.future && styles.future]}>
       <View style={styles.sectionHead}>
         <Icon name={section.iconName} size={13} color={colors.inkMuted} />
         <Txt variant="caption" weight="bold" tone="inkMuted" style={styles.sectionTitle}>
@@ -90,13 +97,13 @@ function WorkPageRow({ item }: { item: WorkItem }) {
 
 const styles = StyleSheet.create({
   panel: { gap: spacing.md },
-  section: { gap: 2 },
+  tile: { borderRadius: radii.card, borderWidth: 1, paddingVertical: spacing.sm, paddingHorizontal: spacing.xs, gap: 2 },
   future: { opacity: 0.55 },
   sectionHead: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm,
     paddingTop: spacing.xs,
     paddingBottom: spacing.xs,
   },
@@ -107,7 +114,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     paddingVertical: 7,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm,
     borderRadius: radii.md,
   },
   emoji: { width: 20, textAlign: 'center' },
