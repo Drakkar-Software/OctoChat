@@ -82,6 +82,7 @@ export async function scanDmInbox(
   const items = (await client
     .pull<{ ts: number; data: Record<string, unknown> }>(streamRoomPull(dmInboxRoomId(sharedSpaceId)), {
       appendField: 'items',
+      full: true, // a19: append-only pulls must be bounded; scan the whole inbox log
     })
     .catch(() => [])) as { ts: number; data: Record<string, unknown> }[];
   const out: ScannedInvite[] = [];

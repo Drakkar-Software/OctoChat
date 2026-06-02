@@ -91,15 +91,18 @@ const queuing = createQueuingServerPlugin({
     streamchat: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
     pubstream: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
     pubspace: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
-    // Unified Object collections ride the same per-space SSE topic. The index write
-    // carries no roomId (params {spaceId} only); content writes carry {objectId} —
-    // the client routes on those (see events.shared.ts).
-    objindex: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
-    objdoc: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
-    objlog: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
-    pubobjindex: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
-    pubobjdoc: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
-    pubobjlog: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
+    // Unified Object collections publish on a SEPARATE subject — NOT chat.changed,
+    // which the FCM bridge turns into a "new message" push per event (it would spam a
+    // notification on every doc edit / category rename / task status toggle). No push
+    // formatter for the object subject yet, so object changes generate no FCM; clients
+    // refresh on focus-pull. includeParams stays true so the per-space subject
+    // octochat.object.changed.<spaceId> is derived; includeIdentity off (no push).
+    objindex: { topic: "octochat.object.changed", includeParams: true, includeIdentity: false },
+    objdoc: { topic: "octochat.object.changed", includeParams: true, includeIdentity: false },
+    objlog: { topic: "octochat.object.changed", includeParams: true, includeIdentity: false },
+    pubobjindex: { topic: "octochat.object.changed", includeParams: true, includeIdentity: false },
+    pubobjdoc: { topic: "octochat.object.changed", includeParams: true, includeIdentity: false },
+    pubobjlog: { topic: "octochat.object.changed", includeParams: true, includeIdentity: false },
   },
 });
 

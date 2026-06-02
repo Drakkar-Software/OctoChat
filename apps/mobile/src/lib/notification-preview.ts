@@ -93,6 +93,7 @@ export async function loadLatestMessagePreview(session: Session, roomId: string)
   try {
     items = (await client.pull<{ ts: number; data: Record<string, unknown> }>(streamRoomPull(roomId), {
       appendField: 'items',
+      full: true, // a19: append-only pulls must be bounded; fold the whole log for the preview
     })) as { ts: number; data: Record<string, unknown> }[];
   } catch {
     return null;
@@ -139,7 +140,7 @@ async function loadPublicLatestMessagePreview(
   try {
     items = (await client.pull<{ ts: number; data: Record<string, unknown> }>(
       pubstreamRoomPull(auth.ownerId, spaceId, roomId),
-      { appendField: 'items' },
+      { appendField: 'items', full: true }, // a19: bound the append-only pull (whole log)
     )) as { ts: number; data: Record<string, unknown> }[];
   } catch {
     return null;

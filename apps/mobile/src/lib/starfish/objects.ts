@@ -15,7 +15,13 @@
  * is the single place those are repaired so every consumer renders a well-formed tree.
  */
 import type { AutomationMeta, ID, ObjectNode, ObjectType, Room, RoomSubtype } from '@/lib/types';
-import { randomId } from '../ids';
+import { randomId, roomSlug } from '../ids';
+
+/** Deterministic category-node id from its name, so two devices that concurrently
+ *  create (or auto-migrate) the SAME category mint the SAME id → the union-merge
+ *  dedupes them instead of leaving duplicate category headers in the tree. (Random
+ *  ids would not collide and both would survive the merge.) */
+export const categoryId = (name: string): ID => `cat-${roomSlug(name) || randomId()}`;
 
 /** A node plus its resolved children — the shape the sidebar/Work tree renders. */
 export interface ObjectTreeNode extends ObjectNode {
@@ -265,7 +271,7 @@ export function roomsToObjects(rooms: Room[], categories: string[], now: number)
   const catId = new Map<string, ID>();
   let catOrder = 0;
   for (const name of categories) {
-    const id = `cat-${randomId()}`;
+    const id = categoryId(name);
     catId.set(name, id);
     out.push({ id, type: 'category', parentId: null, order: catOrder++, title: name, updatedAt: now });
   }
@@ -274,7 +280,7 @@ export function roomsToObjects(rooms: Room[], categories: string[], now: number)
   for (const r of rooms) {
     let parentId = catId.get(r.category) ?? null;
     if (parentId == null && r.category) {
-      const id = `cat-${randomId()}`;
+      const id = categoryId(r.category);
       catId.set(r.category, id);
       parentId = id;
       out.push({ id, type: 'category', parentId: null, order: catOrder++, title: r.category, updatedAt: now });

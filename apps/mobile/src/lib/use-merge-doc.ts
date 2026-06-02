@@ -43,6 +43,9 @@ export interface MergeDocResult {
   reload: () => void;
   /** Apply an update to the live doc (no-op + false when not ready). */
   apply: (update: (doc: Record<string, unknown>) => Record<string, unknown>) => boolean;
+  /** Trigger a fresh server pull of the doc (for live-sync on an SSE change). No-op
+   *  before the store exists. */
+  pull: () => void;
 }
 
 /**
@@ -137,6 +140,9 @@ export function useMergeDoc(opts: MergeDocOptions): MergeDocResult {
     },
     [liveStore],
   );
+  const pull = useCallback(() => {
+    if (store) void (store.getState() as { pull?: () => Promise<unknown> }).pull?.();
+  }, [store]);
 
-  return { doc, ready: !!liveStore, opening: enabled ? opening : false, openError, offline, reload, apply };
+  return { doc, ready: !!liveStore, opening: enabled ? opening : false, openError, offline, reload, apply, pull };
 }

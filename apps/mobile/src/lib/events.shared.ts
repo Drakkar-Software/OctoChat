@@ -42,11 +42,18 @@ export interface RoomChange {
 
 interface QueueMessageish {
   collection?: string;
-  params?: { roomId?: string; docId?: string; spaceId?: string };
+  params?: { roomId?: string; docId?: string; spaceId?: string; objectId?: string };
   hash?: string;
   timestamp?: number;
   identity?: string;
 }
+
+/** Unified-object content collections — their change events key the changed doc by
+ *  `params.objectId` (a doc/project id), which we map onto `roomId` so the existing
+ *  per-room live-sync bus (keyed on roomId) drives a pull. The index collections
+ *  (`objindex`/`pubobjindex`) carry only `spaceId` (no objectId) — no per-doc
+ *  subscriber, so they're left to focus-pull and routed as null here. */
+const OBJECT_CONTENT_COLLECTIONS = new Set(['objdoc', 'objlog', 'pubobjdoc', 'pubobjlog']);
 
 /** Parse one SSE `data:` payload into a RoomChange, or null if not a chat change.
  *  Accepts both a raw QueueMessage and the Whistlers `{ rawPayload }` envelope. */
@@ -62,6 +69,9 @@ export function parseRoomChange(data: string): RoomChange | null {
       const docId = msg.params?.docId;
       if (!docId || docId === '_rooms') return null;
       roomId = docId;
+    } else if (msg.collection && OBJECT_CONTENT_COLLECTIONS.has(msg.collection)) {
+      // Doc/project content: key by objectId so the per-doc live-sync fires.
+      roomId = msg.params?.objectId;
     } else {
       roomId = msg.params?.roomId;
     }

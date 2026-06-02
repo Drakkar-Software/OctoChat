@@ -80,6 +80,7 @@ async function privateMergeLog(client: StarfishClient, enc: Encryptor, roomId: s
 async function privateStreamLog(client: StarfishClient, enc: Encryptor, roomId: string): Promise<RoomLog> {
   const items = (await client.pull<{ ts: number; data: Record<string, unknown> }>(streamRoomPull(roomId), {
     appendField: 'items',
+    full: true, // a19: append-only pulls must be bounded; stats fold the whole log
   })) as { ts: number; data: Record<string, unknown> }[];
   const messages: StoredMsg[] = [];
   const edits: MessageEditEvent[] = [];
@@ -115,7 +116,7 @@ async function publicStreamLog(
 ): Promise<RoomLog> {
   const items = (await client.pull<{ ts: number; data: Record<string, unknown> }>(
     pubstreamRoomPull(ownerId, spaceId, roomId),
-    { appendField: 'items' },
+    { appendField: 'items', full: true }, // a19: bound the append-only pull (whole log)
   )) as { ts: number; data: Record<string, unknown> }[];
   const messages: StoredMsg[] = [];
   const edits: MessageEditEvent[] = [];

@@ -5,6 +5,7 @@ import type { ObjectNode, Room, RoomKind } from '@/lib/types';
 import { CategoryError, DEFAULT_CATEGORY } from './starfish/registry';
 import {
   addObject,
+  categoryId,
   objectsToRoomCategories,
   patchObject,
   reparentObject,
@@ -127,7 +128,7 @@ export function useRooms(spaceId: string | null) {
           let next = cur;
           let catId = findCategory(next, category)?.id;
           if (!catId) {
-            const r = addObject(next, { type: 'category', title: category }, now);
+            const r = addObject(next, { type: 'category', id: categoryId(category), title: category }, now);
             next = r.nodes;
             catId = r.node.id;
           }
@@ -145,7 +146,7 @@ export function useRooms(spaceId: string | null) {
         mutate((cur, now) => {
           if (!trimmed) throw new CategoryError('Enter a category name.');
           if (findCategory(cur, trimmed)) throw new CategoryError('A category with that name already exists.');
-          return addObject(cur, { type: 'category', title: trimmed }, now).nodes;
+          return addObject(cur, { type: 'category', id: categoryId(trimmed), title: trimmed }, now).nodes;
         }),
       );
     },
@@ -179,7 +180,7 @@ export function useRooms(spaceId: string | null) {
           let next = cur;
           let fallbackId = findCategory(next, DEFAULT_CATEGORY)?.id;
           if (!fallbackId || fallbackId === cat.id) {
-            const r = addObject(next, { type: 'category', title: DEFAULT_CATEGORY }, now);
+            const r = addObject(next, { type: 'category', id: categoryId(DEFAULT_CATEGORY), title: DEFAULT_CATEGORY }, now);
             next = r.nodes;
             fallbackId = r.node.id;
           }
@@ -212,7 +213,7 @@ export function useRooms(spaceId: string | null) {
           let next = cur;
           let catId = findCategory(next, category)?.id;
           if (!catId) {
-            const r = addObject(next, { type: 'category', title: category }, now);
+            const r = addObject(next, { type: 'category', id: categoryId(category), title: category }, now);
             next = r.nodes;
             catId = r.node.id;
           }

@@ -9,14 +9,14 @@ importers:
   .:
     dependencies:
       '@drakkar.software/starfish-identities':
-        specifier: 3.0.0-alpha.10
-        version: 3.0.0-alpha.10
+        specifier: 3.0.0-alpha.19
+        version: 3.0.0-alpha.19
       '@drakkar.software/starfish-protocol':
-        specifier: 3.0.0-alpha.10
-        version: 3.0.0-alpha.10
+        specifier: 3.0.0-alpha.19
+        version: 3.0.0-alpha.19
       '@drakkar.software/starfish-sharing':
-        specifier: 3.0.0-alpha.10
-        version: 3.0.0-alpha.10
+        specifier: 3.0.0-alpha.19
+        version: 3.0.0-alpha.19
       openai:
         specifier: ^4.77.0
         version: 4.104.0
@@ -33,8 +33,8 @@ importers:
 
 packages:
 
-  '@drakkar.software/starfish-client@3.0.0-alpha.10':
-    resolution: {integrity: sha512-uHpvxCFs856LqxxybLD9TCvjAvnUtsGdY7hOakKpSfs49+i8URIPqmg04o+QdlPoc+T4jH0q8b9Jhiv8BaJ2ng==}
+  '@drakkar.software/starfish-client@3.0.0-alpha.19':
+    resolution: {integrity: sha512-T0pwXUtyuSPPscBlNygHXyPdYMD6FTpQnDkYsgsaPvMj+lGegLnWRelhMXtkqKTJQ8kek+3UrqZ+/herlLLQcQ==}
     peerDependencies:
       '@legendapp/state': '>=2.0.0'
       immer: '>=9.0.0'
@@ -50,17 +50,17 @@ packages:
       zustand:
         optional: true
 
-  '@drakkar.software/starfish-identities@3.0.0-alpha.10':
-    resolution: {integrity: sha512-t15I7nHGi7CF5cr7VfKvwbc8RIjN5d22p+MHDonHxP/4Rng3ARdgkStCIWHq2hL9iduWq2YA4nxCFRG9Zp/UFA==}
+  '@drakkar.software/starfish-identities@3.0.0-alpha.19':
+    resolution: {integrity: sha512-bQGTDyzTomY48H/CrMKEd/oGS38o0/UVASufxxID5Ic2FcmBJSl19B95E4ehOc8R0TWt+FS+H1xWfiW2NPnNnA==}
 
-  '@drakkar.software/starfish-keyring@3.0.0-alpha.10':
-    resolution: {integrity: sha512-lVujj/m9pHOQIFy2k8bev54gNT7831fWd8e3Lnfi+/3ZvwEIt2EE/tee/I/eVBBr0XOHD/E9bCXkTVn/9EyIfQ==}
+  '@drakkar.software/starfish-keyring@3.0.0-alpha.19':
+    resolution: {integrity: sha512-7UAGwN8A1O5KjSnDCIbPNh9GWugDoMvOWPMg25CqBakE4SX9byTNVdz6V4c+eVTi4Bnl5Wl9i3L1Lx/XT8rdjQ==}
 
-  '@drakkar.software/starfish-protocol@3.0.0-alpha.10':
-    resolution: {integrity: sha512-HzfIaOnoCm9CueiQqjCPnYgzHGVT1AMmvlBk2VTv0UR+beyC6DGAhv53/IRyguku/FOrnCzO4eINjCH7gq+lTQ==}
+  '@drakkar.software/starfish-protocol@3.0.0-alpha.19':
+    resolution: {integrity: sha512-+vrGOJShiF7uAfHR7cYvOTYmgI6+IO6DYh899Rpw+zPrvFg9AkELKS1avv91a7V721L2HshRnacHFAUDXJZSGA==}
 
-  '@drakkar.software/starfish-sharing@3.0.0-alpha.10':
-    resolution: {integrity: sha512-LtEDpDJc9Dt6ZLO7sQaqYY27ijONyYBvUAeq84Vg9aj33+ApWVsvbzk1Ap8Yeoct8cgh33o5f67T7WFL3h1yBg==}
+  '@drakkar.software/starfish-sharing@3.0.0-alpha.19':
+    resolution: {integrity: sha512-GucoE4Po7BPJdRwSGeR7d43wVNaEZMDgam7Bl9DIPFQZ3Vaz9PdpmZPOXuEQ3h68l3fGf3TIJifWc6OjNOjiaw==}
 
   '@esbuild/aix-ppc64@0.28.0':
     resolution: {integrity: sha512-lhRUCeuOyJQURhTxl4WkpFTjIsbDayJHih5kZC1giwE+MhIzAb7mEsQMqMf18rHLsrb5qI1tafG20mLxEWcWlA==}
@@ -408,16 +408,17 @@ packages:
 
 snapshots:
 
-  '@drakkar.software/starfish-client@3.0.0-alpha.10':
+  '@drakkar.software/starfish-client@3.0.0-alpha.19':
     dependencies:
-      '@drakkar.software/starfish-protocol': 3.0.0-alpha.10
+      '@drakkar.software/starfish-protocol': 3.0.0-alpha.19
 
-  '@drakkar.software/starfish-identities@3.0.0-alpha.10':
+  '@drakkar.software/starfish-identities@3.0.0-alpha.19':
     dependencies:
-      '@drakkar.software/starfish-client': 3.0.0-alpha.10
-      '@drakkar.software/starfish-keyring': 3.0.0-alpha.10
-      '@drakkar.software/starfish-protocol': 3.0.0-alpha.10
+      '@drakkar.software/starfish-client': 3.0.0-alpha.19
+      '@drakkar.software/starfish-keyring': 3.0.0-alpha.19
+      '@drakkar.software/starfish-protocol': 3.0.0-alpha.19
       '@noble/curves': 2.2.0
+      '@noble/hashes': 2.2.0
       hash-wasm: 4.12.0
     transitivePeerDependencies:
       - '@legendapp/state'
@@ -425,10 +426,10 @@ snapshots:
       - react
       - zustand
 
-  '@drakkar.software/starfish-keyring@3.0.0-alpha.10':
+  '@drakkar.software/starfish-keyring@3.0.0-alpha.19':
     dependencies:
-      '@drakkar.software/starfish-client': 3.0.0-alpha.10
-      '@drakkar.software/starfish-protocol': 3.0.0-alpha.10
+      '@drakkar.software/starfish-client': 3.0.0-alpha.19
+      '@drakkar.software/starfish-protocol': 3.0.0-alpha.19
       '@noble/curves': 2.2.0
     transitivePeerDependencies:
       - '@legendapp/state'
@@ -436,17 +437,17 @@ snapshots:
       - react
       - zustand
 
-  '@drakkar.software/starfish-protocol@3.0.0-alpha.10':
+  '@drakkar.software/starfish-protocol@3.0.0-alpha.19':
     dependencies:
       '@noble/curves': 2.2.0
       '@noble/hashes': 2.2.0
       hash-wasm: 4.12.0
 
-  '@drakkar.software/starfish-sharing@3.0.0-alpha.10':
+  '@drakkar.software/starfish-sharing@3.0.0-alpha.19':
     dependencies:
-      '@drakkar.software/starfish-client': 3.0.0-alpha.10
-      '@drakkar.software/starfish-keyring': 3.0.0-alpha.10
-      '@drakkar.software/starfish-protocol': 3.0.0-alpha.10
+      '@drakkar.software/starfish-client': 3.0.0-alpha.19
+      '@drakkar.software/starfish-keyring': 3.0.0-alpha.19
+      '@drakkar.software/starfish-protocol': 3.0.0-alpha.19
     transitivePeerDependencies:
       - '@legendapp/state'
       - immer

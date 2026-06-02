@@ -3,6 +3,7 @@ import { useCallback, useMemo } from 'react';
 import { objDocPull, objDocPush, pubObjDocPull, pubObjDocPush } from './starfish/paths';
 import type { ID } from './types';
 import { useMergeDoc } from './use-merge-doc';
+import { useRoomLiveSync } from './use-room-live-sync';
 import { randomId } from './ids';
 
 /** A block of doc body content. Union-merged on `id` keyed by `updatedAt`, so two
@@ -34,7 +35,7 @@ export interface DocHook {
 export function useDoc(spaceId: string, objectId: string, opts: { enabled?: boolean } = {}): DocHook {
   const enabled = (opts.enabled ?? true) && !!spaceId && !!objectId;
 
-  const { doc, ready, opening, openError, offline, reload, apply } = useMergeDoc({
+  const { doc, ready, opening, openError, offline, reload, apply, pull } = useMergeDoc({
     spaceId,
     openId: objectId,
     enabled,
@@ -42,6 +43,11 @@ export function useDoc(spaceId: string, objectId: string, opts: { enabled?: bool
     privatePaths: () => ({ pull: objDocPull(spaceId, objectId), push: objDocPush(spaceId, objectId) }),
     publicPaths: (ownerId) => ({ pull: pubObjDocPull(ownerId, spaceId, objectId), push: pubObjDocPush(ownerId, spaceId, objectId) }),
   });
+
+  // Live cross-device updates: an `objdoc` change event (routed by objectId — see
+  // events.shared.ts) pulls the latest blocks. Focus-pull + SSE, poll only when SSE is
+  // down (useRoomLiveSync). The doc screen mounts this hook, so the focus gate is valid.
+  useRoomLiveSync({ roomId: objectId, ready, pull, skipFirstFocus: true, firstFocusKey: objectId });
 
   const blocks = useMemo<DocBlock[]>(
     () =>
