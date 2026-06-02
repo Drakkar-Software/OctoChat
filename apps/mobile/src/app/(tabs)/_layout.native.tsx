@@ -1,4 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
 import { fonts } from '@/theme';
@@ -14,14 +15,16 @@ import { useUnread } from '@/lib/unread-context';
  * native), which is also where the desktop sidebar swap and the OTA update
  * banner live.
  *
- * The tabs are the workspace modes (Chat · Agents · Work) plus global Search as
- * the last tab. `threads` and `you` are NOT tabs: they live at the app root and
- * are reached via `router.push(...)` from the Chat tab / its header — native
+ * The tabs are the workspace modes (Chat · Agents · Work) plus global Search,
+ * which carries `role="search"` so iOS 26 floats it to the bottom-right as the
+ * native search tab. `threads` and `you` are NOT tabs: they live at the app root
+ * and are reached via `router.push(...)` from the Chat tab / its header — native
  * tabs have no `href: null` equivalent (a `hidden` trigger is non-navigable).
  *
- * Icons stay on the app's Feather line-art vocabulary (via `VectorIcon`) so the
- * tab glyphs match the rest of the UI; the native feel comes from the bar
- * itself. `totalUnread` (every unread message across rooms — thread replies
+ * Icons mostly follow the app's Feather line-art vocabulary (via `VectorIcon`)
+ * so the tab glyphs match the rest of the UI — Agents is the Ionicons sparkle,
+ * mirroring the web `Icon` set; the native feel comes from the bar itself.
+ * `totalUnread` (every unread message across rooms — thread replies
  * included, since a reply is a room message) badges the Rooms tab; web/desktop
  * surfaces the same count on the space-rail tiles instead.
  */
@@ -55,13 +58,17 @@ export default function NativeTabsLayout() {
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="agents">
         <NativeTabs.Trigger.Label>Agents</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="cpu" />} />
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Ionicons} name="sparkles-outline" />} />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="work">
         <NativeTabs.Trigger.Label>Work</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="briefcase" />} />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="search">
+      {/* `role="search"` makes this the platform search tab: on iOS 26 it floats
+          to the bottom-right as a dedicated search affordance rather than sitting
+          inline with the other tabs. Older iOS and Android have no equivalent, so
+          it gracefully degrades to a normal tab (hence the Icon stays for them). */}
+      <NativeTabs.Trigger name="search" role="search">
         <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="search" />} />
       </NativeTabs.Trigger>
