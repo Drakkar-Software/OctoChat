@@ -2,22 +2,30 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
+import { useSpaces } from '@/lib/use-spaces';
+import { useObjects } from '@/lib/use-objects';
 import { AppBar } from '@/components/ui/AppBar';
 import { StackScreen } from '@/components/ui/StackScreen';
-import { ProjectPlaceholder } from '@/components/work/ProjectPlaceholder';
+import { Breadcrumbs } from '@/components/objects/Breadcrumbs';
+import { ProjectBoard } from '@/components/work/ProjectBoard';
 
-/** Placeholder project board — previews the kanban surface (see {@link ProjectPlaceholder}). */
+/** Project board — live kanban folded from the append-only log + ancestor breadcrumbs. */
 export default function WorkProjectScreen() {
   const router = useRouter();
-  const { emoji, label, hint } = useLocalSearchParams<{ emoji?: string; label?: string; hint?: string }>();
+  const { activeId } = useSpaces();
+  const { id, spaceId: spaceParam, emoji, label } = useLocalSearchParams<{ id: string; spaceId?: string; emoji?: string; label?: string }>();
+  const spaceId = spaceParam || activeId || '';
+  const { breadcrumbs, get } = useObjects(spaceId, { enabled: !!spaceId });
+  const trail = breadcrumbs(id);
+  const node = get(id);
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/work'));
+  const openCrumb = (nid: string, type?: string) =>
+    router.push({ pathname: type === 'project' ? '/work/project/[id]' : '/work/doc/[id]', params: { id: nid, spaceId } });
+
   return (
-    <StackScreen
-      scroll
-      contentStyle={styles.content}
-      header={<AppBar title="Project" subtitle="Preview" onBack={goBack} />}
-    >
-      <ProjectPlaceholder emoji={emoji || '🗂️'} label={label || 'Untitled'} hint={hint} />
+    <StackScreen scroll contentStyle={styles.content} header={<AppBar title="Project" subtitle="Workspace" onBack={goBack} />}>
+      <Breadcrumbs trail={trail} onNavigate={(n) => openCrumb(n.id, n.type)} />
+      <ProjectBoard spaceId={spaceId} objectId={id} emoji={node?.emoji || emoji} title={node?.title || label} />
     </StackScreen>
   );
 }

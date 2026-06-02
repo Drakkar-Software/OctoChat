@@ -123,7 +123,7 @@ export function breadcrumbs(nodes: ObjectNode[], id: ID): ObjectNode[] {
   let cur: ID | null = id;
   while (cur != null && byId.has(cur) && !seen.has(cur)) {
     seen.add(cur);
-    const node = byId.get(cur)!;
+    const node: ObjectNode = byId.get(cur)!;
     trail.unshift(node);
     cur = node.parentId;
   }
@@ -205,6 +205,50 @@ export function reorderObjects(nodes: ObjectNode[], orderById: Record<ID, number
 export function archiveObject(nodes: ObjectNode[], id: ID, now: number): ObjectNode[] {
   const ids = subtreeIds(nodes, id);
   return nodes.map((n) => (ids.has(n.id) ? { ...n, archived: true, updatedAt: now } : n));
+}
+
+// ── Adapter: unified index ↔ legacy room-list shape ───────────────────────────
+
+/** The category→rooms grouping the chat UI consumes (mirrors `useRooms`'s output).
+ *  Kept here so the projection FROM the unified index stays pure + testable. */
+export interface AdaptedCategory {
+  name: string;
+  rooms: Room[];
+}
+
+/** Project the room/category nodes of an index into the legacy `{ name, rooms }[]`
+ *  the existing chat UI (`RoomCategoryList`, `AgentsPanel`, room screen) consumes —
+ *  so those components need NO change while rooms live in the unified index. Category
+ *  nodes become buckets (ordered by their node order); room nodes become {@link Room}s
+ *  grouped under their parent category (or `fallbackCategory` at root). Returns null
+ *  when the index holds no room/category nodes yet, so a caller can fall back to the
+ *  legacy `_rooms` list during migration. */
+export function objectsToRoomCategories(nodes: ObjectNode[], spaceId: string, fallbackCategory: string): AdaptedCategory[] | null {
+  const live = nodes.filter((n) => !n.archived);
+  const cats = live.filter((n) => n.type === 'category').slice().sort(compareSiblings);
+  const rooms = live.filter((n) => n.type === 'room');
+  if (cats.length === 0 && rooms.length === 0) return null; // nothing migrated yet
+
+  const titleById = new Map<ID, string>(cats.map((c) => [c.id, c.title]));
+  const buckets = new Map<string, Room[]>();
+  for (const c of cats) buckets.set(c.title, []);
+
+  const toRoom = (n: ObjectNode, category: string): Room => ({
+    id: n.id,
+    spaceId,
+    category,
+    name: n.title,
+    kind: subtypeToRoomKind(n.subtype),
+    ...(n.automation ? { automation: n.automation } : {}),
+  });
+
+  // Stable room order within a bucket: by node order, then id.
+  for (const n of rooms.slice().sort(compareSiblings)) {
+    const category = (n.parentId != null && titleById.get(n.parentId)) || fallbackCategory;
+    if (!buckets.has(category)) buckets.set(category, []);
+    buckets.get(category)!.push(toRoom(n, category));
+  }
+  return [...buckets.entries()].map(([name, rs]) => ({ name, rooms: rs }));
 }
 
 // ── Migration: legacy `_rooms` → unified index ────────────────────────────────

@@ -1,25 +1,19 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
-import type { Room, RoomKind } from '@/lib/types';
+import type { ObjectNode, Room, RoomKind } from '@/lib/types';
 
+import { CategoryError, DEFAULT_CATEGORY } from './starfish/registry';
 import {
-  createCategory as createCategoryDoc,
-  createRoom as createRoomDoc,
-  CategoryError,
-  deleteCategory as deleteCategoryDoc,
-  moveRoom as moveRoomDoc,
-  renameCategory as renameCategoryDoc,
-  reorderCategories as reorderCategoriesDoc,
-} from './starfish/registry';
-import {
-  createPublicCategory,
-  createPublicRoom,
-  deletePublicCategory,
-  isPublicSpaceId,
-  movePublicRoom,
-  renamePublicCategory,
-  reorderPublicCategories,
-} from './starfish/pubspace';
+  addObject,
+  objectsToRoomCategories,
+  patchObject,
+  reparentObject,
+  roomKindToSubtype,
+  roomsToObjects,
+} from './starfish/objects';
+import { isPublicSpaceId } from './starfish/pubspace';
+import { roomSlug } from './ids';
+import { useObjects } from './use-objects';
 import { useRoomsRegistry, useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
 import { useUnread } from './unread-context';
@@ -31,10 +25,8 @@ export interface RoomCategory {
 
 /**
  * Drop `kind: 'automated'` rooms from the category list — they belong to the
- * **Agents** view, not the **Chat** room list ({@link ModeSwitcher}). A category
- * that held only agents is removed too, so Chat shows no empty header; a category
- * that was already empty (an owner's freshly-created, unfilled one) is kept so the
- * owner can still add rooms to it.
+ * **Agents** view, not the **Chat** room list. A category that held only agents is
+ * removed too; an already-empty category (a freshly-created, unfilled one) is kept.
  */
 export function excludeAutomatedRooms(categories: RoomCategory[]): RoomCategory[] {
   return categories
@@ -42,144 +34,200 @@ export function excludeAutomatedRooms(categories: RoomCategory[]): RoomCategory[
     .filter((c, i) => c.rooms.length > 0 || categories[i].rooms.length === 0);
 }
 
-/** Adding a channel/category writes the `space:owner`-gated room registry, so only
- *  the owner may do it; a member is told to ask rather than the call rejecting. */
-const NOT_OWNER_MESSAGE = 'Only the space owner can manage channels — ask the owner to do this.';
 const CREATE_FAILED_MESSAGE = "Couldn't save the change. Please try again.";
+const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+const findCategory = (nodes: ObjectNode[], name: string) =>
+  nodes.find((n) => n.type === 'category' && !n.archived && sameName(n.title, name));
 
 /**
- * Rooms of a space, grouped by category, with owner-gated creator + management
- * actions. Thin consumer over {@link RoomsRegistryProvider}: the registry is fetched
- * once by the provider; this hook overlays live unread counts and shapes it for the UI.
+ * Rooms of a space, grouped by category, sourced from the unified OBJECT INDEX
+ * ({@link useObjects}). Replaces the old `_rooms`-registry read: rooms + categories now
+ * live in `objects/_index` (union-merged), so docs/projects and rooms share one model.
+ * `_rooms` remains the owner/members ACCESS record (read via {@link useRoomsRegistry} for
+ * ownership + as a fallback list until a space migrates). Public + private spaces unify
+ * here — `useObjects` picks the right collection by space type.
+ *
+ * Per the design, ANY member may create rooms/categories (the index is `space:member`-
+ * writable); ownership only governs the access record, not the object list.
  */
 export function useRooms(spaceId: string | null) {
   const { session } = useSession();
   const { unreadByRoom } = useUnread();
+  const sid = spaceId ?? '';
+  const enabled = !!spaceId;
+
+  // Access record (owner/members + legacy room list for the pre-migration fallback).
+  const reg = useRoomsRegistry(spaceId);
   const { refresh } = useRoomsRegistryActions();
-  const { rooms, owner, members, categories: categoryNames, loading, loaded } = useRoomsRegistry(spaceId);
-  const isPublic = !!spaceId && isPublicSpaceId(spaceId);
+  const objects = useObjects(sid, { enabled });
+  const { nodes, ready, mutate, seedIfEmpty } = objects;
+  const publicSpace = !!spaceId && isPublicSpaceId(sid);
 
-  // Overlay live unread counts onto the registry rooms so `ChannelRow`'s Badge and
-  // emphasis light up without the row components touching the provider.
-  const roomsWithUnread = useMemo<Room[]>(
-    () => rooms.map((r) => ({ ...r, unread: unreadByRoom[r.id] ?? 0 })),
-    [rooms, unreadByRoom],
-  );
+  // ── TEMP MIGRATION (remove once every space is on the object index) ──────────
+  // Seed the unified index from a space's legacy `_rooms` rooms/categories the first
+  // time we see the index empty but the registry populated. Idempotent (seedIfEmpty
+  // no-ops once the index has anything), so it runs at most once per space and never
+  // clobbers index-native rooms.
+  //
+  // The tail is CLOSED: `RoomsRegistryProvider.fetchEntry` now sources rooms/categories
+  // from the index too (headless decrypt, with `_rooms` fallback), so every registry
+  // consumer — room screen kind lookup, unread, push, automations — is served the SAME
+  // index rooms. This hook reads the LIVE index for instant sidebar/tab updates and
+  // `refresh()`es the provider after writes so those consumers converge.
+  useEffect(() => {
+    if (!enabled || !ready || !reg.loaded) return;
+    const hasIndexRooms = nodes.some((n) => n.type === 'room' || n.type === 'category');
+    if (hasIndexRooms || reg.rooms.length === 0) return;
+    seedIfEmpty(roomsToObjects(reg.rooms, reg.categories, Date.now()));
+    // Re-read the provider once the seed lands so the index-backed registry (room
+    // screen kind, unread, push, automations) picks up the migrated rooms. Best-effort
+    // + eventually-consistent: a too-early read just keeps the legacy fallback and the
+    // next provider read converges.
+    void refresh(sid);
+  }, [enabled, ready, reg.loaded, reg.rooms, reg.categories, nodes, seedIfEmpty, refresh, sid]);
 
-  // Group by the registry's ORDERED category list (so empty + freshly-created
-  // categories render, in their stored order), then append any room whose category
-  // isn't listed (defensive — never drop a room).
+  // Room list: prefer the index projection; fall back to the legacy `_rooms` list while
+  // a space hasn't migrated yet (index still empty), so chat shows rooms immediately.
   const categories = useMemo<RoomCategory[]>(() => {
-    const map = new Map<string, Room[]>();
-    for (const name of categoryNames) map.set(name, []);
-    for (const r of roomsWithUnread) {
-      if (!map.has(r.category)) map.set(r.category, []);
-      map.get(r.category)!.push(r);
-    }
-    return [...map.entries()].map(([name, rs]) => ({ name, rooms: rs }));
-  }, [roomsWithUnread, categoryNames]);
+    const fromIndex = objectsToRoomCategories(nodes, sid, DEFAULT_CATEGORY);
+    const base: RoomCategory[] = fromIndex ?? legacyCategories(reg.rooms, reg.categories);
+    // Overlay live unread counts so ChannelRow badges light up.
+    return base.map((c) => ({ ...c, rooms: c.rooms.map((r) => ({ ...r, unread: unreadByRoom[r.id] ?? 0 })) }));
+  }, [nodes, sid, reg.rooms, reg.categories, unreadByRoom]);
 
-  /** True when the signed-in identity owns this space (and so may add channels). */
-  const isOwner = !!session && owner !== null && owner === session.userId;
+  const rooms = useMemo<Room[]>(() => categories.flatMap((c) => c.rooms), [categories]);
 
-  // Owner + roster, mirroring the space screen. Public spaces have no roster
-  // (access is cap-based), so their count is unknown → null.
-  const memberCount = isPublic ? null : 1 + members.length;
+  const isOwner = !!session && reg.owner !== null && reg.owner === session.userId;
+  const memberCount = publicSpace ? null : 1 + reg.members.length;
 
-  // Every owner mutation funnels through here: gate on ownership (a member is told to
-  // ask, not left with a rejected promise), run the public/private branch, refresh the
-  // shared registry, and map failures to a user-facing message — CategoryError carries
-  // a friendly validation message (e.g. duplicate name), a 403 means we aren't the
-  // owner, anything else is an opaque save failure.
-  const runOwnerAction = useCallback(
-    async (fn: () => Promise<void>): Promise<string | null> => {
-      if (!session || !spaceId) return null;
-      if (owner !== null && owner !== session.userId) return NOT_OWNER_MESSAGE;
+  // Map a failed index write to a user-facing message; CategoryError carries a friendly
+  // validation message (duplicate/empty name). No owner gate — members may write.
+  const run = useCallback(
+    async (apply: () => boolean): Promise<string | null> => {
       try {
-        await fn();
-        await refresh(spaceId);
+        if (!apply()) return CREATE_FAILED_MESSAGE; // false = store not writable yet
+        // Converge the index-backed provider (room screen kind, unread, push, automations)
+        // after the write flushes. The live `useObjects` list updates the sidebar/tab
+        // instantly; this is the eventual re-read for the other consumers.
+        void refresh(sid);
         return null;
       } catch (e) {
         if (e instanceof CategoryError) return e.message;
-        if ((e as { status?: number })?.status === 403) return NOT_OWNER_MESSAGE;
         return CREATE_FAILED_MESSAGE;
       }
     },
-    [session, spaceId, owner, refresh],
+    [refresh, sid],
   );
 
-  /**
-   * Create a channel. Resolves to `null` on success, or a user-facing message to
-   * surface when it can't — chiefly the owner-only registry write: a member is told
-   * to ask the owner instead of the promise rejecting unhandled.
-   */
   const createRoom = useCallback(
-    (name: string, category?: string, kind: RoomKind = 'channel'): Promise<string | null> =>
-      runOwnerAction(() =>
-        isPublic && session && spaceId
-          ? createPublicRoom(session, spaceId, name, category, kind).then(() => {})
-          : createRoomDoc(session!.accountClient, session!.userId, spaceId!, name, category, kind).then(() => {}),
-      ),
-    [runOwnerAction, isPublic, session, spaceId],
+    (name: string, category: string = DEFAULT_CATEGORY, kind: RoomKind = 'channel'): Promise<string | null> => {
+      const roomId = `${sid}-${roomSlug(name)}-${Date.now().toString(36)}`;
+      return run(() =>
+        mutate((cur, now) => {
+          let next = cur;
+          let catId = findCategory(next, category)?.id;
+          if (!catId) {
+            const r = addObject(next, { type: 'category', title: category }, now);
+            next = r.nodes;
+            catId = r.node.id;
+          }
+          return addObject(next, { type: 'room', id: roomId, subtype: roomKindToSubtype(kind), parentId: catId, title: name }, now).nodes;
+        }),
+      );
+    },
+    [run, mutate, sid],
   );
 
   const createCategory = useCallback(
-    (name: string): Promise<string | null> =>
-      runOwnerAction(() =>
-        isPublic && session && spaceId
-          ? createPublicCategory(session, spaceId, name)
-          : createCategoryDoc(session!.accountClient, session!.userId, spaceId!, name),
-      ),
-    [runOwnerAction, isPublic, session, spaceId],
+    (name: string): Promise<string | null> => {
+      const trimmed = name.trim();
+      return run(() =>
+        mutate((cur, now) => {
+          if (!trimmed) throw new CategoryError('Enter a category name.');
+          if (findCategory(cur, trimmed)) throw new CategoryError('A category with that name already exists.');
+          return addObject(cur, { type: 'category', title: trimmed }, now).nodes;
+        }),
+      );
+    },
+    [run, mutate],
   );
 
   const renameCategory = useCallback(
-    (oldName: string, newName: string): Promise<string | null> =>
-      runOwnerAction(() =>
-        isPublic && session && spaceId
-          ? renamePublicCategory(session, spaceId, oldName, newName)
-          : renameCategoryDoc(session!.accountClient, session!.userId, spaceId!, oldName, newName),
-      ),
-    [runOwnerAction, isPublic, session, spaceId],
+    (oldName: string, newName: string): Promise<string | null> => {
+      const next = newName.trim();
+      return run(() =>
+        mutate((cur, now) => {
+          if (!next) throw new CategoryError('Enter a category name.');
+          const cat = findCategory(cur, oldName);
+          if (!cat || sameName(oldName, next)) return cur;
+          if (findCategory(cur, next)) throw new CategoryError('A category with that name already exists.');
+          return patchObject(cur, cat.id, { title: next }, now);
+        }),
+      );
+    },
+    [run, mutate],
   );
 
   const deleteCategory = useCallback(
     (name: string): Promise<string | null> =>
-      runOwnerAction(() =>
-        isPublic && session && spaceId
-          ? deletePublicCategory(session, spaceId, name)
-          : deleteCategoryDoc(session!.accountClient, session!.userId, spaceId!, name),
+      run(() =>
+        mutate((cur, now) => {
+          const cat = findCategory(cur, name);
+          if (!cat) return cur;
+          // Reassign the category's rooms to the fallback bucket (ensure it exists),
+          // then archive ONLY the category node (not its rooms — no cascade).
+          let next = cur;
+          let fallbackId = findCategory(next, DEFAULT_CATEGORY)?.id;
+          if (!fallbackId || fallbackId === cat.id) {
+            const r = addObject(next, { type: 'category', title: DEFAULT_CATEGORY }, now);
+            next = r.nodes;
+            fallbackId = r.node.id;
+          }
+          next = next.map((n) => (n.parentId === cat.id ? { ...n, parentId: fallbackId!, updatedAt: now } : n));
+          return next.map((n) => (n.id === cat.id ? { ...n, archived: true, updatedAt: now } : n));
+        }),
       ),
-    [runOwnerAction, isPublic, session, spaceId],
+    [run, mutate],
   );
 
   const reorderCategories = useCallback(
     (order: string[]): Promise<string | null> =>
-      runOwnerAction(() =>
-        isPublic && session && spaceId
-          ? reorderPublicCategories(session, spaceId, order)
-          : reorderCategoriesDoc(session!.accountClient, session!.userId, spaceId!, order),
+      run(() =>
+        mutate((cur, now) => {
+          const orderByName = new Map(order.map((name, i) => [name.toLowerCase(), i]));
+          return cur.map((n) =>
+            n.type === 'category' && orderByName.has(n.title.toLowerCase())
+              ? { ...n, order: orderByName.get(n.title.toLowerCase())!, updatedAt: now }
+              : n,
+          );
+        }),
       ),
-    [runOwnerAction, isPublic, session, spaceId],
+    [run, mutate],
   );
 
   const moveRoom = useCallback(
     (roomId: string, category: string): Promise<string | null> =>
-      runOwnerAction(() =>
-        isPublic && session && spaceId
-          ? movePublicRoom(session, spaceId, roomId, category)
-          : moveRoomDoc(session!.accountClient, session!.userId, spaceId!, roomId, category),
+      run(() =>
+        mutate((cur, now) => {
+          let next = cur;
+          let catId = findCategory(next, category)?.id;
+          if (!catId) {
+            const r = addObject(next, { type: 'category', title: category }, now);
+            next = r.nodes;
+            catId = r.node.id;
+          }
+          return reparentObject(next, roomId, catId, now);
+        }),
       ),
-    [runOwnerAction, isPublic, session, spaceId],
+    [run, mutate],
   );
 
-  // `loading` only while no cached entry exists yet; a null space is never loading.
   return {
     categories,
-    rooms: roomsWithUnread,
-    loading: !!spaceId && loading && !loaded,
+    rooms,
+    loading: enabled && !ready && reg.loading && !reg.loaded,
     isOwner,
-    isPublic,
+    isPublic: publicSpace,
     memberCount,
     createRoom,
     createCategory,
@@ -188,4 +236,16 @@ export function useRooms(spaceId: string | null) {
     reorderCategories,
     moveRoom,
   };
+}
+
+/** Pre-migration fallback: group the legacy `_rooms` rooms by their stored category
+ *  order (the old behaviour) so chat still lists rooms before the index seeds. */
+function legacyCategories(rooms: Room[], categoryNames: string[]): RoomCategory[] {
+  const map = new Map<string, Room[]>();
+  for (const name of categoryNames) map.set(name, []);
+  for (const r of rooms) {
+    if (!map.has(r.category)) map.set(r.category, []);
+    map.get(r.category)!.push(r);
+  }
+  return [...map.entries()].map(([name, rs]) => ({ name, rooms: rs }));
 }

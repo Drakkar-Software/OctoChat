@@ -4,7 +4,6 @@ import { layout, radii, spacing } from '@/theme';
 import type { Room, RoomKind, Space } from '@/lib/types';
 import type { ThreadSummary } from '@/lib/threads';
 import { excludeAutomatedRooms, type RoomCategory } from '@/lib/use-rooms';
-import { WORK_SECTIONS } from '@/lib/work-placeholder';
 import { useOnline } from '@/lib/connectivity';
 import { DM_HOME_NAME } from '@/lib/dm-home';
 import type { DmEntry } from '@/lib/use-dms';
@@ -13,7 +12,7 @@ import { useTheme } from '@/lib/use-theme';
 import { useViewMode } from '@/lib/view-mode';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
-import { WorkPanel } from '@/components/work/WorkPanel';
+import { WorkObjects } from '@/components/work/WorkObjects';
 
 import { AgentsPanel } from './AgentsPanel';
 import { ChannelListSkeleton } from './ChannelListSkeleton';
@@ -203,7 +202,7 @@ export function DesktopRoomSidebar({
             automationsActive={automationsActive}
           />
         ) : mode === 'work' ? (
-          <WorkPanel sections={WORK_SECTIONS} note="Docs and projects live here soon — a preview of the workspace." />
+          <WorkObjects spaceId={space?.id ?? null} />
         ) : (
           <>
             {!online ? (

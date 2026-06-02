@@ -1,101 +1,20 @@
 /**
- * Placeholder content for the **Docs** and **Projects** view modes — docs,
- * knowledge, projects and boards land here later. For now each ships a
- * Notion-style page tree so the modes read as real surfaces ("to have a look")
- * without any backing data or routing. Every row is inert; the
- * {@link WorkSection.future} flag dims a group the feature hasn't reached yet.
- *
- * Lives in `lib` (not a component) so the sidebar/screen stay declarative and
- * the sample trees are swapped for live data in one place when these ship.
+ * Static copy for the Work hero lockup (the marine header on the Work tab). The docs
+ * and projects themselves are now live (see {@link useObjects} / {@link WorkObjects});
+ * only the hero's facet chips remain placeholder copy, kept here so the hero stays
+ * declarative.
  */
 import type { IconName } from '@/components/ui/Icon';
-
-/** Which placeholder detail a row opens — a doc viewer or a project board. */
-export type WorkKind = 'doc' | 'project';
-
-export interface WorkItem {
-  id: string;
-  /** Leading emoji, Notion-style. */
-  emoji: string;
-  label: string;
-  /** Secondary line (page count, status…). */
-  hint?: string;
-}
-
-export interface WorkSection {
-  /** Section heading + the area it stands in for. */
-  title: string;
-  iconName: IconName;
-  /** Which placeholder screen this group's rows open. */
-  kind: WorkKind;
-  items: WorkItem[];
-  /** Greyed as a not-yet-built area. */
-  future?: boolean;
-}
-
-/** The **Docs** mode tree — written documents plus the knowledge base. */
-export const DOCS_SECTIONS: WorkSection[] = [
-  {
-    title: 'Docs',
-    iconName: 'book',
-    kind: 'doc',
-    items: [
-      { id: 'doc-welcome', emoji: '👋', label: 'Welcome to the workspace', hint: 'Encrypted' },
-      { id: 'doc-zk', emoji: '🔐', label: 'Zero-Knowledge Sync', hint: '3 pages' },
-      { id: 'doc-handbook', emoji: '📒', label: 'Engineering Handbook', hint: '2 pages' },
-      { id: 'doc-notes', emoji: '🗒️', label: 'Meeting Notes', hint: 'Encrypted' },
-    ],
-  },
-  {
-    title: 'Knowledge',
-    iconName: 'layers',
-    kind: 'doc',
-    items: [
-      { id: 'kn-security', emoji: '🛡️', label: 'Security Audits', hint: 'Restricted' },
-      { id: 'kn-playbook', emoji: '💬', label: 'Support Playbook', hint: 'Shared' },
-      { id: 'kn-glossary', emoji: '📖', label: 'Glossary', hint: 'Knowledge base' },
-    ],
-    future: true,
-  },
-];
-
-/** The **Projects** sub-tree — initiatives plus their boards. */
-export const PROJECTS_SECTIONS: WorkSection[] = [
-  {
-    title: 'Projects',
-    iconName: 'target',
-    kind: 'project',
-    items: [
-      { id: 'proj-roadmap', emoji: '🗺️', label: 'Roadmap 2026', hint: 'In progress' },
-      { id: 'proj-design', emoji: '🎨', label: 'Design System', hint: 'Shared' },
-      { id: 'proj-launch', emoji: '🚀', label: 'Launch Plan', hint: 'Draft' },
-    ],
-  },
-  {
-    title: 'Boards',
-    iconName: 'layers',
-    kind: 'project',
-    items: [
-      { id: 'board-sprint', emoji: '🏃', label: 'Current Sprint', hint: 'Kanban' },
-      { id: 'board-backlog', emoji: '📋', label: 'Backlog', hint: 'Prioritized' },
-      { id: 'board-bugs', emoji: '🐛', label: 'Bug Triage', hint: 'Open issues' },
-    ],
-    future: true,
-  },
-];
-
-/** The **Work** tree — docs, knowledge, projects and boards in one surface. */
-export const WORK_SECTIONS: WorkSection[] = [...DOCS_SECTIONS, ...PROJECTS_SECTIONS];
 
 /** A top-level area the Work surface stands in for — the hero's facet chips. */
 export interface WorkFacet {
   iconName: IconName;
   label: string;
-  /** One-line description of what the facet will hold. */
+  /** One-line description of what the facet holds. */
   meta: string;
 }
 
-/** The two halves the Work placeholder previews — fed to the hero chips. */
+/** The two halves the Work hero previews — fed to the hero chips. */
 export const WORK_FACETS: WorkFacet[] = [
   { iconName: 'book', label: 'Docs', meta: 'Pages & knowledge' },
   { iconName: 'target', label: 'Projects', meta: 'Boards & roadmaps' },
