@@ -105,6 +105,7 @@ export default function PairScreen() {
       onChangeText={set}
       placeholder={placeholder}
       placeholderTextColor={colors.inkMuted}
+      underlineColorAndroid="transparent"
       style={[styles.input, { color: colors.ink, backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}
       autoCapitalize="none"
       autoCorrect={false}

@@ -307,7 +307,11 @@ const styles = StyleSheet.create({
     // typed text (iOS ignores elevation, so it was fine there). A STATIC
     // elevation above the glow's keeps the input on top; static (never toggled
     // on focus) so it doesn't eat the focus event. No own shadow: bg is transparent.
+    // `shadowColor: transparent` suppresses the grey elevation drop-shadow Android
+    // casts from any elevated view (API 28+ tints elevation shadows) — otherwise it
+    // shows as a dark box behind the bar in light mode (invisible in dark mode).
     elevation: 9,
+    shadowColor: 'transparent',
   },
   input: {
     flex: 1,
