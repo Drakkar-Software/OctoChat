@@ -134,9 +134,11 @@ export function ProjectBoard({ spaceId, objectId, emoji, title }: { spaceId: str
  *  line marks where a dragged card would land (web); columns reorder by appending a
  *  single `task.move`. */
 function BoardColumn({ col, tasks, handlers }: { col: BoardCol; tasks: BoardTask[]; handlers: ColumnHandlers }) {
+  // Hooks FIRST, before any prop access — a throw between two hook calls makes React
+  // report a misleading "Rendered fewer hooks than expected" and swallow the real error.
   const { colors } = useTheme();
-  const { ready, edit } = handlers;
   const { ref: dropRef, overIndex } = useColumnDrop((taskId, index) => handlers.onDropTask(col.id, taskId, index));
+  const { ready, edit } = handlers;
 
   return (
     <View ref={dropRef} style={[styles.column, paperBorder(colors), shadows.sm]}>
