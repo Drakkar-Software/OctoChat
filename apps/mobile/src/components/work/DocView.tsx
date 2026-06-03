@@ -18,19 +18,12 @@ import { ObjectHero } from '@/components/work/ObjectHero';
  */
 export function DocView({ spaceId, objectId, emoji, title }: { spaceId: string; objectId: string; emoji?: string; title?: string }) {
   const { colors } = useTheme();
-  const { blocks, ready, offline, upsertBlock, editBlock, removeBlock } = useDoc(spaceId, objectId);
+  const { blocks, ready, offline, upsertBlock, removeBlock } = useDoc(spaceId, objectId);
   const edit = useInlineEdit();
 
   const addBlock = () => {
     const id = upsertBlock({ type: 'md', text: '' });
     if (id) edit.begin(id);
-  };
-
-  // Cancelling a still-empty block (e.g. a freshly added one) drops it rather
-  // than leaving a blank merge node behind.
-  const cancel = (id: string, source: string) => {
-    edit.close();
-    if (!source.trim()) removeBlock(id);
   };
 
   return (
@@ -56,11 +49,19 @@ export function DocView({ spaceId, objectId, emoji, title }: { spaceId: string; 
               source={source}
               editing={edit.isEditing(b.id)}
               onBeginEdit={() => edit.begin(b.id)}
-              onSubmit={(text) => {
-                editBlock(b.id, text);
-                edit.close();
+              onCommit={(text) => {
+                // Autosave the whole block in place — no split, so a debounce tick
+                // can't fan out duplicate blocks. An empty body (only reachable on
+                // the final flush) deletes the block.
+                const t = text.trim();
+                if (t) upsertBlock({ id: b.id, type: 'md', text: t });
+                else removeBlock(b.id);
               }}
-              onCancel={() => cancel(b.id, source)}
+              onClose={() => {
+                // Guard against a stale blur landing after another block opened:
+                // only close if this block is still the one being edited.
+                if (edit.isEditing(b.id)) edit.close();
+              }}
               onDelete={() => {
                 if (edit.isEditing(b.id)) edit.close();
                 removeBlock(b.id);

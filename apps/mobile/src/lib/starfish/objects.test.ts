@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { objectsToRoomCategories, seedIndexNodes, type SeedRoom } from './objects';
+import { ancestors, breadcrumbs, objectsToRoomCategories, seedIndexNodes, type SeedRoom } from './objects';
+import type { ObjectNode } from '../types';
 
 /**
  * The create-time seed contract: what `createSpace`/`createDmSpace` write into the object
@@ -45,5 +46,35 @@ describe('seedIndexNodes → objectsToRoomCategories round-trip', () => {
 
   it('returns null for an empty seed (no room/category nodes — caller renders nothing)', () => {
     expect(objectsToRoomCategories(seedIndexNodes([], 1), 'sp-1', 'CHANNELS')).toBeNull();
+  });
+});
+
+describe('ancestors (breadcrumb trail = root→parent, EXCLUSIVE of self)', () => {
+  const node = (id: string, parentId: string | null, title = id): ObjectNode => ({
+    id,
+    type: 'doc',
+    parentId,
+    order: 0,
+    title,
+    updatedAt: 1,
+  });
+  // root → child → grandchild
+  const nodes = [node('root', null), node('child', 'root'), node('grand', 'child')];
+
+  it('drops the node itself, returning only its root→parent path', () => {
+    expect(ancestors(nodes, 'grand').map((n) => n.id)).toEqual(['root', 'child']);
+  });
+
+  it('is empty for a root-level node (no ancestors → breadcrumb renders nothing)', () => {
+    expect(ancestors(nodes, 'root')).toEqual([]);
+  });
+
+  it('is the strict prefix of breadcrumbs (which still includes self last)', () => {
+    expect(breadcrumbs(nodes, 'grand').map((n) => n.id)).toEqual(['root', 'child', 'grand']);
+    expect(ancestors(nodes, 'grand')).toEqual(breadcrumbs(nodes, 'grand').slice(0, -1));
+  });
+
+  it('is empty for an unknown node', () => {
+    expect(ancestors(nodes, 'nope')).toEqual([]);
   });
 });

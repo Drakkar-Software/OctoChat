@@ -3,6 +3,7 @@ import { useCallback, useMemo, useRef } from 'react';
 import { objIndexPull, objIndexPush, pubObjIndexPull, pubObjIndexPush } from './starfish/paths';
 import {
   addObject,
+  ancestors as ancestorsOf,
   archiveObject as archiveObjectNodes,
   breadcrumbs as breadcrumbsOf,
   buildTree,
@@ -14,6 +15,7 @@ import {
 } from './starfish/objects';
 import type { ID, ObjectNode } from './types';
 import { useMergeDoc } from './use-merge-doc';
+import { useRoomLiveSync } from './use-room-live-sync';
 
 /** The unified object-index hook for one space — a union-merged merge-doc (see
  *  {@link useMergeDoc}) exposing the repaired render tree plus the create/rename/move/
@@ -24,6 +26,8 @@ export interface ObjectsHook {
   tree: ObjectTreeNode[];
   nodes: ObjectNode[];
   breadcrumbs: (id: ID) => ObjectNode[];
+  /** Root→parent trail (EXCLUSIVE of `id`) for a detail screen's breadcrumb. */
+  ancestors: (id: ID) => ObjectNode[];
   get: (id: ID) => ObjectNode | undefined;
   opening: boolean;
   openError: string | null;
@@ -43,10 +47,10 @@ export interface ObjectsHook {
   mutate: (reducer: (nodes: ObjectNode[], now: number) => ObjectNode[]) => boolean;
 }
 
-export function useObjects(spaceId: string, opts: { enabled?: boolean } = {}): ObjectsHook {
+export function useObjects(spaceId: string, opts: { enabled?: boolean; liveSync?: boolean } = {}): ObjectsHook {
   const enabled = (opts.enabled ?? true) && !!spaceId;
 
-  const { doc, ready, loaded, opening, openError, offline, reload, apply } = useMergeDoc({
+  const { doc, ready, loaded, opening, openError, offline, reload, apply, pull } = useMergeDoc({
     spaceId,
     openId: spaceId,
     enabled,
@@ -54,6 +58,19 @@ export function useObjects(spaceId: string, opts: { enabled?: boolean } = {}): O
     privatePaths: () => ({ pull: objIndexPull(spaceId), push: objIndexPush(spaceId) }),
     publicPaths: (ownerId) => ({ pull: pubObjIndexPull(ownerId, spaceId), push: pubObjIndexPush(ownerId, spaceId) }),
   });
+
+  // Refresh-on-focus parity with chat (see {@link useDoc} / {@link useRoom}): a screen
+  // that edits a doc/project pushes to the server through its OWN index store, so a
+  // separately-mounted Work surface only sees the change on its next pull. Reuse the
+  // shared {@link useRoomLiveSync} to focus-pull (+ poll while SSE is down) the index.
+  // Note: index change events carry only `spaceId` and are dropped by parseRoomChange,
+  // so the SSE registerPull never fires for the index — focus-pull is what refreshes it.
+  // OPT-IN (`liveSync`): this calls useFocusEffect, which needs a router screen. The
+  // index is also mounted in the desktop sidebar (outside a focus screen), so we must
+  // NOT call the hook there — gated by a flag that is static per mount, keeping hook
+  // order stable.
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- `liveSync` is fixed per call site (never toggles for a mounted instance), so the hook order is stable
+  if (opts.liveSync) useRoomLiveSync({ roomId: spaceId, ready, pull, skipFirstFocus: true, firstFocusKey: spaceId });
 
   const objects = useMemo<ObjectNode[]>(() => (Array.isArray(doc?.objects) ? (doc!.objects as ObjectNode[]) : []), [doc]);
 
@@ -110,7 +127,8 @@ export function useObjects(spaceId: string, opts: { enabled?: boolean } = {}): O
   const tree = useMemo(() => buildTree(objects), [objects]);
   const nodes = useMemo(() => objects.filter((n) => !n.archived), [objects]);
   const breadcrumbs = useCallback((id: ID) => breadcrumbsOf(objects, id), [objects]);
+  const ancestors = useCallback((id: ID) => ancestorsOf(objects, id), [objects]);
   const get = useCallback((id: ID) => objects.find((n) => n.id === id), [objects]);
 
-  return { tree, nodes, breadcrumbs, get, opening, openError, offline, ready, loaded, reload, create, rename, move, reorder, archive, mutate };
+  return { tree, nodes, breadcrumbs, ancestors, get, opening, openError, offline, ready, loaded, reload, create, rename, move, reorder, archive, mutate };
 }

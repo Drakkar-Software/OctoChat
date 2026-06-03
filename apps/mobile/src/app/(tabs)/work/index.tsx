@@ -24,7 +24,7 @@ export default function WorkScreen() {
       headerProvidedNatively={nativeHeader}
       contentStyle={styles.content}
     >
-      <WorkObjects spaceId={spaceId} hero />
+      <WorkObjects spaceId={spaceId} hero live />
     </StackScreen>
   );
 }

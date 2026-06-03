@@ -374,6 +374,13 @@ export const motion = {
   pulse: 2800,
   /** Skeleton shimmer loop. */
   shimmer: 1100,
+  /** Idle delay before an inline edit autosaves into a merge-doc (cheap in-place
+   *  overwrite — short, near-keystroke). */
+  autosaveDoc: 600,
+  /** Idle delay before an inline edit autosaves into an append-log (each commit is
+   *  a permanent entry — longer so transient keystrokes don't bloat the log; blur/
+   *  unmount is the primary trigger). */
+  autosaveLog: 1500,
   /** Spring config for press / drag interactions (Reanimated). */
   spring: { damping: 18, stiffness: 220, mass: 0.8 },
 } as const;

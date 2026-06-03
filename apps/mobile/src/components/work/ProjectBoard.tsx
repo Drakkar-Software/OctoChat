@@ -1,11 +1,11 @@
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { layout, opacity, paperBorder, radii, shadows, spacing } from '@/theme';
+import { layout, motion, opacity, paperBorder, radii, shadows, spacing } from '@/theme';
 import { useInlineEdit } from '@/lib/use-inline-edit';
 import { useProject } from '@/lib/use-project';
 import { useRevealActions } from '@/lib/use-reveal-actions';
 import { useTheme } from '@/lib/use-theme';
-import { MessageEditor } from '@/components/chat/MessageEditor';
+import { AutosaveField } from '@/components/ui/AutosaveField';
 import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
@@ -58,13 +58,14 @@ export function ProjectBoard({ spaceId, objectId, emoji, title }: { spaceId: str
               <View style={styles.colHead}>
                 {edit.isEditing(col.id) ? (
                   <View style={styles.colEdit}>
-                    <MessageEditor
+                    <AutosaveField
                       initialText={col.title}
-                      onSubmit={(t) => {
-                        renameColumn(col.id, t);
-                        edit.close();
+                      onCommit={(t) => renameColumn(col.id, t.trim())}
+                      onClose={() => {
+                        if (edit.isEditing(col.id)) edit.close();
                       }}
-                      onCancel={edit.close}
+                      debounceMs={motion.autosaveLog}
+                      accessibilityLabel={`Rename column ${col.title}`}
                     />
                   </View>
                 ) : (
@@ -87,13 +88,14 @@ export function ProjectBoard({ spaceId, objectId, emoji, title }: { spaceId: str
               {(board.tasksByColumn[col.id] ?? []).map((task) =>
                 edit.isEditing(task.id) ? (
                   <View key={task.id} style={[styles.card, { backgroundColor: colors.fill, borderColor: colors.lineFaint }]}>
-                    <MessageEditor
+                    <AutosaveField
                       initialText={task.title}
-                      onSubmit={(t) => {
-                        renameTask(task.id, t);
-                        edit.close();
+                      onCommit={(t) => renameTask(task.id, t.trim())}
+                      onClose={() => {
+                        if (edit.isEditing(task.id)) edit.close();
                       }}
-                      onCancel={edit.close}
+                      debounceMs={motion.autosaveLog}
+                      accessibilityLabel={`Rename ${task.title}`}
                     />
                   </View>
                 ) : (

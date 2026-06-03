@@ -16,6 +16,11 @@ import { IntervalPicker, type Cadence } from '@/components/chat/IntervalPicker';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
+// keyboard-controller KAV lifts the bottom-anchored sheet above the keyboard
+// (Android edge-to-edge safe); web never overlays the keyboard, so plain View.
+// Wraps OUTSIDE the backdrop so the inner ScrollView keeps owning scroll.
+const KAV = Platform.OS === 'web' ? View : KeyboardAvoidingView;
+
 interface Props {
   session: Session;
   /** The public space the new automated room lands in. The creator does NOT
@@ -89,6 +94,7 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <KAV style={styles.kav} behavior="padding">
       <Pressable
         style={[styles.backdrop, { backgroundColor: colors.scrim }]}
         onPress={onClose}
@@ -206,11 +212,13 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
           </ScrollView>
         </Pressable>
       </Pressable>
+      </KAV>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  kav: { flex: 1 },
   backdrop: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
     maxHeight: '90%',

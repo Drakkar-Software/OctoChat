@@ -1,0 +1,119 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+import { motion } from '@/theme';
+
+export interface AutosaveOptions {
+  /** Seed text; read ONCE on mount. Live external updates are intentionally
+   *  ignored while a field is open so a background merge/pull can't clobber what
+   *  the user is typing — the field is mounted only for the cell being edited. */
+  initialText: string;
+  /** Persist the committed text. Called at most once per distinct value (see the
+   *  commit-if-changed guard) — safe for an append-log where every call is a
+   *  permanent entry. */
+  onCommit: (text: string) => void;
+  /** Idle delay before a debounced (mid-edit) commit. Use {@link motion.autosaveDoc}
+   *  for merge-docs, {@link motion.autosaveLog} for append-logs. */
+  debounceMs?: number;
+  /** Whether an empty value is a meaningful commit. Docs: `true` (empty → the block
+   *  is deleted). Titles: `false` (a blank title is never persisted — blurring an
+   *  emptied field just reverts to the last value). Empty is ONLY ever resolved on
+   *  the final flush (blur/unmount), never on a debounce tick, so clearing a field
+   *  to retype can't delete it out from under the user. */
+  commitEmpty?: boolean;
+}
+
+/**
+ * The commit gate, pure so it can be tested without a renderer. Returns whether
+ * `value` should be persisted given the last committed value and the trigger.
+ *
+ *  - Empty resolves ONLY on the final flush (blur/unmount) and ONLY when allowed
+ *    (`commitEmpty` — docs delete the block; titles never persist blank). It
+ *    bypasses the unchanged check so a never-edited empty block is still dropped
+ *    (an idempotent delete downstream).
+ *  - Non-empty commits only when it differs from the last committed value, so the
+ *    debounce+blur double-fire is a no-op and an append-log gains only distinct
+ *    states, never a per-keystroke duplicate.
+ */
+export function shouldCommit(value: string, lastCommitted: string, opts: { final: boolean; commitEmpty: boolean }): boolean {
+  if (!value.trim()) return opts.final && opts.commitEmpty;
+  return value !== lastCommitted;
+}
+
+export interface Autosave {
+  value: string;
+  onChangeText: (text: string) => void;
+  /** Flush on blur — commits immediately (final). */
+  onBlur: () => void;
+  /** Force an immediate final commit (e.g. Enter / submit). */
+  flush: () => void;
+}
+
+/**
+ * Inline-edit autosave: no Save/Cancel — typing schedules a debounced commit and
+ * blur/unmount flush it. Two guards keep it safe across both storage models:
+ *
+ *  1. **Commit-if-changed** — a commit no-ops unless the value actually differs
+ *     from the last committed one, so the debounce+blur double-fire is harmless and
+ *     an append-log only ever gains *distinct* states (never a per-keystroke entry).
+ *  2. **Empty deferred to final** — an empty value is skipped on every debounce tick
+ *     and only resolved on blur/unmount, and only when `commitEmpty`.
+ *
+ * The unmount flush is the real durability guarantee: on native, tapping a
+ * non-interactive area often doesn't blur a `TextInput`, so blur alone would miss
+ * commits — but closing the editor unmounts the field, and the cleanup flushes.
+ */
+export function useAutosave({ initialText, onCommit, debounceMs = motion.autosaveDoc, commitEmpty = false }: AutosaveOptions): Autosave {
+  const [value, setValue] = useState(initialText);
+  const valueRef = useRef(initialText);
+  const committedRef = useRef(initialText);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Latest onCommit without re-subscribing the unmount-flush effect (which must
+  // run its cleanup exactly once, on unmount).
+  const onCommitRef = useRef(onCommit);
+  useEffect(() => {
+    onCommitRef.current = onCommit;
+  });
+
+  const commit = useCallback(
+    (final: boolean) => {
+      const text = valueRef.current;
+      if (!shouldCommit(text, committedRef.current, { final, commitEmpty })) return;
+      committedRef.current = text;
+      onCommitRef.current(text);
+    },
+    [commitEmpty],
+  );
+
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const onChangeText = useCallback(
+    (text: string) => {
+      setValue(text);
+      valueRef.current = text;
+      clearTimer();
+      timerRef.current = setTimeout(() => commit(false), debounceMs);
+    },
+    [commit, debounceMs],
+  );
+
+  const flush = useCallback(() => {
+    clearTimer();
+    commit(true);
+  }, [commit]);
+
+  // Unmount flush — the durability backbone (see header). Held in a ref so the
+  // cleanup subscribes once and fires ONLY on unmount, yet still calls the latest
+  // flush (which reads the latest value/onCommit through their refs).
+  const flushRef = useRef(flush);
+  useEffect(() => {
+    flushRef.current = flush;
+  });
+  useEffect(() => () => flushRef.current(), []);
+
+  return { value, onChangeText, onBlur: flush, flush };
+}

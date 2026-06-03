@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { paperBorder, radii, shadows, spacing } from '@/theme';
+import { opacity, radii, spacing } from '@/theme';
 import { useObjects } from '@/lib/use-objects';
 import { buildTree, type ObjectTreeNode } from '@/lib/starfish/objects';
 import { useTheme } from '@/lib/use-theme';
@@ -15,14 +15,18 @@ import { WorkEmpty } from './WorkEmpty';
 
 /**
  * Live Work surface: the space's docs + projects from the unified object index,
- * rendered as a collapsible tree (sub-docs nest recursively). Rooms/categories are
- * chat concerns and filtered out here. New doc/project creation appends to the index.
+ * rendered as the same collapsible {@link ObjectTree} the chat sidebar uses — no
+ * card wrapper, so the tab reads like the chat channel list (a doc with sub-docs is
+ * a collapsible folder). Rooms/categories are chat concerns and filtered out. Create
+ * controls sit in a chat-style footer, mirroring the rooms list's "New category".
  */
-export function WorkObjects({ spaceId, hero }: { spaceId: string | null; hero?: boolean }) {
-  const { colors } = useTheme();
+export function WorkObjects({ spaceId, hero, live }: { spaceId: string | null; hero?: boolean; live?: boolean }) {
   const router = useRouter();
   const enabled = !!spaceId;
-  const { nodes, create, ready, loaded, opening } = useObjects(spaceId ?? '', { enabled });
+  // `live` opts into focus-refresh (see {@link useObjects}); set it only where this
+  // mounts on a router SCREEN (the mobile Work tab), never in the persistent desktop
+  // sidebar, whose host has no focus/blur to drive useFocusEffect.
+  const { nodes, create, ready, loaded } = useObjects(spaceId ?? '', { enabled, liveSync: live });
   const { collapsed, toggle } = useTreeCollapse();
 
   // Work scope: only docs + projects (and their nesting). buildTree repairs any node
@@ -44,54 +48,47 @@ export function WorkObjects({ spaceId, hero }: { spaceId: string | null; hero?: 
     if (id) router.push({ pathname: '/work/project/[id]', params: { id, spaceId: spaceId ?? '', emoji: '🗂️', label: 'Untitled', hint: '' } });
   };
 
-  // The full-bleed empty state (with its own create CTAs) replaces the list tile on
-  // the Work tab once the index has loaded empty — gated on `loaded`, NOT `ready`,
-  // so a populated workspace never flashes the pitch mid-load. The desktop sidebar
-  // (no `hero`) keeps its compact inline empty text instead.
+  // The full-bleed empty state (with its own create CTAs) takes over the Work tab once
+  // the index has loaded empty — gated on `loaded`, NOT `ready`, so a populated
+  // workspace never flashes the pitch mid-load. The desktop sidebar (no `hero`) keeps
+  // its compact inline empty text + footer controls instead.
   if (hero && loaded && tree.length === 0) {
-    return (
-      <View style={styles.panel}>
-        <WorkEmpty onNewDoc={newDoc} onNewProject={newProject} disabled={!ready} />
-      </View>
-    );
+    return <WorkEmpty onNewDoc={newDoc} onNewProject={newProject} disabled={!ready} />;
   }
 
   return (
     <View style={styles.panel}>
-      <View style={[styles.tile, paperBorder(colors), shadows.sm]}>
-        <View style={styles.head}>
-          <Txt variant="caption" weight="bold" tone="inkMuted" style={styles.headTitle}>
-            DOCS &amp; PROJECTS
-          </Txt>
-          <AddButton label="Doc" onPress={newDoc} disabled={!ready} />
-          <AddButton label="Project" onPress={newProject} disabled={!ready} />
-        </View>
-        {tree.length > 0 ? (
-          <ObjectTree nodes={tree} onOpen={openNode} collapsed={collapsed} onToggle={toggle} />
-        ) : (
-          <Txt variant="caption" tone="inkFaint" style={styles.empty}>
-            {loaded ? 'No docs or projects yet. Create one above.' : 'Opening workspace…'}
-          </Txt>
-        )}
+      {tree.length > 0 ? (
+        <ObjectTree nodes={tree} onOpen={openNode} collapsed={collapsed} onToggle={toggle} />
+      ) : (
+        <Txt variant="caption" tone="inkFaint" style={styles.empty}>
+          {loaded ? 'No docs or projects yet.' : 'Opening workspace…'}
+        </Txt>
+      )}
+      <View style={styles.creates}>
+        <CreateControl label="New doc" onPress={newDoc} disabled={!ready} />
+        <CreateControl label="New project" onPress={newProject} disabled={!ready} />
       </View>
     </View>
   );
 }
 
-function AddButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
+/** A footer create affordance styled like the rooms list's "New category" — plus
+ *  glyph + micro/mono/uppercase label, quiet until hovered (web). */
+function CreateControl({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`New ${label}`}
+      accessibilityLabel={label}
       onPress={onPress}
       disabled={disabled}
       {...hoverProps}
-      style={[styles.add, { backgroundColor: hovered && !disabled ? colors.hover : 'transparent', borderColor: colors.lineFaint, opacity: disabled ? 0.5 : 1 }]}
+      style={[styles.create, { backgroundColor: hovered && !disabled ? colors.hover : 'transparent', opacity: disabled ? opacity.disabled : 1 }]}
     >
       <Icon name="plus" size={12} color={colors.inkMuted} />
-      <Txt variant="caption" tone="inkMuted">
+      <Txt variant="micro" weight="bold" mono uppercase tone="inkMuted">
         {label}
       </Txt>
     </Pressable>
@@ -99,10 +96,8 @@ function AddButton({ label, onPress, disabled }: { label: string; onPress: () =>
 }
 
 const styles = StyleSheet.create({
-  panel: { gap: spacing.md },
-  tile: { borderRadius: radii.card, borderWidth: 1, paddingVertical: spacing.sm, paddingHorizontal: spacing.xs, gap: 2 },
-  head: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
-  headTitle: { flex: 1, letterSpacing: 0.5 },
-  add: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radii.xs, borderWidth: 1 },
-  empty: { paddingHorizontal: spacing.sm, paddingVertical: spacing.sm },
+  panel: { gap: 2 },
+  empty: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  creates: { flexDirection: 'row', flexWrap: 'wrap', marginTop: spacing.xs },
+  create: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: radii.md },
 });

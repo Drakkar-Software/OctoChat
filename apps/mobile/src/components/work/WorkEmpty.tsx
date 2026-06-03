@@ -18,6 +18,9 @@ import { Txt } from '@/components/ui/Txt';
  */
 export function WorkEmpty({ onNewDoc, onNewProject, disabled }: { onNewDoc: () => void; onNewProject: () => void; disabled?: boolean }) {
   return (
+    // EmptyState is flex:1, which collapses inside the tab's ScrollView content
+    // container — give it a floor so the pitch still centers (mirrors the rooms tab).
+    <View style={styles.floor}>
     <EmptyState
       iconName="book"
       title="Your encrypted workspace"
@@ -33,6 +36,7 @@ export function WorkEmpty({ onNewDoc, onNewProject, disabled }: { onNewDoc: () =
         ))}
       </View>
     </EmptyState>
+    </View>
   );
 }
 
@@ -54,6 +58,9 @@ function FacetChip({ facet }: { facet: WorkFacet }) {
 }
 
 const styles = StyleSheet.create({
+  // Floor for the flex:1 EmptyState so it vertically centers inside the scroll
+  // container instead of collapsing to content height (matches the rooms tab's dmHome).
+  floor: { minHeight: 320 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.sm },
   facets: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.xs },
   chip: {

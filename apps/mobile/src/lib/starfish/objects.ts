@@ -143,6 +143,13 @@ export function breadcrumbs(nodes: ObjectNode[], id: ID): ObjectNode[] {
   return trail;
 }
 
+/** The root→parent trail (EXCLUSIVE of the node itself) — the ancestor path a
+ *  breadcrumb shows, since the current node is already titled on its own screen.
+ *  Empty for a root-level node. */
+export function ancestors(nodes: ObjectNode[], id: ID): ObjectNode[] {
+  return breadcrumbs(nodes, id).slice(0, -1);
+}
+
 /** The ids of a node and its whole subtree (for cascade-archive). */
 export function subtreeIds(nodes: ObjectNode[], rootId: ID): Set<ID> {
   const childrenOf = new Map<ID | null, ID[]>();

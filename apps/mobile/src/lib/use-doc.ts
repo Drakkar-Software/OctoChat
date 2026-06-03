@@ -1,34 +1,15 @@
 import { useCallback, useMemo } from 'react';
 
-import { splitMarkdownBlocks } from './markdown';
+import { blockMarkdown, type DocBlock } from './doc-block';
 import { objDocPull, objDocPush, pubObjDocPull, pubObjDocPush } from './starfish/paths';
 import type { ID } from './types';
 import { useMergeDoc } from './use-merge-doc';
 import { useRoomLiveSync } from './use-room-live-sync';
 import { randomId } from './ids';
 
-/** A block of doc body content. Union-merged on `id` keyed by `updatedAt`, so two
- *  devices editing different blocks of the same doc both survive a merge. First-
- *  version docs store `md` blocks (raw Markdown in `text`); the legacy typed
- *  variants still render so any seeded content survives. */
-export interface DocBlock {
-  id: ID;
-  type: 'md' | 'h2' | 'p' | 'quote' | 'bullets';
-  text?: string;
-  items?: string[];
-  order: number;
-  updatedAt: number;
-}
-
-/** Project a block to the Markdown source the renderer + editor both consume.
- *  Legacy typed blocks lift to equivalent Markdown so editing migrates them to
- *  `md` transparently. Pure → kept out of the component. */
-export function blockMarkdown(b: DocBlock): string {
-  if (b.type === 'h2') return `## ${b.text ?? ''}`;
-  if (b.type === 'quote') return `> ${b.text ?? ''}`;
-  if (b.type === 'bullets') return (b.items ?? []).map((i) => `- ${i}`).join('\n');
-  return b.text ?? '';
-}
+// Re-exported so existing call sites keep importing the block model + projection
+// from `use-doc`; the definitions live in the pure `doc-block` module.
+export { blockMarkdown, type DocBlock } from './doc-block';
 
 export interface DocHook {
   blocks: DocBlock[];
@@ -37,15 +18,10 @@ export interface DocHook {
   offline: boolean;
   ready: boolean;
   reload: () => void;
-  /** Append/replace a block; returns its id, or null when not writable yet. */
+  /** Create or replace a block in place; returns its id, or null when not writable
+   *  yet. A block holds raw multiline Markdown (the renderer lays out its paragraphs);
+   *  merge granularity is per block, so editing one never disturbs its siblings. */
   upsertBlock: (block: Partial<DocBlock> & { id?: ID }) => ID | null;
-  /** Append several Markdown blocks at once (one merge write) — used when a paste
-   *  fans out into multiple blocks. */
-  upsertBlocks: (texts: string[]) => void;
-  /** Commit an edited block's raw Markdown: empty → delete; a body that splits
-   *  into several blocks fans out; otherwise a single in-place update. Holds the
-   *  whole commit decision so the editing component branches on nothing. */
-  editBlock: (id: ID, text: string) => void;
   removeBlock: (id: ID) => void;
 }
 
@@ -106,51 +82,5 @@ export function useDoc(spaceId: string, objectId: string, opts: { enabled?: bool
     [apply],
   );
 
-  const upsertBlocks = useCallback(
-    (texts: string[]) => {
-      const now = Date.now();
-      apply((d) => {
-        const cur = (d.blocks as DocBlock[]) ?? [];
-        const added: DocBlock[] = texts.map((text, i) => ({ id: `blk-${randomId()}`, type: 'md', text, order: cur.length + i, updatedAt: now }));
-        return { ...d, blocks: [...cur, ...added] };
-      });
-    },
-    [apply],
-  );
-
-  const editBlock = useCallback(
-    (id: ID, text: string) => {
-      const trimmed = text.trim();
-      if (!trimmed) {
-        removeBlock(id);
-        return;
-      }
-      const parts = splitMarkdownBlocks(trimmed);
-      if (parts.length <= 1) {
-        upsertBlock({ id, type: 'md', text: trimmed });
-        return;
-      }
-      // First part stays in this block (preserving its id/merge identity); the
-      // rest land immediately after it. Fractional orders keep them adjacent
-      // without renumbering siblings.
-      const now = Date.now();
-      apply((d) => {
-        const cur = (d.blocks as DocBlock[]) ?? [];
-        const existing = cur.find((b) => b.id === id);
-        const base = existing?.order ?? cur.length;
-        const first: DocBlock = { id, type: 'md', text: parts[0], order: base, updatedAt: now };
-        const extra: DocBlock[] = parts.slice(1).map((t, i) => ({
-          id: `blk-${randomId()}`,
-          type: 'md',
-          text: t,
-          order: base + (i + 1) / (parts.length + 1),
-          updatedAt: now,
-        }));
-        return { ...d, blocks: [...cur.filter((b) => b.id !== id), first, ...extra] };
-      });
-    },
-    [apply, removeBlock, upsertBlock],
-  );
-
-  return { blocks, opening, openError, offline, ready, reload, upsertBlock, upsertBlocks, editBlock, removeBlock };
+  return { blocks, opening, openError, offline, ready, reload, upsertBlock, removeBlock };
 }

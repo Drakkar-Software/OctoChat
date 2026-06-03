@@ -16,8 +16,8 @@ export default function WorkProjectScreen() {
   const { activeId } = useSpaces();
   const { id, spaceId: spaceParam, emoji, label } = useLocalSearchParams<{ id: string; spaceId?: string; emoji?: string; label?: string }>();
   const spaceId = spaceParam || activeId || '';
-  const { breadcrumbs, get, rename, archive } = useObjects(spaceId, { enabled: !!spaceId });
-  const trail = breadcrumbs(id);
+  const { ancestors, get, rename, archive } = useObjects(spaceId, { enabled: !!spaceId });
+  const trail = ancestors(id);
   const node = get(id);
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/work'));
   const openCrumb = (nid: string, type?: string) =>
