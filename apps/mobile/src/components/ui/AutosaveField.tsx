@@ -17,8 +17,10 @@ type WebKeyEvent = NativeSyntheticEvent<TextInputKeyPressEventData> & {
 interface AutosaveFieldProps {
   /** Seed text, read once on mount (see {@link useAutosave}). */
   initialText: string;
-  /** Persist the committed text (debounced while typing, flushed on blur/close). */
-  onCommit: (text: string) => void;
+  /** Persist the committed text (debounced while typing, flushed on blur/close). `final`
+   *  is true on the blur/unmount flush — branch on it to do heavier work (e.g. split)
+   *  only then. */
+  onCommit: (text: string, opts: { final: boolean }) => void;
   /** Leave edit mode (the caller unmounts this field, which triggers a final flush). */
   onClose?: () => void;
   /** Idle debounce; defaults to {@link motion.autosaveDoc}. Pass {@link motion.autosaveLog}
@@ -26,6 +28,9 @@ interface AutosaveFieldProps {
   debounceMs?: number;
   /** Empty value is a real commit (docs delete on empty); titles leave this false. */
   commitEmpty?: boolean;
+  /** Re-run onCommit once on the final flush even if unchanged — for an onCommit that
+   *  transforms on `final` (the doc's blank-line split). */
+  finalizeAlways?: boolean;
   multiline?: boolean;
   placeholder?: string;
   autoFocus?: boolean;
@@ -50,6 +55,7 @@ export function AutosaveField({
   onClose,
   debounceMs = motion.autosaveDoc,
   commitEmpty = false,
+  finalizeAlways = false,
   multiline = false,
   placeholder,
   autoFocus = true,
@@ -57,7 +63,7 @@ export function AutosaveField({
   accessibilityLabel,
   containerStyle,
 }: AutosaveFieldProps) {
-  const autosave = useAutosave({ initialText, onCommit, debounceMs, commitEmpty });
+  const autosave = useAutosave({ initialText, onCommit, debounceMs, commitEmpty, finalizeAlways });
 
   const close = () => {
     autosave.flush();

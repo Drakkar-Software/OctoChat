@@ -18,7 +18,7 @@ import { ObjectHero } from '@/components/work/ObjectHero';
  */
 export function DocView({ spaceId, objectId, emoji, title }: { spaceId: string; objectId: string; emoji?: string; title?: string }) {
   const { colors } = useTheme();
-  const { blocks, ready, offline, upsertBlock, removeBlock } = useDoc(spaceId, objectId);
+  const { blocks, ready, offline, upsertBlock, editBlock, removeBlock } = useDoc(spaceId, objectId);
   const edit = useInlineEdit();
 
   const addBlock = () => {
@@ -49,13 +49,14 @@ export function DocView({ spaceId, objectId, emoji, title }: { spaceId: string; 
               source={source}
               editing={edit.isEditing(b.id)}
               onBeginEdit={() => edit.begin(b.id)}
-              onCommit={(text) => {
-                // Autosave the whole block in place — no split, so a debounce tick
-                // can't fan out duplicate blocks. An empty body (only reachable on
-                // the final flush) deletes the block.
-                const t = text.trim();
-                if (t) upsertBlock({ id: b.id, type: 'md', text: t });
-                else removeBlock(b.id);
+              onCommit={(text, { final }) => {
+                // While typing (debounce), save the whole block in place — no split,
+                // so a tick can't fan out duplicate blocks. On the final flush (blur/
+                // unmount), editBlock resolves it once: blank-line bodies split into
+                // separate blocks, an empty body deletes. The autosave latch guarantees
+                // this final runs exactly once.
+                if (final) editBlock(b.id, text);
+                else upsertBlock({ id: b.id, type: 'md', text });
               }}
               onClose={() => {
                 // Guard against a stale blur landing after another block opened:

@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 
-import { blockMarkdown, type DocBlock } from './doc-block';
+import { planBlockEdit, type DocBlock } from './doc-block';
 import { objDocPull, objDocPush, pubObjDocPull, pubObjDocPush } from './starfish/paths';
 import type { ID } from './types';
 import { useMergeDoc } from './use-merge-doc';
@@ -19,9 +19,14 @@ export interface DocHook {
   ready: boolean;
   reload: () => void;
   /** Create or replace a block in place; returns its id, or null when not writable
-   *  yet. A block holds raw multiline Markdown (the renderer lays out its paragraphs);
-   *  merge granularity is per block, so editing one never disturbs its siblings. */
+   *  yet. Used for the autosave-while-typing path (one block holds the raw multiline
+   *  Markdown — no split, so a debounce tick can't fan out duplicates). */
   upsertBlock: (block: Partial<DocBlock> & { id?: ID }) => ID | null;
+  /** Resolve an edited block's raw Markdown on the FINAL flush (blur/unmount): empty
+   *  → delete; a body spanning a blank line fans out into separate blocks; otherwise
+   *  a single in-place update. Run once per edit (the autosave latch guarantees it),
+   *  so the blank-line split happens on blur, never mid-typing. */
+  editBlock: (id: ID, text: string) => void;
   removeBlock: (id: ID) => void;
 }
 
@@ -68,6 +73,18 @@ export function useDoc(spaceId: string, objectId: string, opts: { enabled?: bool
           order: block.order ?? existing?.order ?? cur.length,
           updatedAt: now,
         };
+        // No-op when the content is unchanged (e.g. the final flush re-saving a block
+        // opened but not edited): keep the same doc so updatedAt isn't bumped and no
+        // push/merge churn fires. Compares everything but updatedAt.
+        if (
+          existing &&
+          existing.type === next.type &&
+          existing.text === next.text &&
+          existing.order === next.order &&
+          JSON.stringify(existing.items ?? null) === JSON.stringify(next.items ?? null)
+        ) {
+          return d;
+        }
         return { ...d, blocks: existing ? cur.map((b) => (b.id === id ? next : b)) : [...cur, next] };
       });
       return ok ? id : null;
@@ -82,5 +99,41 @@ export function useDoc(spaceId: string, objectId: string, opts: { enabled?: bool
     [apply],
   );
 
-  return { blocks, opening, openError, offline, ready, reload, upsertBlock, removeBlock };
+  const editBlock = useCallback(
+    (id: ID, text: string) => {
+      if (!text.trim()) {
+        removeBlock(id);
+        return;
+      }
+      apply((d) => {
+        const cur = (d.blocks as DocBlock[]) ?? [];
+        const existing = cur.find((b) => b.id === id);
+        const plan = planBlockEdit(existing, text);
+        // No-op (block opened, not edited): leave it exactly as-is — never rewrite or
+        // migrate a legacy h2/quote/bullets block on a mere tap-in/tap-out.
+        if (plan.kind === 'noop' || plan.kind === 'remove') return d;
+        const now = Date.now();
+        if (plan.kind === 'replace') {
+          const next: DocBlock = { id, type: 'md', text: plan.text, order: existing?.order ?? cur.length, updatedAt: now };
+          return { ...d, blocks: existing ? cur.map((b) => (b.id === id ? next : b)) : [...cur, next] };
+        }
+        // Split: the first part keeps this block's id (its merge identity); the rest
+        // land immediately after it. Fractional orders keep them adjacent without
+        // renumbering siblings.
+        const base = existing?.order ?? cur.length;
+        const first: DocBlock = { id, type: 'md', text: plan.parts[0], order: base, updatedAt: now };
+        const extra: DocBlock[] = plan.parts.slice(1).map((t, i) => ({
+          id: `blk-${randomId()}`,
+          type: 'md',
+          text: t,
+          order: base + (i + 1) / (plan.parts.length + 1),
+          updatedAt: now,
+        }));
+        return { ...d, blocks: [...cur.filter((b) => b.id !== id), first, ...extra] };
+      });
+    },
+    [apply, removeBlock],
+  );
+
+  return { blocks, opening, openError, offline, ready, reload, upsertBlock, editBlock, removeBlock };
 }

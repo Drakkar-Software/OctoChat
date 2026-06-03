@@ -3,6 +3,7 @@
  * {@link foldProject} in `project-board.ts`. Kept out of `use-doc.ts` so it imports
  * (and tests) without pulling the merge-doc / React Native machinery.
  */
+import { splitMarkdownBlocks } from './markdown';
 import type { ID } from './types';
 
 /** A block of doc body content. Union-merged on `id` keyed by `updatedAt`, so two
@@ -26,4 +27,31 @@ export function blockMarkdown(b: DocBlock): string {
   if (b.type === 'quote') return `> ${b.text ?? ''}`;
   if (b.type === 'bullets') return (b.items ?? []).map((i) => `- ${i}`).join('\n');
   return b.text ?? '';
+}
+
+/** What committing `text` to a block should do, decided purely so it can be tested
+ *  and so the hook only carries the id/timestamp side effects. */
+export type BlockEdit =
+  | { kind: 'remove' }
+  /** No change — leave the block exactly as-is (don't rewrite or migrate it). */
+  | { kind: 'noop' }
+  /** Store the body as a single `md` block (migrating a legacy type if needed). */
+  | { kind: 'replace'; text: string }
+  /** Body spans a blank line — fan out into separate blocks (first keeps the id). */
+  | { kind: 'split'; parts: string[] };
+
+/**
+ * Resolve a block edit's raw Markdown against the block's current value. Runs on the
+ * final flush only (see `use-doc`), so the blank-line split happens on blur, never
+ * mid-typing. Crucially a **no-op touch** — opening a block and leaving without an
+ * edit, so `text` still equals the block's projection — returns `noop`, so it never
+ * rewrites the block or silently migrates a legacy `h2`/`quote`/`bullets` to `md`.
+ */
+export function planBlockEdit(existing: DocBlock | undefined, text: string): BlockEdit {
+  const trimmed = text.trim();
+  if (!trimmed) return { kind: 'remove' };
+  const parts = splitMarkdownBlocks(trimmed);
+  if (parts.length > 1) return { kind: 'split', parts };
+  if (existing && blockMarkdown(existing) === text) return { kind: 'noop' };
+  return { kind: 'replace', text: trimmed };
 }

@@ -55,6 +55,28 @@ export interface Board {
   total: number;
 }
 
+/**
+ * The `order` value to give a task dropped at `index` in `columnTasks` (the column's
+ * tasks sorted by `(order, id)`). `index` counts the column's RENDERED cards including
+ * the dragged one; the dragged card is removed and the index shifted down when it sat
+ * before the drop point, so the result is the MIDPOINT between the true new neighbors.
+ * One `task.move` event reorders it without renumbering siblings (which would spam the
+ * append-log). Edges extend by ±1. Fractional orders sort fine; only ~50 reorders into
+ * the exact same gap would exhaust float precision — unreachable at kanban scale.
+ */
+export function orderForInsert(columnTasks: BoardTask[], index: number, draggedId: ID): number {
+  const curPos = columnTasks.findIndex((t) => t.id === draggedId);
+  const list = columnTasks.filter((t) => t.id !== draggedId);
+  // Removing the dragged card shifts every slot after it down by one.
+  const i = curPos !== -1 && curPos < index ? index - 1 : index;
+  const prev = list[i - 1];
+  const next = list[i];
+  if (!prev && !next) return 0;
+  if (!prev) return next!.order - 1;
+  if (!next) return prev.order + 1;
+  return (prev.order + next.order) / 2;
+}
+
 /** Deterministic event order: by `ts`, ties broken by `eventId`. */
 function compareItems(a: ProjectLogItem, b: ProjectLogItem): number {
   if (a.ts !== b.ts) return a.ts - b.ts;

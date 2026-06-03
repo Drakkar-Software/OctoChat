@@ -12,9 +12,9 @@ interface MarkdownBlockProps {
   source: string;
   editing: boolean;
   onBeginEdit: () => void;
-  /** Persist the edited Markdown — autosaved (the doc hook decides upsert/split/
-   *  remove; an empty value deletes the block). */
-  onCommit: (text: string) => void;
+  /** Persist the edited Markdown — autosaved. `final` (blur/unmount) is when the doc
+   *  hook may split/remove; debounce ticks save in place. */
+  onCommit: (text: string, opts: { final: boolean }) => void;
   /** Leave edit mode (unmounts the field → final flush). */
   onClose: () => void;
   onDelete: () => void;
@@ -33,7 +33,7 @@ export function MarkdownBlock({ source, editing, onBeginEdit, onCommit, onClose,
   if (editing) {
     return (
       <View style={styles.editing}>
-        <AutosaveField initialText={source} onCommit={onCommit} onClose={onClose} commitEmpty multiline accessibilityLabel="Edit block" />
+        <AutosaveField initialText={source} onCommit={onCommit} onClose={onClose} commitEmpty finalizeAlways multiline accessibilityLabel="Edit block" />
       </View>
     );
   }

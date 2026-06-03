@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { foldProject, type ProjectEvent, type ProjectLogItem } from './project-board';
+import { foldProject, orderForInsert, type BoardTask, type ProjectEvent, type ProjectLogItem } from './project-board';
 
 /** Build a log item; `ts`/`eventId` default to a deterministic sequence so tests
  *  read as an ordered story unless they deliberately set them. */
@@ -146,5 +146,40 @@ describe('foldProject', () => {
     expect(board.columns.map((c) => c.id)).toEqual(['cA', 'cB']);
     // order 0 tie between t1 and tB1 → broken by id ('t1' < 'tB1')
     expect(board.tasksByColumn.cA!.map((t) => t.id)).toEqual(['t1', 'tB1', 't2']);
+  });
+});
+
+describe('orderForInsert (drag-drop reorder → task.move order)', () => {
+  const t = (id: string, order: number): BoardTask => ({ id, columnId: 'c', title: id, order });
+  // A column with three cards at integer orders 0,1,2.
+  const list = [t('a', 0), t('b', 1), t('c', 2)];
+
+  it('drop at the end → maxOrder + 1', () => {
+    // dragging a card FROM ANOTHER column (not in `list`); index = list length.
+    expect(orderForInsert(list, 3, 'x')).toBe(3);
+  });
+
+  it('drop at the front → firstOrder - 1', () => {
+    expect(orderForInsert(list, 0, 'x')).toBe(-1);
+  });
+
+  it('drop between two cards → their midpoint', () => {
+    expect(orderForInsert(list, 1, 'x')).toBe(0.5); // between a(0) and b(1)
+    expect(orderForInsert(list, 2, 'x')).toBe(1.5); // between b(1) and c(2)
+  });
+
+  it('empty column → 0', () => {
+    expect(orderForInsert([], 0, 'x')).toBe(0);
+  });
+
+  it('normalizes the dragged card OWN slot (same-column move down)', () => {
+    // moving 'a' (index 0) down to rendered index 2: with 'a' removed the neighbors are
+    // b(1) and c(2) → midpoint 1.5, so 'a' lands between them.
+    expect(orderForInsert(list, 2, 'a')).toBe(1.5);
+  });
+
+  it('normalizes the dragged card OWN slot (same-column move up)', () => {
+    // moving 'c' (index 2) up to rendered index 0: neighbors none/a(0) → a.order - 1.
+    expect(orderForInsert(list, 0, 'c')).toBe(-1);
   });
 });
