@@ -39,26 +39,10 @@ describe('shouldCommit', () => {
     expect(shouldCommit('', '', { final: true, commitEmpty: true, finalized: true })).toBe(false);
   });
 
-  describe('finalizeAlways (doc blank-line split on blur, never mid-typing)', () => {
-    it('runs the split on the final flush even when the in-place debounce saved the same text', () => {
-      // debounce already committed "A\n\nB" in place → unchanged on blur, but the
-      // split has not run yet (finalized false) → re-commit so editBlock splits.
-      expect(shouldCommit('A\n\nB', 'A\n\nB', { final: true, commitEmpty: true, finalizeAlways: true, finalized: false })).toBe(true);
-    });
-
-    it('does NOT re-run the split on the unmount flush after blur already split it', () => {
-      expect(shouldCommit('A\n\nB', 'A\n\nB', { final: true, commitEmpty: true, finalizeAlways: true, finalized: true })).toBe(false);
-    });
-
-    it('never splits on a debounce tick (non-final), only saves in place when changed', () => {
-      // unchanged mid-typing → skip; the split is reserved for the final flush
-      expect(shouldCommit('A\n\nB', 'A\n\nB', { final: false, commitEmpty: true, finalizeAlways: true, finalized: false })).toBe(false);
-      // changed mid-typing → in-place save (no split — that's the caller's branch)
-      expect(shouldCommit('A\n\nB', 'A', { final: false, commitEmpty: true, finalizeAlways: true, finalized: false })).toBe(true);
-    });
-
-    it('without finalizeAlways, an unchanged final flush is a no-op (append-log gets no dup)', () => {
-      expect(shouldCommit('Todo', 'Todo', { final: true, ...title })).toBe(false);
-    });
+  it('an unchanged final flush is a no-op — the merge-doc save is idempotent, the log gets no dup', () => {
+    // The seamless doc reconciler is idempotent, so re-saving the same text on blur is
+    // simply skipped here (no split-on-blur latch needed any more).
+    expect(shouldCommit('A\n\nB', 'A\n\nB', { final: true, commitEmpty: true })).toBe(false);
+    expect(shouldCommit('Todo', 'Todo', { final: true, ...title })).toBe(false);
   });
 });

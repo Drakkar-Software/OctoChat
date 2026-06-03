@@ -28,9 +28,6 @@ interface AutosaveFieldProps {
   debounceMs?: number;
   /** Empty value is a real commit (docs delete on empty); titles leave this false. */
   commitEmpty?: boolean;
-  /** Re-run onCommit once on the final flush even if unchanged — for an onCommit that
-   *  transforms on `final` (the doc's blank-line split). */
-  finalizeAlways?: boolean;
   multiline?: boolean;
   placeholder?: string;
   autoFocus?: boolean;
@@ -55,7 +52,6 @@ export function AutosaveField({
   onClose,
   debounceMs = motion.autosaveDoc,
   commitEmpty = false,
-  finalizeAlways = false,
   multiline = false,
   placeholder,
   autoFocus = true,
@@ -63,7 +59,7 @@ export function AutosaveField({
   accessibilityLabel,
   containerStyle,
 }: AutosaveFieldProps) {
-  const autosave = useAutosave({ initialText, onCommit, debounceMs, commitEmpty, finalizeAlways });
+  const autosave = useAutosave({ initialText, onCommit, debounceMs, commitEmpty });
 
   const close = () => {
     autosave.flush();

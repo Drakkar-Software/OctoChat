@@ -1,38 +1,40 @@
 import { useCallback, useMemo } from 'react';
 
-import { planBlockEdit, type DocBlock } from './doc-block';
+import { joinBlocks, mergeDocEdit, type DocBlock } from './doc-block';
 import { objDocPull, objDocPush, pubObjDocPull, pubObjDocPush } from './starfish/paths';
-import type { ID } from './types';
 import { useMergeDoc } from './use-merge-doc';
 import { useRoomLiveSync } from './use-room-live-sync';
 import { randomId } from './ids';
 
-// Re-exported so existing call sites keep importing the block model + projection
-// from `use-doc`; the definitions live in the pure `doc-block` module.
-export { blockMarkdown, type DocBlock } from './doc-block';
+// Re-exported so call sites import the block model + projection from `use-doc`; the
+// definitions live in the pure `doc-block` module.
+export { blockMarkdown, joinBlocks, type DocBlock } from './doc-block';
 
 export interface DocHook {
   blocks: DocBlock[];
+  /** The whole doc as one Markdown string — what the seamless editor seeds with and the
+   *  reader renders. Joined from {@link blocks}; the inverse of {@link setText}'s split. */
+  text: string;
   opening: boolean;
   openError: string | null;
   offline: boolean;
   ready: boolean;
   reload: () => void;
-  /** Create or replace a block in place; returns its id, or null when not writable
-   *  yet. Used for the autosave-while-typing path (one block holds the raw multiline
-   *  Markdown — no split, so a debounce tick can't fan out duplicates). */
-  upsertBlock: (block: Partial<DocBlock> & { id?: ID }) => ID | null;
-  /** Resolve an edited block's raw Markdown on the FINAL flush (blur/unmount): empty
-   *  → delete; a body spanning a blank line fans out into separate blocks; otherwise
-   *  a single in-place update. Run once per edit (the autosave latch guarantees it),
-   *  so the blank-line split happens on blur, never mid-typing. */
-  editBlock: (id: ID, text: string) => void;
-  removeBlock: (id: ID) => void;
+  /** Save the whole doc from one Markdown string via a 3-way merge (see
+   *  {@link mergeDocEdit}). `base` is the block list captured when the editor OPENED
+   *  ({@link blocks} at that moment); `next` is the edited text. Only the paragraphs the
+   *  user actually changed are written onto the live blocks, so a concurrent edit to
+   *  another paragraph survives the merge and an unchanged save is a pure no-op — safe to
+   *  call on every autosave tick (no Save button, no split-on-blur latch). Returns the
+   *  user's advanced merge base ({@link mergeDocEdit}'s `nextBase`), which the editor must
+   *  feed back as `base` on the next commit so a multi-tick insert isn't duplicated. */
+  mergeText: (base: DocBlock[], next: string) => DocBlock[];
 }
 
 /** Doc body content for one `doc` Object — a merge-doc (see {@link useMergeDoc}) holding
  *  the block list; the doc's title/emoji live on the index NODE ({@link useObjects}). The
- *  rich block editor is a later milestone; this gives the synced block model its render. */
+ *  user edits the doc as ONE continuous Markdown surface — blocks exist only as the merge
+ *  granularity under the hood (see {@link reconcileDoc}), never as visible chrome. */
 export function useDoc(spaceId: string, objectId: string, opts: { enabled?: boolean } = {}): DocHook {
   const enabled = (opts.enabled ?? true) && !!spaceId && !!objectId;
 
@@ -58,82 +60,25 @@ export function useDoc(spaceId: string, objectId: string, opts: { enabled?: bool
     [doc],
   );
 
-  const upsertBlock = useCallback(
-    (block: Partial<DocBlock> & { id?: ID }): ID | null => {
-      const id = block.id ?? `blk-${randomId()}`;
-      const now = Date.now();
-      const ok = apply((d) => {
-        const cur = (d.blocks as DocBlock[]) ?? [];
-        const existing = cur.find((b) => b.id === id);
-        const next: DocBlock = {
-          id,
-          type: block.type ?? existing?.type ?? 'md',
-          ...(block.text !== undefined ? { text: block.text } : existing?.text !== undefined ? { text: existing.text } : {}),
-          ...(block.items !== undefined ? { items: block.items } : existing?.items !== undefined ? { items: existing.items } : {}),
-          order: block.order ?? existing?.order ?? cur.length,
-          updatedAt: now,
-        };
-        // No-op when the content is unchanged (e.g. the final flush re-saving a block
-        // opened but not edited): keep the same doc so updatedAt isn't bumped and no
-        // push/merge churn fires. Compares everything but updatedAt.
-        if (
-          existing &&
-          existing.type === next.type &&
-          existing.text === next.text &&
-          existing.order === next.order &&
-          JSON.stringify(existing.items ?? null) === JSON.stringify(next.items ?? null)
-        ) {
-          return d;
-        }
-        return { ...d, blocks: existing ? cur.map((b) => (b.id === id ? next : b)) : [...cur, next] };
-      });
-      return ok ? id : null;
-    },
-    [apply],
-  );
+  const text = useMemo(() => joinBlocks(blocks), [blocks]);
 
-  const removeBlock = useCallback(
-    (id: ID) => {
-      apply((d) => ({ ...d, blocks: ((d.blocks as DocBlock[]) ?? []).filter((b) => b.id !== id) }));
-    },
-    [apply],
-  );
-
-  const editBlock = useCallback(
-    (id: ID, text: string) => {
-      if (!text.trim()) {
-        removeBlock(id);
-        return;
-      }
+  const mergeText = useCallback(
+    (base: DocBlock[], next: string): DocBlock[] => {
+      // `apply` runs the updater synchronously (see useMergeDoc), so the advanced base is
+      // captured here and returned for the editor to feed back on the next commit.
+      let nextBase = base;
       apply((d) => {
-        const cur = (d.blocks as DocBlock[]) ?? [];
-        const existing = cur.find((b) => b.id === id);
-        const plan = planBlockEdit(existing, text);
-        // No-op (block opened, not edited): leave it exactly as-is — never rewrite or
-        // migrate a legacy h2/quote/bullets block on a mere tap-in/tap-out.
-        if (plan.kind === 'noop' || plan.kind === 'remove') return d;
-        const now = Date.now();
-        if (plan.kind === 'replace') {
-          const next: DocBlock = { id, type: 'md', text: plan.text, order: existing?.order ?? cur.length, updatedAt: now };
-          return { ...d, blocks: existing ? cur.map((b) => (b.id === id ? next : b)) : [...cur, next] };
-        }
-        // Split: the first part keeps this block's id (its merge identity); the rest
-        // land immediately after it. Fractional orders keep them adjacent without
-        // renumbering siblings.
-        const base = existing?.order ?? cur.length;
-        const first: DocBlock = { id, type: 'md', text: plan.parts[0], order: base, updatedAt: now };
-        const extra: DocBlock[] = plan.parts.slice(1).map((t, i) => ({
-          id: `blk-${randomId()}`,
-          type: 'md',
-          text: t,
-          order: base + (i + 1) / (plan.parts.length + 1),
-          updatedAt: now,
-        }));
-        return { ...d, blocks: [...cur.filter((b) => b.id !== id), first, ...extra] };
+        const cur = Array.isArray(d.blocks) ? (d.blocks as DocBlock[]) : [];
+        const merged = mergeDocEdit(cur, base, next, { now: Date.now(), newId: () => `blk-${randomId()}` });
+        nextBase = merged.nextBase;
+        // No-op (unchanged text, or a tick re-saving the same content): return the SAME
+        // doc so updatedAt isn't bumped and no push/merge churn fires.
+        return merged.changed ? { ...d, blocks: merged.blocks } : d;
       });
+      return nextBase;
     },
-    [apply, removeBlock],
+    [apply],
   );
 
-  return { blocks, opening, openError, offline, ready, reload, upsertBlock, editBlock, removeBlock };
+  return { blocks, text, opening, openError, offline, ready, reload, mergeText };
 }

@@ -134,6 +134,10 @@ export function useMergeDoc(opts: MergeDocOptions): MergeDocResult {
   // state on the next pull; gating writes on a settled sync instead left creation
   // permanently dead whenever the first pull never settles (offline / unreachable
   // server / a brand-new empty doc) — e.g. the Work tab on mobile.
+  // `update` runs SYNCHRONOUSLY inside `set` (the zustand store invokes the updater
+  // immediately to compute the next state). Callers rely on this to read a value computed
+  // inside the updater right after `apply` returns (e.g. useDoc's `mergeText` captures the
+  // advanced merge base) — keep it synchronous if this is ever reworked.
   const apply = useCallback(
     (update: (doc: Record<string, unknown>) => Record<string, unknown>) => {
       if (!store) return false;

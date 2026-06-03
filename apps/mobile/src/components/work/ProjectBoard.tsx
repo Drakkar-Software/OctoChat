@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { layout, motion, opacity, paperBorder, radii, shadows, spacing } from '@/theme';
@@ -14,6 +14,7 @@ import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { Txt } from '@/components/ui/Txt';
 import { ObjectHero } from '@/components/work/ObjectHero';
+import { TaskDetailSheet } from '@/components/work/TaskDetailSheet';
 
 const STATUS_DONE = 'done';
 
@@ -21,7 +22,8 @@ interface ColumnHandlers {
   ready: boolean;
   edit: ReturnType<typeof useInlineEdit>;
   onChangeStatus: (taskId: string, to: string, from?: string) => void;
-  onRenameTask: (taskId: string, title: string) => void;
+  /** Open the task's detail sheet (title + notes + status + delete). */
+  onOpenTask: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
   onAddTask: (columnId: string) => void;
   onRenameColumn: (columnId: string, title: string) => void;
@@ -39,8 +41,15 @@ interface ColumnHandlers {
  */
 export function ProjectBoard({ spaceId, objectId, emoji, title }: { spaceId: string; objectId: string; emoji?: string; title?: string }) {
   const { colors } = useTheme();
-  const { board, ready, offline, addColumn, addTask, changeStatus, renameTask, deleteTask, renameColumn, moveTask } = useProject(spaceId, objectId);
+  const { board, ready, offline, addColumn, addTask, changeStatus, renameTask, setTaskContent, deleteTask, renameColumn, moveTask } = useProject(spaceId, objectId);
   const edit = useInlineEdit();
+  // Which task's detail sheet is open. Resolved from the live board each render, so its
+  // content/title/status reflect the latest fold (null while a just-added task's create
+  // event is still in flight).
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const openTask = openTaskId
+    ? board.columns.map((c) => board.tasksByColumn[c.id]?.find((t) => t.id === openTaskId)).find(Boolean) ?? null
+    : null;
 
   // Resolve a drop into a single task.move: normalize the dragged card's own slot, skip
   // a drop that lands back where it started (no spurious event), else midpoint-reorder.
@@ -67,9 +76,10 @@ export function ProjectBoard({ spaceId, objectId, emoji, title }: { spaceId: str
     ready,
     edit,
     onChangeStatus: changeStatus,
-    onRenameTask: (taskId, t) => renameTask(taskId, t),
+    onOpenTask: setOpenTaskId,
     onDeleteTask: deleteTask,
-    onAddTask: (columnId) => addTask(columnId, 'New task'),
+    // Add a card and open it straight away so the user names it + writes notes inline.
+    onAddTask: (columnId) => setOpenTaskId(addTask(columnId, 'New task')),
     onRenameColumn: (columnId, t) => renameColumn(columnId, t),
     onDropTask,
   };
@@ -107,6 +117,15 @@ export function ProjectBoard({ spaceId, objectId, emoji, title }: { spaceId: str
           ))}
         </ScrollView>
       )}
+
+      <TaskDetailSheet
+        task={openTask}
+        onRename={renameTask}
+        onSetContent={setTaskContent}
+        onToggleStatus={(t) => changeStatus(t.id, t.status === STATUS_DONE ? 'todo' : STATUS_DONE, t.status)}
+        onDelete={deleteTask}
+        onClose={() => setOpenTaskId(null)}
+      />
     </View>
   );
 }
@@ -154,28 +173,15 @@ function BoardColumn({ col, tasks, handlers }: { col: BoardCol; tasks: BoardTask
       {tasks.map((task, i) => (
         <Fragment key={task.id}>
           {overIndex === i ? <InsertLine /> : null}
-          <DraggableTaskCard taskId={task.id} draggable={!edit.isEditing(task.id)}>
-            {edit.isEditing(task.id) ? (
-              <View style={[styles.card, { backgroundColor: colors.fill, borderColor: colors.lineFaint }]}>
-                <AutosaveField
-                  initialText={task.title}
-                  onCommit={(t) => handlers.onRenameTask(task.id, t.trim())}
-                  onClose={() => {
-                    if (edit.isEditing(task.id)) edit.close();
-                  }}
-                  debounceMs={motion.autosaveLog}
-                  accessibilityLabel={`Rename ${task.title}`}
-                />
-              </View>
-            ) : (
-              <TaskCard
-                title={task.title}
-                done={task.status === STATUS_DONE}
-                onToggle={() => handlers.onChangeStatus(task.id, task.status === STATUS_DONE ? 'todo' : STATUS_DONE, task.status)}
-                onEdit={() => edit.begin(task.id)}
-                onDelete={() => handlers.onDeleteTask(task.id)}
-              />
-            )}
+          <DraggableTaskCard taskId={task.id} draggable>
+            <TaskCard
+              title={task.title}
+              hasNotes={!!task.content?.trim()}
+              done={task.status === STATUS_DONE}
+              onToggle={() => handlers.onChangeStatus(task.id, task.status === STATUS_DONE ? 'todo' : STATUS_DONE, task.status)}
+              onOpen={() => handlers.onOpenTask(task.id)}
+              onDelete={() => handlers.onDeleteTask(task.id)}
+            />
           </DraggableTaskCard>
         </Fragment>
       ))}
@@ -209,9 +215,10 @@ function InsertLine() {
   return <View style={[styles.insert, { backgroundColor: colors.accent }]} />;
 }
 
-/** One kanban card: tap the glyph to toggle done, the title to rename; a delete
- *  affordance reveals on hover (web) or long-press (native) via {@link useRevealActions}. */
-function TaskCard({ title, done, onToggle, onEdit, onDelete }: { title: string; done: boolean; onToggle: () => void; onEdit: () => void; onDelete: () => void }) {
+/** One kanban card: tap the glyph to toggle done, the body to open its detail sheet
+ *  (title + notes); a notes glyph hints a non-empty body. A delete affordance reveals on
+ *  hover (web) or long-press (native) via {@link useRevealActions}. */
+function TaskCard({ title, hasNotes, done, onToggle, onOpen, onDelete }: { title: string; hasNotes: boolean; done: boolean; onToggle: () => void; onOpen: () => void; onDelete: () => void }) {
   const { colors } = useTheme();
   const { revealed, rowProps, onLongPress, hide } = useRevealActions();
   return (
@@ -219,10 +226,15 @@ function TaskCard({ title, done, onToggle, onEdit, onDelete }: { title: string; 
       <Pressable accessibilityRole="button" accessibilityLabel={done ? 'Mark not done' : 'Mark done'} onPress={onToggle} hitSlop={6}>
         <Icon name={done ? 'check' : 'target'} size={13} color={done ? colors.success : colors.inkFaint} />
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Rename ${title}`} onPress={onEdit} onLongPress={onLongPress} style={styles.cardText}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title}`} onPress={onOpen} onLongPress={onLongPress} style={styles.cardText}>
         <Txt variant="subhead" numberOfLines={2} style={done ? styles.cardDone : undefined}>
           {title}
         </Txt>
+        {hasNotes ? (
+          <View style={styles.notesHint}>
+            <Icon name="file" size={11} color={colors.inkFaint} />
+          </View>
+        ) : null}
       </Pressable>
       {revealed ? (
         <IconButton
@@ -249,7 +261,8 @@ const styles = StyleSheet.create({
   colTitle: { flex: 1 },
   colEdit: { flex: 1 },
   card: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs, padding: spacing.sm, borderRadius: radii.md, borderWidth: 1 },
-  cardText: { flex: 1 },
+  cardText: { flex: 1, gap: spacing.xs },
+  notesHint: { flexDirection: 'row', alignItems: 'center' },
   cardDone: { textDecorationLine: 'line-through', opacity: opacity.muted },
   addCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 6, borderRadius: radii.md, borderWidth: 1, borderStyle: 'dashed' },
   insert: { height: 2, borderRadius: radii.xs, marginVertical: 1 },

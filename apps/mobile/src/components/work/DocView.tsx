@@ -1,29 +1,36 @@
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { opacity, radii, spacing } from '@/theme';
-import { blockMarkdown, useDoc } from '@/lib/use-doc';
-import { useInlineEdit } from '@/lib/use-inline-edit';
+import { layout, radii, spacing } from '@/theme';
+import { joinBlocks, useDoc, type DocBlock } from '@/lib/use-doc';
 import { useTheme } from '@/lib/use-theme';
+import { AutosaveField } from '@/components/ui/AutosaveField';
 import { Callout } from '@/components/ui/Callout';
-import { Icon } from '@/components/ui/Icon';
+import { Markdown } from '@/components/ui/Markdown';
 import { Txt } from '@/components/ui/Txt';
-import { MarkdownBlock } from '@/components/doc/MarkdownBlock';
 import { ObjectHero } from '@/components/work/ObjectHero';
 
 /**
- * Live doc body for one `doc` Object — the synced block list (merge-doc) rendered
- * as Markdown, each block tap-to-edit as raw Markdown. Block create/edit/split/
- * remove logic lives in {@link useDoc} + the `markdown` lib; this screen only maps
- * blocks and wires the editor. Title/emoji live on the index node (header).
+ * Live doc body for one `doc` Object — ONE seamless Markdown surface, not a block list:
+ * the reader renders the whole doc, tapping it swaps to a single autosaving textarea over
+ * the entire Markdown. Blocks exist only as the merge granularity under the hood
+ * ({@link useDoc} + {@link mergeDocEdit}) — the user never sees or creates a "block".
+ *
+ * On open we snapshot the block list ({@link baseRef}) so the save is a 3-way merge:
+ * only the paragraphs the user actually changed are written, and a concurrent edit to
+ * another paragraph (pulled in over SSE while editing) survives. Title/emoji live on the
+ * index node (header).
  */
 export function DocView({ spaceId, objectId, emoji, title }: { spaceId: string; objectId: string; emoji?: string; title?: string }) {
   const { colors } = useTheme();
-  const { blocks, ready, offline, upsertBlock, editBlock, removeBlock } = useDoc(spaceId, objectId);
-  const edit = useInlineEdit();
+  const { blocks, text, ready, offline, mergeText } = useDoc(spaceId, objectId);
+  const [editing, setEditing] = useState(false);
+  // The block list as it was when editing began — the merge base (see mergeDocEdit).
+  const baseRef = useRef<DocBlock[]>([]);
 
-  const addBlock = () => {
-    const id = upsertBlock({ type: 'md', text: '' });
-    if (id) edit.begin(id);
+  const beginEdit = () => {
+    baseRef.current = blocks;
+    setEditing(true);
   };
 
   return (
@@ -36,59 +43,43 @@ export function DocView({ spaceId, objectId, emoji, title }: { spaceId: string; 
         </Callout>
       ) : null}
 
-      {blocks.length === 0 ? (
-        <Callout tone="info" iconName="info">
-          Empty doc. Add a block to start writing in Markdown.
-        </Callout>
+      {editing ? (
+        <AutosaveField
+          initialText={joinBlocks(baseRef.current)}
+          // Advance the merge base after each commit so a multi-tick insert carries its own
+          // id forward (else every debounce tick would re-mint and duplicate it).
+          onCommit={(t) => {
+            baseRef.current = mergeText(baseRef.current, t);
+          }}
+          onClose={() => setEditing(false)}
+          commitEmpty
+          multiline
+          minHeight={layout.docEditorMinHeight}
+          placeholder="Write in Markdown…"
+          accessibilityLabel="Edit document"
+        />
       ) : (
-        blocks.map((b) => {
-          const source = blockMarkdown(b);
-          return (
-            <MarkdownBlock
-              key={b.id}
-              source={source}
-              editing={edit.isEditing(b.id)}
-              onBeginEdit={() => edit.begin(b.id)}
-              onCommit={(text, { final }) => {
-                // While typing (debounce), save the whole block in place — no split,
-                // so a tick can't fan out duplicate blocks. On the final flush (blur/
-                // unmount), editBlock resolves it once: blank-line bodies split into
-                // separate blocks, an empty body deletes. The autosave latch guarantees
-                // this final runs exactly once.
-                if (final) editBlock(b.id, text);
-                else upsertBlock({ id: b.id, type: 'md', text });
-              }}
-              onClose={() => {
-                // Guard against a stale blur landing after another block opened:
-                // only close if this block is still the one being edited.
-                if (edit.isEditing(b.id)) edit.close();
-              }}
-              onDelete={() => {
-                if (edit.isEditing(b.id)) edit.close();
-                removeBlock(b.id);
-              }}
-            />
-          );
-        })
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Edit document"
+          disabled={!ready}
+          onPress={beginEdit}
+          style={({ pressed }) => [styles.reader, pressed ? { backgroundColor: colors.hover } : null]}
+        >
+          {text.trim() ? (
+            <Markdown source={text} />
+          ) : (
+            <Txt variant="body" tone="inkFaint">
+              Tap to start writing…
+            </Txt>
+          )}
+        </Pressable>
       )}
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Add block"
-        disabled={!ready}
-        onPress={addBlock}
-        style={[styles.add, { borderColor: colors.lineFaint, opacity: ready ? 1 : opacity.disabled }]}
-      >
-        <Icon name="plus" size={13} color={colors.inkMuted} />
-        <Txt variant="caption" tone="inkMuted">
-          Add block
-        </Txt>
-      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { gap: spacing.md },
-  add: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start', paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radii.md, borderWidth: 1 },
+  reader: { minHeight: layout.docEditorMinHeight, borderRadius: radii.md, paddingVertical: spacing.xs },
 });

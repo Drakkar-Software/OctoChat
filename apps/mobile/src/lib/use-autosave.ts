@@ -16,10 +16,6 @@ export interface AutosaveOptions {
   /** Idle delay before a debounced (mid-edit) commit. Use {@link motion.autosaveDoc}
    *  for merge-docs, {@link motion.autosaveLog} for append-logs. */
   debounceMs?: number;
-  /** Re-run `onCommit` on the final flush even when the value is unchanged since the
-   *  last (in-place) commit — set when `onCommit` does extra work on `final` that the
-   *  debounce path didn't (the doc split). Latched so it fires once per edit. */
-  finalizeAlways?: boolean;
   /** Whether an empty value is a meaningful commit. Docs: `true` (empty → the block
    *  is deleted). Titles: `false` (a blank title is never persisted — blurring an
    *  emptied field just reverts to the last value). Empty is ONLY ever resolved on
@@ -38,24 +34,19 @@ export interface AutosaveOptions {
  *    unchanged check so a never-edited empty block is still dropped.
  *  - A changed non-empty value always commits, so typing autosaves and an append-log
  *    gains every distinct state.
- *  - An UNCHANGED non-empty value is normally skipped (the debounce+blur double-fire
- *    is a no-op; an append-log gets no per-keystroke dupes). It re-commits on the
- *    final flush only when `onCommit` applies a transform there (`finalizeAlways` —
- *    the doc's blank-line split, which must run on blur even though the in-place
- *    debounce already saved the same text) and that transform hasn't run yet
- *    (`finalized`), so the split runs exactly once.
+ *  - An UNCHANGED non-empty value is skipped (the debounce+blur double-fire is a no-op;
+ *    an append-log gets no per-keystroke dupes, and a merge-doc save is idempotent).
  */
 export function shouldCommit(
   value: string,
   lastCommitted: string,
-  opts: { final: boolean; commitEmpty: boolean; finalizeAlways?: boolean; finalized?: boolean },
+  opts: { final: boolean; commitEmpty: boolean; finalized?: boolean },
 ): boolean {
   if (!value.trim()) {
     if (!opts.final || !opts.commitEmpty) return false;
     return !(value === lastCommitted && opts.finalized);
   }
-  if (value !== lastCommitted) return true;
-  return !!opts.final && !!opts.finalizeAlways && !opts.finalized;
+  return value !== lastCommitted;
 }
 
 export interface Autosave {
@@ -81,12 +72,12 @@ export interface Autosave {
  * non-interactive area often doesn't blur a `TextInput`, so blur alone would miss
  * commits — but closing the editor unmounts the field, and the cleanup flushes.
  */
-export function useAutosave({ initialText, onCommit, debounceMs = motion.autosaveDoc, commitEmpty = false, finalizeAlways = false }: AutosaveOptions): Autosave {
+export function useAutosave({ initialText, onCommit, debounceMs = motion.autosaveDoc, commitEmpty = false }: AutosaveOptions): Autosave {
   const [value, setValue] = useState(initialText);
   const valueRef = useRef(initialText);
   const committedRef = useRef(initialText);
-  // Whether the latest committed value was already resolved on a final flush — gates
-  // the finalizeAlways re-run to once per edit (blur + unmount must not double-fire).
+  // Whether the latest committed value was already resolved on a final flush — gates the
+  // empty-delete to once per edit (blur + unmount must not double-fire a delete).
   const finalizedRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Latest onCommit without re-subscribing the unmount-flush effect (which must
@@ -99,13 +90,13 @@ export function useAutosave({ initialText, onCommit, debounceMs = motion.autosav
   const commit = useCallback(
     (final: boolean) => {
       const text = valueRef.current;
-      if (!shouldCommit(text, committedRef.current, { final, commitEmpty, finalizeAlways, finalized: finalizedRef.current })) return;
+      if (!shouldCommit(text, committedRef.current, { final, commitEmpty, finalized: finalizedRef.current })) return;
       committedRef.current = text;
-      // A non-final (in-place) commit re-arms the next final so its transform runs.
+      // A non-final (in-place) commit re-arms the next final empty-delete guard.
       finalizedRef.current = final;
       onCommitRef.current(text, { final });
     },
-    [commitEmpty, finalizeAlways],
+    [commitEmpty],
   );
 
   const clearTimer = () => {

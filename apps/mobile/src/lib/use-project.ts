@@ -23,10 +23,12 @@ export interface ProjectHook {
   /** Append a raw event (status change = new event, task create/update = event). */
   appendEvent: (event: ProjectEvent) => Promise<void>;
   addColumn: (title: string) => void;
-  addTask: (columnId: ID, title: string) => void;
+  /** Append a `task.create`; returns the new task's id (so the caller can open it). */
+  addTask: (columnId: ID, title: string) => ID;
   moveTask: (taskId: ID, columnId: ID, order: number) => void;
   changeStatus: (taskId: ID, to: string, from?: string) => void;
   renameTask: (taskId: ID, title: string) => void;
+  setTaskContent: (taskId: ID, content: string) => void;
   deleteTask: (taskId: ID) => void;
   renameColumn: (columnId: ID, title: string) => void;
 }
@@ -159,13 +161,17 @@ export function useProject(spaceId: string, objectId: string, opts: { enabled?: 
     [appendEvent, board.columns.length],
   );
   const addTask = useCallback(
-    (columnId: ID, title: string) =>
-      void appendEvent({ t: 'task.create', e: { taskId: `tsk-${randomId()}`, columnId, title, order: (board.tasksByColumn[columnId]?.length ?? 0) } }),
+    (columnId: ID, title: string): ID => {
+      const taskId = `tsk-${randomId()}`;
+      void appendEvent({ t: 'task.create', e: { taskId, columnId, title, order: board.tasksByColumn[columnId]?.length ?? 0 } });
+      return taskId;
+    },
     [appendEvent, board.tasksByColumn],
   );
   const moveTask = useCallback((taskId: ID, columnId: ID, order: number) => void appendEvent({ t: 'task.move', e: { taskId, columnId, order } }), [appendEvent]);
   const changeStatus = useCallback((taskId: ID, to: string, from?: string) => void appendEvent({ t: 'status.change', e: { taskId, to, ...(from ? { from } : {}) } }), [appendEvent]);
   const renameTask = useCallback((taskId: ID, title: string) => void appendEvent({ t: 'task.update', e: { taskId, title } }), [appendEvent]);
+  const setTaskContent = useCallback((taskId: ID, content: string) => void appendEvent({ t: 'task.update', e: { taskId, content } }), [appendEvent]);
   const deleteTask = useCallback((taskId: ID) => void appendEvent({ t: 'task.delete', e: { taskId } }), [appendEvent]);
   const renameColumn = useCallback((columnId: ID, title: string) => void appendEvent({ t: 'column.update', e: { columnId, title } }), [appendEvent]);
 
@@ -182,6 +188,7 @@ export function useProject(spaceId: string, objectId: string, opts: { enabled?: 
     moveTask,
     changeStatus,
     renameTask,
+    setTaskContent,
     deleteTask,
     renameColumn,
   };

@@ -410,6 +410,10 @@ export const layout = {
   objectTreeRowHeight: 34,
   /** Emoji glyph size in a Work doc/project hero header (larger than the title text). */
   objectHeroEmoji: 34,
+  /** Min height of the seamless doc editor surface (one textarea over the whole doc). */
+  docEditorMinHeight: 160,
+  /** Min height of the multiline content field in the task detail sheet. */
+  taskContentMinHeight: 120,
   /** Top toolbar above the main pane on desktop. */
   desktopTopbarHeight: 52,
   /**

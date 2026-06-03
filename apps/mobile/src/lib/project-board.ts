@@ -17,8 +17,8 @@ import type { ID } from './types';
 export type ProjectEvent =
   | { t: 'column.create'; e: { columnId: ID; title: string; order: number } }
   | { t: 'column.update'; e: { columnId: ID; title?: string; order?: number } }
-  | { t: 'task.create'; e: { taskId: ID; columnId: ID; title: string; order: number } }
-  | { t: 'task.update'; e: { taskId: ID; title?: string; assignees?: string[]; tag?: string; order?: number } }
+  | { t: 'task.create'; e: { taskId: ID; columnId: ID; title: string; order: number; content?: string } }
+  | { t: 'task.update'; e: { taskId: ID; title?: string; content?: string; assignees?: string[]; tag?: string; order?: number } }
   | { t: 'task.move'; e: { taskId: ID; columnId: ID; order: number } }
   | { t: 'status.change'; e: { taskId: ID; from?: string; to: string } }
   | { t: 'task.delete'; e: { taskId: ID } };
@@ -41,6 +41,8 @@ export interface BoardTask {
   id: ID;
   columnId: ID;
   title: string;
+  /** Free Markdown body — the task's notes/description, edited in the detail sheet. */
+  content?: string;
   order: number;
   status?: string;
   assignees?: string[];
@@ -117,7 +119,13 @@ export function foldProject(items: ProjectLogItem[]): Board {
       }
       case 'task.create': {
         if (!tasks.has(event.e.taskId)) {
-          tasks.set(event.e.taskId, { id: event.e.taskId, columnId: event.e.columnId, title: event.e.title, order: event.e.order });
+          tasks.set(event.e.taskId, {
+            id: event.e.taskId,
+            columnId: event.e.columnId,
+            title: event.e.title,
+            order: event.e.order,
+            ...(event.e.content !== undefined ? { content: event.e.content } : {}),
+          });
         }
         break;
       }
@@ -127,6 +135,7 @@ export function foldProject(items: ProjectLogItem[]): Board {
         tasks.set(event.e.taskId, {
           ...cur,
           title: event.e.title ?? cur.title,
+          content: event.e.content ?? cur.content,
           assignees: event.e.assignees ?? cur.assignees,
           tag: event.e.tag ?? cur.tag,
           order: event.e.order ?? cur.order,

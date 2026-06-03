@@ -183,3 +183,58 @@ describe('orderForInsert (drag-drop reorder → task.move order)', () => {
     expect(orderForInsert(list, 0, 'c')).toBe(-1);
   });
 });
+
+describe('foldProject — task content', () => {
+  it('task.create carries optional content into the board', () => {
+    const board = foldProject([
+      item(col('c1', 'Todo', 0)),
+      item({ t: 'task.create', e: { taskId: 't1', columnId: 'c1', title: 'A', order: 0, content: 'notes' } }),
+    ]);
+    expect(board.tasksByColumn.c1).toEqual([{ id: 't1', columnId: 'c1', title: 'A', order: 0, content: 'notes' }]);
+  });
+
+  it('a task created without content has no content field', () => {
+    const board = foldProject([item(col('c1', 'Todo', 0)), item(task('t1', 'c1', 'A', 0))]);
+    expect(board.tasksByColumn.c1![0]).not.toHaveProperty('content');
+  });
+
+  it('task.update sets content without touching the title', () => {
+    const board = foldProject([
+      item(col('c1', 'Todo', 0)),
+      item(task('t1', 'c1', 'A', 0)),
+      item({ t: 'task.update', e: { taskId: 't1', content: 'a body' } }),
+    ]);
+    expect(board.tasksByColumn.c1![0]).toMatchObject({ title: 'A', content: 'a body' });
+  });
+
+  it('content is last-write-wins by (ts, eventId)', () => {
+    const board = foldProject([
+      item(col('c1', 'Todo', 0), 1, 'a'),
+      item(task('t1', 'c1', 'A', 0), 2, 'b'),
+      item({ t: 'task.update', e: { taskId: 't1', content: 'newer' } }, 4, 'd'),
+      item({ t: 'task.update', e: { taskId: 't1', content: 'older' } }, 3, 'c'),
+    ]);
+    expect(board.tasksByColumn.c1![0]!.content).toBe('newer');
+  });
+
+  it('a title-only update preserves existing content', () => {
+    const board = foldProject([
+      item(col('c1', 'Todo', 0)),
+      item({ t: 'task.create', e: { taskId: 't1', columnId: 'c1', title: 'A', order: 0, content: 'keep me' } }),
+      item({ t: 'task.update', e: { taskId: 't1', title: 'A renamed' } }),
+    ]);
+    expect(board.tasksByColumn.c1![0]).toMatchObject({ title: 'A renamed', content: 'keep me' });
+  });
+
+  it('content survives a move + status change', () => {
+    const board = foldProject([
+      item(col('c1', 'Todo', 0)),
+      item(col('c2', 'Done', 1)),
+      item({ t: 'task.create', e: { taskId: 't1', columnId: 'c1', title: 'A', order: 0, content: 'desc' } }),
+      item({ t: 'task.move', e: { taskId: 't1', columnId: 'c2', order: 0 } }),
+      item({ t: 'status.change', e: { taskId: 't1', to: 'done' } }),
+    ]);
+    expect(board.tasksByColumn.c2![0]).toMatchObject({ columnId: 'c2', status: 'done', content: 'desc' });
+    expect(board.done).toBe(1);
+  });
+});
