@@ -11,7 +11,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 import { ObjectTree, useTreeCollapse } from '@/components/objects/ObjectTree';
 
-import { WorkHero } from './WorkHero';
+import { WorkEmpty } from './WorkEmpty';
 
 /**
  * Live Work surface: the space's docs + projects from the unified object index,
@@ -22,7 +22,7 @@ export function WorkObjects({ spaceId, hero }: { spaceId: string | null; hero?: 
   const { colors } = useTheme();
   const router = useRouter();
   const enabled = !!spaceId;
-  const { nodes, create, ready, opening } = useObjects(spaceId ?? '', { enabled });
+  const { nodes, create, ready, loaded, opening } = useObjects(spaceId ?? '', { enabled });
   const { collapsed, toggle } = useTreeCollapse();
 
   // Work scope: only docs + projects (and their nesting). buildTree repairs any node
@@ -44,9 +44,20 @@ export function WorkObjects({ spaceId, hero }: { spaceId: string | null; hero?: 
     if (id) router.push({ pathname: '/work/project/[id]', params: { id, spaceId: spaceId ?? '', emoji: '🗂️', label: 'Untitled', hint: '' } });
   };
 
+  // The full-bleed empty state (with its own create CTAs) replaces the list tile on
+  // the Work tab once the index has loaded empty — gated on `loaded`, NOT `ready`,
+  // so a populated workspace never flashes the pitch mid-load. The desktop sidebar
+  // (no `hero`) keeps its compact inline empty text instead.
+  if (hero && loaded && tree.length === 0) {
+    return (
+      <View style={styles.panel}>
+        <WorkEmpty onNewDoc={newDoc} onNewProject={newProject} disabled={!ready} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.panel}>
-      {hero ? <WorkHero /> : null}
       <View style={[styles.tile, paperBorder(colors), shadows.sm]}>
         <View style={styles.head}>
           <Txt variant="caption" weight="bold" tone="inkMuted" style={styles.headTitle}>
@@ -59,7 +70,7 @@ export function WorkObjects({ spaceId, hero }: { spaceId: string | null; hero?: 
           <ObjectTree nodes={tree} onOpen={openNode} collapsed={collapsed} onToggle={toggle} />
         ) : (
           <Txt variant="caption" tone="inkFaint" style={styles.empty}>
-            {opening ? 'Opening workspace…' : 'No docs or projects yet. Create one above.'}
+            {loaded ? 'No docs or projects yet. Create one above.' : 'Opening workspace…'}
           </Txt>
         )}
       </View>

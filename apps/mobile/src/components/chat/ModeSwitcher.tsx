@@ -14,7 +14,7 @@ interface ModeSwitcherProps {
 
 /**
  * Notion-style workspace mode switch: a compact row of glyphs where only the
- * active one expands to show its label (Chat · Agents · Docs · Projects). Purely
+ * active one expands to show its label (Chat · Work · Agents). Purely
  * presentational — the active mode and its setter are owned by
  * {@link useViewMode}. Reused verbatim in the desktop sidebar and the mobile
  * rooms screen, so it carries no width or platform assumptions.

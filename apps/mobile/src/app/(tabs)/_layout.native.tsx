@@ -15,7 +15,7 @@ import { useUnread } from '@/lib/unread-context';
  * native), which is also where the desktop sidebar swap and the OTA update
  * banner live.
  *
- * The tabs are the workspace modes (Chat · Agents · Work) plus global Search,
+ * The tabs are the workspace modes (Chat · Work · Agents) plus global Search,
  * which carries `role="search"` so iOS 26 floats it to the bottom-right as the
  * native search tab. `threads` and `you` are NOT tabs: they live at the app root
  * and are reached via `router.push(...)` from the Chat tab / its header — native
@@ -56,13 +56,13 @@ export default function NativeTabsLayout() {
         <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="message-circle" />} />
         <NativeTabs.Trigger.Badge hidden={!badge}>{badge}</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="agents">
-        <NativeTabs.Trigger.Label>Agents</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Ionicons} name="sparkles-outline" />} />
-      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="work">
         <NativeTabs.Trigger.Label>Work</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="briefcase" />} />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="agents">
+        <NativeTabs.Trigger.Label>Agents</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Ionicons} name="sparkles-outline" />} />
       </NativeTabs.Trigger>
       {/* `role="search"` makes this the platform search tab: on iOS 26 it floats
           to the bottom-right as a dedicated search affordance rather than sitting

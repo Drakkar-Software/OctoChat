@@ -35,8 +35,12 @@ export interface MergeDocOptions {
 export interface MergeDocResult {
   /** The current doc data (the merged document), or null before the first read. */
   doc: Record<string, unknown> | null;
-  /** True once a fresh pull has settled and the store is safe to mutate. */
+  /** True once the store is open and safe to mutate (offline-first; see {@link apply}). */
   ready: boolean;
+  /** True once data has actually painted (cache or first pull) — distinguishes a
+   *  genuinely-empty doc from one still loading. `ready` flips on store-open, which is
+   *  too eager to drive an empty-state vs. spinner decision; gate that on `loaded`. */
+  loaded: boolean;
   opening: boolean;
   openError: string | null;
   offline: boolean;
@@ -142,5 +146,5 @@ export function useMergeDoc(opts: MergeDocOptions): MergeDocResult {
     if (store) void (store.getState() as { pull?: () => Promise<unknown> }).pull?.();
   }, [store]);
 
-  return { doc, ready: !!store, opening: enabled ? opening : false, openError, offline, reload, apply, pull };
+  return { doc, ready: !!store, loaded: doc !== null, opening: enabled ? opening : false, openError, offline, reload, apply, pull };
 }

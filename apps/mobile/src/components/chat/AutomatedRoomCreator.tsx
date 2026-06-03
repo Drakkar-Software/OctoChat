@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import { radii, spacing } from '@/theme';
 import { createAutomatedRoom } from '@/lib/automations/orchestrator';

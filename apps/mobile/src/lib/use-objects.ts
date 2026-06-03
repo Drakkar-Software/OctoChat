@@ -29,6 +29,9 @@ export interface ObjectsHook {
   openError: string | null;
   offline: boolean;
   ready: boolean;
+  /** True once the index has painted — use this (not `ready`) to tell an empty
+   *  workspace apart from one still loading. */
+  loaded: boolean;
   reload: () => void;
   create: (input: NewObjectInput) => ID | null;
   rename: (id: ID, patch: { title?: string; emoji?: string }) => void;
@@ -43,7 +46,7 @@ export interface ObjectsHook {
 export function useObjects(spaceId: string, opts: { enabled?: boolean } = {}): ObjectsHook {
   const enabled = (opts.enabled ?? true) && !!spaceId;
 
-  const { doc, ready, opening, openError, offline, reload, apply } = useMergeDoc({
+  const { doc, ready, loaded, opening, openError, offline, reload, apply } = useMergeDoc({
     spaceId,
     openId: spaceId,
     enabled,
@@ -109,5 +112,5 @@ export function useObjects(spaceId: string, opts: { enabled?: boolean } = {}): O
   const breadcrumbs = useCallback((id: ID) => breadcrumbsOf(objects, id), [objects]);
   const get = useCallback((id: ID) => objects.find((n) => n.id === id), [objects]);
 
-  return { tree, nodes, breadcrumbs, get, opening, openError, offline, ready, reload, create, rename, move, reorder, archive, mutate };
+  return { tree, nodes, breadcrumbs, get, opening, openError, offline, ready, loaded, reload, create, rename, move, reorder, archive, mutate };
 }

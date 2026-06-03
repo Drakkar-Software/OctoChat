@@ -22,8 +22,8 @@ export type ViewMode = 'chat' | 'agents' | 'work';
 /** Switcher metadata, in display order. The first is the default. */
 export const VIEW_MODES: { key: ViewMode; label: string; iconName: IconName }[] = [
   { key: 'chat', label: 'Chat', iconName: 'chat' },
-  { key: 'agents', label: 'Agents', iconName: 'agents' },
   { key: 'work', label: 'Work', iconName: 'work' },
+  { key: 'agents', label: 'Agents', iconName: 'agents' },
 ];
 
 const STORAGE_KEY = 'octochat.view-mode.v1';
