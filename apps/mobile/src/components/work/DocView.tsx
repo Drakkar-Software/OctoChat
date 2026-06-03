@@ -54,9 +54,14 @@ export function DocView({ spaceId, objectId, emoji, title }: { spaceId: string; 
           onClose={() => setEditing(false)}
           commitEmpty
           multiline
+          // Borderless + auto-growing: the editor reads like the rendered page, with no
+          // box or focus ring, and grows with the text while the screen scrolls as one.
+          plain
+          autoGrow
           minHeight={layout.docEditorMinHeight}
           placeholder="Write in Markdown…"
           accessibilityLabel="Edit document"
+          containerStyle={styles.surface}
         />
       ) : (
         <Pressable
@@ -64,6 +69,8 @@ export function DocView({ spaceId, objectId, emoji, title }: { spaceId: string; 
           accessibilityLabel="Edit document"
           disabled={!ready}
           onPress={beginEdit}
+          // Fills the page so tapping anywhere in the body — not just on the text —
+          // starts editing, the way a Notion page does.
           style={({ pressed }) => [styles.reader, pressed ? { backgroundColor: colors.hover } : null]}
         >
           {text.trim() ? (
@@ -80,6 +87,9 @@ export function DocView({ spaceId, objectId, emoji, title }: { spaceId: string; 
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: spacing.md },
-  reader: { minHeight: layout.docEditorMinHeight, borderRadius: radii.md, paddingVertical: spacing.xs },
+  // flex:1 lets the body fill the scroll viewport so the reader/editor surface can
+  // stretch to a full-page tap target.
+  wrap: { flex: 1, gap: spacing.md },
+  surface: { flexGrow: 1 },
+  reader: { flexGrow: 1, minHeight: layout.docEditorMinHeight, borderRadius: radii.md, paddingVertical: spacing.sm },
 });

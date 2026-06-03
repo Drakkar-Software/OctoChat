@@ -29,6 +29,10 @@ interface AutosaveFieldProps {
   /** Empty value is a real commit (docs delete on empty); titles leave this false. */
   commitEmpty?: boolean;
   multiline?: boolean;
+  /** Borderless seamless surface (see {@link TextField} `plain`) — the doc editor. */
+  plain?: boolean;
+  /** Grow with content instead of scrolling inside a fixed box (see {@link TextField}). */
+  autoGrow?: boolean;
   placeholder?: string;
   autoFocus?: boolean;
   minHeight?: number;
@@ -53,6 +57,8 @@ export function AutosaveField({
   debounceMs = motion.autosaveDoc,
   commitEmpty = false,
   multiline = false,
+  plain = false,
+  autoGrow = false,
   placeholder,
   autoFocus = true,
   minHeight,
@@ -90,6 +96,8 @@ export function AutosaveField({
       onChangeText={autosave.onChangeText}
       onBlur={close}
       multiline={multiline}
+      plain={plain}
+      autoGrow={autoGrow}
       {...(minHeight !== undefined ? { minHeight } : {})}
       autoFocus={autoFocus}
       placeholder={placeholder}

@@ -7,6 +7,7 @@ import { useObjects } from '@/lib/use-objects';
 import { AppBar } from '@/components/ui/AppBar';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { Breadcrumbs } from '@/components/objects/Breadcrumbs';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { ObjectActions } from '@/components/objects/ObjectActions';
 import { DocView } from '@/components/work/DocView';
 
@@ -37,7 +38,9 @@ export default function WorkDocScreen() {
       }
     >
       <Breadcrumbs trail={trail} onNavigate={(n) => openCrumb(n.id)} />
-      <DocView spaceId={spaceId} objectId={id} emoji={node?.emoji || emoji} title={node?.title || label} />
+      <ErrorBoundary label="Doc">
+        <DocView spaceId={spaceId} objectId={id} emoji={node?.emoji || emoji} title={node?.title || label} />
+      </ErrorBoundary>
     </StackScreen>
   );
 }

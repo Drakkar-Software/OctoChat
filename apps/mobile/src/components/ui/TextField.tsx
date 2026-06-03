@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { StyleProp, TextInputProps, TextStyle, ViewStyle } from 'react-native';
+import type { NativeSyntheticEvent, StyleProp, TextInputContentSizeChangeEventData, TextInputProps, TextStyle, ViewStyle } from 'react-native';
 import { Platform, StyleSheet, TextInput, View } from 'react-native';
 
 import { fonts, glowShadow, radii, spacing, type as typeScale } from '@/theme';
@@ -19,6 +19,13 @@ interface TextFieldProps extends Omit<TextInputProps, 'style' | 'placeholderText
   mono?: boolean;
   /** Height for multiline textareas. */
   minHeight?: number;
+  /** Borderless, transparent, chrome-free field that reads as plain body text — no
+   *  border, focus ring or recessed fill. For a seamless document surface (the doc
+   *  editor) where the input must be visually indistinguishable from the rendered text. */
+  plain?: boolean;
+  /** Multiline only: grow the field to fit its content instead of scrolling inside a
+   *  fixed box (the page scrolls). Pairs with `plain` for a Notion-style page editor. */
+  autoGrow?: boolean;
   containerStyle?: StyleProp<ViewStyle>;
 }
 
@@ -33,13 +40,24 @@ export function TextField({
   mono = false,
   minHeight,
   multiline = false,
+  plain = false,
+  autoGrow = false,
   containerStyle,
   onFocus,
   onBlur,
+  onContentSizeChange,
   ...rest
 }: TextFieldProps) {
   const { colors } = useTheme();
   const [focused, setFocused] = useState(false);
+  // Auto-grow tracks the rendered content height so the field expands with the text
+  // (no inner scroll) — the doc page scrolls as one surface instead.
+  const [contentHeight, setContentHeight] = useState(0);
+  const grownHeight = autoGrow ? Math.max(minHeight ?? 0, contentHeight) : undefined;
+  const onSize = (e: NativeSyntheticEvent<TextInputContentSizeChangeEventData>) => {
+    if (autoGrow) setContentHeight(e.nativeEvent.contentSize.height);
+    onContentSizeChange?.(e);
+  };
 
   // The focus glow lives on an absolutely-positioned sibling, not on the
   // TextInput's parent View. On Android, adding `elevation` to a TextInput's
@@ -52,22 +70,25 @@ export function TextField({
   // leaks below the bordered field as a darker strip.
   const multilineMin = multiline ? { minHeight: minHeight ?? 72 } : null;
   return (
-    <View style={[styles.wrapper, containerStyle]}>
+    <View style={[plain ? styles.wrapperPlain : styles.wrapper, containerStyle]}>
+      {/* The recessed fill + focus glow IS the box — a plain field has neither. */}
+      {plain ? null : (
+        <View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            styles.glowLayer,
+            { backgroundColor: colors.paperAlt },
+            focused ? glowShadow(colors.glow, 0.2, 12) : null,
+          ]}
+        />
+      )}
       <View
-        pointerEvents="none"
         style={[
-          StyleSheet.absoluteFill,
-          styles.glowLayer,
-          { backgroundColor: colors.paperAlt },
-          focused ? glowShadow(colors.glow, 0.2, 12) : null,
-        ]}
-      />
-      <View
-        style={[
-          styles.field,
+          plain ? styles.fieldPlain : styles.field,
           multilineMin,
           multiline ? { alignItems: 'flex-start' } : null,
-          { borderColor: focused ? colors.accentBorder : colors.lineSoft },
+          plain ? null : { borderColor: focused ? colors.accentBorder : colors.lineSoft },
         ]}
       >
         {leadingIcon ? (
@@ -76,6 +97,8 @@ export function TextField({
         <TextInput
           {...rest}
           multiline={multiline}
+          {...(autoGrow ? { scrollEnabled: false } : {})}
+          onContentSizeChange={onSize}
           placeholderTextColor={colors.inkMuted}
           // Android's TextInput otherwise inherits the OS `textColorPrimary`
           // for the cursor/selection — invisible against the dark paperAlt in
@@ -91,7 +114,15 @@ export function TextField({
             setFocused(false);
             onBlur?.(e);
           }}
-          style={[styles.input, mono ? styles.mono : styles.sans, multiline && styles.multiline, WEB_OUTLINE_RESET, { color: colors.ink }]}
+          style={[
+            styles.input,
+            mono ? styles.mono : styles.sans,
+            multiline && styles.multiline,
+            plain && styles.inputPlain,
+            grownHeight !== undefined ? { height: grownHeight } : null,
+            WEB_OUTLINE_RESET,
+            { color: colors.ink },
+          ]}
         />
       </View>
     </View>
@@ -102,6 +133,8 @@ const styles = StyleSheet.create({
   wrapper: {
     minHeight: spacing.controlMinHeight,
   },
+  // No control-height floor: a plain field is sized purely by its text/minHeight.
+  wrapperPlain: {},
   glowLayer: {
     borderRadius: radii.md,
   },
@@ -126,12 +159,29 @@ const styles = StyleSheet.create({
     elevation: 9,
     shadowColor: 'transparent',
   },
+  // Borderless, transparent, flush-left — the text reads exactly like the rendered
+  // document body, with no box around it.
+  fieldPlain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    paddingHorizontal: 0,
+  },
   input: {
     flex: 1,
     paddingVertical: spacing.sm,
     includeFontPadding: false,
   },
+  // Match the body type scale's line height: a multiline TextInput renders as a web
+  // <textarea> whose line box collapses without an explicit lineHeight, stacking lines
+  // on top of each other. Also keeps the editor's metrics identical to the Markdown
+  // reader so entering edit doesn't reflow the text.
   sans: { fontFamily: fonts.body, fontSize: typeScale.body.fontSize },
   mono: { fontFamily: fonts.mono, fontSize: typeScale.caption.fontSize },
-  multiline: { textAlignVertical: 'top', paddingTop: spacing.sm },
+  multiline: { textAlignVertical: 'top', paddingTop: spacing.sm, lineHeight: typeScale.body.lineHeight },
+  // Drop the input's own vertical padding so the first line sits where the reader's
+  // first paragraph does (the surrounding view supplies any padding).
+  inputPlain: { paddingVertical: 0 },
 });

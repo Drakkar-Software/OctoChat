@@ -7,6 +7,7 @@ import { useObjects } from '@/lib/use-objects';
 import { AppBar } from '@/components/ui/AppBar';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { Breadcrumbs } from '@/components/objects/Breadcrumbs';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { ObjectActions } from '@/components/objects/ObjectActions';
 import { ProjectBoard } from '@/components/work/ProjectBoard';
 
@@ -37,7 +38,9 @@ export default function WorkProjectScreen() {
       }
     >
       <Breadcrumbs trail={trail} onNavigate={(n) => openCrumb(n.id, n.type)} />
-      <ProjectBoard spaceId={spaceId} objectId={id} emoji={node?.emoji || emoji} title={node?.title || label} />
+      <ErrorBoundary label="Project board">
+        <ProjectBoard spaceId={spaceId} objectId={id} emoji={node?.emoji || emoji} title={node?.title || label} />
+      </ErrorBoundary>
     </StackScreen>
   );
 }
