@@ -1,9 +1,11 @@
 import 'react-native-gesture-handler';
-// Side-effect import: runs `TaskManager.defineTask` at module scope on EVERY launch,
-// including a cold headless background launch where React never mounts. Resolves to a
-// no-op on web. Must stay a bare import — the register hook can't pull it in (it never
-// runs on a background relaunch).
-import '@/lib/automations/background-task';
+// Side-effect imports: register the automation tick HANDLER (conductor-init) and, on
+// native, the OS-wake bridge that drives it headlessly (conductor-background → a
+// `TaskManager.defineTask`; no-op on web). Both run at module scope on EVERY launch,
+// including a cold headless background launch where React never mounts — they must stay
+// bare imports, since the register hook never runs on a background relaunch.
+import '@/lib/automations/conductor-init';
+import '@/lib/automations/conductor-background';
 
 import { configureStarfishPlatform } from '@/lib/starfish/platform';
 import { initOctoChat } from '@/lib/octochat-init';

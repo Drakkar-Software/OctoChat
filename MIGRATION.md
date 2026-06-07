@@ -6,9 +6,14 @@
 > on existing documents and the wire format is unchanged). The `expo-conductor`
 > feature delta is captured below rather than in that repo, which is out of scope.
 >
-> **Status:** PLAN ONLY — not yet started. Blocked on access + packaging (see
-> [Blockers](#blockers)). This document is the executable spec for when those
-> clear.
+> **Status:** DONE (pending on-device verification + a lib republish). The
+> `expo-conductor` feature delta (single-flight leader election + web `appState`
+> firing) shipped on `master` of that repo and is published as
+> `@drakkar.software/expo-conductor` (bump to `0.1.1` carries the post-review
+> handoff fixes — republish to pick them up). The app-side rewiring below is
+> implemented and `pnpm typecheck`-clean; what remains is a native prebuild +
+> on-device run (the JS handler / OS-wake bridge / native `appState` can't be
+> verified from a typecheck alone). See [Outcome](#outcome) at the end.
 
 ## Goal
 
@@ -126,3 +131,33 @@ content-hash dedup (`automations/hash.ts`) and sealed credentials
 4. Slim `use-automation-driver.ts`; re-point `use-automation-commands.ts`;
    rewire `use-automation-background.ts`.
 5. `pnpm typecheck` + run automations end-to-end on web, iOS, Android.
+
+## Outcome
+
+Implemented. What landed, and the deltas from the plan above:
+
+- **`expo-conductor` (lib).** Added `policy.singleFlight` (cross-instance leader
+  election over `navigator.locks`; native = always-leader no-op) and real web
+  `appState` trigger firing (`visibilitychange` + focus/blur, injectable +
+  Node/SSR-safe). Web-only orchestration — no Kotlin/Swift/fixtures change.
+  Adversarially reviewed; fixed 4 handoff edge cases (manual-run replay, one-shot
+  not replayed on handoff, pause clears deferred markers, documented appState+timer
+  non-atomicity). 116 tests. Published `@drakkar.software/expo-conductor`; `0.1.1`
+  has the fixes.
+- **App.** `conductor-init.ts` (module-scope handler + `syncAutomationTasks`
+  reconcile, serialized to survive session switches), `conductor-background.{native,}.ts`
+  (the `expo-conductor/task-manager` OS-wake bridge; web no-op), rewired
+  `use-automation-background` (sync on session-ready) and re-sync at the
+  create/edit/delete call sites, slimmed `use-automation-driver` to tick-completion
+  listeners + a focus `runNow`. Deleted `background-task{,.native}.ts`. Added the
+  dependency + config plugin (kept `expo-background-task`, which the bridge needs).
+- **Kept `leader.ts`** scoped to the command watcher (the plan's allowed fallback):
+  Conductor doesn't surface leadership to React, so the foreground command gate
+  still uses the Web Lock. Scheduled ticks use `policy.singleFlight`.
+- **`onOpen` semantics shift to flag.** `onOpen` now maps to `appState:'foreground'`
+  (app-foreground) plus a focus `runNow` on the open room screen, rather than purely
+  "this room's screen opened". Content-hash dedup bounds the cost to extra polls (no
+  duplicate posts), but a content change can now surface on app-foreground for any
+  onOpen room, not only on visiting it. Revisit if undesired.
+- **Not verifiable here:** native JS-handler headless execution via the bridge,
+  native `appState` firing, and the prebuild/dev-client (won't run in Expo Go).

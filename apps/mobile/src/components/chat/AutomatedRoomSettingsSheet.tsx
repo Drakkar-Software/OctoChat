@@ -16,6 +16,7 @@ import { openStreamBotCredential, type StreamBotCredential } from '@drakkar.soft
 import type { Session } from '@drakkar.software/octochat-sdk';
 import type { Room } from '@drakkar.software/octochat-sdk';
 import { useRoomsRegistryActions } from '@/lib/rooms-registry-context';
+import { syncAutomationTasks } from '@/lib/automations/conductor-init';
 import { useTheme } from '@/lib/use-theme';
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
@@ -138,6 +139,9 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
         await renameAutomatedRoom(session, room, name);
         await refresh(room.spaceId);
       }
+      // Reconcile Conductor: apply the new cadence / on-open / enabled state (reschedule,
+      // or cancel when disabled).
+      await syncAutomationTasks(session);
     });
 
   const runNow = () =>
@@ -155,6 +159,8 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
       // Reflect the runner change so the gate elects this device live (else `runsHere`
       // and the driver keep reading the stale runOnDeviceId until a cold reload).
       patchRoomAutomationLocal(room.spaceId, room.id, { runOnDeviceId: session.keys.edPub });
+      // This device is now the runner — schedule its Conductor task.
+      await syncAutomationTasks(session);
     });
 
   const rotate = () =>
@@ -169,6 +175,8 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
     wrap('delete', async () => {
       await deleteAutomatedRoom(session, room);
       await refresh(room.spaceId);
+      // Cancel the room's Conductor task now that its automation is gone.
+      await syncAutomationTasks(session);
       onDeleted();
     });
 

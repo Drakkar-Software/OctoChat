@@ -4,6 +4,7 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import { radii, spacing } from '@/theme';
 import { createAutomatedRoom } from '@drakkar.software/octochat-sdk';
+import { syncAutomationTasks } from '@/lib/automations/conductor-init';
 import { getProvider, PROVIDERS } from '@drakkar.software/octochat-sdk';
 import type { AutomationProvider } from '@drakkar.software/octochat-sdk';
 import type { Session } from '@drakkar.software/octochat-sdk';
@@ -84,6 +85,8 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
         intervalMin: cadence.intervalMin,
         onOpen: cadence.onOpen,
       });
+      // Schedule the new automation's Conductor task on this (runner) device.
+      await syncAutomationTasks(session);
       onCreated(room.id);
     } catch (e) {
       setError(String((e as Error)?.message ?? e));

@@ -1,102 +1,64 @@
 /**
- * Foreground tick driver for ONE automated room. Mounted by the room screen
- * when `kind === 'automated'`:
- *   - Fires an opportunistic scheduled tick on focus + on AppState=active.
- *   - Re-checks every 60 s while the screen is foreground.
- *   - All checks gated by `isDueForScheduledTick` so a non-running device,
- *     a disabled automation, or a too-recent run is a cheap no-op.
- *   - After each tick it reflects `lastRunAt` back into the rooms-registry cache
- *     (`patchRoomAutomationLocal`) so the gate sees the run immediately — the
- *     server write in `runAutomationTick` doesn't refresh the in-memory cache,
- *     so without this a timed automation re-fires on every open.
+ * Foreground glue for ONE automated room, mounted by the room screen when
+ * `kind === 'automated'`. Scheduling itself is owned by Conductor (`conductor-init`);
+ * this hook only:
+ *   - Reflects a completed tick's `lastRunAt` / `lastError` back into the rooms-registry
+ *     cache so the open room's status refreshes immediately (the server write-back in
+ *     `runAutomationTick` doesn't refresh the in-memory cache).
+ *   - Forces an immediate tick when the screen gains focus, preserving "tick on open":
+ *     Conductor's `appState` trigger fires on app-foreground, not per-screen navigation,
+ *     and on web the tab is already visible, so opening a room would otherwise not tick.
  *
- * The focus + AppState callbacks are kept stable (they call through a ref) so
- * the re-render caused by the local cache patch can't re-run them — for an
- * "on open" (ungated) automation that would be an infinite tick loop.
- *
- * Background-task wiring (`expo-task-manager` + `expo-background-task`) covers
- * the app-closed case via the same gate.
+ * Both are gated so they can't double-act: the focus tick runs only on the elected leader
+ * instance (`active`, see leader.ts) and is a cheap no-op when the handler's own
+ * enabled/runner/due + content-hash gates say there's nothing to post.
  */
-import { useCallback, useEffect, useRef } from 'react';
-import { AppState } from 'react-native';
+import { useCallback, useEffect } from 'react';
 import { useFocusEffect } from 'expo-router';
 
+import Conductor, { TaskResult } from '@drakkar.software/expo-conductor';
+
 import { useRoomsRegistryActions } from '../rooms-registry-context';
-import type { Session } from '@drakkar.software/octochat-sdk';
-import type { Room } from '@drakkar.software/octochat-sdk';
+import type { Room, Session } from '@drakkar.software/octochat-sdk';
 
-import { runAutomationTick, tickStatusPatch } from '@drakkar.software/octochat-sdk';
-import { isDueForScheduledTick } from '@drakkar.software/octochat-sdk';
-
-/** Min gap between two `onOpen` fires. `onOpen` has no time gate in the due-check, so
- *  an AppState→active storm (pulling and dismissing the notification shade re-fires
- *  'active' each time) would otherwise re-tick it repeatedly — collapse those into one. */
-const ONOPEN_DEBOUNCE_MS = 30_000;
+import { automationTaskId } from './conductor-init';
 
 export function useAutomationDriver(opts: { session: Session | null; room: Room | null; active?: boolean }) {
-  const { session, room, active = true } = opts;
+  const { room, active = true } = opts;
   const { patchRoomAutomationLocal } = useRoomsRegistryActions();
-  const inFlight = useRef(false);
-  const lastFireRef = useRef(0);
+  const spaceId = room?.spaceId;
+  const roomId = room?.id;
+  const automated = !!room?.automation;
 
-  const maybeTick = useCallback(async () => {
-    if (inFlight.current) return; // reentrancy guard — focus + AppState can fire together
-    if (!active) return; // not the elected leader instance (see leader.ts) — stay passive
-    if (!session || !room || !room.automation) return;
-    const now = Date.now();
-    if (!isDueForScheduledTick(room, session.keys.edPub, now)) return;
-    // Debounce ungated `onOpen` re-fires (timed cadences are already gated by lastRunAt).
-    if (room.automation.onOpen && now - lastFireRef.current < ONOPEN_DEBOUNCE_MS) return;
-    lastFireRef.current = now;
-    inFlight.current = true;
-    try {
-      const outcome = await runAutomationTick({ session, room, trigger: 'scheduled', now });
-      // Reflect the run into the shared cache so the next gate check sees it
-      // (the server write alone leaves the in-memory room stale → re-fires).
-      patchRoomAutomationLocal(room.spaceId, room.id, tickStatusPatch(outcome, now));
-    } finally {
-      inFlight.current = false;
-    }
-  }, [active, session, room, patchRoomAutomationLocal]);
-
-  // Stable handle for the discrete-event triggers (focus / AppState). Reading
-  // through a ref keeps their callbacks identity-stable, so the re-render from a
-  // cache patch can't re-fire them (which, ungated, would loop on "on open").
-  const maybeTickRef = useRef(maybeTick);
+  // Live UI freshness: patch the shared cache when this room's task completes / errors.
   useEffect(() => {
-    maybeTickRef.current = maybeTick;
-  });
+    if (!automated || !spaceId || !roomId) return;
+    const taskId = automationTaskId(spaceId, roomId);
+    const onComplete = Conductor.addListener('onTaskComplete', (p) => {
+      if (p.taskId !== taskId) return;
+      // Only a tick that actually ran advanced lastRunAt on the server: NEW_DATA (posted) or
+      // SUCCESS (polled, unchanged). NO_DATA means the due-gate skipped it (no write) and
+      // FAILED is handled by onTaskError — neither should advance the cached lastRunAt.
+      if (p.result !== TaskResult.NEW_DATA && p.result !== TaskResult.SUCCESS) return;
+      patchRoomAutomationLocal(spaceId, roomId, { lastRunAt: p.firedAt, lastError: null });
+    });
+    const onError = Conductor.addListener('onTaskError', (p) => {
+      if (p.taskId !== taskId) return;
+      patchRoomAutomationLocal(spaceId, roomId, { lastError: p.error });
+    });
+    return () => {
+      onComplete.remove();
+      onError.remove();
+    };
+  }, [automated, spaceId, roomId, patchRoomAutomationLocal]);
 
-  // Keyed on room.id (not `[]`): re-runs when the room loads late (cold deep-link —
-  // `room` is null at mount until the registry resolves) or on a room switch, so the
-  // first "on open" tick doesn't wait for the 60 s interval. `room.id` is stable across
-  // a cache patch, so the optimistic `lastRunAt` update can't re-fire this (no loop).
+  // Force an immediate tick on focus (the open-room "tick on open"). Gated by `active` so
+  // two same-account tabs don't both force-tick; a no-op when not due / unchanged, or when
+  // this device isn't the runner (the task was never scheduled → runNow finds nothing).
   useFocusEffect(
     useCallback(() => {
-      void maybeTickRef.current();
-    }, [room?.id]),
+      if (!active || !automated || !spaceId || !roomId) return;
+      void Conductor.runNow(automationTaskId(spaceId, roomId));
+    }, [active, automated, spaceId, roomId]),
   );
-
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void maybeTickRef.current();
-    });
-    return () => sub.remove();
-  }, []);
-
-  // Tick when this instance BECOMES the leader — a lock handoff (another tab closed) or a
-  // grant that lands just after the focus tick already ran would otherwise leave a due
-  // automation waiting for the next focus/interval. Gated by isDue + inFlight, so it's a
-  // cheap no-op when nothing's due.
-  useEffect(() => {
-    if (active) void maybeTick();
-  }, [active, maybeTick]);
-
-  // Periodic re-check for TIMED cadences only — an "on open" automation fires on the
-  // open event (focus / AppState-active), not repeatedly while the room sits open.
-  useEffect(() => {
-    if (!session || !room || room.automation?.onOpen) return;
-    const id = setInterval(() => void maybeTick(), 60_000);
-    return () => clearInterval(id);
-  }, [session, room, maybeTick]);
 }

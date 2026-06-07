@@ -50,6 +50,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@drakkar.software/expo-conductor':
+        specifier: ^0.1.0
+        version: 0.1.0(expo-background-task@56.0.16(expo@56.0.8)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))(expo-notifications@56.0.15(expo@56.0.8)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)(typescript@6.0.3))(expo-task-manager@56.0.16(expo@56.0.8)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))(expo@56.0.8)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)
       '@drakkar.software/octochat-sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
@@ -755,6 +758,23 @@ packages:
   '@develar/schema-utils@2.6.5':
     resolution: {integrity: sha512-0cp4PsWQ/9avqTVMCtZ+GirikIA36ikvjtHweU4/j8yLtgObI0+JUPhYFScgwlteveGB1rt3Cm8UhN04XayDig==}
     engines: {node: '>= 8.9.0'}
+
+  '@drakkar.software/expo-conductor@0.1.0':
+    resolution: {integrity: sha512-H7/8R/Y0UgQuVyvoZsNpaqaaKUFo2m7Jg3aZxOZ9MnYZFFOPZbjnZXiIwmSGj7UjlMpoVoA6zg2VId+xE/9g3w==}
+    peerDependencies:
+      expo: '*'
+      expo-background-task: '*'
+      expo-notifications: '*'
+      expo-task-manager: '*'
+      react: '*'
+      react-native: '*'
+    peerDependenciesMeta:
+      expo-background-task:
+        optional: true
+      expo-notifications:
+        optional: true
+      expo-task-manager:
+        optional: true
 
   '@drakkar.software/starfish-client@3.0.0-alpha.21':
     resolution: {integrity: sha512-sQSeez6WFsqY25NZHABQub9BLWI6kMyRn9VziWtXtRlirsl3v5Q8FzyvN32IJvbcn0KxH2f15szGMRJJOtZdTg==}
@@ -6377,6 +6397,16 @@ snapshots:
     dependencies:
       ajv: 6.15.0
       ajv-keywords: 3.5.2(ajv@6.15.0)
+
+  '@drakkar.software/expo-conductor@0.1.0(expo-background-task@56.0.16(expo@56.0.8)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))(expo-notifications@56.0.15(expo@56.0.8)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)(typescript@6.0.3))(expo-task-manager@56.0.16(expo@56.0.8)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))(expo@56.0.8)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)':
+    dependencies:
+      expo: 56.0.8(@babel/core@7.29.0)(@expo/dom-webview@56.0.5)(@expo/metro-runtime@56.0.11)(expo-router@56.2.8)(react-dom@19.2.3(react@19.2.3))(react-native-web@0.21.2(encoding@0.1.13)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-native-worklets@0.8.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)(typescript@6.0.3)
+      react: 19.2.3
+      react-native: 0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)
+    optionalDependencies:
+      expo-background-task: 56.0.16(expo@56.0.8)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))
+      expo-notifications: 56.0.15(expo@56.0.8)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)(typescript@6.0.3)
+      expo-task-manager: 56.0.16(expo@56.0.8)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))
 
   '@drakkar.software/starfish-client@3.0.0-alpha.21(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))':
     dependencies:

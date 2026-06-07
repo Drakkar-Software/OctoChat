@@ -109,7 +109,14 @@
         }
       ],
       "expo-sharing",
-      "expo-background-task"
+      "expo-background-task",
+      [
+        "@drakkar.software/expo-conductor",
+        {
+          "enableFcm": false,
+          "enableExactAlarms": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
