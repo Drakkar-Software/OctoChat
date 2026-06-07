@@ -12,7 +12,6 @@ import { useTheme } from '@/lib/use-theme';
 import { useViewMode } from '@/lib/view-mode';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
-import { WorkObjects } from '@/components/work/WorkObjects';
 
 import { AgentsPanel } from './AgentsPanel';
 import { ChannelListSkeleton } from './ChannelListSkeleton';
@@ -201,8 +200,6 @@ export function DesktopRoomSidebar({
             onOpenAutomations={onOpenAutomations}
             automationsActive={automationsActive}
           />
-        ) : mode === 'work' ? (
-          <WorkObjects spaceId={space?.id ?? null} />
         ) : (
           <>
             {!online ? (

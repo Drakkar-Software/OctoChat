@@ -79,25 +79,14 @@ export const roomsRegistryPush = (spaceId: string) => push(`spaces/${spaceId}/_r
 export const objIndexName = (spaceId: string) => `spaces/${spaceId}/objects/_index`;
 export const objIndexPull = (spaceId: string) => pull(objIndexName(spaceId));
 export const objIndexPush = (spaceId: string) => push(objIndexName(spaceId));
-export const objDocName = (spaceId: string, objectId: string) => `spaces/${spaceId}/objects/docs/${objectId}`;
-export const objDocPull = (spaceId: string, objectId: string) => pull(objDocName(spaceId, objectId));
-export const objDocPush = (spaceId: string, objectId: string) => push(objDocName(spaceId, objectId));
-export const objLogName = (spaceId: string, objectId: string) => `spaces/${spaceId}/objects/logs/${objectId}`;
-export const objLogPull = (spaceId: string, objectId: string) => pull(objLogName(spaceId, objectId));
-export const objLogPush = (spaceId: string, objectId: string) => push(objLogName(spaceId, objectId));
+// (Doc/project CONTENT paths — objDoc*/objLog* — moved to the OctoVault app along
+// with the Work features; the object INDEX below stays, backing the room tree.)
 
 // ── Unified Object index + content (public/plaintext) ─────────────────────────
 export const pubObjIndexName = (ownerId: string, spaceId: string) => `${pubspaceBase(ownerId, spaceId)}/objects/_index`;
 export const pubObjIndexPull = (ownerId: string, spaceId: string) => pull(pubObjIndexName(ownerId, spaceId));
 export const pubObjIndexPush = (ownerId: string, spaceId: string) => push(pubObjIndexName(ownerId, spaceId));
-export const pubObjDocName = (ownerId: string, spaceId: string, objectId: string) =>
-  `${pubspaceBase(ownerId, spaceId)}/objects/docs/${objectId}`;
-export const pubObjDocPull = (ownerId: string, spaceId: string, objectId: string) => pull(pubObjDocName(ownerId, spaceId, objectId));
-export const pubObjDocPush = (ownerId: string, spaceId: string, objectId: string) => push(pubObjDocName(ownerId, spaceId, objectId));
-export const pubObjLogName = (ownerId: string, spaceId: string, objectId: string) =>
-  `${pubspaceBase(ownerId, spaceId)}/objects/logs/${objectId}`;
-export const pubObjLogPull = (ownerId: string, spaceId: string, objectId: string) => pull(pubObjLogName(ownerId, spaceId, objectId));
-export const pubObjLogPush = (ownerId: string, spaceId: string, objectId: string) => push(pubObjLogName(ownerId, spaceId, objectId));
+// (Public doc/project content paths moved to the OctoVault app; pubObjIndex stays.)
 
 // ── Public spaces (plaintext; NOT encrypted) ──────────────────────────────────
 // A public space lives under the owner's `pubspaces/{ownerId}/{spaceId}/` subtree:

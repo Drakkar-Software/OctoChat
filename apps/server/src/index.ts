@@ -98,11 +98,8 @@ const queuing = createQueuingServerPlugin({
     // refresh on focus-pull. includeParams stays true so the per-space subject
     // octochat.object.changed.<spaceId> is derived; includeIdentity off (no push).
     objindex: { topic: "octochat.object.changed", includeParams: true, includeIdentity: false },
-    objdoc: { topic: "octochat.object.changed", includeParams: true, includeIdentity: false },
-    objlog: { topic: "octochat.object.changed", includeParams: true, includeIdentity: false },
     pubobjindex: { topic: "octochat.object.changed", includeParams: true, includeIdentity: false },
-    pubobjdoc: { topic: "octochat.object.changed", includeParams: true, includeIdentity: false },
-    pubobjlog: { topic: "octochat.object.changed", includeParams: true, includeIdentity: false },
+    // (objdoc/objlog + public mirrors moved to OctoVault; only the room-tree index remains.)
   },
 });
 

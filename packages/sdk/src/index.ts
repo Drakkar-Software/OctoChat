@@ -62,8 +62,6 @@ export * from './message-view';
 export * from './threads';
 export * from './cross-room';
 export * from './space-stats';
-export * from './project-board';
-export * from './doc-block';
 export * from './object-types';
 export * from './nostr';
 export * from './notification-format';
