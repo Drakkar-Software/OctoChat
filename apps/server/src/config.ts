@@ -139,32 +139,10 @@ export const config: SyncConfig = {
       maxBodyBytes: 262_144,
       allowedMimeTypes: JSON_ONLY,
     },
-    // Doc content (private/E2EE): one merge-doc per `doc` Object — block list, pulled
-    // /union-merged/pushed like `chat`. Distinct `objects/docs/` subtree (sibling of
-    // the `_index` leaf) keeps the file-vs-directory rule (see `attachments`). Room
-    // CONTENT stays in `chat`/`streamchat`; only docs/projects add new content here.
-    {
-      name: "objdoc",
-      storagePath: "spaces/{spaceId}/objects/docs/{objectId}",
-      readRoles: ["space:member"],
-      writeRoles: ["space:member"],
-      encryption: "delegated",
-      maxBodyBytes: 262_144,
-      allowedMimeTypes: JSON_ONLY,
-    },
-    // Project event log (private/E2EE): append-only `by_timestamp`, one log per
-    // `project` Object. Status changes + task create/update are appended events;
-    // board state is folded client-side. Same append model as `streamchat`.
-    {
-      name: "objlog",
-      storagePath: "spaces/{spaceId}/objects/logs/{objectId}",
-      readRoles: ["space:member"],
-      writeRoles: ["space:member"],
-      encryption: "delegated",
-      appendOnly: { type: "by_timestamp" },
-      maxBodyBytes: 262_144,
-      allowedMimeTypes: JSON_ONLY,
-    },
+    // NOTE: doc/project CONTENT collections (objdoc/objlog + their public mirrors)
+    // moved to the standalone OctoVault app, where they were rebuilt on WAL/CRDT
+    // (pagelog/boardlog). The object INDEX (objindex/pubobjindex above) stays — it
+    // backs OctoChat's room/category sidebar tree.
     // PUBLIC spaces: plaintext, cap-only spaces joined via a space-wide invitation
     // link. NOT end-to-end encrypted — the owner stores plaintext JSON here so a
     // link-bearer can read (or, with a read/write link, write) WITHOUT a keyring, a
@@ -212,27 +190,7 @@ export const config: SyncConfig = {
       maxBodyBytes: 262_144,
       allowedMimeTypes: JSON_ONLY,
     },
-    // Doc content (public/plaintext): mirror of `objdoc`.
-    {
-      name: "pubobjdoc",
-      storagePath: "pubspaces/{ownerId}/{spaceId}/objects/docs/{objectId}",
-      readRoles: ["pubspace:reader"],
-      writeRoles: ["pubspace:owner", "pubspace:writer"],
-      encryption: "none",
-      maxBodyBytes: 262_144,
-      allowedMimeTypes: JSON_ONLY,
-    },
-    // Project event log (public/plaintext): mirror of `objlog`.
-    {
-      name: "pubobjlog",
-      storagePath: "pubspaces/{ownerId}/{spaceId}/objects/logs/{objectId}",
-      readRoles: ["pubspace:reader"],
-      writeRoles: ["pubspace:owner", "pubspace:writer"],
-      encryption: "none",
-      appendOnly: { type: "by_timestamp" },
-      maxBodyBytes: 262_144,
-      allowedMimeTypes: JSON_ONLY,
-    },
+    // (pubobjdoc/pubobjlog moved to OctoVault — see the note above.)
     // PUBLIC-SPACE DIRECTORY: a server-maintained list document indexing every
     // public space, written ONLY by the `starfish-projection` plugin (see
     // projections.ts) — every `pubspace` `_rooms` write folds the space's

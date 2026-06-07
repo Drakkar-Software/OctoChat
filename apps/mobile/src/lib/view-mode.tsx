@@ -4,7 +4,6 @@
  *
  *  - `chat`   — rooms, threads & pins (the original, only sidebar before this).
  *  - `agents` — the space's automations (the `kind: 'automated'` rooms).
- *  - `work`   — docs / projects / knowledge (placeholder surface for now).
  *
  * The choice is a single global UI preference (not per-space): it persists
  * through the cross-platform `kv` layer (localStorage on web, AsyncStorage on
@@ -17,20 +16,20 @@ import type { IconName } from '@/components/ui/Icon';
 
 import { kvGet, kvSet } from './starfish/kv';
 
-export type ViewMode = 'chat' | 'agents' | 'work';
+export type ViewMode = 'chat' | 'agents';
 
 /** Switcher metadata, in display order. The first is the default. */
 export const VIEW_MODES: { key: ViewMode; label: string; iconName: IconName }[] = [
   { key: 'chat', label: 'Chat', iconName: 'chat' },
-  { key: 'work', label: 'Work', iconName: 'work' },
   { key: 'agents', label: 'Agents', iconName: 'agents' },
 ];
 
 const STORAGE_KEY = 'octochat.view-mode.v1';
-const isViewMode = (v: unknown): v is ViewMode => v === 'chat' || v === 'agents' || v === 'work';
-// 'docs' / 'projects' were briefly split out of 'work'; fold old saves back to 'work'.
+const isViewMode = (v: unknown): v is ViewMode => v === 'chat' || v === 'agents';
+// 'work' (now the separate OctoVault app) and its old 'docs' / 'projects' splits
+// fold back to 'chat'.
 const normalize = (v: unknown): ViewMode | null =>
-  v === 'docs' || v === 'projects' ? 'work' : isViewMode(v) ? v : null;
+  v === 'docs' || v === 'projects' || v === 'work' ? 'chat' : isViewMode(v) ? v : null;
 
 interface ViewModeContextValue {
   mode: ViewMode;
