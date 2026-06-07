@@ -37,6 +37,16 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       filePath: path.resolve(projectRoot, 'src/lib/starfish/hash-wasm-shim.ts'),
     };
   }
+  // Bundle the workspace SDK from SOURCE so the app never depends on a prebuilt
+  // `packages/sdk/dist` (gitignored — absent in a fresh CI checkout). Metro
+  // already watches the workspace root and transpiles TS, so source resolves
+  // directly. The published npm package still ships `dist` via its `exports`.
+  if (moduleName === '@drakkar.software/octochat-sdk') {
+    return {
+      type: 'sourceFile',
+      filePath: path.resolve(workspaceRoot, 'packages/sdk/src/index.ts'),
+    };
+  }
   return (defaultResolveRequest ?? context.resolveRequest)(context, moduleName, platform);
 };
 

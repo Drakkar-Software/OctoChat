@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { dispatchRoomChange } from '../room-events-bus';
 import { useRoomsRegistryActions } from '../rooms-registry-context';
 import { useSpacesContext } from '../spaces-context';
-import type { Session } from '../starfish/identity';
+import type { Session } from '@drakkar.software/octochat-sdk';
 import {
   ensurePushPermission,
   onForegroundPush,

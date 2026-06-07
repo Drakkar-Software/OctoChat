@@ -3,14 +3,14 @@ import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import { radii, spacing } from '@/theme';
-import { createAutomatedRoom } from '@/lib/automations/orchestrator';
-import { getProvider, PROVIDERS } from '@/lib/automations/providers';
-import type { AutomationProvider } from '@/lib/automations/types';
-import type { Session } from '@/lib/starfish/identity';
+import { createAutomatedRoom } from '@drakkar.software/octochat-sdk';
+import { getProvider, PROVIDERS } from '@drakkar.software/octochat-sdk';
+import type { AutomationProvider } from '@drakkar.software/octochat-sdk';
+import type { Session } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
-import { Icon } from '@/components/ui/Icon';
+import { Icon, type IconName } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { IntervalPicker, type Cadence } from '@/components/chat/IntervalPicker';
 import { TextField } from '@/components/ui/TextField';
@@ -128,7 +128,7 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
                       },
                     ]}
                   >
-                    <Icon name={p.iconName} size={18} color={colors.inkSoft} />
+                    <Icon name={p.iconName as IconName} size={18} color={colors.inkSoft} />
                     <View style={styles.providerText}>
                       <Txt variant="footnote" weight="semibold">
                         {p.name}

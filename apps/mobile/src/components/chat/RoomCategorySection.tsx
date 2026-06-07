@@ -2,8 +2,8 @@ import { Fragment, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
-import type { Room, RoomKind } from '@/lib/types';
-import type { ThreadSummary } from '@/lib/threads';
+import type { Room, RoomKind } from '@drakkar.software/octochat-sdk';
+import type { ThreadSummary } from '@drakkar.software/octochat-sdk';
 import type { RoomCategory } from '@/lib/use-rooms';
 import { useRoomDropZone } from '@/lib/use-room-dnd';
 import { useTheme } from '@/lib/use-theme';

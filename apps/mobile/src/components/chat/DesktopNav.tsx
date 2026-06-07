@@ -2,7 +2,7 @@ import { useGlobalSearchParams, usePathname, useRouter } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { layout } from '@/theme';
-import type { Room } from '@/lib/types';
+import type { Room } from '@drakkar.software/octochat-sdk';
 import { DM_HOME_ID, isDmHomeId } from '@/lib/dm-home';
 import { useProfile } from '@/lib/profile-context';
 import { useRoomSidebarVisible } from '@/lib/use-responsive';

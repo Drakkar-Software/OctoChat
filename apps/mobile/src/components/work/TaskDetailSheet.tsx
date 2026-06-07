@@ -1,7 +1,7 @@
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { layout, radii, spacing } from '@/theme';
-import type { BoardTask } from '@/lib/project-board';
+import type { BoardTask } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
 import { AutosaveField } from '@/components/ui/AutosaveField';
 import { Icon } from '@/components/ui/Icon';

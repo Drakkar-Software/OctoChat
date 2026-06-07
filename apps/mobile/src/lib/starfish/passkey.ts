@@ -11,8 +11,8 @@
  * which is correct for `localhost` dev and single-domain deploys. Only set it
  * explicitly when serving the app across subdomains.
  */
-import { bytesToHex } from './paths';
-import type { PasskeyEnrollment } from './storage-types';
+import { bytesToHex } from '@drakkar.software/octochat-sdk';
+import type { PasskeyEnrollment } from '@drakkar.software/octochat-sdk';
 
 const RP_NAME = 'OctoChat';
 const PRF_SECRET_LEN = 32;

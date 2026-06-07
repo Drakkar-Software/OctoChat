@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 import { LegendList } from '@legendapp/list/react-native';
 
 import { spacing } from '@/theme';
-import type { CrossRoomThread } from '@/lib/cross-room';
+import type { CrossRoomThread } from '@drakkar.software/octochat-sdk';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { MessageListSkeleton } from '@/components/chat/MessageListSkeleton';
 import { ThreadResult } from '@/components/chat/ThreadResult';

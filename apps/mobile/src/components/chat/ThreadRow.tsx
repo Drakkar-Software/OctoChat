@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet } from 'react-native';
 
 import { radii, spacing } from '@/theme';
-import type { ThreadSummary } from '@/lib/threads';
+import type { ThreadSummary } from '@drakkar.software/octochat-sdk';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { Badge } from '@/components/ui/Badge';

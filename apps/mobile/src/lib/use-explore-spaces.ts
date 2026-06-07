@@ -8,8 +8,8 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { loadPublicSpaceIndex, type PublicSpaceEntry } from './explore-spaces';
-import { readProfiles } from './starfish/client';
+import { loadPublicSpaceIndex, type PublicSpaceEntry } from '@drakkar.software/octochat-sdk';
+import { readProfiles } from '@drakkar.software/octochat-sdk';
 
 export interface ExploreSpacesState {
   /** Listed public spaces, newest write first. */

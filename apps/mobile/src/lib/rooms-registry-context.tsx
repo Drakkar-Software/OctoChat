@@ -31,20 +31,20 @@ import {
   type ReactNode,
 } from 'react';
 
-import type { AutomationMeta, Room } from '@/lib/types';
+import type { AutomationMeta, Room } from '@drakkar.software/octochat-sdk';
 
 import { kvGet, kvSet } from './starfish/kv';
-import { readRooms, reconcileSpaceMeta } from './starfish/registry';
-import { getSpaceEncryptor } from './starfish/space-encryptor';
-import { readIndexRooms } from './starfish/object-index';
-import { objIndexPull, pubObjIndexPull } from './starfish/paths';
+import { readRooms, reconcileSpaceMeta } from '@drakkar.software/octochat-sdk';
+import { getSpaceEncryptor } from '@drakkar.software/octochat-sdk';
+import { readIndexRooms } from '@drakkar.software/octochat-sdk';
+import { objIndexPull, pubObjIndexPull } from '@drakkar.software/octochat-sdk';
 import {
   isPublicSpaceId,
   publicSpaceAuth,
   publicSpaceClient,
   readPublicRoomsDoc,
-} from './starfish/pubspace';
-import type { Session } from './starfish/identity';
+} from '@drakkar.software/octochat-sdk';
+import type { Session } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useSpacesContext } from './spaces-context';
 

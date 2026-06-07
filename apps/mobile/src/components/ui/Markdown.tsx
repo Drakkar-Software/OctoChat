@@ -2,8 +2,8 @@ import { StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
 import { openUrl } from '@/lib/links';
-import { parseInline, parseMarkdown, type InlineToken } from '@/lib/markdown';
-import type { Room } from '@/lib/types';
+import { parseInline, parseMarkdown, type InlineToken } from '@drakkar.software/octochat-sdk';
+import type { Room } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
 
 import { CodeBlock } from './CodeBlock';

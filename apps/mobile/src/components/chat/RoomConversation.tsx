@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 import { LegendList, type LegendListRef } from '@legendapp/list/react-native';
 
-import { authorFor, dayLabel, isContinuation, mergePendingMessages, resolvePinned, sameDay, toDisplayMessage } from '@/lib/message-view';
+import { authorFor, dayLabel, isContinuation, mergePendingMessages, resolvePinned, sameDay, toDisplayMessage } from '@drakkar.software/octochat-sdk';
 import type { OutboxMessage } from '@/lib/outbox';
-import { replyCounts } from '@/lib/reactions';
-import type { AttachmentRef } from '@/lib/starfish/attachments';
+import { replyCounts } from '@drakkar.software/octochat-sdk';
+import type { AttachmentRef } from '@drakkar.software/octochat-sdk';
 import { useConversationData, type ConversationStore } from '@/lib/use-conversation-data';
 
 import { DateDivider, UnreadDivider } from './Dividers';

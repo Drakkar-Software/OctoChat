@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import { plural } from '@/lib/format';
+import { plural } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';

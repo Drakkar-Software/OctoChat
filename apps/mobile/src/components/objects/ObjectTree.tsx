@@ -4,10 +4,10 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { layout, radii, spacing } from '@/theme';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
-import { iconForNode } from '@/lib/object-types';
-import type { ObjectTreeNode } from '@/lib/starfish/objects';
-import type { ID } from '@/lib/types';
-import { Icon } from '@/components/ui/Icon';
+import { iconForNode } from '@drakkar.software/octochat-sdk';
+import type { ObjectTreeNode } from '@drakkar.software/octochat-sdk';
+import type { ID } from '@drakkar.software/octochat-sdk';
+import { Icon, type IconName } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 
 interface ObjectTreeProps {
@@ -78,7 +78,7 @@ function ObjectTreeRow({ node, onOpen, collapsed, onToggle }: { node: ObjectTree
           </Txt>
         ) : (
           <View style={styles.leafIcon}>
-            <Icon name={iconForNode(node)} size={13} color={colors.inkMuted} />
+            <Icon name={iconForNode(node) as IconName} size={13} color={colors.inkMuted} />
           </View>
         )}
         <Txt

@@ -3,9 +3,9 @@ import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, useWindowDim
 import { getBase64 } from '@drakkar.software/starfish-protocol';
 
 import { radii, spacing } from '@/theme';
-import { formatBytes } from '@/lib/format';
+import { formatBytes } from '@drakkar.software/octochat-sdk';
 import { saveAttachment } from '@/lib/save-attachment';
-import type { AttachmentRef } from '@/lib/starfish/attachments';
+import type { AttachmentRef } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
 import { Lightbox } from '@/components/ui/Lightbox';

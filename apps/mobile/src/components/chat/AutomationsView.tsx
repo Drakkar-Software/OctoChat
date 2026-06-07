@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { getProvider } from '@/lib/automations/providers';
+import { getProvider } from '@drakkar.software/octochat-sdk';
 import { useRoomsRegistryActions } from '@/lib/rooms-registry-context';
 import { useRooms } from '@/lib/use-rooms';
 import { useSession } from '@/lib/session-context';
@@ -17,6 +17,7 @@ import { StackScreen } from '@/components/ui/StackScreen';
 import { Txt } from '@/components/ui/Txt';
 import { AutomatedRoomCreator } from '@/components/chat/AutomatedRoomCreator';
 import { ListRow } from '@/components/chat/ListRow';
+import type { IconName } from '@/components/ui/Icon';
 
 interface AutomationsViewProps {
   /** Space whose automations are listed; `null` while none is active. */
@@ -88,7 +89,7 @@ export function AutomationsView({ spaceId, header, inTabs = false }: Automations
             return (
               <View key={r.id} style={styles.item}>
                 <ListRow
-                  iconName={provider?.iconName ?? 'zap'}
+                  iconName={(provider?.iconName ?? 'zap') as IconName}
                   label={r.name}
                   onPress={() =>
                     router.push({ pathname: '/room/[id]', params: { id: r.id, name: r.name, kind: 'automated' } })

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import type { Space } from '@/lib/types';
+import type { Space } from '@drakkar.software/octochat-sdk';
 import { DM_HOME_NAME } from '@/lib/dm-home';
 import { useTheme } from '@/lib/use-theme';
 import { EmptyState } from '@/components/ui/EmptyState';

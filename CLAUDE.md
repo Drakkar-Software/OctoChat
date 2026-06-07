@@ -11,6 +11,16 @@ encryption (BIP-39 seed → Ed25519/Kyber keys → per-room keyrings).
 
 - `apps/mobile` — the Expo (SDK 56) app, package `@octochat/mobile`. Runs on
   iOS, Android and web from one codebase.
+- `packages/sdk` — `@drakkar.software/octochat-sdk`, the **headless, publishable
+  OctoChat core**: all chat-domain logic with no UI / no platform lock-in —
+  identity & encrypted Starfish sync, the spaces/rooms registry & object tree,
+  members/DMs/public spaces, attachments, messages/reactions/threads, reads/mutes
+  & notification formatting, automations core, and the domain types/formatters.
+  The app consumes it via `workspace:*` and injects platform via `configureOctoChat()`
+  + `configureKv()` (see `apps/mobile/src/lib/octochat-init.ts`). What stays in the
+  app is only React (contexts + `use-*` hooks) and platform-branched modules
+  (`kv`/`storage`/`platform`/`passkey` under `src/lib/starfish`, plus
+  `connectivity`/`app-lock`/`notify`/`push`/…).
 - `packages/tsconfig` — shared base TypeScript config, package
   `@octochat/tsconfig`, consumed via `workspace:*`.
 
@@ -18,7 +28,7 @@ pnpm workspace. `pnpm-workspace.yaml` sets `nodeLinker: hoisted` because React
 Native / Metro resolve dependencies best with a flat `node_modules`
 (see https://docs.expo.dev/guides/monorepos/). The
 `@drakkar.software/starfish-*` SDK is consumed as pinned npm deps
-(`3.0.0-alpha.19`). `apps/mobile/metro.config.js` extends the SDK 56 default to
+(`3.0.0-alpha.21`). `apps/mobile/metro.config.js` extends the SDK 56 default to
 watch the workspace root, enable package `exports`, and block the Node-only
 `apps/server` from the app bundle.
 

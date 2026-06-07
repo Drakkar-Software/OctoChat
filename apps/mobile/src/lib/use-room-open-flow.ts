@@ -15,10 +15,10 @@
 import { useEffect, useState } from 'react';
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
-import { ensureRoomInitialized, makeClient } from './starfish/client';
-import { getMemberCap } from './starfish/member-caps';
-import { getSpaceEncryptor } from './starfish/space-encryptor';
-import { publicSpaceAuth } from './starfish/pubspace';
+import { ensureRoomInitialized, makeClient } from '@drakkar.software/octochat-sdk';
+import { getMemberCap } from '@drakkar.software/octochat-sdk';
+import { getSpaceEncryptor } from '@drakkar.software/octochat-sdk';
+import { publicSpaceAuth } from '@drakkar.software/octochat-sdk';
 import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
 import { useRoomOpenState } from './use-room-open';

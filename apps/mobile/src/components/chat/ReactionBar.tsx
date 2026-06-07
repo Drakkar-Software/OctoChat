@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { paperBorder, radii, shadows } from '@/theme';
-import type { Reaction } from '@/lib/types';
-import { plural } from '@/lib/format';
+import type { Reaction } from '@drakkar.software/octochat-sdk';
+import { plural } from '@drakkar.software/octochat-sdk';
 import { tapFeedback } from '@/lib/haptics';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';

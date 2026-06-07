@@ -3,27 +3,27 @@ import { createUnionMerge } from '@drakkar.software/starfish-client';
 import { useSyncInit } from '@drakkar.software/starfish-client/zustand';
 
 import { SYNC_BASE, SYNC_NAMESPACE } from './starfish/config';
-import { capProviderFor } from './starfish/client';
-import { fetchWithTimeout } from './starfish/fetch-timeout';
+import { capProviderFor } from '@drakkar.software/octochat-sdk';
+import { fetchWithTimeout } from '@drakkar.software/octochat-sdk';
 import { reportReachability } from './connectivity';
 import {
   loadAttachment as loadAttachmentDoc,
   uploadAttachment as uploadAttachmentDoc,
   type AttachmentRef,
   type ByteSealer,
-} from './starfish/attachments';
-import { getMemberCap } from './starfish/member-caps';
-import { pullCache, PULL_CACHE_MAX_AGE_MS } from './starfish/pull-cache';
-import { isPublicSpaceId, publicSpaceAuth } from './starfish/pubspace';
-import { pubspaceRoomPull, pubspaceRoomPush, roomPull, roomPush, spaceIdFromRoomId } from './starfish/paths';
-import { messageDeleteEvent, messageEditEvent, pinToggleEvent, reactionToggleEvent } from './reactions';
-import type { MessageEditEvent, PinEvent, ReactionEvent } from './types';
+} from '@drakkar.software/octochat-sdk';
+import { getMemberCap } from '@drakkar.software/octochat-sdk';
+import { pullCache, PULL_CACHE_MAX_AGE_MS } from '@drakkar.software/octochat-sdk';
+import { isPublicSpaceId, publicSpaceAuth } from '@drakkar.software/octochat-sdk';
+import { pubspaceRoomPull, pubspaceRoomPush, roomPull, roomPush, spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
+import { messageDeleteEvent, messageEditEvent, pinToggleEvent, reactionToggleEvent } from '@drakkar.software/octochat-sdk';
+import type { MessageEditEvent, PinEvent, ReactionEvent } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { makeEmptyConversationStore, type ConversationStore } from './use-conversation-data';
 import { useRoomOpen } from './use-room-open-flow';
 import { useRoomLiveSync } from './use-room-live-sync';
 import type { RoomHook } from './use-room-types';
-import { randomId } from './ids';
+import { randomId } from '@drakkar.software/octochat-sdk';
 
 /**
  * Opens a room and builds a synced Zustand store. Two modes by the room's space:

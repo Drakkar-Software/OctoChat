@@ -1,8 +1,8 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
-import { authorFor, hhmm, type StoredMsg } from '@/lib/message-view';
-import type { Room } from '@/lib/types';
+import { authorFor, hhmm, type StoredMsg } from '@drakkar.software/octochat-sdk';
+import type { Room } from '@drakkar.software/octochat-sdk';
 import { useHover } from '@/lib/use-hover';
 import { useAvatars, usePseudos } from '@/lib/use-pseudos';
 import { useTheme } from '@/lib/use-theme';

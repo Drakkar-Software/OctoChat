@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { blockMarkdown, joinBlocks, mergeDocEdit, type DocBlock } from './doc-block';
+import { blockMarkdown, joinBlocks, mergeDocEdit, type DocBlock } from '@drakkar.software/octochat-sdk';
 
 /** Build a DocBlock with the structural fields filled in; the projection only
  *  reads `type`/`text`/`items`. */

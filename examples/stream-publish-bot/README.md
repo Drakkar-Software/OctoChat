@@ -116,10 +116,10 @@ and the line shows up in the stream room in the app.
 
 - **TypeScript** — typechecked (`tsc --noEmit`) against `@drakkar.software/starfish-*`
   3.0.0-alpha.7 at the time of writing; its append wire format mirrors the app's working
-  code. Pins now target 3.0.0-alpha.19 (re-typecheck after bumping).
+  code. Pins now target 3.0.0-alpha.21 (re-typecheck after bumping).
 - **Python** — syntax-checked (`py_compile`); its API surface was a line-for-line port of
   the `starfish-identities` / `starfish-sharing` 3.0.0a7 source. Install editable from a
-  3.0.0-alpha.19 Starfish checkout (see above) and re-verify against that surface.
+  3.0.0-alpha.21 Starfish checkout (see above) and re-verify against that surface.
 
 Neither half has been run against a live server here — that needs the sync server
 running and a bot token minted from the app (above). The credential plumbing is the

@@ -1,8 +1,8 @@
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { layout, radii, spacing } from '@/theme';
-import type { Room, RoomKind, Space } from '@/lib/types';
-import type { ThreadSummary } from '@/lib/threads';
+import type { Room, RoomKind, Space } from '@drakkar.software/octochat-sdk';
+import type { ThreadSummary } from '@drakkar.software/octochat-sdk';
 import { excludeAutomatedRooms, type RoomCategory } from '@/lib/use-rooms';
 import { useOnline } from '@/lib/connectivity';
 import { DM_HOME_NAME } from '@/lib/dm-home';

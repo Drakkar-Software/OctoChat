@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
-import type { EmojiMatch } from '@/lib/emoji';
+import type { EmojiMatch } from '@drakkar.software/octochat-sdk';
 import { tapFeedback } from '@/lib/haptics';
 import { useTheme } from '@/lib/use-theme';
 import { Txt } from '@/components/ui/Txt';

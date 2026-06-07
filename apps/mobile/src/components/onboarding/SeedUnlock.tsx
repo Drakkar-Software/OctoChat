@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { motion, spacing } from '@/theme';
-import type { UnlockMethod } from '@/lib/starfish/storage-types';
+import type { UnlockMethod } from '@drakkar.software/octochat-sdk';
 import { randomFact } from '@/lib/octochat-facts';
 import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';

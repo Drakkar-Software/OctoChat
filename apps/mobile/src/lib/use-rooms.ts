@@ -1,8 +1,8 @@
 import { useCallback, useMemo } from 'react';
 
-import type { ObjectNode, Room, RoomKind } from '@/lib/types';
+import type { ObjectNode, Room, RoomKind } from '@drakkar.software/octochat-sdk';
 
-import { CategoryError } from './starfish/registry';
+import { CategoryError } from '@drakkar.software/octochat-sdk';
 import {
   addObject,
   categoryId,
@@ -11,9 +11,9 @@ import {
   patchObject,
   reparentObject,
   roomKindToSubtype,
-} from './starfish/objects';
-import { isPublicSpaceId } from './starfish/pubspace';
-import { roomSlug } from './ids';
+} from '@drakkar.software/octochat-sdk';
+import { isPublicSpaceId } from '@drakkar.software/octochat-sdk';
+import { roomSlug } from '@drakkar.software/octochat-sdk';
 import { useObjects } from './use-objects';
 import { useRoomsRegistry, useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';

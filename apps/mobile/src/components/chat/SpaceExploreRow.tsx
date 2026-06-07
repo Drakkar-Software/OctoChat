@@ -1,8 +1,8 @@
 import { StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
-import { plural } from '@/lib/format';
-import type { PublicSpaceEntry } from '@/lib/explore-spaces';
+import { plural } from '@drakkar.software/octochat-sdk';
+import type { PublicSpaceEntry } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';

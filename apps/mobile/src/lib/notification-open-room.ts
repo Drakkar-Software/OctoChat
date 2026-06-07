@@ -16,7 +16,7 @@
 import { router } from 'expo-router';
 
 import type { RoomsRegistryEntry } from './rooms-registry-context';
-import { spaceIdFromRoomId } from './starfish/paths';
+import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 
 export interface OpenRoomFromNotificationDeps {
   /** Read a space's rooms registry (shared cache); see RoomsRegistryActions.ensure. */

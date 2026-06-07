@@ -26,21 +26,21 @@ import {
   type ReactNode,
 } from 'react';
 
-import { subscribeRoomChanges } from './events';
+import { subscribeRoomChanges } from '@drakkar.software/octochat-sdk';
 import { setDesktopBadge } from './desktop';
 import { setTabTitleBadge } from './tab-title';
 import { ensureNotifyPermission, notifyRoomChange } from './notify';
-import { isMuted } from './mutes';
+import { isMuted } from '@drakkar.software/octochat-sdk';
 import { useMutes } from './mutes-context';
-import { getReadPrefs, loadReadMarksFromKv, setRoomReadAt, subscribeReads } from './reads';
+import { getReadPrefs, loadReadMarksFromKv, setRoomReadAt, subscribeReads } from '@drakkar.software/octochat-sdk';
 import { useNotificationSettings } from './notification-settings-context';
 import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
 import { useSpacesContext } from './spaces-context';
 import { kvGet, kvSet } from './starfish/kv';
-import { isDmInboxRoomId } from './starfish/dm-inbox';
-import { spaceIdFromRoomId } from './starfish/paths';
-import { buildAuthHeaders } from './starfish/client';
+import { isDmInboxRoomId } from '@drakkar.software/octochat-sdk';
+import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
+import { buildAuthHeaders } from '@drakkar.software/octochat-sdk';
 import { dispatchRoomChange, emitSseStatus } from './room-events-bus';
 import { usePush } from './push/use-push';
 

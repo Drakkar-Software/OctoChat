@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { pickAndProcessAvatar } from './avatar-image';
-import { inviteToSpace } from './starfish/members';
-import { removeMemberCap } from './starfish/member-caps';
+import { inviteToSpace } from '@drakkar.software/octochat-sdk';
+import { removeMemberCap } from '@drakkar.software/octochat-sdk';
 import {
   createPublicInvite,
   isPublicSpaceId,
@@ -10,9 +10,9 @@ import {
   publicSpaceClient,
   readPublicRoomsDoc,
   updatePublicSpaceMeta,
-} from './starfish/pubspace';
-import { removePubspaceAccess } from './starfish/pubspace-caps';
-import { broadcastSpaceMeta, readRooms, readSpaces, updateSpacesDoc, writeRooms, writeSpaces } from './starfish/registry';
+} from '@drakkar.software/octochat-sdk';
+import { removePubspaceAccess } from '@drakkar.software/octochat-sdk';
+import { broadcastSpaceMeta, readRooms, readSpaces, updateSpacesDoc, writeRooms, writeSpaces } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 
 /**

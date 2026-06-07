@@ -1,8 +1,8 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
-import { groupBodyTokens, parseMessageBody } from '@/lib/message-format';
-import type { Room } from '@/lib/types';
+import { groupBodyTokens, parseMessageBody } from '@drakkar.software/octochat-sdk';
+import type { Room } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
 
 import { CopyButton } from '@/components/ui/CopyButton';

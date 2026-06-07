@@ -11,6 +11,10 @@
  * house style, alpha variants are pre-derived into named tokens (accentBg,
  * accentBorder, surface, rule…) rather than mixed at call sites.
  */
+// Presentation enums whose canonical home is the headless SDK domain model; imported
+// here so the theme's color helpers stay the single mapping to palette tokens.
+import type { PresenceStatus, VerificationLevel } from '@drakkar.software/octochat-sdk';
+export type { PresenceStatus, VerificationLevel };
 
 export type ColorScheme = 'light' | 'dark';
 
@@ -430,7 +434,6 @@ export const layout = {
 // Map domain state → token, so screens stay declarative. Each takes the active
 // Palette (from useTheme) since OctoChat is light/dark aware.
 
-export type PresenceStatus = 'online' | 'away' | 'dnd' | 'offline';
 
 export function presenceColor(p: Palette, status: PresenceStatus): string {
   switch (status) {
@@ -445,7 +448,6 @@ export function presenceColor(p: Palette, status: PresenceStatus): string {
   }
 }
 
-export type VerificationLevel = 'verified' | 'pending' | 'unverified';
 
 export function verificationColor(p: Palette, level: VerificationLevel): string {
   switch (level) {

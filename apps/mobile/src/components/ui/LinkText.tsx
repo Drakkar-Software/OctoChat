@@ -1,7 +1,7 @@
 import { Platform, StyleSheet } from 'react-native';
 
 import { linkify, matchesUser, openRoom, openUrl } from '@/lib/links';
-import type { Room } from '@/lib/types';
+import type { Room } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
 
 import { Txt, type TxtProps } from './Txt';

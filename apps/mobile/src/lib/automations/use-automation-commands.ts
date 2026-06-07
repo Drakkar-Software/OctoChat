@@ -13,12 +13,12 @@
 import { useEffect, useRef } from 'react';
 
 import type { ConversationStore } from '../use-conversation-data';
-import type { Session } from '../starfish/identity';
-import type { Room } from '../types';
-import type { StoredMsg } from '../message-view';
+import type { Session } from '@drakkar.software/octochat-sdk';
+import type { Room } from '@drakkar.software/octochat-sdk';
+import type { StoredMsg } from '@drakkar.software/octochat-sdk';
 
-import { runAutomationTick } from './orchestrator';
-import { getProvider } from './providers';
+import { runAutomationTick } from '@drakkar.software/octochat-sdk';
+import { getProvider } from '@drakkar.software/octochat-sdk';
 
 interface StreamData {
   messages: StoredMsg[];

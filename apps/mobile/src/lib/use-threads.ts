@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 
-import { loadAllThreads, type CrossRoomThread } from './cross-room';
+import { loadAllThreads, type CrossRoomThread } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useUnread } from './unread-context';
 

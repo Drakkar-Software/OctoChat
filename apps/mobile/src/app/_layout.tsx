@@ -6,6 +6,7 @@ import 'react-native-gesture-handler';
 import '@/lib/automations/background-task';
 
 import { configureStarfishPlatform } from '@/lib/starfish/platform';
+import { initOctoChat } from '@/lib/octochat-init';
 import { registerServiceWorker } from '@/lib/pwa';
 import { ensureNotificationChannel, registerBackgroundPushHandler } from '@/lib/push/fcm';
 import { MutesProvider } from '@/lib/mutes-context';
@@ -36,6 +37,9 @@ import { AppFrame } from '@/components/ui/AppFrame';
 
 // Install platform crypto (no-op on web; quick-crypto install() on native).
 configureStarfishPlatform();
+
+// Wire the headless octochat-sdk to this app's config + kv store (before any SDK API).
+initOctoChat();
 
 // Register the PWA service worker (web production only; no-op elsewhere).
 registerServiceWorker();

@@ -4,7 +4,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { LegendList } from '@legendapp/list/react-native';
 
 import { spacing } from '@/theme';
-import type { CrossRoomMessage } from '@/lib/cross-room';
+import type { CrossRoomMessage } from '@drakkar.software/octochat-sdk';
 import { useSession } from '@/lib/session-context';
 import { useSearch } from '@/lib/use-search';
 import { useSpaces } from '@/lib/use-spaces';

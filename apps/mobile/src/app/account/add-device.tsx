@@ -4,7 +4,7 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { copyText } from '@/lib/clipboard';
-import { startDevicePairing } from '@/lib/starfish/pairing';
+import { startDevicePairing } from '@drakkar.software/octochat-sdk';
 import { useSession } from '@/lib/session-context';
 import { successFeedback } from '@/lib/haptics';
 import { AppBar } from '@/components/ui/AppBar';

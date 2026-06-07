@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { isValidSeed } from '@/lib/starfish/identity';
+import { isValidSeed } from '@drakkar.software/octochat-sdk';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { TextField } from '@/components/ui/TextField';

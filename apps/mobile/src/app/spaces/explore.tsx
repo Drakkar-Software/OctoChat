@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { plural } from '@/lib/format';
+import { plural } from '@drakkar.software/octochat-sdk';
 import { useExploreSpaces } from '@/lib/use-explore-spaces';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';

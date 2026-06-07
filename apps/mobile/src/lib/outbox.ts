@@ -23,26 +23,10 @@ import { useEffect, useMemo } from 'react';
 import { createStore, useStore } from 'zustand';
 
 import { kvGet, kvSet } from './starfish/kv';
-import type { RoomKind } from './types';
-
-export type OutboxStatus = 'queued' | 'sending' | 'failed';
-
-/** One unsent message held in the outbox. `text`-only — attachments require a
- *  connection (their bytes are not persisted here). */
-export interface OutboxMessage {
-  id: string;
-  roomId: string;
-  spaceId: string;
-  kind: RoomKind;
-  authorId: string;
-  text: string;
-  /** Set when this is a thread reply — keys the entry to (roomId, parentId). */
-  parentId?: string;
-  ts: number;
-  status: OutboxStatus;
-  /** Failed send attempts so far (for backoff / display). */
-  attempts: number;
-}
+// The message shape lives in the headless SDK (shared with the send path + the
+// render-time merge); the store (a UI-framework concern) stays here.
+import type { OutboxMessage } from '@drakkar.software/octochat-sdk';
+export type { OutboxMessage, OutboxStatus } from '@drakkar.software/octochat-sdk';
 
 const key = (userId: string) => `octochat.outbox.v1.${userId}`;
 

@@ -1,4 +1,4 @@
-import type { Room } from '@/lib/types';
+import type { Room } from '@drakkar.software/octochat-sdk';
 import { useDraggableRoom } from '@/lib/use-room-dnd';
 
 import { ChannelRow } from './ChannelRow';

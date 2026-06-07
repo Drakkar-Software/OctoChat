@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 
-import type { Room } from '@/lib/types';
-import type { ThreadSummary } from '@/lib/threads';
+import type { Room } from '@drakkar.software/octochat-sdk';
+import type { ThreadSummary } from '@drakkar.software/octochat-sdk';
 import type { DmEntry } from '@/lib/use-dms';
 import { EmptyState } from '@/components/ui/EmptyState';
 

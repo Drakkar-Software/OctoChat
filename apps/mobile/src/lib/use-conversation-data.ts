@@ -2,8 +2,8 @@ import { createStore } from 'zustand';
 import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 
 import { matchesUser } from './links';
-import { displayName, type StoredMsg } from './message-view';
-import type { MessageEditEvent, PinEvent, ReactionEvent } from './types';
+import { displayName, type StoredMsg } from '@drakkar.software/octochat-sdk';
+import type { MessageEditEvent, PinEvent, ReactionEvent } from '@drakkar.software/octochat-sdk';
 import { useAvatars, usePseudos } from './use-pseudos';
 import { useRoomMentions } from './use-room-mentions';
 

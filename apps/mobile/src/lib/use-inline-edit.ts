@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 
-import type { ID } from './types';
+import type { ID } from '@drakkar.software/octochat-sdk';
 
 /** Single-cell "which row is being edited" state, lifted out of components so a
  *  tap-to-edit surface (doc blocks, project card/column titles) holds no editing

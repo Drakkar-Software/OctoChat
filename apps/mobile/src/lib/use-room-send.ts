@@ -15,11 +15,11 @@
 import { useCallback } from 'react';
 
 import { useOnline } from './connectivity';
-import { randomId } from './ids';
+import { randomId } from '@drakkar.software/octochat-sdk';
 import { useOutbox } from './outbox';
 import { useSession } from './session-context';
-import { spaceIdFromRoomId } from './starfish/paths';
-import type { RoomKind } from './types';
+import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
+import type { RoomKind } from '@drakkar.software/octochat-sdk';
 
 /** A room/thread `send` — matches both `useRoom` and `useStreamRoom` (the optional
  *  `id` lets a queued message reuse its pending-bubble id). `useRoom.send` returns a

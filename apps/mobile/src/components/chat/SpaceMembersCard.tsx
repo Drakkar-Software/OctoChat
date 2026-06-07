@@ -2,7 +2,7 @@ import { Fragment } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { authorFor } from '@/lib/message-view';
+import { authorFor } from '@drakkar.software/octochat-sdk';
 import { useAvatars, usePseudos } from '@/lib/use-pseudos';
 import { Avatar } from '@/components/ui/Avatar';
 import { Card } from '@/components/ui/Card';

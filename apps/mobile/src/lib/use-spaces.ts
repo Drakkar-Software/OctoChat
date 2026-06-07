@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import type { Space } from '@/lib/types';
+import type { Space } from '@drakkar.software/octochat-sdk';
 
 import { useSpacesContext } from './spaces-context';
 import { useUnread } from './unread-context';

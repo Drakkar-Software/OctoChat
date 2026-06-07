@@ -8,7 +8,7 @@ import { useSession } from '@/lib/session-context';
 import {
   createStreamBotCredential,
   type StreamBotCredential,
-} from '@/lib/starfish/stream-bots';
+} from '@drakkar.software/octochat-sdk';
 import type { ConversationStore } from '@/lib/use-conversation-data';
 import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';

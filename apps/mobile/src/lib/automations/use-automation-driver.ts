@@ -22,11 +22,11 @@ import { AppState } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
 import { useRoomsRegistryActions } from '../rooms-registry-context';
-import type { Session } from '../starfish/identity';
-import type { Room } from '../types';
+import type { Session } from '@drakkar.software/octochat-sdk';
+import type { Room } from '@drakkar.software/octochat-sdk';
 
-import { runAutomationTick, tickStatusPatch } from './orchestrator';
-import { isDueForScheduledTick } from './runner-core';
+import { runAutomationTick, tickStatusPatch } from '@drakkar.software/octochat-sdk';
+import { isDueForScheduledTick } from '@drakkar.software/octochat-sdk';
 
 /** Min gap between two `onOpen` fires. `onOpen` has no time gate in the due-check, so
  *  an AppState→active storm (pulling and dismissing the notification shade re-fires

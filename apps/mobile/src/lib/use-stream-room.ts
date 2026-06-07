@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppendLogCursor } from '@drakkar.software/starfish-client';
 import type { AppendElement } from '@drakkar.software/starfish-client';
 
-import { isPublicSpaceId, publicSpaceAuth } from './starfish/pubspace';
+import { isPublicSpaceId, publicSpaceAuth } from '@drakkar.software/octochat-sdk';
 import { kvGet, kvSet } from './starfish/kv';
 import { reportReachability } from './connectivity';
 import {
@@ -11,17 +11,17 @@ import {
   streamRoomPull,
   streamRoomPush,
   spaceIdFromRoomId,
-} from './starfish/paths';
-import type { AttachmentRef } from './starfish/attachments';
-import { messageDeleteEvent, messageEditEvent, pinToggleEvent, reactionToggleEvent } from './reactions';
+} from '@drakkar.software/octochat-sdk';
+import type { AttachmentRef } from '@drakkar.software/octochat-sdk';
+import { messageDeleteEvent, messageEditEvent, pinToggleEvent, reactionToggleEvent } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
-import { randomId } from './ids';
+import { randomId } from '@drakkar.software/octochat-sdk';
 import { makeEmptyConversationStore, type ConversationStore } from './use-conversation-data';
 import { useRoomOpen } from './use-room-open-flow';
 import { useRoomLiveSync } from './use-room-live-sync';
 import type { RoomHook } from './use-room-types';
-import type { StoredMsg } from './message-view';
-import type { MessageEditEvent, PinEvent, ReactionEvent } from './types';
+import type { StoredMsg } from '@drakkar.software/octochat-sdk';
+import type { MessageEditEvent, PinEvent, ReactionEvent } from '@drakkar.software/octochat-sdk';
 
 /**
  * STREAM rooms — append-only rooms. Unlike {@link useRoom} (a merge-doc room synced

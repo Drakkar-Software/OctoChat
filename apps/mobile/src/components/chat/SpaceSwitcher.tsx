@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
-import type { Space } from '@/lib/types';
+import type { Space } from '@drakkar.software/octochat-sdk';
 import { DM_HOME_NAME } from '@/lib/dm-home';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';

@@ -187,6 +187,7 @@ apps/
   server/    — Hono Starfish server (@octochat/server)
   desktop/   — Electron wrapper (@octochat/desktop)
 packages/
+  sdk/       — @drakkar.software/octochat-sdk (headless chat-domain core)
   tsconfig/  — shared TypeScript base config
 examples/    — standalone SDK-only bots (stream-publish-bot, stream-webhook-bot)
 infra/
@@ -197,8 +198,11 @@ docker-compose.yml      — NATS service
 
 ## Architecture
 
-- **Crypto / sync** lives in `apps/mobile/src/lib/starfish/*` — seed → keys,
-  device pairing, per-room keyrings, the Starfish client.
+- **Crypto / sync** lives in the headless `@drakkar.software/octochat-sdk`
+  (`packages/sdk`) — seed → keys, device pairing, per-room keyrings, the Starfish
+  client. The app injects platform `kv`/config at boot
+  (`apps/mobile/src/lib/octochat-init.ts`) and keeps only platform adapters under
+  `apps/mobile/src/lib/starfish/*`.
 - **SSE delivery** is documented in
   [`apps/server/docs/notifications-sse.md`](apps/server/docs/notifications-sse.md).
 - **Design rules & conventions** for the app: see
@@ -206,9 +210,10 @@ docker-compose.yml      — NATS service
 
 ## Encryption model
 
-The full encrypted sync layer lives under `apps/mobile/src/lib/starfish/*`; the
-server (`apps/server`) is a thin Starfish sync host plus an authenticated SSE
-proxy. Threat model: the server and transport are **untrusted** — they see
+The full encrypted sync layer lives in the headless
+`@drakkar.software/octochat-sdk` (`packages/sdk`); the app supplies only platform
+adapters under `apps/mobile/src/lib/starfish/*`, and the server (`apps/server`) is
+a thin Starfish sync host plus an authenticated SSE proxy. Threat model: the server and transport are **untrusted** — they see
 ciphertext, signed request envelopes and capability scopes, never plaintext or
 private keys.
 

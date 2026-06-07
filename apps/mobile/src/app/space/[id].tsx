@@ -4,7 +4,7 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { WEB_BASE } from '@/lib/starfish/config';
-import { isDmSpaceId } from '@/lib/starfish/dm-ids';
+import { isDmSpaceId } from '@drakkar.software/octochat-sdk';
 import { useMutes } from '@/lib/mutes-context';
 import { useRooms } from '@/lib/use-rooms';
 import { useSession } from '@/lib/session-context';

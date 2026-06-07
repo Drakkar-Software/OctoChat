@@ -19,19 +19,20 @@
  */
 import notifee, { AndroidImportance } from '@notifee/react-native';
 
-import { isMuteActive, loadMutesFromKv } from '../mutes';
-import { notificationTitle } from '../notification-format';
-import { loadNotificationLabels } from '../notification-labels';
+import { isMuteActive, loadMutesFromKv } from '@drakkar.software/octochat-sdk';
+import { notificationTitle } from '@drakkar.software/octochat-sdk';
+import { loadNotificationLabels } from '@drakkar.software/octochat-sdk';
 import { loadNotificationSettings } from '../notification-settings';
-import { loadLatestMessagePreview } from '../notification-preview';
+import { loadLatestMessagePreview } from '@drakkar.software/octochat-sdk';
 // Importing platform.native runs `install()` (globalThis.crypto) at module load;
 // calling configureStarfishPlatform() wires the base64 provider the SDK needs. Both
 // are required for decryption to work in this headless task (no provider tree ran).
 import { configureStarfishPlatform } from '../starfish/platform';
-import { hydrateMemberCaps } from '../starfish/member-caps';
-import { spaceIdFromRoomId } from '../starfish/paths';
-import { hydratePubspaceCaps } from '../starfish/pubspace-caps';
-import { activeAccountOf, sessionFromPersisted } from '../starfish/session-restore';
+import { initOctoChat } from '../octochat-init';
+import { hydrateMemberCaps } from '@drakkar.software/octochat-sdk';
+import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
+import { hydratePubspaceCaps } from '@drakkar.software/octochat-sdk';
+import { activeAccountOf, sessionFromPersisted } from '@drakkar.software/octochat-sdk';
 import { loadVault } from '../starfish/storage';
 
 import { MESSAGES_CHANNEL_ID } from './channel';
@@ -106,6 +107,7 @@ export async function handleBackgroundPush(data: PushData): Promise<void> {
   const spaceId = data.spaceId || spaceIdFromRoomId(roomId);
   try {
     configureStarfishPlatform();
+    initOctoChat(); // wire SDK config + kv; no provider tree ran in this headless task
     const load = await loadVault();
     const account = load.kind === 'ready' ? activeAccountOf(load.vault) : null;
     const userId = account?.derived?.userId;

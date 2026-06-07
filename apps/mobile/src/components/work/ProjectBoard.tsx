@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { layout, motion, opacity, paperBorder, radii, shadows, spacing } from '@/theme';
 import { useInlineEdit } from '@/lib/use-inline-edit';
 import { useProject } from '@/lib/use-project';
-import { orderForInsert, type BoardColumn as BoardCol, type BoardTask } from '@/lib/project-board';
+import { orderForInsert, type BoardColumn as BoardCol, type BoardTask } from '@drakkar.software/octochat-sdk';
 import { useColumnDrop, useDraggableTask } from '@/lib/use-board-dnd';
 import { useRevealActions } from '@/lib/use-reveal-actions';
 import { useTheme } from '@/lib/use-theme';

@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
-import { COMPOSER_EMOJIS } from '@/lib/reactions';
+import { COMPOSER_EMOJIS } from '@drakkar.software/octochat-sdk';
 import { useQuickReactions } from '@/lib/quick-reactions-context';
-import { DEFAULT_QUICK_REACTIONS } from '@/lib/quick-reactions-settings';
+import { DEFAULT_QUICK_REACTIONS } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
 import { Card } from '@/components/ui/Card';
 import { Txt } from '@/components/ui/Txt';

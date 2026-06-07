@@ -9,12 +9,12 @@ import {
   runAutomationTick,
   tickStatusPatch,
   updateAutomatedRoom,
-} from '@/lib/automations/orchestrator';
-import { getProvider } from '@/lib/automations/providers';
-import { loadAutomationSecrets, saveAutomationSecrets } from '@/lib/automations/secrets';
-import { openStreamBotCredential, type StreamBotCredential } from '@/lib/starfish/stream-bots';
-import type { Session } from '@/lib/starfish/identity';
-import type { Room } from '@/lib/types';
+} from '@drakkar.software/octochat-sdk';
+import { getProvider } from '@drakkar.software/octochat-sdk';
+import { loadAutomationSecrets, saveAutomationSecrets } from '@drakkar.software/octochat-sdk';
+import { openStreamBotCredential, type StreamBotCredential } from '@drakkar.software/octochat-sdk';
+import type { Session } from '@drakkar.software/octochat-sdk';
+import type { Room } from '@drakkar.software/octochat-sdk';
 import { useRoomsRegistryActions } from '@/lib/rooms-registry-context';
 import { useTheme } from '@/lib/use-theme';
 import { useEffect } from 'react';

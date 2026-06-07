@@ -4,14 +4,14 @@ import type { AppendElement } from '@drakkar.software/starfish-client';
 
 import { kvGet, kvSet } from './starfish/kv';
 import { reportReachability } from './connectivity';
-import { isPublicSpaceId, publicSpaceAuth } from './starfish/pubspace';
-import { objLogPull, objLogPush, pubObjLogPull, pubObjLogPush } from './starfish/paths';
-import { foldProject, type Board, type ProjectEvent, type ProjectLogItem } from './project-board';
-import type { ID } from './types';
+import { isPublicSpaceId, publicSpaceAuth } from '@drakkar.software/octochat-sdk';
+import { objLogPull, objLogPush, pubObjLogPull, pubObjLogPush } from '@drakkar.software/octochat-sdk';
+import { foldProject, type Board, type ProjectEvent, type ProjectLogItem } from '@drakkar.software/octochat-sdk';
+import type { ID } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useRoomOpen } from './use-room-open-flow';
 import { useRoomLiveSync } from './use-room-live-sync';
-import { randomId } from './ids';
+import { randomId } from '@drakkar.software/octochat-sdk';
 
 export interface ProjectHook {
   board: Board;

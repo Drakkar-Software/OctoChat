@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { opacity, radii, spacing } from '@/theme';
 import { useObjects } from '@/lib/use-objects';
-import { buildTree, type ObjectTreeNode } from '@/lib/starfish/objects';
+import { buildTree, type ObjectTreeNode } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
 import { useHover } from '@/lib/use-hover';
 import { Icon } from '@/components/ui/Icon';

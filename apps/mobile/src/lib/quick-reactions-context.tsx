@@ -7,7 +7,7 @@
  */
 import { createContext, useCallback, useContext, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 
-import { getQuickReactions, saveQuickReactions, subscribeQuickReactions } from './quick-reactions-settings';
+import { getQuickReactions, saveQuickReactions, subscribeQuickReactions } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 
 interface QuickReactionsValue {

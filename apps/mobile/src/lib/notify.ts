@@ -17,18 +17,18 @@
 import { router } from 'expo-router';
 
 import { focusDesktopWindow, isDesktop } from './desktop';
-import { APP_NAME, notificationTitle } from './notification-format';
+import { APP_NAME, notificationTitle } from '@drakkar.software/octochat-sdk';
 import { playNotificationSound } from './notification-sound';
 import type { NotificationSound } from './notification-settings';
 import {
   openRoomFromNotification,
   type OpenRoomFromNotificationDeps,
 } from './notification-open-room';
-import { isMuted } from './mutes';
+import { isMuted } from '@drakkar.software/octochat-sdk';
 import { getNotificationSettings } from './notification-settings';
-import { loadLatestMessagePreview } from './notification-preview';
-import type { Session } from './starfish/identity';
-import { spaceIdFromRoomId } from './starfish/paths';
+import { loadLatestMessagePreview } from '@drakkar.software/octochat-sdk';
+import type { Session } from '@drakkar.software/octochat-sdk';
+import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 
 const GENERIC_BODY = 'New message in another room';
 

@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 
 import { glowShadow, layout, radii, spacing } from '@/theme';
-import type { Space } from '@/lib/types';
+import type { Space } from '@drakkar.software/octochat-sdk';
 import { DM_HOME_NAME } from '@/lib/dm-home';
 import { useHover } from '@/lib/use-hover';
 import { useMutes } from '@/lib/mutes-context';

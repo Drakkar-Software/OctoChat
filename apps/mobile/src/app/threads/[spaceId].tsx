@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
-import type { CrossRoomThread } from '@/lib/cross-room';
+import type { CrossRoomThread } from '@drakkar.software/octochat-sdk';
 import { useSession } from '@/lib/session-context';
 import { useThreads } from '@/lib/use-threads';
 import { AppBar } from '@/components/ui/AppBar';

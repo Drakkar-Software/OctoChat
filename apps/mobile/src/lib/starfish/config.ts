@@ -32,7 +32,7 @@ export const SYNC_NAMESPACE = _ns || undefined;
  * otherwise add itself. Derived from {@link SYNC_NAMESPACE}. nginx strips the /sync
  * mount, so the deployed server observes exactly /v1/octochat/events = the signed path.
  */
-export const SYNC_PREFIX = SYNC_NAMESPACE ? `/v1/${SYNC_NAMESPACE}` : '';
+const SYNC_PREFIX = SYNC_NAMESPACE ? `/v1/${SYNC_NAMESPACE}` : '';
 
 /**
  * Live change-event SSE endpoint. Served by the authenticated /events proxy on the

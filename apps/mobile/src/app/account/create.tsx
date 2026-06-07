@@ -3,7 +3,7 @@ import { Redirect, router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { generateSeedWords } from '@/lib/starfish/identity';
+import { generateSeedWords } from '@drakkar.software/octochat-sdk';
 import { useSession } from '@/lib/session-context';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';

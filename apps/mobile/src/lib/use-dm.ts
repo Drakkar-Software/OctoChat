@@ -11,8 +11,8 @@ import { router } from 'expo-router';
 
 import { useSession } from './session-context';
 import { useSpacesContext } from './spaces-context';
-import { createOrOpenDm, dmRoomId, findSharedSpaceWith } from './starfish/dm';
-import { readPeerKeys, type PeerKeys } from './starfish/dm-keys';
+import { createOrOpenDm, dmRoomId, findSharedSpaceWith } from '@drakkar.software/octochat-sdk';
+import { readPeerKeys, type PeerKeys } from '@drakkar.software/octochat-sdk';
 
 /**
  * - `self` — this is your own profile (hide the button).

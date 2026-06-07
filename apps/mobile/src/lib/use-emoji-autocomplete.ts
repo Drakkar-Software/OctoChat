@@ -7,7 +7,7 @@ import {
   type TextInputSelectionChangeEventData,
 } from 'react-native';
 
-import { activeEmojiQuery, matchEmoji, type EmojiMatch } from './emoji';
+import { activeEmojiQuery, matchEmoji, type EmojiMatch } from '@drakkar.software/octochat-sdk';
 
 // react-native-web forwards the underlying keydown to `onKeyPress`, so the web
 // event also carries `preventDefault` even though RN's type only promises `key`.

@@ -9,7 +9,7 @@ import { useMemo } from 'react';
 import { usePseudos, useAvatars } from './use-pseudos';
 import { useUnread } from './unread-context';
 import { useDmMap } from './spaces-context';
-import { dmRoomId } from './starfish/dm';
+import { dmRoomId } from '@drakkar.software/octochat-sdk';
 
 export interface DmEntry {
   spaceId: string;

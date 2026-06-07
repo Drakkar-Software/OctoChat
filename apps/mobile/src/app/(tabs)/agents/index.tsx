@@ -6,7 +6,7 @@ import { isDmHomeId } from '@/lib/dm-home';
 import { useSession } from '@/lib/session-context';
 import { useRooms } from '@/lib/use-rooms';
 import { useSpaces } from '@/lib/use-spaces';
-import type { Room } from '@/lib/types';
+import type { Room } from '@drakkar.software/octochat-sdk';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { AgentsPanel } from '@/components/chat/AgentsPanel';

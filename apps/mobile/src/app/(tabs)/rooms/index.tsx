@@ -10,7 +10,7 @@ import { useSpaceNav } from '@/lib/use-space-nav';
 import { excludeAutomatedRooms, useRooms } from '@/lib/use-rooms';
 import { useSpaces } from '@/lib/use-spaces';
 import { useDms, type DmEntry } from '@/lib/use-dms';
-import type { Room } from '@/lib/types';
+import type { Room } from '@drakkar.software/octochat-sdk';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';

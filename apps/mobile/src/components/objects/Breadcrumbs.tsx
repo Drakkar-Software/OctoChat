@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
-import type { ObjectNode } from '@/lib/types';
+import type { ObjectNode } from '@drakkar.software/octochat-sdk';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 

@@ -5,7 +5,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
 import { useSession } from '@/lib/session-context';
-import { hasNostrSignSchnorr, loginWithNostrExtension } from '@/lib/nostr';
+import { hasNostrSignSchnorr, loginWithNostrExtension } from '@drakkar.software/octochat-sdk';
 import { HeroMark } from '@/components/brand/HeroMark';
 import { Wordmark } from '@/components/brand/Wordmark';
 import { Button } from '@/components/ui/Button';

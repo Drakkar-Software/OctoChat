@@ -2,8 +2,8 @@ import { Fragment } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { formatBytes } from '@/lib/format';
-import type { SpaceStats } from '@/lib/space-stats';
+import { formatBytes } from '@drakkar.software/octochat-sdk';
+import type { SpaceStats } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
 import { Callout } from '@/components/ui/Callout';
 import { Card } from '@/components/ui/Card';

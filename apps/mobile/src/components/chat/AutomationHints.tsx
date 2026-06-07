@@ -2,8 +2,8 @@ import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
-import { getProvider } from '@/lib/automations/providers';
-import type { Room } from '@/lib/types';
+import { getProvider } from '@drakkar.software/octochat-sdk';
+import type { Room } from '@drakkar.software/octochat-sdk';
 import { Callout } from '@/components/ui/Callout';
 
 /** Tiny status + command-hint chip rendered in an automated room. Tells the

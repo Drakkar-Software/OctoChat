@@ -27,10 +27,10 @@ import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 
 import { getOnline, reportReachability, subscribeOnline } from './connectivity';
 import { outboxStore, useOutboxHydration } from './outbox';
-import { sendQueued } from './outbox-send';
+import { sendQueued } from '@drakkar.software/octochat-sdk';
 import { dispatchRoomChange, onSseStatus } from './room-events-bus';
 import { useSession } from './session-context';
-import type { Session } from './starfish/identity';
+import type { Session } from '@drakkar.software/octochat-sdk';
 
 const RETRY_INTERVAL_MS = 20000;
 /** Online send attempts before an entry is parked as `failed` (manual retry). An

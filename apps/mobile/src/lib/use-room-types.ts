@@ -3,7 +3,7 @@
  * by the room's `kind` behind ONE type. `useRoom` (merge-doc channels + DMs) and
  * `useStreamRoom` (append-only public-stream + automated rooms) both implement this.
  */
-import type { AttachmentRef } from './starfish/attachments';
+import type { AttachmentRef } from '@drakkar.software/octochat-sdk';
 import type { ConversationStore } from './use-conversation-data';
 
 /** A send call. The return DIVERGES by room kind and is load-bearing for outbox

@@ -24,10 +24,10 @@
 import { openWithPassphrase, sealWithPassphrase } from '@drakkar.software/starfish-identities';
 
 import { evalPasskey, passkeySupported as webauthnSupported } from './passkey';
-import { bytesToHex } from './paths';
-import type { PasskeyEnrollment, PersistedSession, SeedLock, UnlockMethod, Vault, VaultLoad } from './storage-types';
+import { bytesToHex } from '@drakkar.software/octochat-sdk';
+import type { PasskeyEnrollment, PersistedSession, SeedLock, UnlockMethod, Vault, VaultLoad } from '@drakkar.software/octochat-sdk';
 
-export type { PersistedSession } from './storage-types';
+export type { PersistedSession } from '@drakkar.software/octochat-sdk';
 
 const KEY = 'octochat.session.v1';
 const IV_BYTES = 12;

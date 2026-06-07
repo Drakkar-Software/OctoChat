@@ -3,11 +3,11 @@ import { createUnionMerge } from '@drakkar.software/starfish-client';
 import { useSyncInit } from '@drakkar.software/starfish-client/zustand';
 
 import { SYNC_BASE, SYNC_NAMESPACE } from './starfish/config';
-import { capProviderFor } from './starfish/client';
-import { fetchWithTimeout } from './starfish/fetch-timeout';
-import { getMemberCap } from './starfish/member-caps';
-import { pullCache, PULL_CACHE_MAX_AGE_MS } from './starfish/pull-cache';
-import { isPublicSpaceId, publicSpaceAuth } from './starfish/pubspace';
+import { capProviderFor } from '@drakkar.software/octochat-sdk';
+import { fetchWithTimeout } from '@drakkar.software/octochat-sdk';
+import { getMemberCap } from '@drakkar.software/octochat-sdk';
+import { pullCache, PULL_CACHE_MAX_AGE_MS } from '@drakkar.software/octochat-sdk';
+import { isPublicSpaceId, publicSpaceAuth } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useRoomOpen } from './use-room-open-flow';
 

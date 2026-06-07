@@ -17,7 +17,7 @@ import {
   setRoomMute,
   setSpaceMute,
   subscribeMutes,
-} from './mutes';
+} from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 
 interface MutesValue {

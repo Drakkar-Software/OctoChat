@@ -1,7 +1,7 @@
 import type { Ref } from 'react';
 import type { View } from 'react-native';
 
-import type { Room } from '@/lib/types';
+import type { Room } from '@drakkar.software/octochat-sdk';
 import { useMutes } from '@/lib/mutes-context';
 import { ListRow } from '@/components/chat/ListRow';
 

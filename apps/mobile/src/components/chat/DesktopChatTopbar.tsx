@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { layout, spacing } from '@/theme';
-import type { RoomKind } from '@/lib/types';
+import type { RoomKind } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
 import { useDms } from '@/lib/use-dms';
 import { Avatar } from '@/components/ui/Avatar';

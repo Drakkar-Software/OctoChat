@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { loadAllMessages, type CrossRoomMessage } from './cross-room';
+import { loadAllMessages, type CrossRoomMessage } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 
 /**

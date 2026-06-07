@@ -22,14 +22,14 @@ import {
 import { AppState } from 'react-native';
 import { usePathname } from 'expo-router';
 
-import type { DmMap, Space } from '@/lib/types';
+import type { DmMap, Space } from '@drakkar.software/octochat-sdk';
 
-import { createSpace as createSpaceDoc, onSpaceMeta, readSpaces, reorderSpaces as reorderSpacesDoc } from './starfish/registry';
-import { healDmMap, isDmSpaceId, reconcileDmInbox } from './starfish/dm';
-import { createPublicSpace } from './starfish/pubspace';
+import { createSpace as createSpaceDoc, onSpaceMeta, readSpaces, reorderSpaces as reorderSpacesDoc } from '@drakkar.software/octochat-sdk';
+import { healDmMap, isDmSpaceId, reconcileDmInbox } from '@drakkar.software/octochat-sdk';
+import { createPublicSpace } from '@drakkar.software/octochat-sdk';
 import { consumePrimedSpaces } from './spaces-prime';
-import { hydrateMutes } from './mutes';
-import { flushReadsNow, hydrateReads } from './reads';
+import { hydrateMutes } from '@drakkar.software/octochat-sdk';
+import { flushReadsNow, hydrateReads } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 
 interface SpacesContextValue {

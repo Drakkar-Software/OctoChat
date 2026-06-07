@@ -1,11 +1,11 @@
 import { useEffect, useMemo } from 'react';
 import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 
-import type { StoredMsg } from '@/lib/message-view';
+import type { StoredMsg } from '@drakkar.software/octochat-sdk';
 import { useSession } from '@/lib/session-context';
-import { buildThreadDigest } from '@/lib/threads';
+import { buildThreadDigest } from '@drakkar.software/octochat-sdk';
 import { useThreadDigest } from '@/lib/thread-digest-context';
-import type { MessageEditEvent } from '@/lib/types';
+import type { MessageEditEvent } from '@drakkar.software/octochat-sdk';
 
 // Stable empty fallback: a fresh `[]` per render would make `threads` a new
 // reference every render (when the store has no messages/edits yet), re-running

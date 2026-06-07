@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { Platform, StyleSheet, TextInput, View } from 'react-native';
 
 import { fonts, radii, spacing, type as typeScale } from '@/theme';
-import { completeDevicePairing, type PairResult } from '@/lib/starfish/pairing';
+import { completeDevicePairing, type PairResult } from '@drakkar.software/octochat-sdk';
 import { useSession } from '@/lib/session-context';
 import { useTheme } from '@/lib/use-theme';
 import { AppBar } from '@/components/ui/AppBar';

@@ -2,7 +2,7 @@ import { isDmHomeId } from '@/lib/dm-home';
 import { useProfile } from '@/lib/profile-context';
 import { useSpaces } from '@/lib/use-spaces';
 import { useTotalDmUnread } from '@/lib/use-dms';
-import type { Space } from '@/lib/types';
+import type { Space } from '@drakkar.software/octochat-sdk';
 
 export interface SpaceHeaderData {
   /** Active space — `undefined` when the virtual DM home is selected. */

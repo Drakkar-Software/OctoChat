@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { reportReachability, subscribeOnline } from './connectivity';
-import { SpaceAccessError } from './starfish/space-encryptor';
+import { SpaceAccessError } from '@drakkar.software/octochat-sdk';
 
 export interface RoomOpenState {
   opening: boolean;

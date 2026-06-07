@@ -11,7 +11,7 @@
  */
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
-import type { ThreadSummary } from './threads';
+import type { ThreadSummary } from '@drakkar.software/octochat-sdk';
 
 interface ActiveThreadDigest {
   roomId: string;

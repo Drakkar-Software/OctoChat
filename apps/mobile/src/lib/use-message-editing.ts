@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react';
 import type { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 
-import { lastEditableMessageId, type StoredMsg } from './message-view';
-import type { MessageEditEvent } from './types';
+import { lastEditableMessageId, type StoredMsg } from '@drakkar.software/octochat-sdk';
+import type { MessageEditEvent } from '@drakkar.software/octochat-sdk';
 
 type Store = Parameters<typeof useStarfishData>[0];
 

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef } from 'react';
 
-import { objIndexPull, objIndexPush, pubObjIndexPull, pubObjIndexPush } from './starfish/paths';
+import { objIndexPull, objIndexPush, pubObjIndexPull, pubObjIndexPush } from '@drakkar.software/octochat-sdk';
 import {
   addObject,
   ancestors as ancestorsOf,
@@ -12,8 +12,8 @@ import {
   reparentObject,
   type NewObjectInput,
   type ObjectTreeNode,
-} from './starfish/objects';
-import type { ID, ObjectNode } from './types';
+} from '@drakkar.software/octochat-sdk';
+import type { ID, ObjectNode } from '@drakkar.software/octochat-sdk';
 import { useMergeDoc } from './use-merge-doc';
 import { useRoomLiveSync } from './use-room-live-sync';
 

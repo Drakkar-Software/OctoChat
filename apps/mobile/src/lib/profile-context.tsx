@@ -18,7 +18,7 @@ import {
 } from 'react';
 
 import { pickAndProcessAvatar } from './avatar-image';
-import { readProfile, writeProfile } from './starfish/client';
+import { readProfile, writeProfile } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { primeProfile } from './use-pseudos';
 

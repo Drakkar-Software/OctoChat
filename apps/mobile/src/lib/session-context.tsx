@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import type { BootstrapOrigin, RootIdentity } from '@drakkar.software/starfish-identities';
 
-import { clearAttachmentCache } from './starfish/attachments';
+import { clearAttachmentCache } from '@drakkar.software/octochat-sdk';
 import {
   buildLinkedSession,
   buildSession,
@@ -11,16 +11,16 @@ import {
   rootIdentityOf,
   type LinkedIdentity,
   type Session,
-} from './starfish/identity';
-import { clearMemberCaps, hydrateMemberCaps } from './starfish/member-caps';
-import { recoverPubspaceAccess } from './starfish/pubspace';
-import { clearPubspaceCaps, hydratePubspaceCaps } from './starfish/pubspace-caps';
-import { readSpaces } from './starfish/registry';
-import { hydrateMutes, resetMutes } from './mutes';
-import { hydrateQuickReactions, resetQuickReactions } from './quick-reactions-settings';
-import { flushReadsNow, hydrateReads, resetReads } from './reads';
-import { activeAccountOf, sessionFromPersisted } from './starfish/session-restore';
-import { clearSpaceEncryptors } from './starfish/space-encryptor';
+} from '@drakkar.software/octochat-sdk';
+import { clearMemberCaps, hydrateMemberCaps } from '@drakkar.software/octochat-sdk';
+import { recoverPubspaceAccess } from '@drakkar.software/octochat-sdk';
+import { clearPubspaceCaps, hydratePubspaceCaps } from '@drakkar.software/octochat-sdk';
+import { readSpaces } from '@drakkar.software/octochat-sdk';
+import { hydrateMutes, resetMutes } from '@drakkar.software/octochat-sdk';
+import { hydrateQuickReactions, resetQuickReactions } from '@drakkar.software/octochat-sdk';
+import { flushReadsNow, hydrateReads, resetReads } from '@drakkar.software/octochat-sdk';
+import { activeAccountOf, sessionFromPersisted } from '@drakkar.software/octochat-sdk';
+import { clearSpaceEncryptors } from '@drakkar.software/octochat-sdk';
 import { enrollPasskey, passkeyEnrollable } from './starfish/passkey';
 import {
   addPasskeyToVault,
@@ -32,7 +32,7 @@ import {
   vaultMethods,
 } from './starfish/storage';
 import { disableBiometricLock } from './app-lock';
-import type { PersistedSession, SeedLock, UnlockMethod, Vault } from './starfish/storage-types';
+import type { PersistedSession, SeedLock, UnlockMethod, Vault } from '@drakkar.software/octochat-sdk';
 import { clearRoomEventsBus } from './room-events-bus';
 import { clearPrimedSpaces, primeSpaces } from './spaces-prime';
 import { clearPseudoCache, primeProfile } from './use-pseudos';

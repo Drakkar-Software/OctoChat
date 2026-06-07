@@ -1,9 +1,9 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { glowShadow, radii, spacing } from '@/theme';
-import { authorFor, dayLabel } from '@/lib/message-view';
-import type { ThreadSummary } from '@/lib/threads';
-import type { Room, RoomKind } from '@/lib/types';
+import { authorFor, dayLabel } from '@drakkar.software/octochat-sdk';
+import type { ThreadSummary } from '@drakkar.software/octochat-sdk';
+import type { Room, RoomKind } from '@drakkar.software/octochat-sdk';
 import { useHover } from '@/lib/use-hover';
 import { useAvatars, usePseudos } from '@/lib/use-pseudos';
 import { useTheme } from '@/lib/use-theme';

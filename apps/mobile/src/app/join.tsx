@@ -3,8 +3,8 @@ import { router } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { acceptSpaceInvite, makeJoinRequest } from '@/lib/starfish/members';
-import { decodePublicInvite, joinPublicSpace } from '@/lib/starfish/pubspace';
+import { acceptSpaceInvite, makeJoinRequest } from '@drakkar.software/octochat-sdk';
+import { decodePublicInvite, joinPublicSpace } from '@drakkar.software/octochat-sdk';
 import { useInviteFragment } from '@/lib/use-invite-link';
 import { useSession } from '@/lib/session-context';
 import { useSpaces } from '@/lib/use-spaces';

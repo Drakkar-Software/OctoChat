@@ -1,14 +1,14 @@
 import { useCallback, useMemo } from 'react';
 
-import { joinBlocks, mergeDocEdit, type DocBlock } from './doc-block';
-import { objDocPull, objDocPush, pubObjDocPull, pubObjDocPush } from './starfish/paths';
+import { joinBlocks, mergeDocEdit, type DocBlock } from '@drakkar.software/octochat-sdk';
+import { objDocPull, objDocPush, pubObjDocPull, pubObjDocPush } from '@drakkar.software/octochat-sdk';
 import { useMergeDoc } from './use-merge-doc';
 import { useRoomLiveSync } from './use-room-live-sync';
-import { randomId } from './ids';
+import { randomId } from '@drakkar.software/octochat-sdk';
 
 // Re-exported so call sites import the block model + projection from `use-doc`; the
 // definitions live in the pure `doc-block` module.
-export { blockMarkdown, joinBlocks, type DocBlock } from './doc-block';
+export { blockMarkdown, joinBlocks, type DocBlock } from '@drakkar.software/octochat-sdk';
 
 export interface DocHook {
   blocks: DocBlock[];

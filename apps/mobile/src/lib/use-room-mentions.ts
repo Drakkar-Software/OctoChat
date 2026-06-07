@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 
-import type { Room } from '@/lib/types';
+import type { Room } from '@drakkar.software/octochat-sdk';
 
 import { useRooms } from './use-rooms';
 

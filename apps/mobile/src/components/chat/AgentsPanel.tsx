@@ -2,14 +2,15 @@ import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { getProvider } from '@/lib/automations/providers';
+import { getProvider } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
-import type { Room } from '@/lib/types';
+import type { Room } from '@drakkar.software/octochat-sdk';
 import type { RoomCategory } from '@/lib/use-rooms';
 import { Callout } from '@/components/ui/Callout';
 import { Txt } from '@/components/ui/Txt';
 
 import { ListRow } from './ListRow';
+import type { IconName } from '@/components/ui/Icon';
 import { SidebarLinkRow } from './SidebarLinkRow';
 
 interface AgentsPanelProps {
@@ -80,7 +81,7 @@ export function AgentsPanel({
           return (
             <View key={r.id} style={styles.item}>
               <ListRow
-                iconName={provider?.iconName ?? 'zap'}
+                iconName={(provider?.iconName ?? 'zap') as IconName}
                 label={r.name}
                 active={r.id === activeRoomId}
                 onPress={() => onOpenRoom(r)}

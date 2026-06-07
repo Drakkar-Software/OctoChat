@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { useSession } from './session-context';
-import { loadSpaceStats, type SpaceStats } from './space-stats';
+import { loadSpaceStats, type SpaceStats } from '@drakkar.software/octochat-sdk';
 
 /**
  * Compute a space's size + content stats once when the screen opens. `enabled` is

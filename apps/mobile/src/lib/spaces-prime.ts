@@ -8,7 +8,7 @@
  * `session-context` nor `spaces-context` has to import the other (they already form
  * a one-way edge via `useSession`).
  */
-import type { Space } from '@/lib/types';
+import type { Space } from '@drakkar.software/octochat-sdk';
 
 interface PrimedSpaces {
   userId: string;

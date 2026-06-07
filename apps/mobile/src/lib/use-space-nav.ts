@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { loadAllPins, loadAllThreads } from './cross-room';
+import { loadAllPins, loadAllThreads } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useUnread } from './unread-context';
 

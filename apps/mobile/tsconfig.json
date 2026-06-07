@@ -1,5 +1,8 @@
 {
-  "extends": ["expo/tsconfig.base", "@octochat/tsconfig/base.json"],
+  "extends": [
+    "expo/tsconfig.base",
+    "@octochat/tsconfig/base.json"
+  ],
   "compilerOptions": {
     "strict": true,
     "paths": {
@@ -8,6 +11,9 @@
       ],
       "@/assets/*": [
         "./assets/*"
+      ],
+      "@drakkar.software/octochat-sdk": [
+        "../../packages/sdk/src/index.ts"
       ]
     }
   },

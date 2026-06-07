@@ -3,10 +3,10 @@ import { StyleSheet, View } from 'react-native';
 import { LegendList } from '@legendapp/list/react-native';
 
 import { spacing } from '@/theme';
-import { authorFor, dayLabel, isContinuation, mergePendingMessages, resolvePinned, sameDay, toDisplayMessage } from '@/lib/message-view';
+import { authorFor, dayLabel, isContinuation, mergePendingMessages, resolvePinned, sameDay, toDisplayMessage } from '@drakkar.software/octochat-sdk';
 import type { OutboxMessage } from '@/lib/outbox';
-import { plural } from '@/lib/format';
-import type { AttachmentRef } from '@/lib/starfish/attachments';
+import { plural } from '@drakkar.software/octochat-sdk';
+import type { AttachmentRef } from '@drakkar.software/octochat-sdk';
 import { useConversationData, type ConversationStore } from '@/lib/use-conversation-data';
 import { Txt } from '@/components/ui/Txt';
 

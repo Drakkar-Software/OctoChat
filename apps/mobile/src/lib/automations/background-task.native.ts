@@ -27,19 +27,20 @@ import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
 
 import { configureStarfishPlatform } from '../starfish/platform';
+import { initOctoChat } from '../octochat-init';
 import {
   isPublicSpaceId,
   publicSpaceAuth,
   publicSpaceClient,
   readPublicRooms,
-} from '../starfish/pubspace';
-import { hydratePubspaceCaps } from '../starfish/pubspace-caps';
-import { readSpaces } from '../starfish/registry';
-import { activeAccountOf, sessionFromPersisted } from '../starfish/session-restore';
+} from '@drakkar.software/octochat-sdk';
+import { hydratePubspaceCaps } from '@drakkar.software/octochat-sdk';
+import { readSpaces } from '@drakkar.software/octochat-sdk';
+import { activeAccountOf, sessionFromPersisted } from '@drakkar.software/octochat-sdk';
 import { loadVault } from '../starfish/storage';
 
-import { runAutomationTick } from './orchestrator';
-import { isDueForScheduledTick } from './runner-core';
+import { runAutomationTick } from '@drakkar.software/octochat-sdk';
+import { isDueForScheduledTick } from '@drakkar.software/octochat-sdk';
 
 /** Stable identifier the OS schedules this task under. */
 export const AUTOMATION_TASK = 'octochat.automations.tick';
@@ -51,9 +52,11 @@ const MINIMUM_INTERVAL_MIN = 15;
 
 TaskManager.defineTask(AUTOMATION_TASK, async () => {
   try {
-    // Install platform crypto/base64 the SDK needs — no provider tree ran in this
-    // headless task. Mirrors the FCM background handler.
+    // Install platform crypto/base64 the SDK needs AND wire the SDK to this app's
+    // config + kv — no provider tree ran in this headless task, so `_layout`'s boot
+    // init never executed. Both are idempotent. Mirrors the FCM background handler.
     configureStarfishPlatform();
+    initOctoChat();
 
     const load = await loadVault();
     if (load.kind !== 'ready') return BackgroundTask.BackgroundTaskResult.Success; // signed out / locked

@@ -3,7 +3,7 @@ import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import { radii, spacing } from '@/theme';
-import type { ObjectNode } from '@/lib/types';
+import type { ObjectNode } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';

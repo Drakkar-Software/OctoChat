@@ -2,9 +2,9 @@ import { useState, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
-import type { Message, Room, User } from '@/lib/types';
-import type { AttachmentRef } from '@/lib/starfish/attachments';
-import { plural } from '@/lib/format';
+import type { Message, Room, User } from '@drakkar.software/octochat-sdk';
+import type { AttachmentRef } from '@drakkar.software/octochat-sdk';
+import { plural } from '@drakkar.software/octochat-sdk';
 import { useHover, useRowHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { Avatar } from '@/components/ui/Avatar';

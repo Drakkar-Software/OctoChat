@@ -8,9 +8,9 @@
  */
 import * as SecureStore from 'expo-secure-store';
 
-import type { PasskeyEnrollment, PersistedSession, SeedLock, UnlockMethod, Vault, VaultLoad } from './storage-types';
+import type { PasskeyEnrollment, PersistedSession, SeedLock, UnlockMethod, Vault, VaultLoad } from '@drakkar.software/octochat-sdk';
 
-export type { PersistedSession } from './storage-types';
+export type { PersistedSession } from '@drakkar.software/octochat-sdk';
 
 const KEY = 'octochat_session_v1';
 
