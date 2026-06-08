@@ -2,7 +2,9 @@ import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { spacing } from '@/theme';
-import { useUpdateState } from '@/lib/use-update-state';
+import { relaunchDesktop } from '@/lib/desktop';
+import { useAppUpdate } from '@/lib/use-app-update';
+import { useDesktopUpdate } from '@/lib/use-desktop-update';
 import { useTheme } from '@/lib/use-theme';
 
 import { Button } from './Button';
@@ -13,12 +15,11 @@ import { Txt } from './Txt';
  * Full-width banner that appears at the top of the app when an update is ready
  * to apply. Handles two sources:
  *
- * - **Desktop (Electron):** the custom web-bundle OTA.
- * - **Mobile (iOS / Android):** an expo-updates bundle.
+ * - **Desktop (Electron):** the custom web-bundle OTA via `useDesktopUpdate()`.
+ * - **Mobile (iOS / Android):** an expo-updates bundle via `useAppUpdate()`.
  *
- * Both sources are unified by {@link useUpdateState}. Only one is ever active at
- * a time. Renders nothing when no update is pending and on platforms where
- * neither mechanism fires.
+ * Only one source is ever active at a time. Renders nothing when no update is
+ * pending and on platforms where neither mechanism fires.
  */
 /**
  * @param topInset When the banner sits at the very top of the app (the native
@@ -26,9 +27,15 @@ import { Txt } from './Txt';
  * above-bottom-bar placements, which already sit below a safe edge.
  */
 export function DesktopUpdateBanner({ topInset = false }: { topInset?: boolean }) {
-  const { pending, restart } = useUpdateState();
+  const desktopVersion = useDesktopUpdate();
+  const { updateReady: mobileUpdateReady, applyUpdate } = useAppUpdate();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+
+  const pending = !!desktopVersion || mobileUpdateReady;
+  const restart = desktopVersion
+    ? () => relaunchDesktop()
+    : () => void applyUpdate();
 
   if (!pending) return null;
 
