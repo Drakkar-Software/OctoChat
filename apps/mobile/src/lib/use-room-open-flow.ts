@@ -13,9 +13,18 @@
  * cache (offline); the caller reports it from its first fresh pull.
  */
 import { useEffect, useState } from 'react';
-import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
+import type { Encryptor } from '@drakkar.software/starfish-client';
 
 import { ensureRoomInitialized, makeClient } from '@drakkar.software/octochat-sdk';
+
+// Derive StarfishClient from the SDK's `makeClient` rather than importing it from
+// `@drakkar.software/starfish-client` directly. With the local pnpm-link symlinks, the
+// same specifier resolves to two distinct declarations of `StarfishClient` (which has a
+// `private baseUrl`, making it nominally incompatible): the app's symlink → satellite
+// source, but the SDK → the root published copy. Anchoring the type to the SDK's own
+// `makeClient`/`getSpaceEncryptor` return keeps this hook's client type identical to the
+// values it stores and to the SDK consumers it feeds (attachments etc.).
+type StarfishClient = ReturnType<typeof makeClient>;
 import { getMemberCap } from '@drakkar.software/octochat-sdk';
 import { getSpaceEncryptor } from '@drakkar.software/octochat-sdk';
 import { publicSpaceAuth } from '@drakkar.software/octochat-sdk';

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppendLogCursor } from '@drakkar.software/starfish-client';
 
+import { AppendLogCursor } from '@drakkar.software/octochat-sdk';
 import { isPublicSpaceId, publicSpaceAuth } from '@drakkar.software/octochat-sdk';
 import {
   concatDedupById,

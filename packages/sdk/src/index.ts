@@ -42,6 +42,10 @@ export * from './starfish/storage-types';
 export * from './starfish/account-seal';
 export * from './starfish/identity';
 export * from './starfish/client';
+// Re-export AppendLogCursor so consumers build it against the SAME StarfishClient
+// declaration the SDK's own client funnels produce (one resolution, no nominal clash
+// from the `private baseUrl` field across duplicate package copies/symlinks).
+export { AppendLogCursor } from '@drakkar.software/starfish-client';
 export * from './starfish/pairing';
 export * from './starfish/session-restore';
 export * from './starfish/profile-cache';
