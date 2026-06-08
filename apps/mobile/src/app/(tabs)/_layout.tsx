@@ -56,11 +56,13 @@ export default function TabsLayout() {
         </View>
       )}
     >
-      {/* The workspace modes (Chat · Agents) ARE the tabs, with global Search as
-          the last tab. Threads, DMs and Profile are reached from inside Chat / its
-          header. (The Work surface moved to the standalone OctoVault app.) */}
+      {/* The workspace modes (Chat · Agents · DMs) ARE the tabs, with global
+          Search as the last tab. Threads and Profile are reached from inside
+          Chat / its header. (The Work surface moved to the standalone OctoVault
+          app.) */}
       <Tabs.Screen name="rooms" options={{ title: 'Chat', tabBarIcon: tabIcon('chat') }} />
       <Tabs.Screen name="agents" options={{ title: 'Agents', tabBarIcon: tabIcon('agents') }} />
+      <Tabs.Screen name="dms" options={{ title: 'DMs', tabBarIcon: tabIcon('people') }} />
       <Tabs.Screen name="search" options={{ title: 'Search', tabBarIcon: tabIcon('search') }} />
     </Tabs>
   );

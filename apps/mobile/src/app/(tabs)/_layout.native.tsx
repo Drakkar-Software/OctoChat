@@ -6,6 +6,7 @@ import { fonts } from '@/theme';
 import { useResponsive } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
 import { useUnread } from '@/lib/unread-context';
+import { useTotalDmUnread } from '@/lib/use-dms';
 
 /**
  * Native (iOS / Android) bottom tabs. Renders the real platform tab bar —
@@ -15,7 +16,7 @@ import { useUnread } from '@/lib/unread-context';
  * native), which is also where the desktop sidebar swap and the OTA update
  * banner live.
  *
- * The tabs are the workspace modes (Chat · Work · Agents) plus global Search,
+ * The tabs are the workspace modes (Chat · Agents · DMs) plus global Search,
  * which carries `role="search"` so iOS 26 floats it to the bottom-right as the
  * native search tab. `threads` and `you` are NOT tabs: they live at the app root
  * and are reached via `router.push(...)` from the Chat tab / its header — native
@@ -33,6 +34,8 @@ export default function NativeTabsLayout() {
   const { isWide } = useResponsive();
   const { totalUnread } = useUnread();
   const badge = totalUnread > 0 ? (totalUnread > 99 ? '99+' : String(totalUnread)) : undefined;
+  const dmUnread = useTotalDmUnread();
+  const dmBadge = dmUnread > 0 ? (dmUnread > 99 ? '99+' : String(dmUnread)) : undefined;
   return (
     <NativeTabs
       // On wide native layouts (iPad / foldable) the AppFrame desktop sidebar
@@ -59,6 +62,11 @@ export default function NativeTabsLayout() {
       <NativeTabs.Trigger name="agents">
         <NativeTabs.Trigger.Label>Agents</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Ionicons} name="sparkles-outline" />} />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="dms">
+        <NativeTabs.Trigger.Label>DMs</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="users" />} />
+        <NativeTabs.Trigger.Badge hidden={!dmBadge}>{dmBadge}</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
       {/* `role="search"` makes this the platform search tab: on iOS 26 it floats
           to the bottom-right as a dedicated search affordance rather than sitting
