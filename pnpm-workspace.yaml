@@ -27,3 +27,5 @@ onlyBuiltDependencies:
 # This drops the yallist@4 requirement entirely, leaving just tar's yallist@5.
 overrides:
   "hosted-git-info@4>lru-cache": "^7.18.3"
+patchedDependencies:
+  '@drakkar.software/expo-conductor@0.2.0': patches/@drakkar.software__expo-conductor@0.2.0.patch

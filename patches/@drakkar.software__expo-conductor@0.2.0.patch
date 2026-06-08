@@ -1,0 +1,17 @@
+diff --git a/android/build.gradle b/android/build.gradle
+index 77ea2136a958474367a8dbf123cd720e8a0083cc..2a3f1f67a2a190c78430e5d93a90c55d894dc29a 100644
+--- a/android/build.gradle
++++ b/android/build.gradle
+@@ -41,6 +41,12 @@ android {
+ dependencies {
+   implementation "androidx.work:work-runtime-ktx:2.9.1"
+   implementation "androidx.core:core-ktx:1.13.1"
++  // compileOnly so ConductorMessagingService.kt always compiles — `java.exclude` in the
++  // sourceSets block above does NOT filter the Kotlin compile task (AGP+KGP gotcha), so the
++  // file is fed to kotlinc even when FCM is disabled. With enableFcm=false the config plugin
++  // never adds the manifest <service>, so the inert class is never loaded. When enabled, the
++  // line below bundles firebase-messaging at runtime too.
++  compileOnly "com.google.firebase:firebase-messaging:24.0.0"
+   if (enableFcm) {
+     implementation "com.google.firebase:firebase-messaging:24.0.0"
+   }
