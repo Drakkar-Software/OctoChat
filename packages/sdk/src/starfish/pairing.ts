@@ -18,7 +18,7 @@ import {
 import type { CapCert } from '@drakkar.software/starfish-protocol';
 
 import type { DeviceKeys } from './client';
-import { getSyncBase, getSyncNamespace } from '../config';
+import { getSyncBase, getSyncNamespace } from '../config/config';
 import { fetchWithTimeout } from './fetch-timeout';
 import type { Session } from './identity';
 import { fingerprintFromUserId } from './identity';

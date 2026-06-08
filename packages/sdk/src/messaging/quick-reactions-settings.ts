@@ -13,8 +13,8 @@
  * the palette has no background consumer, so an offline cold-start shows the defaults
  * until the next successful pull heals it.
  */
-import type { Session } from './starfish/identity';
-import { updateQuickReactionsDoc } from './starfish/registry';
+import type { Session } from '../starfish/identity';
+import { updateQuickReactionsDoc } from '../starfish/registry';
 
 /** How many emojis the quick-reaction palette holds — a fixed six slots. */
 export const QUICK_REACTION_COUNT = 6;

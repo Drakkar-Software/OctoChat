@@ -11,9 +11,9 @@
  * in-memory map so reads stay synchronous for the hooks that consume them during
  * render (`useRoom`).
  */
-import type { CapMap } from '../types';
+import type { CapMap } from '../domain/types';
 
-import { kvGet, kvRemove, kvSet } from '../adapters';
+import { kvGet, kvRemove, kvSet } from '../config/adapters';
 
 /** Pre-multi-account global blob; adopted once by the first user that hydrates. */
 const LEGACY_KEY = 'octochat.membercaps.v1';

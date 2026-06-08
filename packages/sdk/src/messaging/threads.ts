@@ -1,5 +1,5 @@
-import { resolveEdit, type StoredMsg } from './message-view';
-import type { MessageEditEvent } from './types';
+import { resolveEdit, type StoredMsg } from '../format/message-view';
+import type { MessageEditEvent } from '../domain/types';
 
 /** A thread summarised for the sidebar + the Threads tab: its anchor message,
  *  participants and recent activity. */

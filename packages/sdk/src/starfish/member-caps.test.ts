@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // In-memory kv (the web kv is localStorage, absent under Node).
-vi.mock('../adapters', () => {
+vi.mock('../config/adapters', () => {
   const store = new Map<string, string>();
   return {
     kvGet: vi.fn(async (k: string) => store.get(k) ?? null),
@@ -16,7 +16,7 @@ vi.mock('../adapters', () => {
 });
 
 import { clearMemberCaps, getMemberCap, hydrateMemberCaps } from './member-caps';
-import * as kv from '../adapters';
+import * as kv from '../config/adapters';
 
 const store = (kv as unknown as { __store: Map<string, string> }).__store;
 const KEY = (u: string) => `octochat.membercaps.${u}`;

@@ -17,7 +17,7 @@
 import { createPublicLink } from '@drakkar.software/starfish-sharing';
 
 import { unsealFromSelf, type SealedBlob } from './account-seal';
-import { getSyncBase } from '../config';
+import { getSyncBase } from '../config/config';
 import type { Session } from './identity';
 import { pubstreamRoomPush, pubstreamBotScope } from './paths';
 

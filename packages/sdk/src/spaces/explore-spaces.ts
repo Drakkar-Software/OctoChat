@@ -14,9 +14,9 @@
  * no cap/key). Private spaces are deliberately absent: the projection only indexes
  * the public shard, so this never leaks invite-only spaces.
  */
-import { getSyncBase, getSyncPrefix } from './config';
-import { fetchWithTimeout } from './starfish/fetch-timeout';
-import { spaceIndexPull } from './starfish/paths';
+import { getSyncBase, getSyncPrefix } from '../config/config';
+import { fetchWithTimeout } from '../starfish/fetch-timeout';
+import { spaceIndexPull } from '../starfish/paths';
 
 /** One public space as listed in the directory. Mirrors the projection's per-entry
  *  `value` (see apps/server/src/projections.ts), plus the stable `id` (the spaceId). */

@@ -27,7 +27,7 @@
  * `_rooms` for the public room registry) — we route on that and SKIP `_rooms`,
  * which is a registry write, not a room.
  */
-import { getEventsUrl, getSyncBase } from './config';
+import { getEventsUrl, getSyncBase } from '../config/config';
 
 export interface RoomChange {
   roomId: string;

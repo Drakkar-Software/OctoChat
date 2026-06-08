@@ -8,7 +8,7 @@
  */
 import { isPublicSpaceId, updatePublicRoomsRegistry } from '../starfish/pubspace';
 import type { Session } from '../starfish/identity';
-import type { AutomationMeta, Room } from '../types';
+import type { AutomationMeta, Room } from '../domain/types';
 
 export class AutomationsNotSupportedHere extends Error {
   constructor() {

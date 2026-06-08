@@ -15,9 +15,9 @@
 import { getBase64 } from '@drakkar.software/starfish-protocol';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import { randomId } from '../ids';
+import { randomId } from '../domain/ids';
 
-import { kvGet, kvRemove, kvSet } from '../adapters';
+import { kvGet, kvRemove, kvSet } from '../config/adapters';
 import { attachmentName, attachmentPull, attachmentPush } from './paths';
 
 /**

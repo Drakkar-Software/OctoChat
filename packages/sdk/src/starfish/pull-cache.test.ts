@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // Back the adapter with an in-memory kv so we can assert the exact stored key
 // (the adapter's only job is to prefix the SDK's document-path key and delegate).
 const store = new Map<string, string>();
-vi.mock('../adapters', () => ({
+vi.mock('../config/adapters', () => ({
   kvGet: vi.fn(async (k: string) => store.get(k) ?? null),
   kvSet: vi.fn(async (k: string, v: string) => {
     store.set(k, v);

@@ -9,7 +9,7 @@
 import { parsePublicLink, redeemPublicLink } from '@drakkar.software/starfish-sharing';
 import { signAppendAuthor } from '@drakkar.software/starfish-protocol';
 
-import { getSyncBase, getSyncNamespace } from '../config';
+import { getSyncBase, getSyncNamespace } from '../config/config';
 
 /** A fresh Ed25519 keypair the bot redeems the audience cap with. Distinct from
  *  the user's identity key — by design, a leaked link is useless without it. */

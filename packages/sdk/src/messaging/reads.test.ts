@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ReadPrefs } from './types';
+import type { ReadPrefs } from '../domain/types';
 
 // In-memory kv so hydrate/persist round-trips without a platform store.
 const store = new Map<string, string>();
-vi.mock('./adapters', () => ({
+vi.mock('../config/adapters', () => ({
   kvGet: vi.fn(async (k: string) => store.get(k) ?? null),
   kvSet: vi.fn(async (k: string, v: string) => {
     store.set(k, v);
@@ -13,7 +13,7 @@ vi.mock('./adapters', () => ({
 
 // Capture the synced write so we can assert coalescing + run the max-merge mutator.
 const updateReadsDoc = vi.fn(async (_client: unknown, _userId: string, _mutator: (c: ReadPrefs) => ReadPrefs | null) => {});
-vi.mock('./starfish/registry', () => ({
+vi.mock('../starfish/registry', () => ({
   updateReadsDoc: (...args: [unknown, string, (c: ReadPrefs) => ReadPrefs | null]) => updateReadsDoc(...args),
 }));
 

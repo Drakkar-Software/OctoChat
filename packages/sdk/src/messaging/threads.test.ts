@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 
 import { buildThreadDigest } from './threads';
-import type { StoredMsg } from './message-view';
+import type { StoredMsg } from '../format/message-view';
 import type { MessageEditEvent } from '@drakkar.software/octochat-sdk';
 
 // Compact message factory — `id`/`ts` are the only fields most cases vary.

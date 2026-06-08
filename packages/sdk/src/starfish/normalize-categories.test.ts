@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Room } from '../types';
+import type { Room } from '../domain/types';
 
 import { normalizeCategories } from './registry';
 

@@ -16,9 +16,9 @@ import { mintMemberCap } from '@drakkar.software/starfish-sharing';
 import { ConflictError, StarfishHttpError } from '@drakkar.software/starfish-client';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { PubAccessMap, Room, RoomKind, Space } from '../types';
+import type { PubAccessMap, Room, RoomKind, Space } from '../domain/types';
 
-import { randomId, roomSlug } from '../ids';
+import { randomId, roomSlug } from '../domain/ids';
 
 import { sealToSelf, unsealFromSelf } from './account-seal';
 import type { SealedBlob } from './account-seal';

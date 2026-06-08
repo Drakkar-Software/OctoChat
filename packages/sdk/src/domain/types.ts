@@ -1,7 +1,7 @@
 /** Domain model for OctoChat — the chat-domain types shared by the SDK and any UI. */
 
-import type { SealedBlob } from './starfish/account-seal';
-import type { AttachmentRef } from './starfish/attachments';
+import type { SealedBlob } from '../starfish/account-seal';
+import type { AttachmentRef } from '../starfish/attachments';
 
 export type ID = string;
 

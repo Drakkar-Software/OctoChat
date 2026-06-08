@@ -10,21 +10,31 @@
  * Host integration: call `configureOctoChat({...})` and `configureKv({...})` once
  * at boot (the SDK is platform-agnostic and does not read env or bind storage).
  * Relative imports are EXTENSIONLESS so Metro can bundle the package from source.
+ *
+ * Source is grouped by subject under `src/`: `config/` (host wiring), `domain/`
+ * (types/ids/object registry), `format/` (pure formatters & view models),
+ * `starfish/` (encrypted sync / crypto / registry core), `messaging/` (reads,
+ * mutes, reactions, threads, links), `notifications/`, `outbox/`, `spaces/`,
+ * `events/`, `nostr/`, and `automations/`.
  */
 
-// ── Host configuration / platform adapters ─────────────────────────────────────
-export * from './config';
-export * from './adapters';
+// ── config/ — host configuration / platform adapters ───────────────────────────
+export * from './config/config';
+export * from './config/adapters';
 
-// ── Domain model + id/formatter helpers ────────────────────────────────────────
-export * from './types';
-export * from './ids';
-export * from './format';
-export * from './emoji';
-export * from './message-format';
-export * from './markdown';
+// ── domain/ — core model: types, ids, object-type registry ─────────────────────
+export * from './domain/types';
+export * from './domain/ids';
+export * from './domain/object-types';
 
-// ── Encrypted sync / crypto / registry core ────────────────────────────────────
+// ── format/ — pure formatters & view models ────────────────────────────────────
+export * from './format/format';
+export * from './format/emoji';
+export * from './format/message-format';
+export * from './format/markdown';
+export * from './format/message-view';
+
+// ── starfish/ — encrypted sync / crypto / registry core ────────────────────────
 export * from './starfish/base64';
 export * from './starfish/fetch-timeout';
 export * from './starfish/paths';
@@ -51,23 +61,35 @@ export * from './starfish/dm-inbox';
 export * from './starfish/pubspace';
 export * from './starfish/pubspace-caps';
 
-// ── Data / domain layer (offline state, messages, notifications, automations) ───
-export * from './outbox-types';
-export * from './outbox-send';
-export * from './reads';
-export * from './mutes';
-export * from './links';
-export * from './reactions';
-export * from './message-view';
-export * from './threads';
-export * from './cross-room';
-export * from './space-stats';
-export * from './object-types';
-export * from './nostr';
-export * from './notification-format';
-export * from './notification-labels';
-export * from './notification-preview';
-export * from './events.shared';
+// ── messaging/ — reads, mutes, reactions, threads, links, cross-room ───────────
+export * from './messaging/reads';
+export * from './messaging/mutes';
+export * from './messaging/links';
+export * from './messaging/reactions';
+export * from './messaging/threads';
+export * from './messaging/cross-room';
+export * from './messaging/quick-reactions-settings';
+
+// ── notifications/ — notification formatting, labels, previews ─────────────────
+export * from './notifications/notification-format';
+export * from './notifications/notification-labels';
+export * from './notifications/notification-preview';
+
+// ── outbox/ — offline write queue ──────────────────────────────────────────────
+export * from './outbox/outbox-types';
+export * from './outbox/outbox-send';
+
+// ── spaces/ — space stats + public-space exploration ───────────────────────────
+export * from './spaces/space-stats';
+export * from './spaces/explore-spaces';
+
+// ── events/ — live room-change SSE stream ──────────────────────────────────────
+export * from './events/events.shared';
+
+// ── nostr/ — NIP-07 browser-extension login ────────────────────────────────────
+export * from './nostr/nostr';
+
+// ── automations/ — scheduled/triggered room automations ────────────────────────
 export * from './automations/types';
 export * from './automations/hash';
 export * from './automations/secrets';
@@ -76,5 +98,3 @@ export * from './automations/registry-write';
 export * from './automations/runner-core';
 export * from './automations/orchestrator';
 export * from './automations/providers/index';
-export * from './quick-reactions-settings';
-export * from './explore-spaces';

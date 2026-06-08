@@ -14,14 +14,14 @@
  * failure (no keyring yet, server unreachable, no text message) returns null so the
  * caller shows the generic "New message" banner instead.
  */
-import { buildSpaceEncryptor } from './starfish/space-encryptor';
+import { buildSpaceEncryptor } from '../starfish/space-encryptor';
 
-import { resolveEdit, type StoredMsg } from './message-view';
-import { makeClient, readPseudo } from './starfish/client';
-import type { Session } from './starfish/identity';
-import { pubspaceRoomPull, pubstreamRoomPull, roomPull, spaceIdFromRoomId, streamRoomPull } from './starfish/paths';
-import { isPublicSpaceId, publicSpaceAuth } from './starfish/pubspace';
-import type { MessageEditEvent } from './types';
+import { resolveEdit, type StoredMsg } from '../format/message-view';
+import { makeClient, readPseudo } from '../starfish/client';
+import type { Session } from '../starfish/identity';
+import { pubspaceRoomPull, pubstreamRoomPull, roomPull, spaceIdFromRoomId, streamRoomPull } from '../starfish/paths';
+import { isPublicSpaceId, publicSpaceAuth } from '../starfish/pubspace';
+import type { MessageEditEvent } from '../domain/types';
 
 /** Hard cap on preview length so a long message can't overflow the OS toast. */
 const PREVIEW_MAX_CHARS = 140;
