@@ -46,12 +46,14 @@ export function concatDedupById<T extends { id: string }>(existing: T[], incomin
   return added.length === 0 ? existing : [...existing, ...added];
 }
 
-/** Cross-restart persistence key for a room's append log. Versioned so a future
- *  envelope/shape change can bump `v1` rather than mis-read stale blobs. NOT
- *  user-scoped: the persisted blob is `cursor.getItems()` — the CIPHERTEXT envelopes
- *  for a private room (E2EE-safe at rest, decryptable only by a keyring holder) and
- *  already-public plaintext for a public room — so the roomId alone namespaces it. */
-export const streamLogKey = (roomId: string): string => `octochat.streamlog.v1.${roomId}`;
+/** Cross-restart persistence key for a room's append log. Versioned so a persist-format
+ *  change can bump the version rather than mis-read stale blobs. NOT user-scoped: the
+ *  persisted blob is `cursor.getItems()` under `persistEncrypted` — the CIPHERTEXT
+ *  envelopes for a private room (E2EE-safe at rest, decryptable only by a keyring holder)
+ *  and already-public plaintext for a public room — so the roomId alone namespaces it.
+ *  `v2`: bumped from v1, which (without `persistEncrypted`) stored DECRYPTED elements; a
+ *  v1 blob is plaintext and must NOT be fed to the now-ciphertext-expecting cursor. */
+export const streamLogKey = (roomId: string): string => `octochat.streamlog.v2.${roomId}`;
 
 /** Tolerant load of a persisted append log — bad/absent/wrong-shaped JSON yields `[]`
  *  (a corrupt blob must never brick the room; the next `pull` just refetches the log).

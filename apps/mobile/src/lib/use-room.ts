@@ -170,7 +170,11 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomH
         client,
         pullPath: route.pull,
         appendField: 'items',
-        ...(encryptor ? { encryptor } : {}),
+        // `persistEncrypted` keeps `getItems()` (what we kvSet below) as the CIPHERTEXT
+        // envelopes for a private room — E2EE-safe at rest. WITHOUT it the cursor stores
+        // DECRYPTED elements and we'd write plaintext message bodies to KV. A public room
+        // has no encryptor (the flag is a no-op there — plaintext is its own stored form).
+        ...(encryptor ? { encryptor, persistEncrypted: true } : {}),
         onElementError: 'skip',
         initialItems,
       });
@@ -188,19 +192,30 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomH
     };
   }, [enabled, client, encryptor, route, roomId, roomState, pull]);
 
-  // Append one envelope: seal it for a private stream, send it plain for a public one.
+  // Append one envelope: seal it for a private room, send it plain for a public one.
   // No client-supplied ts → the server assigns a strictly-monotonic one (no 409 on
-  // concurrent appends). This is the whole point of a stream room: append, no merge.
+  // concurrent appends). This is the whole point of an append-only room: append, no merge.
+  //
+  // Returns whether the append COMMITTED to the server: `false` when the room isn't open
+  // yet (the Composer renders from `canWrite`/`route` BEFORE `client` resolves, so a send
+  // can land in that window) OR when the network append throws. Caught internally so a
+  // failure is a `false` return, never a rejection — `send` reports it to the outbox and
+  // the best-effort reaction/edit/pin callers just ignore it (no unhandled rejection).
   const append = useCallback(
-    async (env: StreamEnvelope) => {
-      if (!client || !route) return;
-      const body = encryptor
-        ? ((await (encryptor as unknown as { encrypt: (d: Record<string, unknown>) => Promise<Record<string, unknown>> }).encrypt(
-            env as unknown as Record<string, unknown>,
-          )) as Record<string, unknown>)
-        : (env as unknown as Record<string, unknown>);
-      await client.append(route.push, body);
+    async (env: StreamEnvelope): Promise<boolean> => {
+      if (!client || !route) return false;
+      try {
+        const body = encryptor
+          ? ((await (encryptor as unknown as { encrypt: (d: Record<string, unknown>) => Promise<Record<string, unknown>> }).encrypt(
+              env as unknown as Record<string, unknown>,
+            )) as Record<string, unknown>)
+          : (env as unknown as Record<string, unknown>);
+        await client.append(route.push, body);
+      } catch {
+        return false; // couldn't reach the server → caller diverts to the outbox
+      }
       void pull(); // reflect our own append immediately
+      return true;
     },
     [client, route, encryptor, pull],
   );
@@ -231,8 +246,9 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomH
       if (t) msg.text = t;
       if (parentId) msg.parentId = parentId;
       if (attachment) msg.attachment = attachment;
-      // Return the append promise so the screen can await + catch a failed (offline) send
-      // and divert the message to the outbox. `await send(…)` is a no-op on the void path.
+      // Return the append's success boolean (Promise<boolean>): `false` ⇒ not committed
+      // (offline / room not open yet), which `use-room-send` diverts to the outbox so the
+      // message is never silently dropped.
       return append({ t: 'msg', e: msg });
     },
     [session, append],

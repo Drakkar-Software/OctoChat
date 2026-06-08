@@ -23,10 +23,10 @@ import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 import type { RoomKind } from '@drakkar.software/octochat-sdk';
 
 /** A room/thread `send` (the optional `id` lets a queued message reuse its pending-bubble
- *  id). The single append-only `useRoom.send` returns the append promise — it rejects when
- *  the write can't reach the server, which signals "divert to queue". (The union still
- *  admits a sync `boolean`/`void` for back-compat with any non-append caller.) */
-type SendFn = (text: string, parentId?: string, attachment?: undefined, id?: string) => void | boolean | Promise<void>;
+ *  id). The single append-only `useRoom.send` resolves to a success boolean — `false` ⇒
+ *  the append did NOT commit (offline, or the room isn't open yet), which signals "divert
+ *  to queue". (The union still admits a sync `boolean`/`void` for back-compat.) */
+type SendFn = (text: string, parentId?: string, attachment?: undefined, id?: string) => void | boolean | Promise<void> | Promise<boolean>;
 
 export function useRoomSend(opts: { roomId: string; kind: RoomKind; parentId?: string; send: SendFn }) {
   const { roomId, kind, parentId, send } = opts;
@@ -42,11 +42,11 @@ export function useRoomSend(opts: { roomId: string; kind: RoomKind; parentId?: s
       const id = randomId();
       if (online) {
         // The send RESULT — not the `online` flag alone — decides whether to queue:
-        // the append-only `useRoom.send` rejects when the append can't reach the server.
-        // That ⇒ divert to the outbox so the message is never silently dropped even when
-        // `online` is wrongly true (the native SSE proxy can be stuck optimistic-true).
-        // `Promise.resolve(...).catch(() => false)` flattens success (resolves `undefined`)
-        // and failure (rejects → `false`) into one shape; only `false` queues.
+        // `useRoom.send` resolves `false` when the append didn't commit (offline, the
+        // server unreachable, or the room not open yet). That ⇒ divert to the outbox so the
+        // message is never silently dropped even when `online` is wrongly true (the native
+        // SSE proxy can be stuck optimistic-true). `Promise.resolve(...).catch(() => false)`
+        // also coerces any stray rejection to `false`; only a non-`false` result skips the queue.
         const applied = await Promise.resolve(send(t, parentId, undefined, id)).catch(() => false);
         if (applied !== false) return;
       }
