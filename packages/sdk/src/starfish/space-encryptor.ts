@@ -17,23 +17,18 @@ import { buildEncryptor, makeClient, openEncryptor, ownerEnsureKeyring } from '.
 import type { Session } from './identity';
 import { ownerTrustedAdders } from './identity';
 import { getMemberCap } from './member-caps';
+import { SpaceAccessError } from './space-access-error';
+
+// Re-export so existing importers (and the SDK barrel) keep reaching for `SpaceAccessError`
+// through `starfish/space-encryptor`; its canonical home is the dependency-free
+// `space-access-error` module so `client.ts` can throw it too (no import cycle).
+export { SpaceAccessError };
 
 export interface SpaceEncryptor {
   encryptor: Encryptor;
   client: StarfishClient;
   /** True when opened as the space OWNER (so the caller must seed the room doc). */
   isOwnerOpen: boolean;
-}
-
-/** A GENUINE access denial (not on the keyring / not a member) — distinct from a
- *  network failure. The room-open path surfaces this as a hard error, but treats a
- *  connectivity failure as a transient offline state (see use-room).
- *  Tagged as a class so callers classify by `instanceof`, not by message matching. */
-export class SpaceAccessError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'SpaceAccessError';
-  }
 }
 
 const cache = new Map<string, Promise<SpaceEncryptor>>();

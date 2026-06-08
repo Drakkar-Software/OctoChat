@@ -14,6 +14,7 @@ import { fetchWithTimeout } from './fetch-timeout';
 import { pullCache, PULL_CACHE_MAX_AGE_MS } from './pull-cache';
 import { cacheProfile, loadCachedProfile } from './profile-cache';
 import { keyringPull, keyringPush, profilePull, profilePush } from './paths';
+import { SpaceAccessError } from './space-access-error';
 
 export interface DeviceKeys {
   edPriv: string;
@@ -54,6 +55,15 @@ export function makeClient(cap: unknown, devEdPrivHex: string): StarfishClient {
  * (unreachable server / no keyring yet / not a recipient) instead of collapsing
  * them all to null. One keyring per space drives every channel in it.
  *
+ * The error TYPE classifies the failure for the room-open path: an ACCESS denial
+ * (no keyring yet / not a recipient) throws {@link SpaceAccessError} so the screen
+ * surfaces a hard, user-facing reason (e.g. a DM opened on a non-recipient/paired
+ * device shows "Open this DM on your primary device") rather than a stuck "offline"
+ * shell; only the genuine UNREACHABLE-server case throws a plain `Error`, which the
+ * caller treats as a transient offline state. (Before this split, a not-a-recipient
+ * DM was misread as offline — the banner stuck forever with no history and queued
+ * sends, because the access reason never reached `openError`.)
+ *
  * `trustedAdders` is the fail-closed provenance pin the SDK requires (the
  * keyring's per-entry `addedSig` is self-attesting, so a hostile server could
  * substitute a wrapped CEK). Pass the Ed25519 pubkey(s) of whoever may grant
@@ -74,7 +84,9 @@ export async function openEncryptor(
   });
   const keyring = res?.data as unknown as Keyring | undefined;
   if (!keyring || !keyring.epochs) {
-    throw new Error('This space has no keyring yet — ask the owner to open it first.');
+    // ACCESS failure (server reachable, keyring absent), NOT connectivity — surface it as
+    // a hard openError, not an offline shell. See the type-classification note above.
+    throw new SpaceAccessError('This space has no keyring yet — ask the owner to open it first.');
   }
   try {
     const enc = await createKeyringEncryptor(
@@ -84,7 +96,10 @@ export async function openEncryptor(
     );
     return enc as unknown as Encryptor;
   } catch {
-    throw new Error("You're not a recipient of this space's keyring yet — ask the owner to re-invite.");
+    // We reached the server and read a keyring, but this device's KEM key isn't a
+    // recipient (the common DM case on a paired/secondary device: a DM keyring is sealed
+    // to the seed identity). An ACCESS denial → SpaceAccessError, not offline.
+    throw new SpaceAccessError("You're not a recipient of this space's keyring yet — ask the owner to re-invite.");
   }
 }
 
