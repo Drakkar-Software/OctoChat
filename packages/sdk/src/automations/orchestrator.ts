@@ -9,7 +9,7 @@ import { type SealedBlob } from '../starfish/account-seal';
 import { isPublicSpaceId, publicSpaceAuth, createPublicRoom } from '../starfish/pubspace';
 import { createStreamBotCredential } from '../starfish/stream-bots';
 import type { Session } from '../starfish/identity';
-import type { AutomationMeta, Room } from '../domain/types';
+import type { AutomationMeta, AutomationSchedule, Room } from '../domain/types';
 
 import { AutomationsNotSupportedHere, deleteRoomFromRegistry, patchRoomAutomation, renameRoomInRegistry, setRoomAutomation } from './registry-write';
 import { tickRoom, type TickKind, type TickOutcome } from './runner-core';
@@ -49,6 +49,9 @@ export async function createAutomatedRoom(opts: {
   secrets: Record<string, unknown>;
   intervalMin: number;
   onOpen: boolean;
+  /** Calendar/interval cadence. When set it overrides `intervalMin` for the timing
+   *  gate; `intervalMin` is still written as the legacy fallback (see AutomationMeta). */
+  schedule?: AutomationSchedule;
 }): Promise<Room> {
   const { session, spaceId } = opts;
   if (!isPublicSpaceId(spaceId)) throw new AutomationsNotSupportedHere();
@@ -66,6 +69,7 @@ export async function createAutomatedRoom(opts: {
     params: opts.params,
     intervalMin: opts.intervalMin,
     onOpen: opts.onOpen,
+    ...(opts.schedule ? { schedule: opts.schedule } : {}),
     enabled: true,
     credential,
     runOnDeviceId: session.keys.edPub,

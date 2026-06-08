@@ -96,5 +96,6 @@ export * from './automations/secrets';
 export * from './automations/append';
 export * from './automations/registry-write';
 export * from './automations/runner-core';
+export * from './automations/schedule';
 export * from './automations/orchestrator';
 export * from './automations/providers/index';

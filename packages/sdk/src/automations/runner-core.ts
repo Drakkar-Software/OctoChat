@@ -12,6 +12,7 @@ import type { Session } from '../starfish/identity';
 
 import { appendAsBot, type BotRedeemer } from './append';
 import { dedupeFetch } from './hash';
+import { effectiveSchedule, nextScheduledRunAt } from './schedule';
 import { loadAutomationSecrets } from './secrets';
 import type { AutomationProvider, RunResult } from './types';
 
@@ -121,13 +122,24 @@ export async function tickRoom(opts: {
   }
 }
 
-/** True when an automated room is due for a scheduled tick on `deviceId` at `now`. */
+/**
+ * True when an automated room is due for a scheduled tick on `deviceId` at `now`.
+ *
+ * This gate stays the cross-device source of truth over the synced `lastRunAt`: the
+ * 0.2.0 scheduler engine dispatch-gates its OS wake on a per-device `nextRunAt`, but
+ * only this gate knows whether ANOTHER device already ran the current occurrence. It
+ * computes the cadence from {@link effectiveSchedule} (explicit `schedule`, else the
+ * legacy `intervalMin`) — for interval/daily/weekly/cron alike — using the same UTC
+ * math the engine uses, so the wake and the gate agree.
+ */
 export function isDueForScheduledTick(room: Room, deviceId: string, now: number): boolean {
   const a = room.automation;
   if (!a || !a.enabled) return false;
   if (a.runOnDeviceId !== deviceId) return false;
   if (a.onOpen) return true; // explicit always-on-open mode — no time gate
-  if (a.intervalMin <= 0) return false;
-  if (a.lastRunAt === null) return true;
-  return now - a.lastRunAt >= a.intervalMin * 60_000;
+  const schedule = effectiveSchedule(a);
+  if (!schedule) return false; // commands-only (no scheduled cadence)
+  if (a.lastRunAt === null) return true; // never run → due now
+  const next = nextScheduledRunAt(schedule, a.lastRunAt);
+  return next !== null && now >= next;
 }

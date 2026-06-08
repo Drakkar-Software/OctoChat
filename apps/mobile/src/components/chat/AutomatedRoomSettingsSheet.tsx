@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+
+import Conductor, { type ConductorStatus } from '@drakkar.software/expo-conductor';
 
 import { radii, spacing } from '@/theme';
 import {
   deleteAutomatedRoom,
+  isValidCronExpression,
   renameAutomatedRoom,
   rotateAutomatedRoomCredential,
   runAutomationTick,
@@ -48,6 +51,7 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
   const [cadence, setCadence] = useState<Cadence>({
     intervalMin: auto?.intervalMin ?? 0,
     onOpen: auto?.onOpen ?? false,
+    schedule: auto?.schedule,
   });
   const [enabled, setEnabled] = useState<boolean>(auto?.enabled ?? true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -59,6 +63,23 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
   // (any owner device can) to surface the copyable token/endpoint. Re-runs on rotate
   // (the sealed `ct` changes). Stays null on a non-owner / failed unseal → fields hidden.
   const [cred, setCred] = useState<StreamBotCredential | null>(null);
+  // Background-execution availability (native only; web is always 'unsupported' and we
+  // don't nag about it). Surfaces an "OS is limiting background runs" hint so a user whose
+  // scheduled ticks aren't firing knows it's a system setting, not a bug.
+  const [bgStatus, setBgStatus] = useState<ConductorStatus | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    let cancelled = false;
+    void Conductor.getStatus()
+      .then((s) => {
+        if (!cancelled) setBgStatus(s);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,11 +137,14 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
 
   const save = () =>
     wrap('save', async () => {
+      if (cadence.schedule?.kind === 'cron' && !isValidCronExpression(cadence.schedule.expression)) {
+        throw new Error('Cron schedule is invalid — use 3 fields: minute hour day-of-week.');
+      }
       await saveAutomationSecrets(session.userId, room.id, secrets);
       await updateAutomatedRoom({
         session,
         room,
-        patch: { params, intervalMin: cadence.intervalMin, onOpen: cadence.onOpen, enabled },
+        patch: { params, intervalMin: cadence.intervalMin, onOpen: cadence.onOpen, schedule: cadence.schedule, enabled },
       });
       // The registry write doesn't refresh the in-memory cache, so reflect the edit
       // locally — else the driver keeps reading the stale meta (e.g. disabling wouldn't
@@ -131,6 +155,7 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
         params,
         intervalMin: cadence.intervalMin,
         onOpen: cadence.onOpen,
+        schedule: cadence.schedule,
         enabled,
       });
       // Name lives on the Room (not AutomationMeta); rename only when it changed.
@@ -271,6 +296,12 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
               ) : (
                 <Button label="Run on this device" iconName="arrow-r" variant="secondary" onPress={takeOver} loading={busy === 'takeOver'} />
               )}
+              {bgStatus === 'restricted' ? (
+                <Callout tone="warning" iconName="alert">
+                  The system is limiting background runs — scheduled ticks may only fire while
+                  the room is open. Check Background App Refresh / battery settings.
+                </Callout>
+              ) : null}
             </View>
 
             <Pressable

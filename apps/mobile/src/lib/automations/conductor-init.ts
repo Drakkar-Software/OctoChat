@@ -17,10 +17,11 @@
  * platform-branched `conductor-background.native.ts` (no-op on web).
  */
 import Conductor, { TaskResult } from '@drakkar.software/expo-conductor';
-import type { TaskDefinition, TaskExecutionContext, Trigger } from '@drakkar.software/expo-conductor';
+import type { Recurrence, TaskDefinition, TaskExecutionContext, Trigger } from '@drakkar.software/expo-conductor';
 
 import {
   activeAccountOf,
+  effectiveSchedule,
   hydratePubspaceCaps,
   isDueForScheduledTick,
   isPublicSpaceId,
@@ -31,7 +32,7 @@ import {
   runAutomationTick,
   sessionFromPersisted,
 } from '@drakkar.software/octochat-sdk';
-import type { AutomationMeta, Room, Session } from '@drakkar.software/octochat-sdk';
+import type { AutomationMeta, AutomationSchedule, Room, Session } from '@drakkar.software/octochat-sdk';
 
 import { initOctoChat } from '../octochat-init';
 import { configureStarfishPlatform } from '../starfish/platform';
@@ -100,7 +101,10 @@ async function handleTick(ctx: TaskExecutionContext): Promise<TaskResult> {
   const room = await resolveAutomatedRoom(session, parsed.spaceId, parsed.roomId);
   if (!room?.automation) return TaskResult.NO_DATA;
   const now = Date.now();
-  // Gate enforces enabled + this device is the elected runner + interval/onOpen timing.
+  // Gate enforces enabled + this device is the elected runner + the cadence timing
+  // (interval / daily / weekly / cron / onOpen), reconciled against the SYNCED lastRunAt.
+  // 0.2.0's engine already dispatch-gates the OS wake on its own nextRunAt; this gate
+  // backstops that and is the only thing that knows if ANOTHER device already ran.
   if (!isDueForScheduledTick(room, session.keys.edPub, now)) return TaskResult.NO_DATA;
   const outcome = await runAutomationTick({ session, room, trigger: 'scheduled', now });
   if (outcome.kind === 'failed') throw new Error(outcome.error); // → onTaskError + retry
@@ -113,13 +117,28 @@ async function handleTick(ctx: TaskExecutionContext): Promise<TaskResult> {
 // Module scope: registered on every launch, including a cold headless wake.
 Conductor.defineTask(HANDLER, handleTick);
 
+/** Map an automation's effective cadence to a Conductor recurrence. The engine owns
+ *  the OS-wake timing; the SDK's `isDueForScheduledTick` (same UTC math) is the final
+ *  due-gate, so the two agree on when daily/weekly/cron fire. */
+function recurrenceFor(s: AutomationSchedule): Recurrence {
+  switch (s.kind) {
+    case 'interval':
+      return { kind: 'interval', everyMs: s.everyMin * 60_000 };
+    case 'daily':
+      return { kind: 'daily', hour: s.hour, minute: s.minute };
+    case 'weekly':
+      return { kind: 'weekly', weekday: s.weekday, hour: s.hour, minute: s.minute };
+    case 'cron':
+      return { kind: 'cron', expression: s.expression };
+  }
+}
+
 /** The trigger set for a room's automation, or null when there's nothing to schedule
- *  (no interval cadence and not an on-open automation). */
+ *  (no cadence and not an on-open automation). */
 function triggersFor(a: AutomationMeta): Trigger[] | null {
   const triggers: Trigger[] = [];
-  if (a.intervalMin > 0) {
-    triggers.push({ type: 'recurrence', recurrence: { kind: 'interval', everyMs: a.intervalMin * 60_000 } });
-  }
+  const schedule = effectiveSchedule(a);
+  if (schedule) triggers.push({ type: 'recurrence', recurrence: recurrenceFor(schedule) });
   // `onOpen` ticks when the app returns to the foreground. On web this fires per tab via
   // visibilitychange; the room screen also forces an immediate tick on focus (see the driver).
   if (a.onOpen) triggers.push({ type: 'appState', on: 'foreground' });
@@ -138,6 +157,11 @@ function taskDefFor(spaceId: string, roomId: string, a: AutomationMeta): TaskDef
       // so a changed feed posts once, not once per tab. Native is a single instance (no-op).
       singleFlight: roomId,
       retry: { maxAttempts: 2, backoffMs: 30_000, maxBackoffMs: 300_000 },
+      // A scheduled tick is a network poll (RSS/HTTP) — let the engine SKIP it when offline
+      // instead of waking the handler to fail (which burns a scarce background slot and bumps
+      // retry/backoff on a transient no-network condition). `unmetered` keeps background polls
+      // off cellular data; the foreground `runNow` focus tick is user-initiated and not gated.
+      constraints: { network: 'unmetered' },
     },
   };
 }
@@ -204,7 +228,15 @@ async function reconcile(session: Session): Promise<void> {
   for (const id of await automationTaskIds()) {
     if (!desired.has(id)) await Conductor.cancelTask(id);
   }
-  for (const def of desired.values()) await Conductor.schedule(def, handleTick);
+  for (const def of desired.values()) {
+    try {
+      await Conductor.schedule(def, handleTick);
+    } catch (e) {
+      // 0.2.0 validates a cron expression fail-fast at registration and throws. One bad
+      // expression from the synced registry must not abort scheduling for sibling rooms.
+      console.error('[automations] sync: schedule failed', def.id, e);
+    }
+  }
 }
 
 /** Cancel every automation task (on sign-out). Serialized against {@link syncAutomationTasks}

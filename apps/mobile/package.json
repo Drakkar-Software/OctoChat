@@ -1,7 +1,7 @@
 {
   "name": "@octochat/mobile",
   "main": "expo-router/entry",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
@@ -15,7 +15,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@drakkar.software/expo-conductor": "^0.1.0",
+    "@drakkar.software/expo-conductor": "^0.2.0",
     "@drakkar.software/octochat-sdk": "workspace:*",
     "@drakkar.software/starfish-client": "3.0.0-alpha.21",
     "@drakkar.software/starfish-identities": "3.0.0-alpha.21",

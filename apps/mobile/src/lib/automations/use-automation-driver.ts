@@ -46,9 +46,17 @@ export function useAutomationDriver(opts: { session: Session | null; room: Room 
       if (p.taskId !== taskId) return;
       patchRoomAutomationLocal(spaceId, roomId, { lastError: p.error });
     });
+    // A skip (offline `network` constraint, budget, or a non-leader instance) means nothing
+    // ran — like NO_DATA, lastRunAt must NOT advance. Clear any stale error so the status
+    // line doesn't show a failure that was actually just deferred.
+    const onSkipped = Conductor.addListener('onTaskSkipped', (p) => {
+      if (p.taskId !== taskId) return;
+      patchRoomAutomationLocal(spaceId, roomId, { lastError: null });
+    });
     return () => {
       onComplete.remove();
       onError.remove();
+      onSkipped.remove();
     };
   }, [automated, spaceId, roomId, patchRoomAutomationLocal]);
 

@@ -94,6 +94,19 @@ export interface Space {
  *  Storage-wise it's identical to a public `stream` (pubstream collection). */
 export type RoomKind = 'channel' | 'private' | 'dm' | 'stream' | 'automated';
 
+/** A scheduled-fetch cadence. The additive successor to `intervalMin`/`onOpen`: when
+ *  an automation sets `schedule`, it OVERRIDES `intervalMin` for the timing gate;
+ *  absent → the cadence is derived from `intervalMin` (every pre-existing room). The
+ *  discriminated `kind` keeps the daily/weekly/cron sub-fields disjoint and validatable.
+ *  Calendar kinds are evaluated in **UTC** (`hour`/`minute`/`weekday` and cron fields are
+ *  UTC) to match the scheduler engine's recurrence math bit-for-bit — see
+ *  `automations/schedule.ts`. `weekday`: 0 = Sunday. `cron`: 3 fields `minute hour dayOfWeek`. */
+export type AutomationSchedule =
+  | { kind: 'interval'; everyMin: number }
+  | { kind: 'daily'; hour: number; minute: number }
+  | { kind: 'weekly'; weekday: number; hour: number; minute: number }
+  | { kind: 'cron'; expression: string };
+
 /** Stored, synced configuration of an `automated` room — kept on the per-Room
  *  registry entry so every device sees status / can take over the runner.
  *  Secret provider params (API keys etc.) live in device-local kv instead — see
@@ -103,8 +116,15 @@ export interface AutomationMeta {
   providerId: string;
   /** Non-secret provider params (URLs, locations, etc.). */
   params: Record<string, unknown>;
-  /** Scheduled-fetch cadence in minutes; `0` = commands-only (no scheduled run). */
+  /** Scheduled-fetch cadence in minutes; `0` = commands-only (no scheduled run).
+   *  Legacy baseline: when `schedule` is set it overrides this for the timing gate,
+   *  but `intervalMin` is kept written so an older client still reads a usable cadence
+   *  (a calendar `schedule` degrades to commands-only on a client that predates it). */
   intervalMin: number;
+  /** Calendar / interval cadence (introduced with the 0.2.0 scheduler). Present →
+   *  overrides `intervalMin`; absent → the legacy interval path. Optional → absent on
+   *  every pre-existing room. See {@link AutomationSchedule}. */
+  schedule?: AutomationSchedule;
   /** When set, the automation fires on every room open / background check,
    *  bypassing the `intervalMin` time gate (still single-runner + enabled-gated).
    *  Optional → absent on pre-existing rooms, read as `false`. */

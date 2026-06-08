@@ -3,7 +3,7 @@ import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import { radii, spacing } from '@/theme';
-import { createAutomatedRoom } from '@drakkar.software/octochat-sdk';
+import { createAutomatedRoom, isValidCronExpression } from '@drakkar.software/octochat-sdk';
 import { syncAutomationTasks } from '@/lib/automations/conductor-init';
 import { getProvider, PROVIDERS } from '@drakkar.software/octochat-sdk';
 import type { AutomationProvider } from '@drakkar.software/octochat-sdk';
@@ -72,6 +72,10 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
         return;
       }
     }
+    if (cadence.schedule?.kind === 'cron' && !isValidCronExpression(cadence.schedule.expression)) {
+      setError('Cron schedule is invalid — use 3 fields: minute hour day-of-week.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -84,6 +88,7 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
         secrets,
         intervalMin: cadence.intervalMin,
         onOpen: cadence.onOpen,
+        schedule: cadence.schedule,
       });
       // Schedule the new automation's Conductor task on this (runner) device.
       await syncAutomationTasks(session);
