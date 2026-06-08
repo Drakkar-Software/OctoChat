@@ -9,11 +9,11 @@
 import { ConflictError, StarfishHttpError } from '@drakkar.software/starfish-client';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { CapMap, DmMap, MutePrefs, PubAccessMap, ReadPrefs, Room, Space } from '../types';
+import type { CapMap, DmMap, MutePrefs, PubAccessMap, ReadPrefs, Room, Space } from '../domain/types';
 
 import type { SealedBlob } from './account-seal';
 
-import { randomId } from '../ids';
+import { randomId } from '../domain/ids';
 
 import type { Session } from './identity';
 import { DEFAULT_CATEGORY } from './objects';

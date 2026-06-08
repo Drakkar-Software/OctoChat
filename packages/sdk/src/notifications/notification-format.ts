@@ -11,7 +11,7 @@
  * resolved, and to the bare app name when neither did — the message body is never
  * gated on name resolution.
  */
-import type { RoomKind } from './types';
+import type { RoomKind } from '../domain/types';
 
 /** Shown in a notification header when no room/space name resolves. */
 export const APP_NAME = 'OctoChat';

@@ -27,7 +27,7 @@ vi.mock('./paths', () => ({
 }));
 // In-memory kv so pubspace-caps persists without localStorage/AsyncStorage.
 const store = new Map<string, string>();
-vi.mock('../adapters', () => ({
+vi.mock('../config/adapters', () => ({
   kvGet: async (k: string) => (store.has(k) ? store.get(k)! : null),
   kvSet: async (k: string, v: string) => void store.set(k, v),
   kvRemove: async (k: string) => void store.delete(k),

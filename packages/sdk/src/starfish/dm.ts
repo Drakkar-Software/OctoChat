@@ -14,7 +14,7 @@
  */
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { DmMap, Space } from '../types';
+import type { DmMap, Space } from '../domain/types';
 
 import { ensureRoomInitialized, ownerEnsureKeyring } from './client';
 import { acceptSpaceInvite, inviteToSpace } from './members';

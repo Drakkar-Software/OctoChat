@@ -3,15 +3,15 @@
  * keyring for (i.e. rooms it has opened), and flatten their messages. Rooms
  * never opened have no keyring yet and are simply skipped.
  */
-import type { Session } from './starfish/identity';
-import { readIndexRooms } from './starfish/object-index';
-import { objIndexPull, pubspaceRoomPull, roomPull } from './starfish/paths';
-import { isPublicSpaceId, publicSpaceAuth, publicSpaceClient, readPublicRoomsDoc } from './starfish/pubspace';
-import { readRooms } from './starfish/registry';
-import { buildSpaceEncryptor } from './starfish/space-encryptor';
-import type { StoredMsg } from './message-view';
+import type { Session } from '../starfish/identity';
+import { readIndexRooms } from '../starfish/object-index';
+import { objIndexPull, pubspaceRoomPull, roomPull } from '../starfish/paths';
+import { isPublicSpaceId, publicSpaceAuth, publicSpaceClient, readPublicRoomsDoc } from '../starfish/pubspace';
+import { readRooms } from '../starfish/registry';
+import { buildSpaceEncryptor } from '../starfish/space-encryptor';
+import type { StoredMsg } from '../format/message-view';
 import { buildThreadDigest, type ThreadSummary } from './threads';
-import type { MessageEditEvent, PinEvent, Room } from './types';
+import type { MessageEditEvent, PinEvent, Room } from '../domain/types';
 
 export interface CrossRoomMessage {
   room: Room;

@@ -1,5 +1,5 @@
-import { randomId } from './ids';
-import type { MessageEditEvent, PinEvent, Reaction, ReactionEvent } from './types';
+import { randomId } from '../domain/ids';
+import type { MessageEditEvent, PinEvent, Reaction, ReactionEvent } from '../domain/types';
 
 /** Wider emoji set for the composer's insert palette — shown in a single
  *  horizontal scroller (never wraps to a second line). */

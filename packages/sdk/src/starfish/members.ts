@@ -11,7 +11,7 @@
 import { addCollectionRecipient } from '@drakkar.software/starfish-keyring';
 import { mintMemberCap } from '@drakkar.software/starfish-sharing';
 
-import type { Space } from '../types';
+import type { Space } from '../domain/types';
 
 import { buildEncryptor, makeClient } from './client';
 import type { Session } from './identity';

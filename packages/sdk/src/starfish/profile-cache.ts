@@ -8,7 +8,7 @@
  * the device is offline falls back to the last-known pseudo/avatar — so names and
  * avatars don't vanish from the UI offline. No E2EE concern (public data).
  */
-import { kvGet, kvSet } from '../adapters';
+import { kvGet, kvSet } from '../config/adapters';
 import type { PublicProfile } from './client';
 
 const key = (userId: string) => `octochat.profile.v1.${userId}`;

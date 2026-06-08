@@ -9,7 +9,7 @@ import type { Keyring } from '@drakkar.software/starfish-keyring';
 import { signRequest, stableStringify } from '@drakkar.software/starfish-protocol';
 import type { SignableMethod } from '@drakkar.software/starfish-protocol';
 
-import { getSyncBase, getSyncNamespace, getSyncPrefix } from '../config';
+import { getSyncBase, getSyncNamespace, getSyncPrefix } from '../config/config';
 import { fetchWithTimeout } from './fetch-timeout';
 import { pullCache, PULL_CACHE_MAX_AGE_MS } from './pull-cache';
 import { cacheProfile, loadCachedProfile } from './profile-cache';

@@ -20,11 +20,11 @@
  * ROOM suppresses its toast + the Android decrypted-content upgrade. Unread badges
  * are KEPT in both cases (silence-only) — see `unread-context`.
  */
-import type { MutePrefs, MuteValue } from './types';
+import type { MutePrefs, MuteValue } from '../domain/types';
 
-import type { Session } from './starfish/identity';
-import { updateMutesDoc } from './starfish/registry';
-import { kvGet, kvSet } from './adapters';
+import type { Session } from '../starfish/identity';
+import { updateMutesDoc } from '../starfish/registry';
+import { kvGet, kvSet } from '../config/adapters';
 
 const EMPTY: MutePrefs = { rooms: {}, spaces: {} };
 const keyFor = (userId: string) => `octochat.mutes.${userId}`;

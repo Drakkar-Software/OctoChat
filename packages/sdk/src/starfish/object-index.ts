@@ -9,7 +9,7 @@
  */
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { ObjectNode, Room } from '../types';
+import type { ObjectNode, Room } from '../domain/types';
 
 import type { Session } from './identity';
 import { DEFAULT_CATEGORY, objectsToRoomCategories, seedIndexNodes, type SeedRoom } from './objects';

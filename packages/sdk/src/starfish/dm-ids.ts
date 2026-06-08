@@ -2,7 +2,7 @@
  * Pure DM id + dedup helpers — split out from `dm.ts` so they carry NO heavy imports
  * (crypto clients, expo config) and stay unit-testable in isolation.
  */
-import { randomId } from '../ids';
+import { randomId } from '../domain/ids';
 
 /** A DM space id — random + `dm-`-prefixed. The prefix is a TYPE tag (so the room list
  *  can filter DMs out of the space rail), NOT a deterministic identity: it stays

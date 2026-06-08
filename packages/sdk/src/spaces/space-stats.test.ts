@@ -5,10 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // no mock. `resolveEdit` and `buildThreadDigest` have their own suites — stub them so
 // these tests isolate space-stats' OWN arithmetic (byte summing, net-of-deletes,
 // attachments-incl-deleted, the partial/no-keyring branches).
-vi.mock('./starfish/space-encryptor', () => ({ buildSpaceEncryptor: vi.fn() }));
-vi.mock('./message-view', () => ({ resolveEdit: vi.fn() }));
-vi.mock('./starfish/client', () => ({ makeClient: vi.fn() }));
-vi.mock('./starfish/paths', () => ({
+vi.mock('../starfish/space-encryptor', () => ({ buildSpaceEncryptor: vi.fn() }));
+vi.mock('../format/message-view', () => ({ resolveEdit: vi.fn() }));
+vi.mock('../starfish/client', () => ({ makeClient: vi.fn() }));
+vi.mock('../starfish/paths', () => ({
   objIndexPull: (id: string) => `objindex/${id}`,
   roomPull: (id: string) => `merge/${id}`,
   streamRoomPull: (id: string) => `stream/${id}`,
@@ -16,22 +16,22 @@ vi.mock('./starfish/paths', () => ({
   pubstreamRoomPull: (_o: string, _s: string, id: string) => `pubstream/${id}`,
 }));
 // The private room list comes from the encrypted object index, not `_rooms`.
-vi.mock('./starfish/object-index', () => ({ readIndexRooms: vi.fn() }));
-vi.mock('./starfish/pubspace', () => ({
+vi.mock('../starfish/object-index', () => ({ readIndexRooms: vi.fn() }));
+vi.mock('../starfish/pubspace', () => ({
   isPublicSpaceId: vi.fn(),
   publicSpaceAuth: vi.fn(),
   readPublicRoomsDoc: vi.fn(),
 }));
-vi.mock('./threads', () => ({ buildThreadDigest: vi.fn(() => []) }));
+vi.mock('../messaging/threads', () => ({ buildThreadDigest: vi.fn(() => []) }));
 
 import { loadSpaceStats } from './space-stats';
-import { buildSpaceEncryptor } from './starfish/space-encryptor';
-import { resolveEdit } from './message-view';
-import { isPublicSpaceId, publicSpaceAuth, readPublicRoomsDoc } from './starfish/pubspace';
-import { readIndexRooms } from './starfish/object-index';
-import { buildThreadDigest } from './threads';
-import type { StoredMsg } from './message-view';
-import type { Room } from './types';
+import { buildSpaceEncryptor } from '../starfish/space-encryptor';
+import { resolveEdit } from '../format/message-view';
+import { isPublicSpaceId, publicSpaceAuth, readPublicRoomsDoc } from '../starfish/pubspace';
+import { readIndexRooms } from '../starfish/object-index';
+import { buildThreadDigest } from '../messaging/threads';
+import type { StoredMsg } from '../format/message-view';
+import type { Room } from '../domain/types';
 
 const mockBuildSpaceEncryptor = vi.mocked(buildSpaceEncryptor);
 const mockResolveEdit = vi.mocked(resolveEdit);
@@ -156,7 +156,7 @@ describe('loadSpaceStats — public space', () => {
 
     const roomDoc = { messages: [msg('m1'), msg('m2', { attachment: { size: 42 } as never })], edits: [] };
     const pull = vi.fn(async () => ({ data: roomDoc }));
-    const { makeClient } = await import('./starfish/client');
+    const { makeClient } = await import('../starfish/client');
     vi.mocked(makeClient).mockReturnValue({ pull } as never);
     mockReadPublicRoomsDoc.mockResolvedValue({ rooms: [room('r1')] } as never);
 

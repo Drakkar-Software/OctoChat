@@ -9,7 +9,7 @@ import { type SealedBlob } from '../starfish/account-seal';
 import { isPublicSpaceId, publicSpaceAuth, createPublicRoom } from '../starfish/pubspace';
 import { createStreamBotCredential } from '../starfish/stream-bots';
 import type { Session } from '../starfish/identity';
-import type { AutomationMeta, Room } from '../types';
+import type { AutomationMeta, Room } from '../domain/types';
 
 import { AutomationsNotSupportedHere, deleteRoomFromRegistry, patchRoomAutomation, renameRoomInRegistry, setRoomAutomation } from './registry-write';
 import { tickRoom, type TickKind, type TickOutcome } from './runner-core';

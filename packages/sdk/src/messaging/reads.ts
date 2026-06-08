@@ -17,11 +17,11 @@
  *      roll back a newer mark another device already pushed. This holds on `hydrateReads`
  *      (local un-flushed marks survive a server read) and in the `updateReadsDoc` mutator.
  */
-import type { ReadPrefs } from './types';
+import type { ReadPrefs } from '../domain/types';
 
-import type { Session } from './starfish/identity';
-import { updateReadsDoc } from './starfish/registry';
-import { kvGet, kvSet } from './adapters';
+import type { Session } from '../starfish/identity';
+import { updateReadsDoc } from '../starfish/registry';
+import { kvGet, kvSet } from '../config/adapters';
 
 const EMPTY: ReadPrefs = { rooms: {} };
 const keyFor = (userId: string) => `octochat.reads.${userId}`;

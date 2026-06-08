@@ -14,8 +14,8 @@
  * cycle (A→under B while B→under A) or an orphan (parent archived). The builder below
  * is the single place those are repaired so every consumer renders a well-formed tree.
  */
-import type { AutomationMeta, ID, ObjectNode, ObjectType, Room, RoomSubtype } from '../types';
-import { randomId, roomSlug } from '../ids';
+import type { AutomationMeta, ID, ObjectNode, ObjectType, Room, RoomSubtype } from '../domain/types';
+import { randomId, roomSlug } from '../domain/ids';
 
 /** The bucket new/unfiled rooms land in, and the fallback a deleted category's
  *  rooms are reassigned to. The seed category in `createSpace`/`createDmSpace`. Lives

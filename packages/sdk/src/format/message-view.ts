@@ -1,8 +1,8 @@
-import { mentionsUser } from './links';
-import type { OutboxMessage, OutboxStatus } from './outbox-types';
-import { aggregateReactions } from './reactions';
-import type { AttachmentRef } from './starfish/attachments';
-import type { Message, MessageEditEvent, PinEvent, ReactionEvent, User } from './types';
+import { mentionsUser } from '../messaging/links';
+import type { OutboxMessage, OutboxStatus } from '../outbox/outbox-types';
+import { aggregateReactions } from '../messaging/reactions';
+import type { AttachmentRef } from '../starfish/attachments';
+import type { Message, MessageEditEvent, PinEvent, ReactionEvent, User } from '../domain/types';
 
 /** Shape of a message as stored (encrypted) in a room document. */
 export interface StoredMsg {

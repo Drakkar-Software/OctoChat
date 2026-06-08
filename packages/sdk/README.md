@@ -20,6 +20,22 @@ sync server) by importing this package.
 It depends on the published `@drakkar.software/starfish-*` packages and is framework-
 and platform-agnostic.
 
+## Source layout
+
+`src/` is grouped by subject (everything is re-exported from `src/index.ts`):
+
+- `config/` — host wiring (`configureOctoChat`/`configureKv`) and platform adapters
+- `domain/` — core model: types, ids, the object-type registry
+- `format/` — pure formatters & view models (message body, markdown, message view)
+- `starfish/` — encrypted sync / crypto / registry core (identity, client, keyrings, objects, DMs, public spaces)
+- `messaging/` — reads, mutes, reactions, threads, links, cross-room, quick-reactions
+- `notifications/` — notification formatting, labels, previews
+- `outbox/` — offline write queue
+- `spaces/` — space stats + public-space exploration
+- `events/` — live room-change SSE stream
+- `nostr/` — NIP-07 browser-extension login
+- `automations/` — scheduled/triggered room automations (+ providers)
+
 ## Wiring it up
 
 The SDK does not read environment variables or bind to a storage backend — the host

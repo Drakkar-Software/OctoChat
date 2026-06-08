@@ -7,7 +7,7 @@
 import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 
 import { openStreamBotCredential } from '../starfish/stream-bots';
-import type { Room } from '../types';
+import type { Room } from '../domain/types';
 import type { Session } from '../starfish/identity';
 
 import { appendAsBot, type BotRedeemer } from './append';

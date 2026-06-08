@@ -8,7 +8,7 @@
  * synchronous during render. The owner of a public space needs NO entry here — they
  * use their own account cap.
  */
-import { kvGet, kvRemove, kvSet } from '../adapters';
+import { kvGet, kvRemove, kvSet } from '../config/adapters';
 
 /** Everything from an invitation link needed to authorize requests as its bearer. */
 export interface PubspaceAccess {

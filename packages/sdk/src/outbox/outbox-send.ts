@@ -14,12 +14,12 @@
 import { createUnionMerge, SyncManager } from '@drakkar.software/starfish-client';
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
-import { makeClient } from './starfish/client';
-import type { Session } from './starfish/identity';
-import { getSpaceEncryptor } from './starfish/space-encryptor';
-import { isPublicSpaceId, publicSpaceAuth } from './starfish/pubspace';
-import { pubspaceRoomPull, pubspaceRoomPush, pubstreamRoomPush, roomPull, roomPush, streamRoomPush } from './starfish/paths';
-import type { StoredMsg } from './message-view';
+import { makeClient } from '../starfish/client';
+import type { Session } from '../starfish/identity';
+import { getSpaceEncryptor } from '../starfish/space-encryptor';
+import { isPublicSpaceId, publicSpaceAuth } from '../starfish/pubspace';
+import { pubspaceRoomPull, pubspaceRoomPush, pubstreamRoomPush, roomPull, roomPush, streamRoomPush } from '../starfish/paths';
+import type { StoredMsg } from '../format/message-view';
 import type { OutboxMessage } from './outbox-types';
 
 type EncryptFn = { encrypt: (d: Record<string, unknown>) => Promise<Record<string, unknown>> };

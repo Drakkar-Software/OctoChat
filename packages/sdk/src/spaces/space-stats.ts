@@ -20,18 +20,18 @@
  *    public plaintext with multibyte chars slightly undercounts. It is NOT the server's
  *    on-disk ciphertext figure (no endpoint reports that).
  */
-import { buildSpaceEncryptor } from './starfish/space-encryptor';
+import { buildSpaceEncryptor } from '../starfish/space-encryptor';
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
 
-import { resolveEdit, type StoredMsg } from './message-view';
-import { makeClient } from './starfish/client';
-import type { Session } from './starfish/identity';
-import { readIndexRooms } from './starfish/object-index';
-import { objIndexPull, pubspaceRoomPull, pubstreamRoomPull, roomPull, streamRoomPull } from './starfish/paths';
-import { isPublicSpaceId, publicSpaceAuth, readPublicRoomsDoc } from './starfish/pubspace';
-import { buildThreadDigest } from './threads';
-import type { MessageEditEvent, Room } from './types';
+import { resolveEdit, type StoredMsg } from '../format/message-view';
+import { makeClient } from '../starfish/client';
+import type { Session } from '../starfish/identity';
+import { readIndexRooms } from '../starfish/object-index';
+import { objIndexPull, pubspaceRoomPull, pubstreamRoomPull, roomPull, streamRoomPull } from '../starfish/paths';
+import { isPublicSpaceId, publicSpaceAuth, readPublicRoomsDoc } from '../starfish/pubspace';
+import { buildThreadDigest } from '../messaging/threads';
+import type { MessageEditEvent, Room } from '../domain/types';
 
 export interface SpaceStats {
   /** Rooms/channels in the space (from the registry). */

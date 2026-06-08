@@ -21,7 +21,7 @@
  */
 import type { PullCache } from '@drakkar.software/starfish-client';
 
-import { kvGet, kvSet } from '../adapters';
+import { kvGet, kvSet } from '../config/adapters';
 
 const PREFIX = 'octochat.pullcache.';
 

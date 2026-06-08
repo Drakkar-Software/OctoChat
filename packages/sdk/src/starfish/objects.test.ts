@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ancestors, breadcrumbs, objectsToRoomCategories, seedIndexNodes, type SeedRoom } from './objects';
-import type { ObjectNode } from '../types';
+import type { ObjectNode } from '../domain/types';
 
 /**
  * The create-time seed contract: what `createSpace`/`createDmSpace` write into the object

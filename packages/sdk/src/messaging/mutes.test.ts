@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const store = new Map<string, string>();
-vi.mock('./adapters', () => ({
+vi.mock('../config/adapters', () => ({
   kvGet: vi.fn(async (k: string) => store.get(k) ?? null),
   kvSet: vi.fn(async (k: string, v: string) => {
     store.set(k, v);
@@ -9,7 +9,7 @@ vi.mock('./adapters', () => ({
 }));
 
 const updateMutesDoc = vi.fn(async () => {});
-vi.mock('./starfish/registry', () => ({
+vi.mock('../starfish/registry', () => ({
   updateMutesDoc: (...args: unknown[]) => (updateMutesDoc as (...a: unknown[]) => Promise<void>)(...args),
 }));
 

@@ -13,12 +13,12 @@
  * just yields a null roomName, and the caller falls back to the bare app-name title —
  * never blocking the message preview on name resolution.
  */
-import type { Session } from './starfish/identity';
-import { readPrivateSpaceRooms } from './starfish/object-index';
-import { spaceIdFromRoomId } from './starfish/paths';
-import { isPublicSpaceId, publicSpaceAuth, publicSpaceClient, readPublicRoomsDoc } from './starfish/pubspace';
-import { readRooms } from './starfish/registry';
-import type { RoomKind } from './types';
+import type { Session } from '../starfish/identity';
+import { readPrivateSpaceRooms } from '../starfish/object-index';
+import { spaceIdFromRoomId } from '../starfish/paths';
+import { isPublicSpaceId, publicSpaceAuth, publicSpaceClient, readPublicRoomsDoc } from '../starfish/pubspace';
+import { readRooms } from '../starfish/registry';
+import type { RoomKind } from '../domain/types';
 
 export interface NotificationLabels {
   spaceName: string | null;

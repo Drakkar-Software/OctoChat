@@ -5,7 +5,7 @@
  * `ParamField.secret` flag in a provider's `paramFields` is what routes a field
  * here at create time.
  */
-import { kvGet, kvRemove, kvSet } from '../adapters';
+import { kvGet, kvRemove, kvSet } from '../config/adapters';
 
 const key = (userId: string, roomId: string) => `octochat.automated.secrets.v1.${userId}.${roomId}`;
 
