@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { StyleSheet, View } from 'react-native';
-import { type Edge, SafeAreaView } from 'react-native-safe-area-context';
+import { type Edge, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { layout } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
@@ -26,12 +26,22 @@ interface ScreenProps {
  */
 export function Screen({ children, edges = ['top', 'bottom'], gradient = true, center = true, style }: ScreenProps) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  // Hook-based insets (not <SafeAreaView edges>) so the top inset follows the
+  // AppFrame override and collapses under the OTA banner — the native SafeAreaView
+  // ignores that override and would re-reserve the notch as an empty band.
+  const safeArea = {
+    paddingTop: edges.includes('top') ? insets.top : 0,
+    paddingBottom: edges.includes('bottom') ? insets.bottom : 0,
+    paddingLeft: edges.includes('left') ? insets.left : 0,
+    paddingRight: edges.includes('right') ? insets.right : 0,
+  };
   return (
     <View style={[styles.root, { backgroundColor: colors.canvas }]}>
       {gradient ? <DepthBackdrop /> : null}
-      <SafeAreaView edges={edges} style={styles.safe}>
+      <View style={[styles.safe, safeArea]}>
         <View style={[styles.content, center && styles.centered, style]}>{children}</View>
-      </SafeAreaView>
+      </View>
     </View>
   );
 }

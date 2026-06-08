@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
+import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { isMacDesktop } from '@/lib/desktop';
 import { useInShell } from '@/lib/use-responsive';
 import { useSession } from '@/lib/session-context';
 import { useTheme } from '@/lib/use-theme';
+import { useUpdateState } from '@/lib/use-update-state';
 import { layout } from '@/theme';
 import { DesktopNav } from '@/components/chat/DesktopNav';
 import { AppLockGate } from './AppLockGate';
@@ -24,6 +26,26 @@ export function AppFrame({ children }: { children: ReactNode }) {
   const { colors } = useTheme();
   const inShell = useInShell();
   const { status } = useSession();
+  const insets = useSafeAreaInsets();
+  const { pending: updatePending } = useUpdateState();
+
+  // On native the banner sits at the very top and clears the notch itself, so the
+  // screens below must NOT reserve the top inset again. Zero it for the subtree
+  // below the banner while it's showing: every top inset down there — the native
+  // nav header, StackScreen's `nativeHeaderPadTop`, and the (now hook-based) top
+  // SafeAreaViews in StackScreen/Screen — keys off this same `useSafeAreaInsets()`
+  // value, so they all collapse together and the empty band disappears. (Web puts
+  // the banner above the bottom bar, so no top inset is consumed there.)
+  const eatTopInset = Platform.OS !== 'web' && updatePending;
+
+  const body = inShell ? (
+    <View style={[styles.row, { backgroundColor: colors.canvas }]}>
+      <DesktopNav />
+      <View style={styles.main}>{children}</View>
+    </View>
+  ) : (
+    <View style={styles.fill}>{children}</View>
+  );
 
   return (
     <View style={styles.col}>
@@ -47,13 +69,12 @@ export function AppFrame({ children }: { children: ReactNode }) {
       {inShell || Platform.OS !== 'web' ? (
         <DesktopUpdateBanner topInset={Platform.OS !== 'web'} />
       ) : null}
-      {inShell ? (
-        <View style={[styles.row, { backgroundColor: colors.canvas }]}>
-          <DesktopNav />
-          <View style={styles.main}>{children}</View>
-        </View>
+      {eatTopInset ? (
+        <SafeAreaInsetsContext.Provider value={{ ...insets, top: 0 }}>
+          {body}
+        </SafeAreaInsetsContext.Provider>
       ) : (
-        <View style={styles.fill}>{children}</View>
+        body
       )}
       {status === 'switching' ? (
         <View style={[StyleSheet.absoluteFill, styles.switching, { backgroundColor: colors.scrim }]}>

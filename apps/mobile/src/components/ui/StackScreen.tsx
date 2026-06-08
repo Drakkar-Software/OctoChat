@@ -7,7 +7,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
 } from 'react-native-reanimated';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { KeyboardAvoidingView, useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { layout } from '@/theme';
@@ -87,6 +87,16 @@ export function StackScreen({
   );
   const headerAnim = useAnimatedStyle(() => ({ transform: [{ translateY: headerY.value }] }));
 
+  // The footer (Composer) bottom inset collapses as the keyboard opens. The KAV
+  // (behavior="padding") pins the footer's bottom edge to the keyboard top, so a
+  // static home-indicator inset would sit there as an empty band between the
+  // composer and the keyboard. Interpolate insets.bottom → 0 with the keyboard so
+  // the composer rests snug above it; restores the full inset when it closes.
+  const keyboard = useReanimatedKeyboardAnimation();
+  const footerBottomInset = useAnimatedStyle(() => ({
+    paddingBottom: insets.bottom * (1 - keyboard.progress.value),
+  }));
+
   // The header is an absolute overlay, so the scroll content must be padded down
   // by its height. Any `paddingTop` the caller set is ADDED on top — a plain
   // style-array would let `contentStyle` (last) clobber the header offset, hiding
@@ -131,9 +141,12 @@ export function StackScreen({
           style={[styles.absHeader, headerAnim]}
           onLayout={(e) => setHeaderH(e.nativeEvent.layout.height)}
         >
-          <SafeAreaView edges={['top']} style={{ backgroundColor: colors.paper }}>
+          {/* Hook-based top inset (not <SafeAreaView edges={['top']}>): the native
+              SafeAreaView ignores the AppFrame inset override, so it would re-reserve
+              the notch under the OTA banner. `insets.top` follows the override. */}
+          <View style={{ paddingTop: insets.top, backgroundColor: colors.paper }}>
             {headerNode}
-          </SafeAreaView>
+          </View>
         </Animated.View>
       </View>
     );
@@ -152,9 +165,11 @@ export function StackScreen({
       {headerProvidedNatively ? null : inShell ? (
         headerNode
       ) : (
-        <SafeAreaView edges={['top']} style={{ backgroundColor: headerNode ? colors.paper : bg }}>
+        // Hook-based top inset (not <SafeAreaView edges={['top']}>) so it follows the
+        // AppFrame inset override and doesn't re-reserve the notch under the banner.
+        <View style={{ paddingTop: insets.top, backgroundColor: headerNode ? colors.paper : bg }}>
           {headerNode}
-        </SafeAreaView>
+        </View>
       )}
 
       {/* When a `footer` is present on native (room/thread Composer), wrap the
@@ -200,10 +215,16 @@ export function StackScreen({
         {footer ? (
           inShell ? (
             <View style={{ backgroundColor: colors.paper }}>{footer}</View>
-          ) : (
+          ) : Platform.OS === 'web' ? (
             <SafeAreaView edges={['bottom']} style={{ backgroundColor: colors.paper }}>
               {footer}
             </SafeAreaView>
+          ) : (
+            // Native: keyboard-aware bottom inset (see footerBottomInset) so the
+            // composer sits snug above the keyboard instead of a notch's height above it.
+            <Animated.View style={[{ backgroundColor: colors.paper }, footerBottomInset]}>
+              {footer}
+            </Animated.View>
           )
         ) : !inTabs && !inShell ? (
           <SafeAreaView edges={['bottom']} style={{ backgroundColor: bg }} />
