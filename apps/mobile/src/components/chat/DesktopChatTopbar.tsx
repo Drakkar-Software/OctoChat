@@ -44,8 +44,6 @@ export function DesktopChatTopbar({ name, kind = 'channel', spaceId, onSearch, o
           name={
             kind === 'automated'
               ? 'zap'
-              : kind === 'stream'
-              ? 'stream'
               : kind === 'private'
               ? 'lock'
               : 'hash'

@@ -106,9 +106,9 @@ export async function pushIndexSeed(
 ): Promise<void> {
   const res = await client.pull(objIndexPull(spaceId)).catch(() => null);
   if (res?.data && (res.data as Record<string, unknown>)._encrypted) return; // already seeded
-  // Shape matches `useObjects` (reads `doc.objects`) + `ensureRoomInitialized` (a bare
-  // sealed body, no top-level timestamp); the union-merge keys on each node's own id/
-  // updatedAt, so no doc-level stamp is needed.
+  // Shape matches `useObjects` (reads `doc.objects`): a bare sealed body, no top-level
+  // timestamp; the union-merge keys on each node's own id/updatedAt, so no doc-level
+  // stamp is needed.
   const sealed = await encryptor.encrypt({ objects: seedIndexNodes(rooms, Date.now()) });
   await client.push(objIndexPush(spaceId), sealed as Record<string, unknown>, res?.hash ?? null);
 }

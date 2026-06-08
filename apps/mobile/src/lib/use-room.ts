@@ -1,202 +1,291 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createUnionMerge } from '@drakkar.software/starfish-client';
-import { useSyncInit } from '@drakkar.software/starfish-client/zustand';
 
-import { SYNC_BASE, SYNC_NAMESPACE } from './octochat-config';
-import { capProviderFor } from '@drakkar.software/octochat-sdk';
-import { fetchWithTimeout } from '@drakkar.software/octochat-sdk';
+import { AppendLogCursor } from '@drakkar.software/octochat-sdk';
+import { isPublicSpaceId, publicSpaceAuth } from '@drakkar.software/octochat-sdk';
+import {
+  concatDedupById,
+  fanOut,
+  loadStreamLog,
+  streamLogKey,
+  type StreamData,
+  type StreamEnvelope,
+} from '@drakkar.software/octochat-sdk';
+import { kvSet } from '@drakkar.software/octochat-sdk';
 import { reportReachability } from './connectivity';
+import {
+  pubstreamRoomPull,
+  pubstreamRoomPush,
+  streamRoomPull,
+  streamRoomPush,
+  spaceIdFromRoomId,
+} from '@drakkar.software/octochat-sdk';
 import {
   loadAttachment as loadAttachmentDoc,
   uploadAttachment as uploadAttachmentDoc,
   type AttachmentRef,
   type ByteSealer,
 } from '@drakkar.software/octochat-sdk';
-import { getMemberCap } from '@drakkar.software/octochat-sdk';
-import { pullCache, PULL_CACHE_MAX_AGE_MS } from '@drakkar.software/octochat-sdk';
-import { isPublicSpaceId, publicSpaceAuth } from '@drakkar.software/octochat-sdk';
-import { pubspaceRoomPull, pubspaceRoomPush, roomPull, roomPush, spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 import { messageDeleteEvent, messageEditEvent, pinToggleEvent, reactionToggleEvent } from '@drakkar.software/octochat-sdk';
-import type { MessageEditEvent, PinEvent, ReactionEvent } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
+import { randomId } from '@drakkar.software/octochat-sdk';
 import { makeEmptyConversationStore, type ConversationStore } from './use-conversation-data';
 import { useRoomOpen } from './use-room-open-flow';
 import { useRoomLiveSync } from './use-room-live-sync';
 import type { RoomHook } from './use-room-types';
-import { randomId } from '@drakkar.software/octochat-sdk';
+import type { StoredMsg } from '@drakkar.software/octochat-sdk';
 
 /**
- * Opens a room and builds a synced Zustand store. Two modes by the room's space:
- *  - PRIVATE (E2EE): ensure the space keyring/encryptor + room doc exist, sync with
- *    the encryptor (sealed messages). Joiners open as keyring recipients.
- *  - PUBLIC (plaintext): NO keyring/encryptor — authorize with the invitation cap
- *    (joiner) or the account cap (owner) and sync the plaintext `pubspaces/…` doc.
- * Live updates via the shared SSE bus with a polling fallback (uniform web+native).
+ * THE room hook — every room is an APPEND-ONLY log (the merge-doc `chat`/`pubspace`
+ * message path was retired when `stream` and `channel` merged). Every post is a single
+ * `client.append` (no pull/merge/hash/conflict), which is what also lets bots/integrations
+ * write without the sync protocol. Reads pull the `{ts,data}` envelopes of the log.
  *
- * The crypto/auth open is shared with {@link useStreamRoom} via {@link useRoomOpen};
- * the focus/poll/SSE choreography via {@link useRoomLiveSync}; the append-only event
- * shapes via the builders in {@link ./reactions}.
+ * Encryption follows the SPACE: a private (E2EE) space's log is the `streamchat`
+ * collection (each element sealed with the space keyring encryptor); a public space's log
+ * is the plaintext `pubstream` collection. Both render through the chat UI by feeding a
+ * synthetic store (data = {messages,reactions,edits,pins}) to `RoomConversation` —
+ * `useStarfishData` only ever reads `store.data`, so a plain zustand store suffices.
  *
- * MUST be called from a router screen: it gates its live pull on `useFocusEffect`,
- * which needs a navigator context. Both callers (room/[id], thread/[id]) are screens.
+ * Returns a {@link RoomHook}. The crypto/auth open is shared via {@link useRoomOpen}; the
+ * focus/poll/SSE choreography via {@link useRoomLiveSync}; the append-only event shapes
+ * via the builders in {@link ./reactions}. `enabled` lets a screen call this hook
+ * unconditionally (React hook rules) and gate it — when false it does no network and
+ * holds no store. Attachments (private spaces only) seal a blob to the separate
+ * `attachments` collection, exactly as the old merge-doc room did.
  */
 export function useRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomHook {
-  // `enabled` lets a screen call this AND useStreamRoom unconditionally (React hook
-  // rules) and pick one by the room's kind. When false this hook opens nothing.
   const enabled = opts.enabled ?? true;
   const { session } = useSession();
   const spaceId = spaceIdFromRoomId(roomId);
   const isPublic = isPublicSpaceId(spaceId);
 
-  // Shared crypto/auth open (+ opening/error/offline flags & reconnect). Merge-doc owner
-  // opens seed the room doc, hence `initializeRoom: true`. Offline-first: the encryptor
-  // builds from the SDK pull cache even offline; reachability is reported below from the
-  // store's first FRESH pull, not from the open.
+  // Shared crypto/auth open (+ opening/error/offline flags & reconnect). An append-only
+  // room has no doc to seed (it pulls as [] until its first append). The synthetic store
+  // still renders offline (warm history + pending bubbles); reachability is reported from
+  // a fresh cursor `pull()` below, not from the open.
   const { encryptor, client, opening, openError, offline, reload } = useRoomOpen({
     roomId,
     spaceId,
     isPublic,
     enabled,
-    initializeRoom: true,
   });
 
-  const config = useMemo(() => {
-    if (!enabled || !session || !client) return null;
+  // The synthetic store lives for this room's lifetime, keyed by roomId so a room switch
+  // (the screen stays mounted) starts fresh rather than flashing the previous room's log.
+  // The incremental checkpoint no longer lives here — it's owned by the `AppendLogCursor`
+  // (see `cursorRef`), which also persists the log across restarts so re-opening a room
+  // paints history instantly instead of re-fetching the whole log from scratch.
+  const roomStateRef = useRef<{ id: string; store: ConversationStore } | null>(null);
+  if (!roomStateRef.current || roomStateRef.current.id !== roomId) {
+    roomStateRef.current = { id: roomId, store: makeEmptyConversationStore() };
+  }
+  const roomState = enabled ? roomStateRef.current : null;
+  const store = roomState?.store ?? null;
+
+  // The per-room append-log cursor. It owns the checkpoint, the accumulated ciphertext
+  // envelopes (for persistence) and the per-element skip policy (`onElementError:'skip'`),
+  // replacing the hand-rolled `since`/decrypt-try/catch/maxTs loop. Built async once
+  // `client` + (private) `encryptor` + the route resolve, seeded with the persisted log;
+  // recreated on room switch — same lifetime as the store above. Held in a ref so `pull`
+  // reads the latest without re-subscribing every callback.
+  const cursorRef = useRef<{ id: string; cursor: AppendLogCursor } | null>(null);
+
+  // Auth + path for this stream room (owner/joiner cap on public; member/space cap on
+  // private). `signingKey` is the request-signing key the cap is bound to.
+  const route = useMemo(() => {
+    if (!session) return null;
     if (isPublic) {
-      // Plaintext sync: no `encryptor` (the SDK treats its absence as plaintext).
       const auth = publicSpaceAuth(session, spaceId);
       return {
-        serverUrl: SYNC_BASE,
-        namespace: SYNC_NAMESPACE,
-        capProvider: capProviderFor(auth.cap, auth.signingKey),
-        pullPath: pubspaceRoomPull(auth.ownerId, spaceId, roomId),
-        pushPath: pubspaceRoomPush(auth.ownerId, spaceId, roomId),
-        onConflict: createUnionMerge(),
-        storeName: `pub-${session.userId}-${roomId}`,
-        storage: false as const,
-        fetch: fetchWithTimeout(),
-        // Offline-first: cache-first paint + offline fallback for the plaintext
-        // public room doc. Ciphertext-at-rest N/A (public is plaintext).
-        cache: pullCache(),
-        cacheMaxAgeMs: PULL_CACHE_MAX_AGE_MS,
+        pull: pubstreamRoomPull(auth.ownerId, spaceId, roomId),
+        push: pubstreamRoomPush(auth.ownerId, spaceId, roomId),
+        canWrite: auth.write,
       };
     }
-    if (!encryptor) return null;
-    const memberCap = getMemberCap(spaceId);
-    const cap = memberCap ? JSON.parse(memberCap) : session.chatCap;
-    return {
-      serverUrl: SYNC_BASE,
-      namespace: SYNC_NAMESPACE,
-      capProvider: capProviderFor(cap, session.keys.edPriv),
-      pullPath: roomPull(roomId),
-      pushPath: roomPush(roomId),
-      encryptor,
-      onConflict: createUnionMerge(),
-      storeName: `chat-${session.userId}-${roomId}`,
-      storage: false as const,
-      fetch: fetchWithTimeout(),
-      // Offline-first: the store seeds from the cached ciphertext (decrypted in
-      // memory by `encryptor`) and falls back to it offline — last-synced messages
-      // show without a network round-trip. Only ciphertext is ever persisted.
-      cache: pullCache(),
-      cacheMaxAgeMs: PULL_CACHE_MAX_AGE_MS,
-    };
-  }, [enabled, session, client, encryptor, roomId, spaceId, isPublic]);
+    return { pull: streamRoomPull(roomId), push: streamRoomPush(roomId), canWrite: true };
+  }, [session, isPublic, spaceId, roomId]);
 
-  const store = useSyncInit(config);
+  // Merge a DECRYPTED batch into the store's {messages,reactions,edits}, appending onto
+  // what the store already holds and de-duping by id. Skip the write entirely when nothing
+  // new survives the dedup, so an idle poll / a focus+SSE double-pull never churns a
+  // re-render (the cursor serializes pulls and dedups by `ts`, but `concatDedupById` is
+  // still the cheap belt-and-braces guard against re-rendering an unchanged list).
+  const mergeIntoStore = useCallback((store: ConversationStore, batch: StreamData) => {
+    if (!batch.messages.length && !batch.reactions.length && !batch.edits.length && !batch.pins.length) return;
+    const cur = (store.getState() as unknown as { data: StreamData }).data;
+    const messages = concatDedupById(cur.messages, batch.messages);
+    const reactions = concatDedupById(cur.reactions, batch.reactions);
+    const edits = concatDedupById(cur.edits, batch.edits);
+    const pins = concatDedupById(cur.pins ?? [], batch.pins);
+    if (messages === cur.messages && reactions === cur.reactions && edits === cur.edits && pins === (cur.pins ?? [])) return;
+    store.setState({ data: { messages, reactions, edits, pins } } as never);
+  }, []);
 
-  // Offline-first store status. The SDK store now builds even offline (the encryptor
-  // comes from the cached keyring) and paints last-synced messages from its read-through
-  // cache, flagging `stale` until a FRESH server pull lands. We track two things off it:
-  //  - `storeStale` → drives the offline banner (we're showing cached data).
-  //  - `liveReady`  → a fresh (non-stale) pull has settled, i.e. the server is reachable
-  //    AND this store holds live data. ALL mutations route through this gate so an
-  //    offline `set` can't write into a store the user sees but whose push would fail
-  //    (it diverts to the durable outbox instead). Reachability is reported here, not
-  //    from the encryptor build (which may have used the cache).
-  const [liveReady, setLiveReady] = useState(false);
-  const [storeStale, setStoreStale] = useState(false);
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: reset live/stale flags when the store identity changes (room switch / reopen), then track via subscribe
-    setLiveReady(false);
-    setStoreStale(false);
-    if (!store) return;
-    setStoreStale(store.getState().stale);
-    let prevSyncing = store.getState().syncing;
-    return store.subscribe((s) => {
-      setStoreStale(s.stale);
-      if (prevSyncing && !s.syncing && !s.error) {
-        // A pull/flush just settled. Cache-served (stale) ⇒ offline; fresh ⇒ reachable.
-        if (s.stale) reportReachability(false);
-        else { setLiveReady(true); reportReachability(true); }
-      }
-      prevSyncing = s.syncing;
-    });
-  }, [store]);
-
-  // The store to MUTATE: only once a fresh pull confirms reachability. Null offline /
-  // pre-first-pull → send/reactions/etc. return false and divert to the outbox.
-  const liveStore = liveReady ? store : null;
-
-  // The store to DISPLAY. The SDK store (cached or live) whenever it exists; an empty
-  // shell only in the brief pre-build window when we genuinely couldn't open offline.
-  // Keyed by roomId so a room switch starts empty, not on the prior room.
-  const fallbackRef = useRef<{ id: string; store: ConversationStore } | null>(null);
-  if (!fallbackRef.current || fallbackRef.current.id !== roomId) {
-    fallbackRef.current = { id: roomId, store: makeEmptyConversationStore() };
-  }
-  const displayStore = store ?? (offline ? fallbackRef.current.store : null);
-
-  // A pull that surfaces repeated sync failures as a banner, cleared on success.
+  // Pull the append log and fan the NEW batch into the store. The cursor owns the
+  // checkpoint and the incremental window: `pull()` fetches only elements newer than the
+  // last it holds, decrypts them (private) / passes them through (public), drops any that
+  // fail under `onElementError:'skip'`, and returns ONLY that new batch — so we never
+  // re-fetch + rebuild the whole room on every focus / SSE push / poll tick. The seeded
+  // `initialItems` (warm-started history) are NOT returned by `pull()`; they're painted
+  // once on open via `getDecryptedItems()` in the build effect below.
+  //
+  // After a non-empty pull, persist the cursor's CIPHERTEXT envelopes back to storage so
+  // the next open paints this history instantly; an idle (empty) pull writes nothing.
   const [syncError, setSyncError] = useState<string | null>(null);
-  const pull = useCallback(() => {
-    if (!store) return;
-    void store.getState().pull().then(
-      () => setSyncError((prev) => (prev === null ? prev : null)),
-      () => setSyncError('Reconnecting… messages may be out of date.'),
-    );
-  }, [store]);
+  const pull = useCallback(async () => {
+    const cur = cursorRef.current;
+    if (!cur || cur.id !== roomId || !roomState) return;
+    try {
+      const batch = await cur.cursor.pull();
+      if (batch.length) {
+        mergeIntoStore(roomState.store, fanOut(batch));
+        void kvSet(streamLogKey(roomId), JSON.stringify(cur.cursor.getItems()));
+      }
+      // A successful cursor pull is the real reachability signal (append-log pulls
+      // aren't served from the offline cache — they own their warm-start persistence).
+      reportReachability(true);
+      setSyncError((prev) => (prev === null ? prev : null));
+    } catch {
+      reportReachability(false);
+      setSyncError('Reconnecting… messages may be out of date.');
+    }
+  }, [roomId, roomState, mergeIntoStore]);
 
-  // Live updates while focused: pull on focus + register on the shared SSE bus, poll
-  // only while SSE is down (see useRoomLiveSync). The SDK store self-pulls on creation,
-  // so skip the duplicate first-focus pull — keyed on the store object so a same-room
-  // reopen also skips its own init-pull.
+  // Build the per-room cursor once `client` + (private) `encryptor` + the route resolve.
+  // Async, because the warm-start seed is loaded from KV: load the persisted CIPHERTEXT
+  // envelopes → construct the cursor with them as `initialItems` (so its checkpoint starts
+  // past them and the first `pull` fetches only the delta) → paint that persisted history
+  // immediately via `getDecryptedItems()` so the room shows without a network round-trip →
+  // then `pull()` to fetch anything newer. Recreated on room/client/encryptor change; a
+  // `cancelled` flag drops a stale build that resolves after a room switch. The cursor's
+  // `encryptor` decrypts on pull for a private room and is omitted for a public (plaintext)
+  // one — replacing the hand-rolled per-element decrypt/try-catch with the cursor's policy.
+  useEffect(() => {
+    if (!enabled || !client || !route || !roomState) return;
+    let cancelled = false;
+    (async () => {
+      const initialItems = await loadStreamLog(roomId);
+      if (cancelled) return;
+      const cursor = new AppendLogCursor({
+        client,
+        pullPath: route.pull,
+        appendField: 'items',
+        ...(encryptor ? { encryptor } : {}),
+        onElementError: 'skip',
+        initialItems,
+      });
+      cursorRef.current = { id: roomId, cursor };
+      if (initialItems.length) {
+        const history = await cursor.getDecryptedItems();
+        if (cancelled) return;
+        roomState.store.setState({ data: fanOut(history) } as never);
+      }
+      if (cancelled) return;
+      void pull();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, client, encryptor, route, roomId, roomState, pull]);
+
+  // Append one envelope: seal it for a private stream, send it plain for a public one.
+  // No client-supplied ts → the server assigns a strictly-monotonic one (no 409 on
+  // concurrent appends). This is the whole point of a stream room: append, no merge.
+  const append = useCallback(
+    async (env: StreamEnvelope) => {
+      if (!client || !route) return;
+      const body = encryptor
+        ? ((await (encryptor as unknown as { encrypt: (d: Record<string, unknown>) => Promise<Record<string, unknown>> }).encrypt(
+            env as unknown as Record<string, unknown>,
+          )) as Record<string, unknown>)
+        : (env as unknown as Record<string, unknown>);
+      await client.append(route.push, body);
+      void pull(); // reflect our own append immediately
+    },
+    [client, route, encryptor, pull],
+  );
+
+  // Live updates: pull on focus + on the shared SSE bus, poll only while SSE is down
+  // (see useRoomLiveSync). `ready` requires the client (not just the store, which is the
+  // always-present synthetic one). Unlike useRoom we pull on EVERY focus including the
+  // first (skipFirstFocus omitted): the SDK store self-pulls on creation, but this
+  // synthetic store's `pull` is a cursor fetch — without a first-focus pull, opening a
+  // stream room would show nothing until an SSE push or a re-focus.
   useRoomLiveSync({
     roomId,
-    ready: !!store,
-    pull,
-    skipFirstFocus: true,
-    firstFocusKey: store,
+    ready: !!store && !!client,
+    pull: () => void pull(),
     onIdle: () => setSyncError(null),
   });
 
-  // `id` lets a queued (offline) message reuse the id its pending bubble already
-  // showed, so when it finally syncs it dedups against the bubble instead of
-  // double-rendering (see outbox.ts). Live sends omit it and mint a fresh id.
-  // Returns whether the message was APPLIED to the LIVE store: `false` when there's no
-  // live store (offline, or before the first fresh pull) so the caller (use-room-send)
-  // diverts it to the offline outbox instead of writing into a store whose push would
-  // fail. This makes queueing depend on the real send outcome, not on the (fallible)
-  // online flag — the bug where an offline send no-op'd into a null store and vanished.
+  // Signature matches useRoom's `send` so a screen can consume either hook by `kind`
+  // (the union call-site stays type-clean). `attachment` is ignored — stream rooms
+  // don't support attachments in Phase 1 (the bot-push contract is a plain JSON append).
   const send = useCallback(
-    (text: string, parentId?: string, attachment?: AttachmentRef, id?: string): boolean => {
+    (text: string, parentId?: string, attachment?: AttachmentRef, id?: string) => {
       const t = text.trim();
-      if (!liveStore || !session || (!t && !attachment)) return false;
-      liveStore.getState().set((d: Record<string, unknown>) => {
-        const msgs = (d.messages as unknown[]) ?? [];
-        const msg: Record<string, unknown> = { id: id ?? randomId(), authorId: session.userId, ts: Date.now() };
-        if (t) msg.text = t;
-        if (parentId) msg.parentId = parentId;
-        if (attachment) msg.attachment = attachment;
-        return { ...d, messages: [...msgs, msg] };
-      });
-      return true;
+      if (!session || (!t && !attachment)) return;
+      // `id` lets a queued (offline) message reuse its pending-bubble id so it dedups
+      // on sync instead of double-rendering (see outbox.ts); live sends mint a fresh one.
+      const msg: StoredMsg = { id: id ?? randomId(), authorId: session.userId, ts: Date.now() };
+      if (t) msg.text = t;
+      if (parentId) msg.parentId = parentId;
+      if (attachment) msg.attachment = attachment;
+      // Return the append promise so the screen can await + catch a failed (offline) send
+      // and divert the message to the outbox. `await send(…)` is a no-op on the void path.
+      return append({ t: 'msg', e: msg });
     },
-    [liveStore, session],
+    [session, append],
   );
 
-  /** Seal + upload a file to the room's blob collection, returning its ref. Public
-   *  rooms have no encryptor, so attachments are unavailable there (returns null). */
+  // Reactions/edits/deletes/pins append a typed envelope. The event shapes (incl. the
+  // reaction net-toggle) come from shared builders in `./reactions`, so the merge-doc and
+  // append-log paths can't drift; only the WRITE differs — here it's an `append`.
+  const toggleReaction = useCallback(
+    (msgId: string, emoji: string) => {
+      if (!session) return;
+      const cur = (store?.getState() as { data: StreamData } | undefined)?.data.reactions ?? [];
+      void append({ t: 'reaction', e: reactionToggleEvent(cur, msgId, emoji, session.userId, Date.now()) });
+    },
+    [session, store, append],
+  );
+
+  const editMessage = useCallback(
+    (msgId: string, text: string) => {
+      const t = text.trim();
+      if (!session || !t) return;
+      void append({ t: 'edit', e: messageEditEvent(msgId, session.userId, t, Date.now()) });
+    },
+    [session, append],
+  );
+
+  const deleteMessage = useCallback(
+    (msgId: string) => {
+      if (!session) return;
+      void append({ t: 'edit', e: messageDeleteEvent(msgId, session.userId, Date.now()) });
+    },
+    [session, append],
+  );
+
+  const pinMessage = useCallback(
+    (msgId: string) => {
+      if (!session) return;
+      void append({ t: 'pin', e: pinToggleEvent(msgId, session.userId, 'pin', Date.now()) });
+    },
+    [session, append],
+  );
+  const unpinMessage = useCallback(
+    (msgId: string) => {
+      if (!session) return;
+      void append({ t: 'pin', e: pinToggleEvent(msgId, session.userId, 'unpin', Date.now()) });
+    },
+    [session, append],
+  );
+
+  // Attachments seal a blob to the separate `attachments` collection (orthogonal to the
+  // append-only message log), exactly as the old merge-doc room did. PRIVATE spaces only:
+  // a public space has no encryptor to seal a blob, so these stay no-ops there (matching
+  // the prior public-room behaviour). The message envelope just carries the AttachmentRef.
   const uploadAttachment = useCallback(
     async (bytes: Uint8Array, name: string, mime: string): Promise<AttachmentRef | null> => {
       if (!client || !encryptor) return null;
@@ -204,8 +293,6 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomH
     },
     [client, encryptor, roomId],
   );
-
-  /** Fetch + decrypt an attachment's bytes for rendering/download. */
   const loadAttachment = useCallback(
     async (ref: AttachmentRef): Promise<Uint8Array | null> => {
       if (!client || !encryptor) return null;
@@ -214,67 +301,21 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomH
     [client, encryptor, roomId],
   );
 
-  // Reactions/edits/deletes/pins are append-only events folded at render. The event
-  // shapes (incl. the reaction net-toggle) come from shared builders in `./reactions`,
-  // so the merge-doc and append-log paths can't drift; only the WRITE differs — here it's
-  // a `set` into the live doc (reading the latest events inside the updater).
-  const toggleReaction = useCallback(
-    (msgId: string, emoji: string) => {
-      if (!liveStore || !session) return;
-      const me = session.userId;
-      liveStore.getState().set((d: Record<string, unknown>) => {
-        const events = (d.reactions as ReactionEvent[]) ?? [];
-        return { ...d, reactions: [...events, reactionToggleEvent(events, msgId, emoji, me, Date.now())] };
-      });
-    },
-    [liveStore, session],
-  );
-
-  const editMessage = useCallback(
-    (msgId: string, text: string) => {
-      const t = text.trim();
-      if (!liveStore || !session || !t) return;
-      liveStore.getState().set((d: Record<string, unknown>) => {
-        const events = (d.edits as MessageEditEvent[]) ?? [];
-        return { ...d, edits: [...events, messageEditEvent(msgId, session.userId, t, Date.now())] };
-      });
-    },
-    [liveStore, session],
-  );
-
-  const deleteMessage = useCallback(
-    (msgId: string) => {
-      if (!liveStore || !session) return;
-      liveStore.getState().set((d: Record<string, unknown>) => {
-        const events = (d.edits as MessageEditEvent[]) ?? [];
-        return { ...d, edits: [...events, messageDeleteEvent(msgId, session.userId, Date.now())] };
-      });
-    },
-    [liveStore, session],
-  );
-
-  const setPinned = useCallback(
-    (msgId: string, kind: 'pin' | 'unpin') => {
-      if (!liveStore || !session) return;
-      liveStore.getState().set((d: Record<string, unknown>) => {
-        const events = (d.pins as PinEvent[]) ?? [];
-        return { ...d, pins: [...events, pinToggleEvent(msgId, session.userId, kind, Date.now())] };
-      });
-    },
-    [liveStore, session],
-  );
-  const pinMessage = useCallback((msgId: string) => setPinned(msgId, 'pin'), [setPinned]);
-  const unpinMessage = useCallback((msgId: string) => setPinned(msgId, 'unpin'), [setPinned]);
-
-  // Whether this identity may post here: always for private rooms; for public rooms,
-  // only when the invitation link (or ownership) grants write.
-  const canWrite = useMemo(() => {
-    if (!session) return false;
-    return isPublic ? publicSpaceAuth(session, spaceId).write : true;
-  }, [session, isPublic, spaceId]);
-
-  // Offline to the UI = we couldn't open at all (offline, no cache) OR we're showing
-  // cached/stale data from the SDK store (built offline, or awaiting a fresh pull).
-  const effectiveOffline = offline || storeStale;
-  return { store: displayStore, opening: enabled ? opening : false, openError, offline: effectiveOffline, reload, syncError, send, toggleReaction, editMessage, deleteMessage, pinMessage, unpinMessage, uploadAttachment, loadAttachment, canWrite };
+  return {
+    store,
+    opening: enabled ? opening : false,
+    openError,
+    offline,
+    reload,
+    syncError,
+    send,
+    toggleReaction,
+    editMessage,
+    deleteMessage,
+    pinMessage,
+    unpinMessage,
+    uploadAttachment,
+    loadAttachment,
+    canWrite: route?.canWrite ?? false,
+  };
 }

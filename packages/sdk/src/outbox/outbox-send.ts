@@ -11,14 +11,13 @@
  * message carries the entry's own `id`/`ts`, so it lands in the room store under
  * the same id the pending bubble used (dedup-by-id ⇒ no duplicate).
  */
-import { createUnionMerge, SyncManager } from '@drakkar.software/starfish-client';
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
 import { makeClient } from '../starfish/client';
 import type { Session } from '../starfish/identity';
 import { getSpaceEncryptor } from '../starfish/space-encryptor';
 import { isPublicSpaceId, publicSpaceAuth } from '../starfish/pubspace';
-import { pubspaceRoomPull, pubspaceRoomPush, pubstreamRoomPush, roomPull, roomPush, streamRoomPush } from '../starfish/paths';
+import { pubstreamRoomPush, streamRoomPush } from '../starfish/paths';
 import type { StoredMsg } from '../format/message-view';
 import type { OutboxMessage } from './outbox-types';
 
@@ -50,31 +49,14 @@ export async function sendQueued(session: Session, entry: OutboxMessage): Promis
   const msg: StoredMsg = { id: entry.id, authorId: entry.authorId, ts: entry.ts, text: entry.text };
   if (entry.parentId) msg.parentId = entry.parentId;
 
-  if (entry.kind === 'stream' || entry.kind === 'automated') {
-    // Append-only log: seal for a private stream, plaintext for a public one.
-    const env = { t: 'msg', e: msg } as unknown as Record<string, unknown>;
-    const body = encryptor ? await (encryptor as unknown as EncryptFn).encrypt(env) : env;
-    const pushPath = isPublic
-      ? pubstreamRoomPush(publicSpaceAuth(session, entry.spaceId).ownerId, entry.spaceId, entry.roomId)
-      : streamRoomPush(entry.roomId);
-    await client.append(pushPath, body);
-    return;
-  }
-
-  // Merge-doc room (channel / dm / private). Mirror useSyncInit: a SyncManager with
-  // the same paths/encryptor/union-merge — and, like it, NO signer (OctoChat's live
-  // pushes attach none). Pull first to seed the doc + hash, then append our message.
-  const ownerId = isPublic ? publicSpaceAuth(session, entry.spaceId).ownerId : '';
-  const sm = new SyncManager({
-    client,
-    pullPath: isPublic ? pubspaceRoomPull(ownerId, entry.spaceId, entry.roomId) : roomPull(entry.roomId),
-    pushPath: isPublic ? pubspaceRoomPush(ownerId, entry.spaceId, entry.roomId) : roomPush(entry.roomId),
-    ...(encryptor ? { encryptor } : {}),
-    onConflict: createUnionMerge(),
-  });
-  await sm.pull();
-  await sm.update((d) => {
-    const msgs = (d.messages as unknown[]) ?? [];
-    return { ...d, messages: [...msgs, msg as unknown as Record<string, unknown>] };
-  });
+  // Every room is now an append-only log (the merge-doc `chat`/`pubspace` message path
+  // was retired when `stream` and `channel` merged). Regardless of `entry.kind`, seal
+  // the `{t,e}` envelope for a private space and send it plaintext for a public one,
+  // then APPEND — no pull/merge/hash. Mirrors `useRoom`'s `append`.
+  const env = { t: 'msg', e: msg } as unknown as Record<string, unknown>;
+  const body = encryptor ? await (encryptor as unknown as EncryptFn).encrypt(env) : env;
+  const pushPath = isPublic
+    ? pubstreamRoomPush(publicSpaceAuth(session, entry.spaceId).ownerId, entry.spaceId, entry.roomId)
+    : streamRoomPush(entry.roomId);
+  await client.append(pushPath, body);
 }

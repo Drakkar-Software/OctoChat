@@ -1,7 +1,7 @@
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { layout, radii, spacing } from '@/theme';
-import type { Room, RoomKind, Space } from '@drakkar.software/octochat-sdk';
+import type { Room, Space } from '@drakkar.software/octochat-sdk';
 import type { ThreadSummary } from '@drakkar.software/octochat-sdk';
 import { excludeAutomatedRooms, type RoomCategory } from '@/lib/use-rooms';
 import { useOnline } from '@/lib/connectivity';
@@ -63,9 +63,9 @@ interface DesktopRoomSidebarProps {
   onJumpTo?: () => void;
   /** Open the space switcher / join surface (the header acts as a menu). */
   onOpenSpaceMenu?: () => void;
-  /** Create a room in a category. `kind` is `'channel'` or `'stream'` (append-only).
+  /** Create a room in a category (every room is the same append-only kind now).
    *  Resolves to an error message to show, or `null`/void on success. */
-  onCreateRoom?: (category: string, name: string, kind: RoomKind) => Promise<string | null> | void;
+  onCreateRoom?: (category: string, name: string) => Promise<string | null> | void;
   /** OWNER-ONLY: re-home a room into a category (drag-drop). Omit for non-owners. */
   onMoveRoom?: (roomId: string, category: string) => Promise<string | null> | void;
   /** OWNER-ONLY: create a category (shows the "New category" control). */

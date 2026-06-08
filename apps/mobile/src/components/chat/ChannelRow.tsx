@@ -30,8 +30,6 @@ export function ChannelRow({ room, active = false, onPress, onLongPress, rowRef,
       iconName={
         room.kind === 'automated'
           ? 'zap'
-          : room.kind === 'stream'
-          ? 'stream'
           : room.kind === 'private'
           ? 'lock'
           : 'hash'

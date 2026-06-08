@@ -24,7 +24,7 @@ import { sealToSelf, unsealFromSelf } from './account-seal';
 import type { SealedBlob } from './account-seal';
 import { makeClient } from './client';
 import type { Session } from './identity';
-import { bytesToHex, pubspaceRoomPush, pubspaceRoomsPull, pubspaceRoomsPush, pubspaceScope } from './paths';
+import { bytesToHex, pubspaceRoomsPull, pubspaceRoomsPush, pubspaceScope } from './paths';
 import {
   getPubspaceAccess,
   localPubspaceEntries,
@@ -145,9 +145,6 @@ export function publicSpaceAuth(
   return { cap: session.accountCap, signingKey: session.keys.edPriv, ownerId: session.userId, write: true };
 }
 
-/** An empty plaintext room doc — same shape `useSyncInit` builds, minus encryption. */
-const emptyRoomDoc = (): Record<string, unknown> => ({ messages: [], reactions: [] });
-
 /** Read a public space's room registry doc — rooms, shared name/image, + its hash
  *  (for an append write). */
 export async function readPublicRoomsDoc(
@@ -192,8 +189,8 @@ export async function createPublicSpace(session: Session, name: string): Promise
     doc as unknown as Record<string, unknown>,
     null,
   );
-  // Seed the room's empty message doc so a reader's first pull finds it (no 404).
-  await session.accountClient.push(pubspaceRoomPush(session.userId, spaceId, general.id), emptyRoomDoc(), null);
+  // No room-doc seed: every room is an append-only log (the `pubstream` collection)
+  // that simply pulls as [] until its first append.
   const space: Space = {
     id: spaceId,
     name: trimmed,
@@ -343,12 +340,8 @@ export async function createPublicRoom(
     ...(nextCategories.length ? { categories: nextCategories } : {}),
   };
   await client.push(pubspaceRoomsPush(session.userId, spaceId), doc as unknown as Record<string, unknown>, hash);
-  // A 'channel' is a merge-doc room → seed its empty doc so a reader's first pull
-  // finds it. A 'stream' is an append-only log (the `pubstream` collection) → no
-  // seeding: an empty log simply pulls as []. (Its first element is the first append.)
-  if (kind !== 'stream') {
-    await client.push(pubspaceRoomPush(session.userId, spaceId, room.id), emptyRoomDoc(), null);
-  }
+  // Every room is now an append-only log (the `pubstream` collection) — NO seeding: an
+  // empty log simply pulls as []. (Its first element is the room's first append.)
   return room;
 }
 

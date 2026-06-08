@@ -15,7 +15,7 @@ import type { ScopePreset } from '@drakkar.software/starfish-identities';
  * Request-path helpers. These emit the bare action path (`/pull/…`, `/push/…`);
  * the StarfishClient's `namespace` option prepends `/v1/<namespace>` (deployed) for
  * BOTH the URL and the signed canonical path, so the namespace must NOT be baked in
- * here. Storage-name helpers (keyringName/attachmentName/pubspaceRoomName) stay bare
+ * here. Storage-name helpers (keyringName/attachmentName/pubstreamRoomName) stay bare
  * too — they're the object-storage keys / cap-scope paths the server matches after
  * stripping the action+namespace prefix.
  */
@@ -25,16 +25,13 @@ const push = (rest: string) => `/push/${rest}`;
 /** A room id is `sp-<rand>-<name>`; the space is its first two `-` segments. */
 export const spaceIdFromRoomId = (roomId: string) => roomId.split('-').slice(0, 2).join('-');
 
-// ── Channel messages (nested under their space) ───────────────────────────────
-export const roomPull = (roomId: string) => pull(`spaces/${spaceIdFromRoomId(roomId)}/chat/rooms/${roomId}`);
-export const roomPush = (roomId: string) => push(`spaces/${spaceIdFromRoomId(roomId)}/chat/rooms/${roomId}`);
-
-// ── Stream rooms (private/E2EE): append-only log, one doc per stream room ─────
-// Distinct `streams/` subtree (not under chat/rooms) so a stream-room id can be a
-// leaf document without colliding with the chat/rooms or attachments subtrees.
-// Covered by the same `spaces/{spaceId}/**` member cap as the chat collection;
-// gated `space:member` server-side. Writers APPEND (no pull/merge). Keep the path
-// in sync with the `streamchat` collection in apps/server (+ Infra collections.py).
+// ── Room messages (private/E2EE): append-only log, one log per room ───────────
+// Since `stream` and `channel` merged, EVERY room is an append-only `streamchat` log
+// in a `streams/` subtree (no merge-doc `chat` collection anymore). The `streams/`
+// subtree (not under chat/rooms) keeps a room id a leaf document without colliding
+// with the attachments subtree, and is covered by the same `spaces/{spaceId}/**`
+// member cap; gated `space:member` server-side. Writers APPEND (no pull/merge). Keep
+// the path in sync with the `streamchat` collection in apps/server (+ Infra collections.py).
 export const streamRoomName = (roomId: string) =>
   `spaces/${spaceIdFromRoomId(roomId)}/streams/${roomId}`;
 export const streamRoomPull = (roomId: string) => pull(streamRoomName(roomId));
@@ -90,24 +87,21 @@ export const pubObjIndexPush = (ownerId: string, spaceId: string) => push(pubObj
 
 // ── Public spaces (plaintext; NOT encrypted) ──────────────────────────────────
 // A public space lives under the owner's `pubspaces/{ownerId}/{spaceId}/` subtree:
-// a `_rooms` registry doc + one plaintext message doc per room. The owner manages
-// it with their account cap (gated `pubspace:owner`); a link-bearer reads (and,
-// with a read/write link, writes room docs) via a member cap the owner minted
+// a `_rooms` registry doc (in the `pubspace` collection) + one append-only message
+// log per room (in the `pubstream` collection, see below). The owner manages the
+// registry with their account cap (gated `pubspace:owner`); a link-bearer reads (and,
+// with a read/write link, appends room messages) via a member cap the owner minted
 // (gated `pubspace:reader`/`pubspace:writer`). See apps/server/src/pubspace-role.ts.
 const pubspaceBase = (ownerId: string, spaceId: string) => `pubspaces/${ownerId}/${spaceId}`;
 export const pubspaceRoomsName = (ownerId: string, spaceId: string) => `${pubspaceBase(ownerId, spaceId)}/_rooms`;
 export const pubspaceRoomsPull = (ownerId: string, spaceId: string) => pull(pubspaceRoomsName(ownerId, spaceId));
 export const pubspaceRoomsPush = (ownerId: string, spaceId: string) => push(pubspaceRoomsName(ownerId, spaceId));
-export const pubspaceRoomName = (ownerId: string, spaceId: string, roomId: string) =>
-  `${pubspaceBase(ownerId, spaceId)}/${roomId}`;
-export const pubspaceRoomPull = (ownerId: string, spaceId: string, roomId: string) =>
-  pull(pubspaceRoomName(ownerId, spaceId, roomId));
-export const pubspaceRoomPush = (ownerId: string, spaceId: string, roomId: string) =>
-  push(pubspaceRoomName(ownerId, spaceId, roomId));
 
-// ── Public stream rooms (plaintext, append-only) ──────────────────────────────
-// A public space's stream rooms live in a `streams/` subtree under the owner's
-// space, in the append-only `pubstream` collection. A bot posts by APPENDING here
+// ── Public room messages (plaintext, append-only) ─────────────────────────────
+// Since `stream` and `channel` merged, EVERY public room's messages live in a
+// `streams/` subtree under the owner's space, in the append-only `pubstream`
+// collection (no merge-doc `pubspace` message doc anymore — `pubspace` now holds
+// only the `_rooms` registry + object index). A writer/bot posts by APPENDING here
 // (POST /push, no pull/merge), authorized by a `createPublicLink` audience cap (see
 // stream-bots.ts). Keep in sync with the `pubstream` collection in apps/server.
 export const pubstreamRoomName = (ownerId: string, spaceId: string, roomId: string) =>

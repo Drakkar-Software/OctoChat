@@ -59,7 +59,6 @@ export default function SpaceScreen() {
   // so those owner cards are hidden for it.
   const isDm = isDmSpaceId(spaceId);
   const fromRoomId = params.roomId;
-  const fromRoomIsStream = params.roomKind === 'stream';
   const { session } = useSession();
   const { spaces } = useSpaces();
   const space = spaces.find((s) => s.id === spaceId);
@@ -415,9 +414,10 @@ export default function SpaceScreen() {
               {/* Owner-only "Connect a bot" panel for the room the user navigated
                   from — surfaced here once the in-room panel hides itself (rooms
                   with messages don't carry it, see {@link StreamBotPanelWhenEmpty}).
-                  Public-stream-only: private stream rooms enroll bots as keyring
-                  members instead, so no link-cap minting applies. */}
-              {isPublic && fromRoomIsStream && fromRoomId ? (
+                  PUBLIC rooms only: every room is an append-only log a bot can post to
+                  via a link cap; private rooms enroll bots as keyring members instead,
+                  so no link-cap minting applies. */}
+              {isPublic && fromRoomId ? (
                 <StreamBotPanel ownerId={session.userId} spaceId={spaceId} roomId={fromRoomId} />
               ) : null}
             </>

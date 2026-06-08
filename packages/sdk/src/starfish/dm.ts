@@ -16,7 +16,7 @@ import type { StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { DmMap, Space } from '../domain/types';
 
-import { ensureRoomInitialized, ownerEnsureKeyring } from './client';
+import { ownerEnsureKeyring } from './client';
 import { acceptSpaceInvite, inviteToSpace } from './members';
 import { isPublicSpaceId } from './pubspace';
 import { dmRoomId, dmWinner, isDmSpaceId, newDmSpaceId } from './dm-ids';
@@ -43,9 +43,10 @@ export interface DmRef {
 async function createDmSpace(session: Session, peerPseudo: string): Promise<DmRef> {
   const spaceId = newDmSpaceId();
   const roomId = dmRoomId(spaceId);
-  // Seed the space keyring (owner = this session) and the room's empty encrypted doc.
+  // Seed the space keyring (owner = this session). The DM room itself is an append-only
+  // log (the `streamchat` collection) — no doc to seed; it pulls as [] until the first
+  // message is appended.
   const enc = await ownerEnsureKeyring(session.chatClient, session.keys, spaceId, ownerTrustedAdders(session));
-  await ensureRoomInitialized(session.chatClient, enc, roomId);
   // Claim ownership (TOFU first write) in the access record; members start empty
   // (inviteToSpace adds the peer to the roster). The single `kind:'dm'` room now lives
   // in the encrypted object index — seed it with the keyring we just opened.

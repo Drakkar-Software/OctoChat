@@ -8,7 +8,6 @@ import { threadDraftKey } from '@/lib/use-draft';
 import { useHardwareBack } from '@/lib/use-hardware-back';
 import { useRoom } from '@/lib/use-room';
 import { useRoomSend } from '@/lib/use-room-send';
-import { useStreamRoom } from '@/lib/use-stream-room';
 import { useUnread } from '@/lib/unread-context';
 import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 import type { RoomKind } from '@drakkar.software/octochat-sdk';
@@ -31,15 +30,10 @@ export default function ThreadScreen() {
   const kind = (params.kind ?? 'channel') as RoomKind;
   const { session } = useSession();
   const { lastReadAt } = useUnread();
-  // Mirror room/[id]: a stream thread is append-only (useStreamRoom), a channel/dm
-  // thread is a merge-doc room (useRoom). Both hooks run (React rules) but only the
-  // one matching `kind` is enabled; we pick its result. Replies post the same way —
-  // `send(text, parentId)` — for either kind.
-  const isStream = kind === 'stream';
-  const channel = useRoom(roomId, { enabled: !isStream });
-  const stream = useStreamRoom(roomId, { enabled: isStream });
+  // Every room is an append-only log now — one hook for all kinds. Replies post the same
+  // way for any kind: `send(text, parentId)`.
   const { store, opening, openError, offline, send, toggleReaction, editMessage, deleteMessage, pinMessage, unpinMessage, uploadAttachment, loadAttachment, canWrite } =
-    isStream ? stream : channel;
+    useRoom(roomId);
   // Owner gates the per-message pin affordance and is the only author whose pin events
   // count at fold time (resolvePinned) — read from the shared registry like room/[id].
   const { owner } = useRoomsRegistry(spaceIdFromRoomId(roomId));

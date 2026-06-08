@@ -71,7 +71,6 @@ export function useMergeDoc(opts: MergeDocOptions): MergeDocResult {
     spaceId,
     isPublic,
     enabled,
-    initializeRoom: false,
   });
 
   const config = useMemo(() => {

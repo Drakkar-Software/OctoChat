@@ -10,9 +10,9 @@ import { router } from 'expo-router';
 import type { RoomsRegistryEntry } from './rooms-registry-context';
 import { openRoomFromNotification, type OpenRoomFromNotificationDeps } from './notification-open-room';
 
-// A rooms registry that knows `sp-abc-general` (a stream) — anything else is unknown.
+// A rooms registry that knows `sp-abc-general` (a channel) — anything else is unknown.
 const entry = {
-  rooms: [{ id: 'sp-abc-general', name: 'general', kind: 'stream' }],
+  rooms: [{ id: 'sp-abc-general', name: 'general', kind: 'channel' }],
 } as unknown as RoomsRegistryEntry;
 
 const makeDeps = (overrides: Partial<OpenRoomFromNotificationDeps> = {}): OpenRoomFromNotificationDeps => ({
@@ -34,7 +34,7 @@ describe('openRoomFromNotification', () => {
     expect(deps.ensure).toHaveBeenCalledWith('sp-abc');
     expect(router.push).toHaveBeenCalledWith({
       pathname: '/room/[id]',
-      params: { id: 'sp-abc-general', name: 'general', kind: 'stream' },
+      params: { id: 'sp-abc-general', name: 'general', kind: 'channel' },
     });
   });
 
@@ -44,7 +44,7 @@ describe('openRoomFromNotification', () => {
     expect(deps.setActiveId).toHaveBeenCalledWith('sp-abc');
     expect(router.push).toHaveBeenCalledWith({
       pathname: '/room/[id]',
-      params: { id: 'sp-abc-general', name: 'general', kind: 'stream' },
+      params: { id: 'sp-abc-general', name: 'general', kind: 'channel' },
     });
   });
 
@@ -53,7 +53,7 @@ describe('openRoomFromNotification', () => {
     await openRoomFromNotification({ spaceId: 'sp-abc', docId: 'sp-abc-general' }, deps);
     expect(router.push).toHaveBeenCalledWith({
       pathname: '/room/[id]',
-      params: { id: 'sp-abc-general', name: 'general', kind: 'stream' },
+      params: { id: 'sp-abc-general', name: 'general', kind: 'channel' },
     });
   });
 

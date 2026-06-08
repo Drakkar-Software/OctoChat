@@ -50,10 +50,10 @@ function roomSubtypeIcon(subtype: RoomSubtype | undefined): IconKey {
   switch (subtype) {
     case 'dm':
       return 'dm';
-    case 'stream':
-      return 'stream';
     case 'automation':
       return 'stream';
+    // `default` covers `channel` AND a legacy persisted `stream` subtype (rooms predate
+    // the stream↔channel merge): both render with the plain `#` channel glyph.
     default:
       return 'hash';
   }

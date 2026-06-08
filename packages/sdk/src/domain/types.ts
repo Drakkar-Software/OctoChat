@@ -86,13 +86,16 @@ export interface Space {
   write?: boolean;
 }
 
-/** `stream` is an append-only room (a "Stream room"): writers append to a log —
- *  no pull/merge/hash — so bots/integrations can post without the sync protocol.
- *  Its encryption follows the space (E2EE private / plaintext public).
- *  `automated` is a stream room with a built-in integration attached: a bot posts
- *  scheduled fetches into it, and the user drives the bot with `/<command>` msgs.
- *  Storage-wise it's identical to a public `stream` (pubstream collection). */
-export type RoomKind = 'channel' | 'private' | 'dm' | 'stream' | 'automated';
+/** EVERY room is an APPEND-ONLY log: writers append `{t,e}` envelopes (no
+ *  pull/merge/hash), so bots/integrations can post without the sync protocol. The
+ *  old merge-doc `channel` and append-only `stream` kinds were MERGED — `channel`
+ *  is now the single normal room kind, and a legacy persisted `stream` (or
+ *  `private`) room reads back as `channel` (see {@link subtypeToRoomKind}).
+ *  Encryption follows the space (E2EE private `streamchat` / plaintext public
+ *  `pubstream`). `dm` is a 1:1 private room; `automated` is a room with a built-in
+ *  integration attached: a bot posts scheduled fetches into it and the user drives
+ *  it with `/<command>` msgs. All four share the same append-only storage. */
+export type RoomKind = 'channel' | 'private' | 'dm' | 'automated';
 
 /** A scheduled-fetch cadence. The additive successor to `intervalMin`/`onOpen`: when
  *  an automation sets `schedule`, it OVERRIDES `intervalMin` for the timing gate;
@@ -194,8 +197,10 @@ export const BUILTIN_OBJECT_TYPES: readonly BuiltinObjectType[] = ['room', 'cate
 export type ObjectContentKind = 'merge' | 'append' | 'none';
 
 /** When `type === 'room'`, which flavour. Maps the legacy {@link RoomKind}:
- *  `channel`/`private`→`channel`, `dm`→`dm`, `stream`→`stream`, `automated`→`automation`. */
-export type RoomSubtype = 'channel' | 'dm' | 'stream' | 'automation';
+ *  `channel`/`private`→`channel`, `dm`→`dm`, `automated`→`automation`. A legacy
+ *  persisted `stream` subtype reads back as `channel` (handled by the `default`
+ *  branch in {@link subtypeToRoomKind} / `roomSubtypeIcon`). */
+export type RoomSubtype = 'channel' | 'dm' | 'automation';
 
 /** One entry in a space's object index (`spaces/{spaceId}/objects/_index`). This is
  *  IDENTITY + TREE POSITION + light metadata ONLY — the heavy content (messages, doc

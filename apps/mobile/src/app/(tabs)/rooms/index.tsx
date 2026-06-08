@@ -104,7 +104,7 @@ export default function RoomsScreen() {
                 userId={session.userId}
                 spaceId={activeId ?? space?.id ?? ''}
                 onOpenRoom={openRoom}
-                onCreateRoom={(category, name, kind) => createRoom(name, category, kind)}
+                onCreateRoom={(category, name) => createRoom(name, category)}
                 onMoveRoom={isOwner ? moveRoom : undefined}
                 onCreateCategory={isOwner ? createCategory : undefined}
               />

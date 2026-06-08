@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
-import type { Room, RoomKind } from '@drakkar.software/octochat-sdk';
+import type { Room } from '@drakkar.software/octochat-sdk';
 import type { ThreadSummary } from '@drakkar.software/octochat-sdk';
 import type { RoomCategory } from '@/lib/use-rooms';
 import { useCategoryCollapse } from '@/lib/use-category-collapse';
@@ -25,7 +25,7 @@ interface RoomCategoryListProps {
   onOpenRoom: (room: Room) => void;
   onOpenThread?: (parentId: string) => void;
   /** Add a room to a category. Omit to hide the per-category "+". */
-  onCreateRoom?: (category: string, name: string, kind: RoomKind) => Promise<string | null> | void;
+  onCreateRoom?: (category: string, name: string) => Promise<string | null> | void;
   /** OWNER-ONLY (pass only when the viewer owns the space): re-home a room into a
    *  category. Present ⇒ rows are draggable (web) + long-pressable (native). */
   onMoveRoom?: (roomId: string, category: string) => Promise<string | null> | void;

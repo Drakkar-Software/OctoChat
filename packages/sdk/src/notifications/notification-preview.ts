@@ -19,7 +19,7 @@ import { buildSpaceEncryptor } from '../starfish/space-encryptor';
 import { resolveEdit, type StoredMsg } from '../format/message-view';
 import { makeClient, readPseudo } from '../starfish/client';
 import type { Session } from '../starfish/identity';
-import { pubspaceRoomPull, pubstreamRoomPull, roomPull, spaceIdFromRoomId, streamRoomPull } from '../starfish/paths';
+import { pubstreamRoomPull, spaceIdFromRoomId, streamRoomPull } from '../starfish/paths';
 import { isPublicSpaceId, publicSpaceAuth } from '../starfish/pubspace';
 import type { MessageEditEvent } from '../domain/types';
 
@@ -73,17 +73,9 @@ export async function loadLatestMessagePreview(session: Session, roomId: string)
   if (!space) return null;
   const { client, enc } = space;
 
-  // A regular room is a single merge-doc at the chat path. When it's there, preview it.
-  const res = await client.pull(roomPull(roomId)).catch(() => null);
-  const data = res?.data as Record<string, unknown> | undefined;
-  if (data?._encrypted) {
-    const plain = (await enc.decrypt(data)) as { messages?: StoredMsg[]; edits?: MessageEditEvent[] };
-    return latestSenderLine(plain.messages ?? [], plain.edits ?? [], session.userId);
-  }
-
-  // No merge-doc → a STREAM room: its messages are an append-only log at a separate
-  // path, each element a sealed `{t,e}` envelope. Fold it like `use-stream-room` does
-  // (the server `ts` is authoritative), then preview the latest line identically.
+  // Every room is an append-only log of sealed `{t,e}` envelopes (the merge-doc `chat`
+  // path was retired when `stream` and `channel` merged). Fold it like `useRoom` does
+  // (the server `ts` is authoritative), then preview the latest line.
   let items: { ts: number; data: Record<string, unknown> }[];
   try {
     items = (await client.pull<{ ts: number; data: Record<string, unknown> }>(streamRoomPull(roomId), {
@@ -108,7 +100,7 @@ export async function loadLatestMessagePreview(session: Session, roomId: string)
 }
 
 /**
- * Public-space variant: same merge-doc→stream probe as the private path, minus
+ * Public-space variant: folds the same append-only log as the private path, minus
  * decryption — a public space is plaintext, authorized by a cap (no keyring). The
  * client is built from the joiner's link cap or, when none is stored, this identity's
  * own account cap as owner (see `publicSpaceAuth`).
@@ -121,16 +113,9 @@ async function loadPublicLatestMessagePreview(
   const auth = publicSpaceAuth(session, spaceId);
   const client = makeClient(auth.cap, auth.signingKey);
 
-  // A regular public room is a single plaintext merge-doc at the pubspace path.
-  const res = await client.pull(pubspaceRoomPull(auth.ownerId, spaceId, roomId)).catch(() => null);
-  const data = res?.data as { messages?: StoredMsg[]; edits?: MessageEditEvent[] } | undefined;
-  if (Array.isArray(data?.messages)) {
-    return latestSenderLine(data.messages, data.edits ?? [], session.userId);
-  }
-
-  // No merge-doc → a public STREAM room: an append-only log of plaintext `{t,e}`
-  // envelopes (the `pubstream` collection). Fold it like `use-stream-room` does, then
-  // preview the latest line identically — no decrypt, the envelope IS `item.data`.
+  // Every public room is an append-only log of plaintext `{t,e}` envelopes (the
+  // `pubstream` collection). Fold it like `useRoom` does, then preview the latest line
+  // — no decrypt, the envelope IS `item.data`.
   let items: { ts: number; data: Record<string, unknown> }[];
   try {
     items = (await client.pull<{ ts: number; data: Record<string, unknown> }>(

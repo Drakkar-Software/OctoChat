@@ -2,7 +2,7 @@ import { Fragment, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
-import type { Room, RoomKind } from '@drakkar.software/octochat-sdk';
+import type { Room } from '@drakkar.software/octochat-sdk';
 import type { ThreadSummary } from '@drakkar.software/octochat-sdk';
 import type { RoomCategory } from '@/lib/use-rooms';
 import { useRoomDropZone } from '@/lib/use-room-dnd';
@@ -27,11 +27,10 @@ interface RoomCategorySectionProps {
   onOpenRoom: (room: Room) => void;
   /** Open one of the active room's threads (the reply target's message id). */
   onOpenThread?: (parentId: string) => void;
-  /** Create a room in this category. `kind` is `'channel'` (a normal room) or
-   *  `'stream'` (an append-only Stream room). Resolves to an error message to show
-   *  (e.g. only the owner may add rooms), or `null`/void on success. Omit to hide
-   *  the add control. */
-  onCreateRoom?: (category: string, name: string, kind: RoomKind) => Promise<string | null> | void;
+  /** Create a room in this category. Every room is the same append-only kind now, so
+   *  there's no type to choose. Resolves to an error message to show (e.g. only the owner
+   *  may add rooms), or `null`/void on success. Omit to hide the add control. */
+  onCreateRoom?: (category: string, name: string) => Promise<string | null> | void;
   /** Owner-only: a room was dropped onto this category (web drag) — re-home it here. */
   onMoveRoom?: (roomId: string) => void;
   /** Owner-only: request moving a room via the picker (native long-press). */
@@ -55,11 +54,9 @@ export function RoomCategorySection({
 }: RoomCategorySectionProps) {
   const { colors } = useTheme();
   const [adding, setAdding] = useState(false);
-  const [kind, setKind] = useState<RoomKind>('channel');
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [dropOver, setDropOver] = useState(false);
-  const isStream = kind === 'stream';
 
   // Web drag-drop target (no-op on native). The dropped room re-homes into this
   // category; `dropOver` paints a highlight while a row hovers over the section.
@@ -70,7 +67,7 @@ export function RoomCategorySection({
     setName('');
     setAdding(false);
     if (!n) return;
-    const message = await onCreateRoom?.(category.name, n, kind);
+    const message = await onCreateRoom?.(category.name, n);
     setError(typeof message === 'string' ? message : null);
   };
 
@@ -100,7 +97,6 @@ export function RoomCategorySection({
             onPress={() => {
               setError(null);
               if (collapsed) onToggleCollapse(); // expand so the add box is visible
-              setKind('channel');
               setAdding((a) => !a);
             }}
           />
@@ -127,40 +123,19 @@ export function RoomCategorySection({
 
       {!collapsed && adding ? (
         <View style={styles.addBox}>
-          {/* Channel (merge-doc) vs Stream (append-only). A Stream room is where
-              bots/integrations post by appending — no pull/merge — so it's a distinct
-              creation choice the owner makes up front (the kind is fixed at create). */}
-          <View style={[styles.kindToggle, { borderColor: colors.lineSoft }]}>
-            {(['channel', 'stream'] as const).map((k) => {
-              const on = kind === k;
-              return (
-                <Pressable
-                  key={k}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: on }}
-                  onPress={() => setKind(k)}
-                  style={[styles.kindOption, { backgroundColor: on ? colors.accentSoft : 'transparent' }]}
-                >
-                  <Icon name={k === 'stream' ? 'stream' : 'hash'} size={12} color={on ? colors.accentInk : colors.inkMuted} />
-                  <Txt variant="footnote" weight={on ? 'semibold' : 'regular'} color={on ? colors.accentInk : colors.inkMuted}>
-                    {k === 'stream' ? 'Stream' : 'Channel'}
-                  </Txt>
-                </Pressable>
-              );
-            })}
-          </View>
+          {/* Every room is the same append-only kind now — just name it (no type to pick). */}
           <TextField
-            leadingIcon={isStream ? 'stream' : 'hash'}
+            leadingIcon="hash"
             value={name}
             onChangeText={setName}
             onSubmitEditing={submit}
             onKeyPress={(e) => {
               // Escape cancels the add box (web). The header +/× toggle also closes it;
               // we deliberately DON'T close on blur — that fired on every internal click
-              // (kind toggle, field icon, padding) and dismissed the box mid-interaction.
+              // (field icon, padding) and dismissed the box mid-interaction.
               if (e.nativeEvent.key === 'Escape') setAdding(false);
             }}
-            placeholder={isStream ? 'new-stream' : 'new-channel'}
+            placeholder="new-channel"
             autoFocus
             autoCapitalize="none"
             autoCorrect={false}
@@ -186,23 +161,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingRight: spacing.xs },
   toggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: spacing.md },
   addBox: { marginTop: spacing.xs },
-  kindToggle: {
-    flexDirection: 'row',
-    marginHorizontal: spacing.xs,
-    padding: 2,
-    gap: 2,
-    borderWidth: 1,
-    borderRadius: radii.md,
-  },
-  kindOption: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 5,
-    borderRadius: radii.sm,
-  },
   addField: { marginHorizontal: spacing.xs, marginTop: spacing.xs },
   notice: { marginHorizontal: spacing.xs, marginTop: spacing.xs },
 });

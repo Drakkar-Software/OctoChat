@@ -17,7 +17,6 @@ const ROOM_ICON: Record<RoomKind, IconName> = {
   channel: 'hash',
   private: 'lock',
   dm: 'dm',
-  stream: 'stream',
   automated: 'zap',
 };
 

@@ -15,16 +15,11 @@ const JSON_ONLY = ["application/json"];
 export const config: SyncConfig = {
   version: 1,
   collections: [
-    // Encrypted room messages.
-    {
-      name: "chat",
-      storagePath: "spaces/{spaceId}/chat/rooms/{roomId}",
-      readRoles: ["space:member"],
-      writeRoles: ["space:member"],
-      encryption: "delegated",
-      maxBodyBytes: 262_144,
-      allowedMimeTypes: JSON_ONLY,
-    },
+    // (The merge-doc `chat` collection was RETIRED when `stream` and `channel` merged:
+    // every room is now an append-only log in `streamchat` (private) / `pubstream`
+    // (public) below. Removing `chat` is safe — member caps authorize by PATH
+    // (`spaces/{spaceId}/**`), not by collection name; the `collections:['chat']` label
+    // some cap scopes still carry is only a shape placeholder, never matched here.)
     // SPACE-wide multi-recipient keyring: one keyring (and CEK) per space, shared
     // by all its channels. READ is gated on `space:member` (so any space member
     // can fetch it and decrypt), WRITE on `space:owner` (only the owner may add
@@ -56,16 +51,17 @@ export const config: SyncConfig = {
       maxBodyBytes: 11_534_336, // ~11 MB: ~10 MB plaintext + IV/tag/epoch overhead.
       allowedMimeTypes: ["application/octet-stream"],
     },
-    // STREAM rooms (private/E2EE): append-only message log, one document per stream
-    // room. Backed by an append-only `by_timestamp` collection so a writer just
-    // appends (POST /push with `{data}`) — no pull/merge/hash/conflict — which is
-    // what lets bots/integrations post without implementing the read-modify-write
-    // sync protocol. Encryption is "delegated" (same as `chat`): each appended
-    // element is sealed with the space keyring CEK, opaque to the server. Read/write
-    // gated on `space:member` via makeSpaceRoleEnricher (collection-agnostic, keyed
-    // on {spaceId}), so the same `spaces/{spaceId}/**` member cap already covers it.
-    // Distinct `streams/` subtree (not under chat/rooms) avoids the file-vs-directory
-    // collision noted on `attachments`. Keep in sync with streamRoom* in apps/mobile.
+    // ROOM messages (private/E2EE): append-only message log, one document per room.
+    // Since `stream` and `channel` merged, this is THE collection backing every private
+    // room's messages. Backed by an append-only `by_timestamp` collection so a writer
+    // just appends (POST /push with `{data}`) — no pull/merge/hash/conflict — which is
+    // also what lets bots/integrations post without implementing the read-modify-write
+    // sync protocol. Encryption is "delegated": each appended element is sealed with the
+    // space keyring CEK, opaque to the server. Read/write gated on `space:member` via
+    // makeSpaceRoleEnricher (collection-agnostic, keyed on {spaceId}), so the same
+    // `spaces/{spaceId}/**` member cap covers it. Distinct `streams/` subtree (not under
+    // chat/rooms) avoids the file-vs-directory collision noted on `attachments`. Keep in
+    // sync with streamRoom* in apps/mobile.
     {
       name: "streamchat",
       storagePath: "spaces/{spaceId}/streams/{roomId}",

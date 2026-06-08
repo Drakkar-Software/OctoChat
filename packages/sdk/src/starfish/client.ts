@@ -13,7 +13,7 @@ import { getSyncBase, getSyncNamespace, getSyncPrefix } from '../config/config';
 import { fetchWithTimeout } from './fetch-timeout';
 import { pullCache, PULL_CACHE_MAX_AGE_MS } from './pull-cache';
 import { cacheProfile, loadCachedProfile } from './profile-cache';
-import { keyringPull, keyringPush, profilePull, profilePush, roomPull, roomPush } from './paths';
+import { keyringPull, keyringPush, profilePull, profilePush } from './paths';
 
 export interface DeviceKeys {
   edPriv: string;
@@ -132,19 +132,6 @@ export async function ownerEnsureKeyring(
     { trustedAdders },
   );
   return enc as unknown as Encryptor;
-}
-
-/** Owner-side: seed an empty encrypted room document if missing. The encryptor
- *  is the space encryptor — every channel in the space seals with it. */
-export async function ensureRoomInitialized(
-  client: StarfishClient,
-  encryptor: Encryptor,
-  roomId: string,
-): Promise<void> {
-  const res = await client.pull(roomPull(roomId)).catch(() => null);
-  if (res?.data && (res.data as Record<string, unknown>)._encrypted) return;
-  const sealed = await encryptor.encrypt({ messages: [], reactions: [] });
-  await client.push(roomPush(roomId), sealed as Record<string, unknown>, res?.hash ?? null);
 }
 
 /** A user's public profile: display pseudo + optional inline avatar (data URI) +

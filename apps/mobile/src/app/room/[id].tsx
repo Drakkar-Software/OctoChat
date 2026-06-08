@@ -13,7 +13,6 @@ import { useMessageEditing } from '@/lib/use-message-editing';
 import { useHardwareBack } from '@/lib/use-hardware-back';
 import { useRoom } from '@/lib/use-room';
 import { useRoomSend } from '@/lib/use-room-send';
-import { useStreamRoom } from '@/lib/use-stream-room';
 import { useUnread } from '@/lib/unread-context';
 import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 import { isPublicSpaceId, publicSpaceAuth } from '@drakkar.software/octochat-sdk';
@@ -43,25 +42,19 @@ export default function RoomScreen() {
   const spaceId = spaceIdFromRoomId(id);
   const { session } = useSession();
   const { markRoomRead, lastReadAt, hydrated } = useUnread();
-  // `kind` picks the read hook (stream vs merge-doc), so it MUST be authoritative.
-  // A notification open carries no `kind` on the wire (chat is E2EE) and the route
-  // param then defaults to 'channel' — which would load an automated/stream room via
-  // the wrong hook + storage path and show it empty. The shared rooms registry
-  // (resolves for owned, joined AND public spaces) is the source of truth; the route
-  // param is only an interim fallback while the registry read settles.
+  // `kind` drives the title/icon + automated-room behaviour, so it MUST be authoritative.
+  // A notification open carries no `kind` on the wire (chat is E2EE) and the route param
+  // then defaults to 'channel'. The shared rooms registry (resolves for owned, joined AND
+  // public spaces) is the source of truth; the route param is only an interim fallback
+  // while the registry read settles.
   const { owner, rooms } = useRoomsRegistry(spaceId);
   const registryRoom = rooms.find((r) => r.id === id) ?? null;
   const kind = (registryRoom?.kind ?? params.kind ?? 'channel') as RoomKind;
-  // A stream room is append-only (useStreamRoom); a channel/dm is a merge-doc room
-  // (useRoom). An automated room is a stream room with a runner attached — same
-  // pubstream storage, same hook. Both hooks are called unconditionally (React rules)
-  // but only the one matching `kind` is `enabled` and does any work.
+  // Every room is an append-only log now — one hook for all kinds. An automated room
+  // additionally has a runner attached (driven below) + its own settings sheet.
   const isAutomated = kind === 'automated';
-  const isStream = kind === 'stream' || isAutomated;
-  const channel = useRoom(id, { enabled: !isStream });
-  const stream = useStreamRoom(id, { enabled: isStream });
   const { store, opening, openError, offline, reload, syncError, send, toggleReaction, editMessage, deleteMessage, pinMessage, unpinMessage, uploadAttachment, loadAttachment, canWrite } =
-    isStream ? stream : channel;
+    useRoom(id);
   const { editingId, setEditingId, editLast } = useMessageEditing(store, session?.userId ?? '');
   // Offline outbox: route text sends through the queue when offline / on failure,
   // and surface this room's pending bubbles + retry. Attachments still need a
@@ -85,8 +78,10 @@ export default function RoomScreen() {
   const [showAutomationSheet, setShowAutomationSheet] = useState(false);
   const isOwner = !!owner && session?.userId === owner;
   const onPinMessage = (msgId: string, pin: boolean) => (pin ? pinMessage(msgId) : unpinMessage(msgId));
+  // Every room is now an append-only log, so any PUBLIC room can host a bot — offer the
+  // owner the "Connect a bot" panel (it hides itself once the room has messages).
   const showBotPanel =
-    isStream && !!session && isPublicSpaceId(spaceId) && publicSpaceAuth(session, spaceId).ownerId === session.userId;
+    !!session && isPublicSpaceId(spaceId) && publicSpaceAuth(session, spaceId).ownerId === session.userId;
   const title = kind === 'dm' ? name : `#${name}`;
 
   // The room's last-read mark as it stood at the START of this visit — re-captured

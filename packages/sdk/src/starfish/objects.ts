@@ -41,8 +41,6 @@ export function roomKindToSubtype(kind: Room['kind']): RoomSubtype {
   switch (kind) {
     case 'dm':
       return 'dm';
-    case 'stream':
-      return 'stream';
     case 'automated':
       return 'automation';
     default:
@@ -50,13 +48,14 @@ export function roomKindToSubtype(kind: Room['kind']): RoomSubtype {
   }
 }
 
-/** Inverse of {@link roomKindToSubtype} — used while consumers still speak `RoomKind`. */
+/** Inverse of {@link roomKindToSubtype} — used while consumers still speak `RoomKind`.
+ *  A legacy persisted `'stream'` subtype (rooms predate the stream↔channel merge) is
+ *  NOT in {@link RoomSubtype} anymore, so it hits the `default` and reads back as a
+ *  plain `'channel'` — which is exactly the normalization that retires `stream`. */
 export function subtypeToRoomKind(subtype: RoomSubtype | undefined): Room['kind'] {
   switch (subtype) {
     case 'dm':
       return 'dm';
-    case 'stream':
-      return 'stream';
     case 'automation':
       return 'automated';
     default:

@@ -4,10 +4,9 @@
  * returns `{ data, hash, ts }`, and a private space is ciphertext to the server).
  *
  * Room count is free (the registry). Everything else is a fan-out: pull + decrypt
- * every room of the space and fold its log. The decrypt branching mirrors
- * `notification-preview.ts` (private/public × merge-doc/stream) — NOT
- * `cross-room.ts:loadAllMessages`, which skips stream + public rooms and would
- * silently undercount.
+ * every room of the space and fold its append-only log. The decrypt branching mirrors
+ * `notification-preview.ts` (private vs public) — NOT `cross-room.ts:loadAllMessages`,
+ * which skips public rooms and would silently undercount.
  *
  * Semantics worth knowing (they differ on purpose):
  *  - `messages` is NET OF DELETES (a tombstoned message is folded out, matching what
@@ -28,7 +27,7 @@ import { resolveEdit, type StoredMsg } from '../format/message-view';
 import { makeClient } from '../starfish/client';
 import type { Session } from '../starfish/identity';
 import { readIndexRooms } from '../starfish/object-index';
-import { objIndexPull, pubspaceRoomPull, pubstreamRoomPull, roomPull, streamRoomPull } from '../starfish/paths';
+import { objIndexPull, pubstreamRoomPull, streamRoomPull } from '../starfish/paths';
 import { isPublicSpaceId, publicSpaceAuth, readPublicRoomsDoc } from '../starfish/pubspace';
 import { buildThreadDigest } from '../messaging/threads';
 import type { MessageEditEvent, Room } from '../domain/types';
@@ -62,21 +61,10 @@ interface RoomLog {
   docBytes: number;
 }
 
-const EMPTY_LOG: RoomLog = { messages: [], edits: [], docBytes: 0 };
-
 /** JSON byte length (char-length is exact for base64 ciphertext envelopes). */
 const byteLen = (doc: unknown): number => JSON.stringify(doc ?? null).length;
 
-// ── per-room folders, one per (private|public) × (merge|stream) path ──────────
-
-async function privateMergeLog(client: StarfishClient, enc: Encryptor, roomId: string): Promise<RoomLog> {
-  const res = await client.pull(roomPull(roomId)).catch(() => null);
-  const data = res?.data as Record<string, unknown> | undefined;
-  if (!data) return EMPTY_LOG; // no doc yet — an empty room, not an error
-  if (!data._encrypted) return { messages: [], edits: [], docBytes: byteLen(data) };
-  const plain = (await enc.decrypt(data)) as { messages?: StoredMsg[]; edits?: MessageEditEvent[] };
-  return { messages: plain.messages ?? [], edits: plain.edits ?? [], docBytes: byteLen(data) };
-}
+// ── per-room folders: every room is an append-only log (private|public) ───────
 
 async function privateStreamLog(client: StarfishClient, enc: Encryptor, roomId: string): Promise<RoomLog> {
   const items = (await client.pull<{ ts: number; data: Record<string, unknown> }>(streamRoomPull(roomId), {
@@ -94,19 +82,8 @@ async function privateStreamLog(client: StarfishClient, enc: Encryptor, roomId: 
       /* a single undecryptable element must not blank the whole room */
     }
   }
-  return { messages, edits, docBytes: byteLen(items) };
-}
-
-async function publicMergeLog(
-  client: StarfishClient,
-  ownerId: string,
-  spaceId: string,
-  roomId: string,
-): Promise<RoomLog> {
-  const res = await client.pull(pubspaceRoomPull(ownerId, spaceId, roomId)).catch(() => null);
-  const data = res?.data as { messages?: StoredMsg[]; edits?: MessageEditEvent[] } | undefined;
-  if (!data) return EMPTY_LOG;
-  return { messages: data.messages ?? [], edits: data.edits ?? [], docBytes: byteLen(data) };
+  // An empty / not-yet-created log occupies no space (don't count the bare `[]`/`null`).
+  return { messages, edits, docBytes: items?.length ? byteLen(items) : 0 };
 }
 
 async function publicStreamLog(
@@ -126,7 +103,8 @@ async function publicStreamLog(
     if (env?.t === 'msg') messages.push({ ...env.e, ts: env.e.ts || item.ts });
     else if (env?.t === 'edit') edits.push({ ...env.e, ts: env.e.ts || item.ts });
   }
-  return { messages, edits, docBytes: byteLen(items) };
+  // An empty / not-yet-created log occupies no space (don't count the bare `[]`/`null`).
+  return { messages, edits, docBytes: items?.length ? byteLen(items) : 0 };
 }
 
 /** Fold one room's log into the running totals. */
@@ -159,10 +137,8 @@ export async function loadSpaceStats(session: Session, spaceId: string): Promise
     const auth = publicSpaceAuth(session, spaceId);
     const client = makeClient(auth.cap, auth.signingKey);
     rooms = (await readPublicRoomsDoc(client, auth.ownerId, spaceId).catch(() => null))?.rooms ?? [];
-    foldRoom = (room) =>
-      room.kind === 'stream'
-        ? publicStreamLog(client, auth.ownerId, spaceId, room.id)
-        : publicMergeLog(client, auth.ownerId, spaceId, room.id);
+    // Every room is an append-only log now (the merge-doc path was retired).
+    foldRoom = (room) => publicStreamLog(client, auth.ownerId, spaceId, room.id);
   } else {
     const space = await buildSpaceEncryptor(session, spaceId);
     if (!space) {
@@ -173,8 +149,8 @@ export async function loadSpaceStats(session: Session, spaceId: string): Promise
     }
     const { client, enc } = space;
     rooms = (await readIndexRooms(client, enc, objIndexPull(spaceId), spaceId).catch(() => null))?.rooms ?? [];
-    foldRoom = (room) =>
-      room.kind === 'stream' ? privateStreamLog(client, enc, room.id) : privateMergeLog(client, enc, room.id);
+    // Every room is an append-only log now (the merge-doc path was retired).
+    foldRoom = (room) => privateStreamLog(client, enc, room.id);
   }
 
   stats.rooms = rooms.length;

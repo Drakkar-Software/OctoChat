@@ -87,7 +87,7 @@ const { queue, nc } = await createNatsQueue();
 const queuing = createQueuingServerPlugin({
   queue,
   collections: {
-    chat: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
+    // (`chat` retired — every room's messages now flow through `streamchat`/`pubstream`.)
     streamchat: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
     pubstream: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
     pubspace: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
