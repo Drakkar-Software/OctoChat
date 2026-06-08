@@ -10,6 +10,25 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./platform": {
+      "react-native": {
+        "types": "./dist/platform/index.native.d.ts",
+        "default": "./dist/platform/index.native.js"
+      },
+      "import": {
+        "types": "./dist/platform/index.d.ts",
+        "default": "./dist/platform/index.js"
+      },
+      "default": {
+        "types": "./dist/platform/index.d.ts",
+        "default": "./dist/platform/index.js"
+      }
+    },
+    "./hash-wasm-shim": {
+      "types": "./dist/platform/hash-wasm-shim.d.ts",
+      "import": "./dist/platform/hash-wasm-shim.js",
+      "default": "./dist/platform/hash-wasm-shim.js"
     }
   },
   "scripts": {
@@ -28,9 +47,22 @@
     "@scure/bip39": "^2.0.0",
     "hash-wasm": "^4.12.0"
   },
+  "peerDependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo-secure-store": "~56.0.4",
+    "react-native-quick-crypto": "^1.1.4"
+  },
+  "peerDependenciesMeta": {
+    "@react-native-async-storage/async-storage": { "optional": true },
+    "expo-secure-store": { "optional": true },
+    "react-native-quick-crypto": { "optional": true }
+  },
   "devDependencies": {
     "@octochat/tsconfig": "workspace:*",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@types/node": "^22.19.19",
+    "expo-secure-store": "~56.0.4",
+    "react-native-quick-crypto": "^1.1.4",
     "tsup": "^8.3.5",
     "typescript": "~6.0.3",
     "vitest": "^4.1.7"

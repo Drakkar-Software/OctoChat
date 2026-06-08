@@ -37,7 +37,7 @@ import { useNotificationSettings } from './notification-settings-context';
 import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
 import { useSpacesContext } from './spaces-context';
-import { kvGet, kvSet } from './starfish/kv';
+import { kvGet, kvSet } from '@drakkar.software/octochat-sdk';
 import { isDmInboxRoomId } from '@drakkar.software/octochat-sdk';
 import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 import { buildAuthHeaders } from '@drakkar.software/octochat-sdk';

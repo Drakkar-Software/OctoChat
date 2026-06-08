@@ -1,9 +1,15 @@
 # @drakkar.software/octochat-sdk
 
-The **headless, reusable OctoChat core** — all of OctoChat's chat logic with no UI,
-no React, no platform lock-in. Wire any frontend (web, native, desktop, a bot) to the
-same end-to-end-encrypted backend (a [Starfish](https://github.com/Drakkar-Software/Starfish)
+The **headless, reusable OctoChat core** — all of OctoChat's chat logic with no UI and
+no React. Wire any frontend (web, native, desktop, a bot) to the same
+end-to-end-encrypted backend (a [Starfish](https://github.com/Drakkar-Software/Starfish)
 sync server) by importing this package.
+
+The default entry (`.`) is **platform-agnostic and dependency-free** (only Starfish +
+pure-crypto deps). Ready-made platform adapters (kv, the seed vault, passkeys, the
+crypto install) ship behind an **optional subpath** `@drakkar.software/octochat-sdk/platform`
+with `.native`/web branches and optional React-Native peer deps — opt in to reuse them,
+or inject your own via `configureKv` and keep the core platform-neutral.
 
 ## What's inside
 
@@ -24,7 +30,7 @@ and platform-agnostic.
 
 `src/` is grouped by subject (everything is re-exported from `src/index.ts`):
 
-- `config/` — host wiring (`configureOctoChat`/`configureKv`) and platform adapters
+- `config/` — host wiring (`configureOctoChat`/`configureKv`)
 - `domain/` — core model: types, ids, the object-type registry
 - `format/` — pure formatters & view models (message body, markdown, message view)
 - `starfish/` — encrypted sync / crypto / registry core (identity, client, keyrings, objects, DMs, public spaces)
@@ -35,6 +41,14 @@ and platform-agnostic.
 - `events/` — live room-change SSE stream
 - `nostr/` — NIP-07 browser-extension login
 - `automations/` — scheduled/triggered room automations (+ providers)
+- `platform/` — **optional** platform adapters (kv, vault, passkey, crypto install),
+  `.native`/web branched, exposed as the `./platform` subpath — NOT part of the
+  default `.` entry, so the core stays dependency-free
+
+The default entry (`.`) imports nothing from `platform/`; the React-Native peer deps
+(`expo-secure-store`, `@react-native-async-storage/async-storage`,
+`react-native-quick-crypto`) are declared **optional** and only pulled when a host
+imports the `./platform` subpath.
 
 ## Wiring it up
 
@@ -68,11 +82,24 @@ const stop = subscribeRoomChanges(onChange, { spaces, authHeaders });
 ```
 
 Global `fetch` and WebCrypto (`crypto.subtle` / `getRandomValues`) are assumed to be
-present; on React Native install `react-native-quick-crypto` at boot.
+present. You can supply the storage/crypto wiring yourself, or opt into the ready-made
+adapters from the optional subpath:
+
+```ts
+import {
+  kvGet, kvSet, kvRemove,    // localStorage (web) / AsyncStorage (native)
+  configureStarfishPlatform, // installs react-native-quick-crypto on native
+  loadVault, unlockVault,    // PIN/passkey (web) or secure-store (native) seed vault
+} from '@drakkar.software/octochat-sdk/platform';
+
+configureStarfishPlatform();
+configureKv({ get: kvGet, set: kvSet, remove: kvRemove });
+```
 
 ## Reference consumer
 
-The OctoChat Expo app (`apps/mobile`) is a full reference frontend: it injects its
-platform `kv`/config in `src/lib/octochat-init.ts` and consumes the SDK from its React
-hooks and context providers. The platform-branched pieces (`kv`/`storage`/`platform`/
-`passkey`) and all React live in the app — never in this package.
+The OctoChat Expo app (`apps/mobile`) is a full reference frontend: it wires the SDK at
+boot in `src/lib/octochat-init.ts` (env → `configureOctoChat`, plus `configureKv` fed
+from the `./platform` kv adapter) and consumes the domain APIs from its React hooks and
+context providers. All React lives in the app; the platform adapters now live in this
+package's optional `./platform` subpath.

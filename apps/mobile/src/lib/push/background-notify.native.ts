@@ -27,13 +27,12 @@ import { loadLatestMessagePreview } from '@drakkar.software/octochat-sdk';
 // Importing platform.native runs `install()` (globalThis.crypto) at module load;
 // calling configureStarfishPlatform() wires the base64 provider the SDK needs. Both
 // are required for decryption to work in this headless task (no provider tree ran).
-import { configureStarfishPlatform } from '../starfish/platform';
+import { configureStarfishPlatform, loadVault } from '@drakkar.software/octochat-sdk/platform';
 import { initOctoChat } from '../octochat-init';
 import { hydrateMemberCaps } from '@drakkar.software/octochat-sdk';
 import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 import { hydratePubspaceCaps } from '@drakkar.software/octochat-sdk';
 import { activeAccountOf, sessionFromPersisted } from '@drakkar.software/octochat-sdk';
-import { loadVault } from '../starfish/storage';
 
 import { MESSAGES_CHANNEL_ID } from './channel';
 import type { PushData } from './fcm';

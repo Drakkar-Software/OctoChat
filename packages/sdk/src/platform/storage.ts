@@ -24,10 +24,10 @@
 import { openWithPassphrase, sealWithPassphrase } from '@drakkar.software/starfish-identities';
 
 import { evalPasskey, passkeySupported as webauthnSupported } from './passkey';
-import { bytesToHex } from '@drakkar.software/octochat-sdk';
-import type { PasskeyEnrollment, PersistedSession, SeedLock, UnlockMethod, Vault, VaultLoad } from '@drakkar.software/octochat-sdk';
+import { bytesToHex } from '../starfish/paths';
+import type { PasskeyEnrollment, PersistedSession, SeedLock, UnlockMethod, Vault, VaultLoad } from '../starfish/storage-types';
 
-export type { PersistedSession } from '@drakkar.software/octochat-sdk';
+export type { PersistedSession } from '../starfish/storage-types';
 
 const KEY = 'octochat.session.v1';
 const IV_BYTES = 12;
@@ -292,10 +292,6 @@ export async function saveVault(vault: Vault, lock?: SeedLock): Promise<void> {
     env.passkeyWrap = { credentialId, salt, kind: 'aes-gcm', iv, ct };
   }
   writeEnvelope(env);
-}
-
-export function passkeySupported(): boolean {
-  return webauthnSupported();
 }
 
 /**

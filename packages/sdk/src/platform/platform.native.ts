@@ -8,7 +8,7 @@
 import { install } from 'react-native-quick-crypto';
 import { configurePlatform } from '@drakkar.software/starfish-protocol';
 
-import { starfishBase64 } from '@drakkar.software/octochat-sdk';
+import { starfishBase64 } from '../starfish/base64';
 
 // quick-crypto v1 (Nitro) dropped the `react-native-quick-crypto/polyfill`
 // side-effect entry point; call install() instead to patch globalThis.crypto.

@@ -22,7 +22,7 @@
 import { useEffect, useMemo } from 'react';
 import { createStore, useStore } from 'zustand';
 
-import { kvGet, kvSet } from './starfish/kv';
+import { kvGet, kvSet } from '@drakkar.software/octochat-sdk';
 // The message shape AND the pure reducers live in the headless SDK (shared with the
 // send path + the render-time merge); the store (a UI-framework concern) stays here.
 import type { OutboxMessage } from '@drakkar.software/octochat-sdk';

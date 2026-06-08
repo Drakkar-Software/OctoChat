@@ -8,9 +8,11 @@
  * (see `app/_layout.tsx`, right after `configureStarfishPlatform()`).
  */
 import { configureOctoChat, configureKv } from '@drakkar.software/octochat-sdk';
+// The RAW platform kv impl (localStorage / AsyncStorage) is fed into the SDK's
+// `configureKv` here; feature code reads through the DI accessor on the core entry.
+import { kvGet, kvSet, kvRemove } from '@drakkar.software/octochat-sdk/platform';
 
-import { SYNC_BASE, SYNC_NAMESPACE, EVENTS_URL, WEB_BASE } from '@/lib/starfish/config';
-import { kvGet, kvSet, kvRemove } from '@/lib/starfish/kv';
+import { SYNC_BASE, SYNC_NAMESPACE, EVENTS_URL, WEB_BASE } from '@/lib/octochat-config';
 
 let done = false;
 

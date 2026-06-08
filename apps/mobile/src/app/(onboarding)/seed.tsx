@@ -4,7 +4,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { generateSeedWords } from '@drakkar.software/octochat-sdk';
-import { useArgon2Progress } from '@/lib/starfish/hash-wasm-shim';
+import { useArgon2Progress } from '@/lib/use-argon2-progress';
 import { useSession } from '@/lib/session-context';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';

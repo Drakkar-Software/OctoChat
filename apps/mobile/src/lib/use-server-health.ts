@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { SYNC_BASE, SYNC_NAMESPACE } from './starfish/config';
+import { SYNC_BASE, SYNC_NAMESPACE } from './octochat-config';
 
 // Reachability probe URL. Local dev (no namespace): the apps/server mounts the
 // sync router at root and always exposes `/health`, with permissive CORS. The

@@ -21,7 +21,7 @@ import { hydrateQuickReactions, resetQuickReactions } from '@drakkar.software/oc
 import { flushReadsNow, hydrateReads, resetReads } from '@drakkar.software/octochat-sdk';
 import { activeAccountOf, sessionFromPersisted } from '@drakkar.software/octochat-sdk';
 import { clearSpaceEncryptors } from '@drakkar.software/octochat-sdk';
-import { enrollPasskey, passkeyEnrollable } from './starfish/passkey';
+import { enrollPasskey, passkeyEnrollable } from '@drakkar.software/octochat-sdk/platform';
 import {
   addPasskeyToVault,
   clearVault,
@@ -30,7 +30,7 @@ import {
   saveVault,
   unlockVault,
   vaultMethods,
-} from './starfish/storage';
+} from '@drakkar.software/octochat-sdk/platform';
 import { disableBiometricLock } from './app-lock';
 import type { PersistedSession, SeedLock, UnlockMethod, Vault } from '@drakkar.software/octochat-sdk';
 import { clearRoomEventsBus } from './room-events-bus';

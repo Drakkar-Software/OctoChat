@@ -4,6 +4,11 @@
  * Web/dev defaults to the local server (see apps/server, port 8787). Override
  * with EXPO_PUBLIC_STARFISH_URL. Native LAN/emulator handling is refined in the
  * native runtime step.
+ *
+ * NOTE: this env-reading boundary stays APP-SIDE (not in the SDK's `/platform`
+ * subpath) — Expo only reliably inlines `EXPO_PUBLIC_*` for files under the app
+ * root, and the SDK is env-agnostic by design (the values are fed in via
+ * `configureOctoChat` from `octochat-init.ts`).
  */
 export const SYNC_BASE = process.env.EXPO_PUBLIC_STARFISH_URL ?? 'http://localhost:8787';
 

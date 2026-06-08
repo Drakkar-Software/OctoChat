@@ -92,6 +92,12 @@ export * from './events/events.shared';
 // ── nostr/ — NIP-07 browser-extension login ────────────────────────────────────
 export * from './nostr/nostr';
 
+// Argon2id progress emitter (pure, no platform deps) — re-exported from the platform
+// shim so the host's React progress hook can import it from the core entry without
+// pulling the platform-adapter subpath. The shim itself is reached by the host's
+// `hash-wasm` bundler alias + the `./hash-wasm-shim` subpath export.
+export { subscribeArgon2Progress } from './platform/hash-wasm-shim';
+
 // ── automations/ — scheduled/triggered room automations ────────────────────────
 export * from './automations/types';
 export * from './automations/hash';

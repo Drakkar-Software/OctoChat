@@ -12,15 +12,18 @@ encryption (BIP-39 seed → Ed25519/Kyber keys → per-room keyrings).
 - `apps/mobile` — the Expo (SDK 56) app, package `@octochat/mobile`. Runs on
   iOS, Android and web from one codebase.
 - `packages/sdk` — `@drakkar.software/octochat-sdk`, the **headless, publishable
-  OctoChat core**: all chat-domain logic with no UI / no platform lock-in —
+  OctoChat core**: all chat-domain logic with no UI / no React —
   identity & encrypted Starfish sync, the spaces/rooms registry & object tree,
   members/DMs/public spaces, attachments, messages/reactions/threads, reads/mutes
   & notification formatting, automations core, and the domain types/formatters.
   The app consumes it via `workspace:*` and injects platform via `configureOctoChat()`
-  + `configureKv()` (see `apps/mobile/src/lib/octochat-init.ts`). What stays in the
-  app is only React (contexts + `use-*` hooks) and platform-branched modules
-  (`kv`/`storage`/`platform`/`passkey` under `src/lib/starfish`, plus
-  `connectivity`/`app-lock`/`notify`/`push`/…).
+  + `configureKv()` (see `apps/mobile/src/lib/octochat-init.ts`). The default entry
+  (`.`) stays **platform-agnostic and dependency-free**; the platform adapters (kv,
+  the seed vault, passkeys, crypto install) live in `packages/sdk/src/platform` and
+  ship behind the **optional subpath** `@drakkar.software/octochat-sdk/platform`
+  (`.native`/web branched, optional RN peer deps). What stays in the app is React
+  (contexts + `use-*` hooks), the env reader (`src/lib/octochat-config.ts`), and the
+  app-specific platform modules (`connectivity`/`app-lock`/`notify`/`push`/…).
 - `packages/tsconfig` — shared base TypeScript config, package
   `@octochat/tsconfig`, consumed via `workspace:*`.
 

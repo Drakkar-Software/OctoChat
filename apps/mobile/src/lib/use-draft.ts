@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { kvGet, kvRemove, kvSet } from './starfish/kv';
+import { kvGet, kvRemove, kvSet } from '@drakkar.software/octochat-sdk';
 
 /** Storage key for a room's main-composer draft, scoped to the viewer. */
 export const roomDraftKey = (userId: string, roomId: string) => `octochat.draft.${userId}.${roomId}`;

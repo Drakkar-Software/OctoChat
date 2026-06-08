@@ -10,7 +10,7 @@ import {
   type StreamData,
   type StreamEnvelope,
 } from '@drakkar.software/octochat-sdk';
-import { kvSet } from './starfish/kv';
+import { kvSet } from '@drakkar.software/octochat-sdk';
 import { reportReachability } from './connectivity';
 import {
   pubstreamRoomPull,

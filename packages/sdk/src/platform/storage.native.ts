@@ -8,9 +8,9 @@
  */
 import * as SecureStore from 'expo-secure-store';
 
-import type { PasskeyEnrollment, PersistedSession, SeedLock, UnlockMethod, Vault, VaultLoad } from '@drakkar.software/octochat-sdk';
+import type { PasskeyEnrollment, PersistedSession, SeedLock, UnlockMethod, Vault, VaultLoad } from '../starfish/storage-types';
 
-export type { PersistedSession } from '@drakkar.software/octochat-sdk';
+export type { PersistedSession } from '../starfish/storage-types';
 
 const KEY = 'octochat_session_v1';
 
@@ -57,10 +57,6 @@ export async function loadVault(): Promise<VaultLoad> {
 // Native restores directly from the Keychain — there is no lock screen to unlock.
 export async function unlockVault(_method: UnlockMethod, _pin?: string): Promise<Vault> {
   throw new Error('unlockVault is not used on native.');
-}
-
-export function passkeySupported(): boolean {
-  return false;
 }
 
 // Passkeys are a web-vault concept (storage.ts). Native has no PIN/VMK to wrap, so the

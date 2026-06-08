@@ -33,7 +33,7 @@ import {
 
 import type { AutomationMeta, Room } from '@drakkar.software/octochat-sdk';
 
-import { kvGet, kvSet } from './starfish/kv';
+import { kvGet, kvSet } from '@drakkar.software/octochat-sdk';
 import { readRooms, reconcileSpaceMeta } from '@drakkar.software/octochat-sdk';
 import { readIndexRooms, readPrivateIndexRooms } from '@drakkar.software/octochat-sdk';
 import { pubObjIndexPull } from '@drakkar.software/octochat-sdk';

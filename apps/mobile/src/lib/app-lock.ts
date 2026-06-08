@@ -1,6 +1,7 @@
 /**
  * App-lock (native biometric gate) — web stub. The web build secures the seed at the
- * vault layer (a PIN, plus an optional WebAuthn passkey — see `starfish/storage.ts`),
+ * vault layer (a PIN, plus an optional WebAuthn passkey — see the SDK's
+ * `platform/storage.ts`),
  * so there is no separate biometric app-lock here: every probe reports
  * unsupported/disabled and the runtime gate (use-app-lock-gate) stays inert. The native
  * variant (`app-lock.native.ts`) backs these with `expo-local-authentication` + a

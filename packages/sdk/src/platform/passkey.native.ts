@@ -3,7 +3,7 @@
  * OS Keychain/Keystore (expo-secure-store), so there is no WebAuthn path; these
  * mirror `passkey.ts`'s surface and are never invoked on native.
  */
-import type { PasskeyEnrollment } from '@drakkar.software/octochat-sdk';
+import type { PasskeyEnrollment } from '../starfish/storage-types';
 
 export function passkeySupported(): boolean {
   return false;

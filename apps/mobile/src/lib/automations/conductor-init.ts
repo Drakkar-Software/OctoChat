@@ -35,8 +35,7 @@ import {
 import type { AutomationMeta, AutomationSchedule, Room, Session } from '@drakkar.software/octochat-sdk';
 
 import { initOctoChat } from '../octochat-init';
-import { configureStarfishPlatform } from '../starfish/platform';
-import { loadVault } from '../starfish/storage';
+import { configureStarfishPlatform, loadVault } from '@drakkar.software/octochat-sdk/platform';
 
 /** The single JS handler name every per-room automation task dispatches to. Tasks carry a
  *  dynamic id (per room); Conductor maps each id → this handler name. */

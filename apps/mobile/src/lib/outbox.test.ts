@@ -1,8 +1,25 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { configureKv } from '@drakkar.software/octochat-sdk';
 
 // The pure reducers (resetSendingToQueued / filterPending) moved to the SDK and are
 // covered by `outbox-reducers.test.ts` there; this file owns the app-side zustand store.
 import { outboxStore, type OutboxMessage } from './outbox';
+
+// The store's write-through persists via the SDK kv adapter (configured at app boot in
+// production). Wire an in-memory adapter for the test so store mutations don't trip the
+// SDK's "configureKv() not called" fail-fast.
+beforeAll(() => {
+  const mem = new Map<string, string>();
+  configureKv({
+    get: async (k) => mem.get(k) ?? null,
+    set: async (k, v) => {
+      mem.set(k, v);
+    },
+    remove: async (k) => {
+      mem.delete(k);
+    },
+  });
+});
 
 const entry = (over: Partial<OutboxMessage> = {}): OutboxMessage => ({
   id: 'm1',

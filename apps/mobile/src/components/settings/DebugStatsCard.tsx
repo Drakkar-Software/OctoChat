@@ -1,7 +1,7 @@
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { SYNC_BASE } from '@/lib/starfish/config';
+import { SYNC_BASE } from '@/lib/octochat-config';
 import { useFcmTopicCount } from '@/lib/push/use-fcm-topic-count';
 import { useServerHealth, type HealthStatus } from '@/lib/use-server-health';
 import { useTheme } from '@/lib/use-theme';

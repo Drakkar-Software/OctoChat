@@ -29,12 +29,17 @@ config.resolver.blockList = [/\/apps\/server\//, /\/@hono\/node-server\//];
 // iOS/Android does not ship WebAssembly any more than the web fallback path
 // does, so identity creation fails on native too without the alias. See
 // src/lib/starfish/hash-wasm-shim.ts.
+const sdkSrc = path.resolve(workspaceRoot, 'packages/sdk/src');
 const defaultResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName === 'hash-wasm') {
+    // The pure-JS Argon2id shim now lives in the SDK (`src/platform/hash-wasm-shim.ts`);
+    // redirect `hash-wasm` (imported deep inside starfish-identities) to it on every
+    // platform. A package `exports` map can't remap a third-party specifier, so this
+    // alias must live in the consumer's bundler config.
     return {
       type: 'sourceFile',
-      filePath: path.resolve(projectRoot, 'src/lib/starfish/hash-wasm-shim.ts'),
+      filePath: path.resolve(sdkSrc, 'platform/hash-wasm-shim.ts'),
     };
   }
   // Bundle the workspace SDK from SOURCE so the app never depends on a prebuilt
@@ -44,7 +49,18 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName === '@drakkar.software/octochat-sdk') {
     return {
       type: 'sourceFile',
-      filePath: path.resolve(workspaceRoot, 'packages/sdk/src/index.ts'),
+      filePath: path.resolve(sdkSrc, 'index.ts'),
+    };
+  }
+  // The optional `/platform` subpath also resolves to SOURCE in dev. A hard filePath
+  // return bypasses Metro's automatic `.native.ts` extension resolution, so branch on
+  // `platform` to pick the right barrel (the barrel's own relative imports then resolve
+  // their `.native` siblings normally).
+  if (moduleName === '@drakkar.software/octochat-sdk/platform') {
+    const isNative = platform === 'ios' || platform === 'android';
+    return {
+      type: 'sourceFile',
+      filePath: path.resolve(sdkSrc, 'platform', isNative ? 'index.native.ts' : 'index.ts'),
     };
   }
   return (defaultResolveRequest ?? context.resolveRequest)(context, moduleName, platform);

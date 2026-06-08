@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createUnionMerge } from '@drakkar.software/starfish-client';
 import { useSyncInit } from '@drakkar.software/starfish-client/zustand';
 
-import { SYNC_BASE, SYNC_NAMESPACE } from './starfish/config';
+import { SYNC_BASE, SYNC_NAMESPACE } from './octochat-config';
 import { capProviderFor } from '@drakkar.software/octochat-sdk';
 import { fetchWithTimeout } from '@drakkar.software/octochat-sdk';
 import { reportReachability } from './connectivity';

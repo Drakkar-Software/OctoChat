@@ -11,9 +11,11 @@ Ed25519/Kyber keys (persisted via `expo-secure-store`) and messages/attachments 
 sealed per-room with space keyrings. All chat-domain logic (identity, sync, registry,
 messages, automations, …) now lives in the headless **`@drakkar.software/octochat-sdk`**
 (`packages/sdk`); the app consumes it through the `use-*` hooks and context providers
-and injects platform config/storage at boot via `src/lib/octochat-init.ts`. Only React
-glue and platform-branched modules (`src/lib/starfish/{kv,storage,platform,passkey}.*`)
-remain app-side.
+and injects platform config/storage at boot via `src/lib/octochat-init.ts`. The
+platform adapters (kv, vault, passkey, crypto install) themselves now live in the SDK's
+optional `@drakkar.software/octochat-sdk/platform` subpath; what remains app-side is
+React glue, the env reader (`src/lib/octochat-config.ts`), and app-specific platform
+modules (`connectivity`/`app-lock`/`notify`/`push`/…).
 
 ## Design rules — ALWAYS respect
 
@@ -51,10 +53,12 @@ Non-negotiable. Follow these for every change:
   `unread-context`, `room-events-bus`), and UI helpers (`use-theme`, `use-app-fonts`,
   `haptics`). Live room-change events come from the SDK's `subscribeRoomChanges`.
   Chat-domain types/logic are imported from `@drakkar.software/octochat-sdk`.
-- `src/lib/starfish/` — the app's **platform adapters** that back the SDK: `config`
-  (env → server URL/namespace), `kv*` (localStorage / AsyncStorage), `platform*`
-  (crypto install), `passkey*`, `storage*` (secure-store), `hash-wasm-shim`. The
-  encrypted sync/keyring/registry logic itself lives in the SDK.
+- platform adapters (kv, vault, passkey, crypto install, the argon2 shim) now live in
+  the SDK's optional `@drakkar.software/octochat-sdk/platform` subpath, NOT app-side.
+  App-side remnants: `src/lib/octochat-config.ts` (the `EXPO_PUBLIC_*` env reader feeding
+  `configureOctoChat`) and `src/lib/use-argon2-progress.ts` (the React hook over the
+  SDK's argon2 progress emitter). `metro.config.js` aliases `hash-wasm` → the SDK shim
+  and resolves the `/platform` subpath from source in dev.
 - `src/theme.ts` — design tokens (the single source of truth).
 
 ## Conventions

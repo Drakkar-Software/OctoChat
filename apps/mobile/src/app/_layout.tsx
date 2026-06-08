@@ -7,7 +7,7 @@ import 'react-native-gesture-handler';
 import '@/lib/automations/conductor-init';
 import '@/lib/automations/conductor-background';
 
-import { configureStarfishPlatform } from '@/lib/starfish/platform';
+import { configureStarfishPlatform } from '@drakkar.software/octochat-sdk/platform';
 import { initOctoChat } from '@/lib/octochat-init';
 import { registerServiceWorker } from '@/lib/pwa';
 import { ensureNotificationChannel, registerBackgroundPushHandler } from '@/lib/push/fcm';

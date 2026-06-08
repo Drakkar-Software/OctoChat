@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { kvGet, kvSet } from './starfish/kv';
+import { kvGet, kvSet } from '@drakkar.software/octochat-sdk';
 
 // `.v2`: the stored map flipped meaning (was expanded-names, now collapsed-names) when
 // the default became expanded — a fresh key avoids reinterpreting old maps backwards.

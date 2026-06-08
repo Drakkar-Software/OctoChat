@@ -6,7 +6,7 @@
  */
 import { configurePlatform } from '@drakkar.software/starfish-protocol';
 
-import { starfishBase64 } from '@drakkar.software/octochat-sdk';
+import { starfishBase64 } from '../starfish/base64';
 
 export function configureStarfishPlatform(): void {
   // The SDK's default base64 encoder spreads the whole byte array into one call

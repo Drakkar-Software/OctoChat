@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { enrollPasskey } from '@/lib/starfish/passkey';
+import { enrollPasskey } from '@drakkar.software/octochat-sdk/platform';
 import type { SeedLock } from '@drakkar.software/octochat-sdk';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';

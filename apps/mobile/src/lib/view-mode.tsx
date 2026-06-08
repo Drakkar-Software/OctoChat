@@ -14,7 +14,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 
 import type { IconName } from '@/components/ui/Icon';
 
-import { kvGet, kvSet } from './starfish/kv';
+import { kvGet, kvSet } from '@drakkar.software/octochat-sdk';
 
 export type ViewMode = 'chat' | 'agents';
 

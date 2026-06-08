@@ -10,7 +10,7 @@
  */
 import { Platform } from 'react-native';
 
-import { kvGet, kvSet } from './starfish/kv';
+import { kvGet, kvSet } from '@drakkar.software/octochat-sdk';
 
 /** Selectable desktop notification chime (synthesized in `notification-sound.ts`).
  *  Web/desktop-only; ignored on native (push sound is OS/channel-controlled). */

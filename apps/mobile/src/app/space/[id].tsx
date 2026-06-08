@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { WEB_BASE } from '@/lib/starfish/config';
+import { WEB_BASE } from '@/lib/octochat-config';
 import { isDmSpaceId } from '@drakkar.software/octochat-sdk';
 import { useMutes } from '@/lib/mutes-context';
 import { useRooms } from '@/lib/use-rooms';

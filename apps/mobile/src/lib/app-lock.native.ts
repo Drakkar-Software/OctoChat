@@ -1,6 +1,7 @@
 /**
  * App-lock on native — an optional biometric gate in front of the app. The vault is
- * already encrypted at rest by the OS Keychain (see `starfish/storage.native.ts`), so
+ * already encrypted at rest by the OS Keychain (see the SDK's
+ * `platform/storage.native.ts`), so
  * this does NOT seal anything; it gates the UI with Face ID / Touch ID / fingerprint so
  * a found-unlocked phone can't read the chat. The on/off choice is a local-device flag
  * (a screen-lock preference, not synced state), held in SecureStore.
