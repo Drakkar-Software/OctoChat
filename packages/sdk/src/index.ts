@@ -69,6 +69,8 @@ export * from './messaging/reactions';
 export * from './messaging/threads';
 export * from './messaging/cross-room';
 export * from './messaging/quick-reactions-settings';
+export * from './messaging/stream-log';
+export * from './messaging/autosave';
 
 // ── notifications/ — notification formatting, labels, previews ─────────────────
 export * from './notifications/notification-format';
@@ -77,6 +79,7 @@ export * from './notifications/notification-preview';
 
 // ── outbox/ — offline write queue ──────────────────────────────────────────────
 export * from './outbox/outbox-types';
+export * from './outbox/outbox-reducers';
 export * from './outbox/outbox-send';
 
 // ── spaces/ — space stats + public-space exploration ───────────────────────────

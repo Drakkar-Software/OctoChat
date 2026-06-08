@@ -23,26 +23,16 @@ import { useEffect, useMemo } from 'react';
 import { createStore, useStore } from 'zustand';
 
 import { kvGet, kvSet } from './starfish/kv';
-// The message shape lives in the headless SDK (shared with the send path + the
-// render-time merge); the store (a UI-framework concern) stays here.
+// The message shape AND the pure reducers live in the headless SDK (shared with the
+// send path + the render-time merge); the store (a UI-framework concern) stays here.
 import type { OutboxMessage } from '@drakkar.software/octochat-sdk';
+import { filterPending, resetSendingToQueued } from '@drakkar.software/octochat-sdk';
 export type { OutboxMessage, OutboxStatus } from '@drakkar.software/octochat-sdk';
+// Re-export so existing `import { filterPending, resetSendingToQueued } from './outbox'`
+// call sites keep working now that the reducers' canonical home is the SDK.
+export { filterPending, resetSendingToQueued } from '@drakkar.software/octochat-sdk';
 
 const key = (userId: string) => `octochat.outbox.v1.${userId}`;
-
-// ── Pure reducers (exported for unit tests) ───────────────────────────────────
-
-/** A crash/reload can leave an entry stuck `sending` (claimed but never resolved).
- *  Reset those to `queued` on hydrate so the flusher re-attempts them. */
-export function resetSendingToQueued(items: OutboxMessage[]): OutboxMessage[] {
-  return items.map((i) => (i.status === 'sending' ? { ...i, status: 'queued' as const } : i));
-}
-
-/** Pending entries for one (roomId, parentId) surface — top-level when `parentId`
- *  is undefined, a specific thread otherwise. Order preserved (append = ts order). */
-export function filterPending(items: OutboxMessage[], roomId: string, parentId?: string): OutboxMessage[] {
-  return items.filter((i) => i.roomId === roomId && (i.parentId ?? undefined) === (parentId ?? undefined));
-}
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 

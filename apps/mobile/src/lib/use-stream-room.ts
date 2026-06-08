@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppendLogCursor } from '@drakkar.software/starfish-client';
-import type { AppendElement } from '@drakkar.software/starfish-client';
 
 import { isPublicSpaceId, publicSpaceAuth } from '@drakkar.software/octochat-sdk';
-import { kvGet, kvSet } from './starfish/kv';
+import {
+  concatDedupById,
+  fanOut,
+  loadStreamLog,
+  streamLogKey,
+  type StreamData,
+  type StreamEnvelope,
+} from '@drakkar.software/octochat-sdk';
+import { kvSet } from './starfish/kv';
 import { reportReachability } from './connectivity';
 import {
   pubstreamRoomPull,
@@ -21,7 +28,6 @@ import { useRoomOpen } from './use-room-open-flow';
 import { useRoomLiveSync } from './use-room-live-sync';
 import type { RoomHook } from './use-room-types';
 import type { StoredMsg } from '@drakkar.software/octochat-sdk';
-import type { MessageEditEvent, PinEvent, ReactionEvent } from '@drakkar.software/octochat-sdk';
 
 /**
  * STREAM rooms — append-only rooms. Unlike {@link useRoom} (a merge-doc room synced
@@ -42,84 +48,6 @@ import type { MessageEditEvent, PinEvent, ReactionEvent } from '@drakkar.softwar
  * `useRoom` unconditionally (React hook rules) and pick one — when false this hook does
  * no network and holds no store.
  */
-/** One append-log element: a typed envelope so a single log carries messages,
- *  reactions and edits. `t` discriminates; `e` is the payload (a StoredMsg /
- *  ReactionEvent / MessageEditEvent). Sealed as a whole for private streams. */
-type StreamEnvelope =
-  | { t: 'msg'; e: StoredMsg }
-  | { t: 'reaction'; e: ReactionEvent }
-  | { t: 'edit'; e: MessageEditEvent }
-  | { t: 'pin'; e: PinEvent };
-
-interface StreamData {
-  messages: StoredMsg[];
-  reactions: ReactionEvent[];
-  edits: MessageEditEvent[];
-  pins: PinEvent[];
-}
-
-/** Append `incoming` after `existing`, dropping any element whose `id` is already
- *  present. Preserves order (existing first, then the new tail) so the message list
- *  stays in append (ts-ascending) order, and returns `existing` unchanged when nothing
- *  new is added so an idle delta pull triggers no re-render. This dedup is the guard for
- *  a focus+SSE double-pull racing on the same checkpoint — no in-flight lock needed. */
-function concatDedupById<T extends { id: string }>(existing: T[], incoming: T[]): T[] {
-  if (incoming.length === 0) return existing;
-  const seen = new Set(existing.map((x) => x.id));
-  const added: T[] = [];
-  for (const x of incoming) {
-    if (seen.has(x.id)) continue;
-    seen.add(x.id);
-    added.push(x);
-  }
-  return added.length === 0 ? existing : [...existing, ...added];
-}
-
-/** Cross-restart persistence key for a room's append log. Versioned so a future
- *  envelope/shape change can bump `v1` rather than mis-read stale blobs. NOT
- *  user-scoped: the persisted blob is `cursor.getItems()` — the CIPHERTEXT envelopes
- *  for a private room (E2EE-safe at rest, decryptable only by a keyring holder) and
- *  already-public plaintext for a public room — so the roomId alone namespaces it. */
-const streamLogKey = (roomId: string) => `octochat.streamlog.v1.${roomId}`;
-
-/** Tolerant load of a persisted append log — bad/absent/wrong-shaped JSON yields `[]`
- *  (a corrupt blob must never brick the room; the next `pull` just refetches the log).
- *  These envelopes warm-start the cursor as `initialItems` so history paints instantly
- *  on open before any network round-trip. */
-async function loadStreamLog(roomId: string): Promise<AppendElement[]> {
-  const raw = await kvGet(streamLogKey(roomId));
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as AppendElement[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-/** Fan a batch of DECRYPTED append elements into the three typed arrays the chat store
- *  holds. Each element's `data` is a {@link StreamEnvelope} (the cursor already decrypted
- *  it and applied the skip policy, so no per-element try/catch here); `t` discriminates
- *  msg/reaction/edit. The server-assigned `ts` is the authoritative order/time, so stamp
- *  it onto any payload that didn't carry its own. Shared by the warm-start hydrate (full
- *  persisted log) and the delta merge (just the new `pull` batch). */
-function fanOut(items: AppendElement[]): StreamData {
-  const messages: StoredMsg[] = [];
-  const reactions: ReactionEvent[] = [];
-  const edits: MessageEditEvent[] = [];
-  const pins: PinEvent[] = [];
-  for (const item of items) {
-    const env = item.data as unknown as StreamEnvelope;
-    if (!env) continue;
-    if (env.t === 'msg') messages.push({ ...env.e, ts: env.e.ts || item.ts });
-    else if (env.t === 'reaction') reactions.push({ ...env.e, ts: env.e.ts || item.ts });
-    else if (env.t === 'edit') edits.push({ ...env.e, ts: env.e.ts || item.ts });
-    else if (env.t === 'pin') pins.push({ ...env.e, ts: env.e.ts || item.ts });
-  }
-  return { messages, reactions, edits, pins };
-}
-
-
 export function useStreamRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomHook {
   const enabled = opts.enabled ?? true;
   const { session } = useSession();

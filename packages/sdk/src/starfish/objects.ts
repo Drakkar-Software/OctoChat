@@ -271,6 +271,18 @@ export function objectsToRoomCategories(nodes: ObjectNode[], spaceId: string, fa
   return [...buckets.entries()].map(([name, rs]) => ({ name, rooms: rs }));
 }
 
+/**
+ * Drop `kind: 'automated'` rooms from a category list — they belong to the **Agents**
+ * view, not the **Chat** room list. A category that held only agents is removed too; an
+ * already-empty category (a freshly-created, unfilled one) is kept. Pure projection over
+ * {@link AdaptedCategory}, so the chat UI and any host can share the same filter.
+ */
+export function excludeAutomatedRooms(categories: AdaptedCategory[]): AdaptedCategory[] {
+  return categories
+    .map((c) => ({ ...c, rooms: c.rooms.filter((r) => r.kind !== 'automated') }))
+    .filter((c, i) => c.rooms.length > 0 || categories[i].rooms.length === 0);
+}
+
 // ── Seed: build the initial index nodes for a freshly-created space ────────────
 
 /** A minimal room descriptor the {@link seedIndexNodes} builder turns into nodes —

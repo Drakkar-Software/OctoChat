@@ -35,32 +35,16 @@ import type { AutomationMeta, Room } from '@drakkar.software/octochat-sdk';
 
 import { kvGet, kvSet } from './starfish/kv';
 import { readRooms, reconcileSpaceMeta } from '@drakkar.software/octochat-sdk';
-import { getSpaceEncryptor } from '@drakkar.software/octochat-sdk';
-import { readIndexRooms } from '@drakkar.software/octochat-sdk';
-import { objIndexPull, pubObjIndexPull } from '@drakkar.software/octochat-sdk';
+import { readIndexRooms, readPrivateIndexRooms } from '@drakkar.software/octochat-sdk';
+import { pubObjIndexPull } from '@drakkar.software/octochat-sdk';
 import {
   isPublicSpaceId,
   publicSpaceAuth,
   publicSpaceClient,
   readPublicRoomsDoc,
 } from '@drakkar.software/octochat-sdk';
-import type { Session } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useSpacesContext } from './spaces-context';
-
-/** Private-space index read: open the (cached) space encryptor, then {@link readIndexRooms}.
- *  Skipped when the owner is unknown (unreadable/legacy registry): `getSpaceEncryptor`
- *  treats a null owner as self and could MINT a keyring as a side effect of this passive
- *  read — so we only attempt the index read once the access record names an owner. */
-async function readPrivateIndexRooms(s: Session, spaceId: string, owner: string | null, members: string[]): Promise<{ rooms: Room[]; categories: string[] } | null> {
-  if (owner === null) return null;
-  try {
-    const { encryptor, client } = await getSpaceEncryptor(spaceId, s, { owner, members });
-    return await readIndexRooms(client, encryptor, objIndexPull(spaceId), spaceId);
-  } catch {
-    return null; // not a recipient yet / unreachable → legacy fallback
-  }
-}
 
 export interface RoomsRegistryEntry {
   rooms: Room[];

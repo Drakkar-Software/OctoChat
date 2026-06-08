@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { shouldCommit } from './use-autosave';
+import { shouldCommit } from './autosave';
 
 describe('shouldCommit', () => {
   const doc = { commitEmpty: true }; // merge-doc / block: empty deletes

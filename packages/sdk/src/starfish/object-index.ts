@@ -50,6 +50,36 @@ export async function readIndexRooms(
 }
 
 /**
+ * Read a PRIVATE space's index rooms + categories given a KNOWN owner/members access
+ * record (from the `_rooms` doc) — the registry provider's primary read. Opens the
+ * (cached) space encryptor seeded with that access record, then projects the index.
+ *
+ * Skipped when the owner is unknown (unreadable/legacy registry): `getSpaceEncryptor`
+ * treats a null owner as self and could MINT a keyring as a side effect of this passive
+ * read — so we only attempt the index read once the access record names an owner. Returns
+ * null on a null owner OR any failure (not a recipient yet / unreachable), so the caller
+ * falls back to an empty list rather than rendering a blank room screen on a hiccup.
+ *
+ * Differs from {@link readPrivateSpaceRooms}: that one self-discovers the encryptor via
+ * `buildSpaceEncryptor` (no owner/members) and returns just `Room[]`; this one takes the
+ * already-read access record and also returns the ordered `categories`.
+ */
+export async function readPrivateIndexRooms(
+  session: Session,
+  spaceId: string,
+  owner: string | null,
+  members: string[],
+): Promise<{ rooms: Room[]; categories: string[] } | null> {
+  if (owner === null) return null;
+  try {
+    const { encryptor, client } = await getSpaceEncryptor(spaceId, session, { owner, members });
+    return await readIndexRooms(client, encryptor, objIndexPull(spaceId), spaceId);
+  } catch {
+    return null; // not a recipient yet / unreachable → legacy fallback
+  }
+}
+
+/**
  * SOFT read a PRIVATE space's index rooms for a read-only consumer: open the (cached)
  * space encryptor without minting a keyring (see {@link buildSpaceEncryptor}) and project
  * the index. Returns `[]` when the keyring isn't on this device yet (never opened) or the

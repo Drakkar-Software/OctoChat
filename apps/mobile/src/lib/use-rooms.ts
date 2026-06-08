@@ -24,16 +24,11 @@ export interface RoomCategory {
   rooms: Room[];
 }
 
-/**
- * Drop `kind: 'automated'` rooms from the category list — they belong to the
- * **Agents** view, not the **Chat** room list. A category that held only agents is
- * removed too; an already-empty category (a freshly-created, unfilled one) is kept.
- */
-export function excludeAutomatedRooms(categories: RoomCategory[]): RoomCategory[] {
-  return categories
-    .map((c) => ({ ...c, rooms: c.rooms.filter((r) => r.kind !== 'automated') }))
-    .filter((c, i) => c.rooms.length > 0 || categories[i].rooms.length === 0);
-}
+// `excludeAutomatedRooms` (the Agents/Chat split filter) moved to the SDK — re-exported
+// here so existing `import { excludeAutomatedRooms } from '@/lib/use-rooms'` call sites
+// (the rooms screen + desktop sidebar) keep working. `RoomCategory` is structurally the
+// SDK's `AdaptedCategory`, so passing it through type-checks.
+export { excludeAutomatedRooms } from '@drakkar.software/octochat-sdk';
 
 const CREATE_FAILED_MESSAGE = "Couldn't save the change. Please try again.";
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();

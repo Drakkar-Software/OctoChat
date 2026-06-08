@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { filterPending, outboxStore, resetSendingToQueued, type OutboxMessage } from './outbox';
+// The pure reducers (resetSendingToQueued / filterPending) moved to the SDK and are
+// covered by `outbox-reducers.test.ts` there; this file owns the app-side zustand store.
+import { outboxStore, type OutboxMessage } from './outbox';
 
 const entry = (over: Partial<OutboxMessage> = {}): OutboxMessage => ({
   id: 'm1',
@@ -13,31 +15,6 @@ const entry = (over: Partial<OutboxMessage> = {}): OutboxMessage => ({
   status: 'queued',
   attempts: 0,
   ...over,
-});
-
-describe('resetSendingToQueued', () => {
-  it('flips stuck `sending` entries back to `queued`, leaves others', () => {
-    const out = resetSendingToQueued([
-      entry({ id: 'a', status: 'sending' }),
-      entry({ id: 'b', status: 'failed' }),
-      entry({ id: 'c', status: 'queued' }),
-    ]);
-    expect(out.map((e) => e.status)).toEqual(['queued', 'failed', 'queued']);
-  });
-});
-
-describe('filterPending', () => {
-  const items = [
-    entry({ id: 'top', parentId: undefined }),
-    entry({ id: 'reply', parentId: 'p1' }),
-    entry({ id: 'other-room', roomId: 'sp-2-x' }),
-  ];
-  it('top-level surface excludes thread replies and other rooms', () => {
-    expect(filterPending(items, 'sp-1-general').map((e) => e.id)).toEqual(['top']);
-  });
-  it('thread surface matches only its parentId', () => {
-    expect(filterPending(items, 'sp-1-general', 'p1').map((e) => e.id)).toEqual(['reply']);
-  });
 });
 
 describe('outboxStore actions', () => {
