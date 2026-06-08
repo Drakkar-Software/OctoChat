@@ -1,13 +1,14 @@
 /**
- * Pure append-log machinery for STREAM rooms — the headless half of the app's
- * `useStreamRoom` hook. A stream room is an append-only log: every post is a single
- * `client.append` (no pull/merge/hash/conflict), so a single log carries messages,
- * reactions, edits and pins as typed {@link StreamEnvelope}s. These helpers fold a
- * decrypted batch into the typed arrays the chat store holds, dedup by id, and warm-
- * start the cursor from kv across restarts. No React, no platform lock-in — the hook
- * owns the cursor + store; this module owns the data shaping and the persistence keys.
+ * Append-log machinery for rooms — the headless half of the app's `useRoom` hook (and
+ * its read-only cousins: cross-room search/threads/pins, space stats, notification
+ * preview). Every room is an append-only log: each post is a single `client.append`
+ * (no pull/merge/hash/conflict), so one log carries messages, reactions, edits and pins
+ * as typed {@link StreamEnvelope}s. These helpers fold a decrypted batch into the typed
+ * arrays the chat store holds ({@link fanOut}), pull+fold a whole room ({@link pullAndFold}),
+ * dedup by id, and warm-start the cursor from kv across restarts. The hook owns the cursor
+ * + store; this module owns the data shaping, the shared pull/fold, and the persistence keys.
  */
-import type { AppendElement } from '@drakkar.software/starfish-client';
+import type { AppendElement, Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { MessageEditEvent, PinEvent, ReactionEvent } from '../domain/types';
 import type { StoredMsg } from '../format/message-view';
@@ -90,4 +91,47 @@ export function fanOut(items: AppendElement[]): StreamData {
     else if (env.t === 'pin') pins.push({ ...env.e, ts: env.e.ts || item.ts });
   }
   return { messages, reactions, edits, pins };
+}
+
+/** The folded log plus the RAW pulled elements (callers that size storage read `items`). */
+export interface FoldedLog {
+  data: StreamData;
+  items: AppendElement[];
+}
+
+/**
+ * Pull a room's append-only log and fold it via {@link fanOut} — THE one place the
+ * pull→decrypt→fold sequence lives (shared by the room hook's cousins: cross-room search/
+ * threads/pins, space stats, and the notification preview, which used to each inline it).
+ *
+ * A PRIVATE room passes its space `encryptor`: every element's `data` is decrypted, and a
+ * single element that fails (keyring skew / foreign / corrupt) is SKIPPED so one poison
+ * element never blanks the room. A PUBLIC room passes `enc: null` and the plaintext
+ * envelope is read directly. Returns the folded {@link StreamData} AND the raw `items`.
+ *
+ * The pull itself is NOT caught here — the caller picks the policy: swallow to empty
+ * (search), let it throw (stats → mark `partial`), or map to null (preview). `pullOpts`
+ * defaults to the whole log (`full`); pass `{ appendField:'items', last: K }` for a
+ * bounded tail (e.g. a preview that only needs the latest line).
+ */
+export async function pullAndFold(
+  client: StarfishClient,
+  enc: Encryptor | null,
+  pullPath: string,
+  pullOpts: Record<string, unknown> = { appendField: 'items', full: true },
+): Promise<FoldedLog> {
+  // `appendField` makes the server return the element array; the dynamic `pullOpts` hides
+  // that from the overload picker (it resolves to the base `PullResult`), so cast through
+  // unknown to the append-element shape the caller asked for.
+  const items = ((await client.pull(pullPath, pullOpts)) ?? []) as unknown as AppendElement[];
+  if (!enc) return { data: fanOut(items), items };
+  const decrypted: AppendElement[] = [];
+  for (const item of items) {
+    try {
+      decrypted.push({ ...item, data: (await enc.decrypt(item.data)) as Record<string, unknown> });
+    } catch {
+      /* a single undecryptable element must not blank the whole room */
+    }
+  }
+  return { data: fanOut(decrypted), items };
 }

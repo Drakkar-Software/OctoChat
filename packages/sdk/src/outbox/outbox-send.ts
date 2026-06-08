@@ -24,7 +24,7 @@ import type { OutboxMessage } from './outbox-types';
 type EncryptFn = { encrypt: (d: Record<string, unknown>) => Promise<Record<string, unknown>> };
 
 /** Resolve the sync client (+ encryptor for a private space) for an entry's space.
- *  Mirrors the open branches of `useRoom`/`useStreamRoom`: a public space authorizes
+ *  Mirrors the open branches of `useRoom`: a public space authorizes
  *  with the invite/account cap and has no encryptor; a private space opens the cached
  *  space keyring encryptor. Rejects if the space key isn't available (→ retried). */
 async function resolveContext(

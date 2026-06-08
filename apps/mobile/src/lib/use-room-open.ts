@@ -1,6 +1,6 @@
 /**
- * Shared room-open state machine for {@link ./use-room} (merge-doc) and
- * {@link ./use-stream-room} (append-only). Both open a room the same way — resolve the
+ * Shared room-open state machine for the append-only {@link ./use-room} and the generic
+ * merge-doc {@link ./use-merge-doc} (Work docs). Both open the same way — resolve the
  * crypto context over the network, which can fail — so they share ONE policy here for:
  *  - `opening` / `openError` / `offline` flags,
  *  - classifying a failed open: a genuine {@link SpaceAccessError} is a hard

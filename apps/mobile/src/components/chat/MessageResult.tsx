@@ -44,7 +44,7 @@ export function MessageResult({
       <Avatar label={author.initials} image={author.avatar} size={32} />
       <View style={styles.body}>
         <View style={styles.head}>
-          <Icon name={room.kind === 'private' ? 'lock' : 'hash'} size={11} color={colors.inkMuted} />
+          <Icon name="hash" size={11} color={colors.inkMuted} />
           <Txt variant="caption" weight="semibold" tone="inkSoft">
             {room.name}
           </Txt>

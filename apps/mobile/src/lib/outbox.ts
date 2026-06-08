@@ -7,7 +7,7 @@
  *
  * Design invariants:
  *  - **Dedup by id.** An entry's `id` is threaded into the real send (see the `id`
- *    param added to `useRoom`/`useStreamRoom` `send`), so the sent message lands in
+ *    param added to `useRoom` `send`), so the sent message lands in
  *    the room store under the SAME id. The render merge (see
  *    `mergePendingMessages` in message-view) drops any pending entry whose id is
  *    already in the store — so a flushed entry disappears the instant its message

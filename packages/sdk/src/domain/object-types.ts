@@ -24,7 +24,7 @@ export interface ObjectDescriptor {
 const BUILTINS: Record<string, ObjectDescriptor> = {
   room: { contentKind: 'merge', icon: 'hash', label: 'Channel' },
   category: { contentKind: 'none', icon: 'folder', label: 'Category' },
-  automation: { contentKind: 'append', icon: 'stream', label: 'Automation' },
+  automation: { contentKind: 'append', icon: 'pulse', label: 'Automation' },
   doc: { contentKind: 'merge', icon: 'file', label: 'Doc' },
   project: { contentKind: 'append', icon: 'work', label: 'Project' },
   task: { contentKind: 'none', icon: 'check', label: 'Task' },
@@ -51,7 +51,7 @@ function roomSubtypeIcon(subtype: RoomSubtype | undefined): IconKey {
     case 'dm':
       return 'dm';
     case 'automation':
-      return 'stream';
+      return 'pulse';
     // `default` covers `channel` AND a legacy persisted `stream` subtype (rooms predate
     // the stream↔channel merge): both render with the plain `#` channel glyph.
     default:

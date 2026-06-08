@@ -27,7 +27,7 @@ export interface SpaceEncryptor {
 
 /** A GENUINE access denial (not on the keyring / not a member) — distinct from a
  *  network failure. The room-open path surfaces this as a hard error, but treats a
- *  connectivity failure as a transient offline state (see use-room/use-stream-room).
+ *  connectivity failure as a transient offline state (see use-room).
  *  Tagged as a class so callers classify by `instanceof`, not by message matching. */
 export class SpaceAccessError extends Error {
   constructor(message: string) {

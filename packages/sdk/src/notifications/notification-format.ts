@@ -16,7 +16,7 @@ import type { RoomKind } from '../domain/types';
 /** Shown in a notification header when no room/space name resolves. */
 export const APP_NAME = 'OctoChat';
 
-/** "#general" for channels/streams, the bare name for a DM — matches `room/[id].tsx`. */
+/** "#general" for any non-DM room, the bare name for a DM — matches `room/[id].tsx`. */
 export function roomDisplayName(name: string, kind?: RoomKind): string {
   return kind === 'dm' ? name : `#${name}`;
 }

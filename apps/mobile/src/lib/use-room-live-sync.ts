@@ -1,8 +1,8 @@
 /**
- * Live-update choreography for a room screen, shared by {@link ./use-room} and
- * {@link ./use-stream-room} so the two never drift (that drift is what stale-badged
- * thread replies). It does three things, all gated on `ready` (the store — and for
- * streams, the client — having resolved):
+ * Live-update choreography for a room screen, used by the single append-only
+ * {@link ./use-room} (and the merge-doc {@link ./use-merge-doc}) so they never drift
+ * (that drift is what stale-badged thread replies). It does three things, all gated on
+ * `ready` (the store — and the client — having resolved):
  *  - pull once on focus, and register a pull on the global SSE bus so new messages
  *    arrive live WHILE the room is open. Registering ONLY while focused is load-bearing
  *    for the unread badge: a room left mounted under a pushed screen must release its
@@ -32,7 +32,7 @@ export function useRoomLiveSync(opts: {
   /** Skip the pull on the FIRST focus after a NEW store — a merge-doc SDK store
    *  self-pulls on creation, so pulling again on first focus is redundant. Keyed on
    *  `firstFocusKey` (pass the store OBJECT) so a same-room reopen — same id, new store
-   *  — also skips its own init-pull's first focus. Stream rooms pass `false` (their
+   *  — also skips its own init-pull's first focus. The append-only room passes `false` (their
    *  synthetic store has no self-pull, so they need the first-focus pull). */
   skipFirstFocus?: boolean;
   firstFocusKey?: unknown;

@@ -15,7 +15,9 @@ type IconDef = { lib: IconLib; n: string };
  */
 const ICONS = {
   hash: { lib: Feather, n: 'hash' },
-  stream: { lib: Feather, n: 'activity' },
+  // The activity/pulse glyph — used for automation ("agent") rooms. (Formerly keyed
+  // `stream`, renamed when the stream room kind was retired; no room kind is "stream".)
+  pulse: { lib: Feather, n: 'activity' },
   lock: { lib: Feather, n: 'lock' },
   unlock: { lib: Feather, n: 'unlock' },
   plus: { lib: Feather, n: 'plus' },

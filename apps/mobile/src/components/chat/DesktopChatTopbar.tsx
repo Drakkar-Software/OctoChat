@@ -41,13 +41,7 @@ export function DesktopChatTopbar({ name, kind = 'channel', spaceId, onSearch, o
         <Avatar label={dm?.initials ?? name.slice(0, 2).toUpperCase()} image={dm?.image} size={24} />
       ) : (
         <Icon
-          name={
-            kind === 'automated'
-              ? 'zap'
-              : kind === 'private'
-              ? 'lock'
-              : 'hash'
-          }
+          name={kind === 'automated' ? 'zap' : 'hash'}
           size={16}
           color={colors.inkSoft}
         />

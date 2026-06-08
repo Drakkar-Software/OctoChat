@@ -90,7 +90,7 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomH
   // reads the latest without re-subscribing every callback.
   const cursorRef = useRef<{ id: string; cursor: AppendLogCursor } | null>(null);
 
-  // Auth + path for this stream room (owner/joiner cap on public; member/space cap on
+  // Auth + path for this room (owner/joiner cap on public; member/space cap on
   // private). `signingKey` is the request-signing key the cap is bound to.
   const route = useMemo(() => {
     if (!session) return null;
@@ -119,6 +119,16 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomH
     const pins = concatDedupById(cur.pins ?? [], batch.pins);
     if (messages === cur.messages && reactions === cur.reactions && edits === cur.edits && pins === (cur.pins ?? [])) return;
     store.setState({ data: { messages, reactions, edits, pins } } as never);
+  }, []);
+
+  // Drop one message id from the store — the rollback half of the optimistic echo: when
+  // an optimistically-painted send turns out not to have committed, remove its bubble so
+  // only the outbox's queued bubble remains (no duplicate). A no-op if the id isn't there.
+  const removeMessageFromStore = useCallback((store: ConversationStore, id: string) => {
+    const cur = (store.getState() as unknown as { data: StreamData }).data;
+    const messages = cur.messages.filter((m) => m.id !== id);
+    if (messages.length === cur.messages.length) return; // wasn't present
+    store.setState({ data: { ...cur, messages } } as never);
   }, []);
 
   // Pull the append log and fan the NEW batch into the store. The cursor owns the
@@ -225,7 +235,7 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomH
   // always-present synthetic one). Unlike useRoom we pull on EVERY focus including the
   // first (skipFirstFocus omitted): the SDK store self-pulls on creation, but this
   // synthetic store's `pull` is a cursor fetch — without a first-focus pull, opening a
-  // stream room would show nothing until an SSE push or a re-focus.
+  // the room would show nothing until an SSE push or a re-focus.
   useRoomLiveSync({
     roomId,
     ready: !!store && !!client,
@@ -233,9 +243,10 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomH
     onIdle: () => setSyncError(null),
   });
 
-  // Signature matches useRoom's `send` so a screen can consume either hook by `kind`
-  // (the union call-site stays type-clean). `attachment` is ignored — stream rooms
-  // don't support attachments in Phase 1 (the bot-push contract is a plain JSON append).
+  // Post a text/attachment message. `attachment` rides the same envelope (private rooms
+  // only — see uploadAttachment). The return is the append's success boolean
+  // (Promise<boolean>): `false` ⇒ not committed (offline / room not open yet), which
+  // `use-room-send` diverts to the outbox so the message is never silently dropped.
   const send = useCallback(
     (text: string, parentId?: string, attachment?: AttachmentRef, id?: string) => {
       const t = text.trim();
@@ -246,12 +257,19 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomH
       if (t) msg.text = t;
       if (parentId) msg.parentId = parentId;
       if (attachment) msg.attachment = attachment;
-      // Return the append's success boolean (Promise<boolean>): `false` ⇒ not committed
-      // (offline / room not open yet), which `use-room-send` diverts to the outbox so the
-      // message is never silently dropped.
-      return append({ t: 'msg', e: msg });
+      // Optimistic echo: paint the bubble immediately so it shows the instant the user
+      // sends — not after the append + follow-up pull round-trip. The append's own pull
+      // dedups the server copy by id (same id, same client `ts` → no reorder, no dup); if
+      // the append did NOT commit we roll the bubble back so only the outbox's queued
+      // bubble remains. (`use-room-send` skips calling `send` when known-offline, so the
+      // optimistic paint is reserved for sends we actually expect to land.)
+      if (store) mergeIntoStore(store, { messages: [msg], reactions: [], edits: [], pins: [] });
+      return append({ t: 'msg', e: msg }).then((ok) => {
+        if (!ok && store) removeMessageFromStore(store, msg.id);
+        return ok;
+      });
     },
-    [session, append],
+    [session, store, append, mergeIntoStore, removeMessageFromStore],
   );
 
   // Reactions/edits/deletes/pins append a typed envelope. The event shapes (incl. the

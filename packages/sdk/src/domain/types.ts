@@ -89,13 +89,13 @@ export interface Space {
 /** EVERY room is an APPEND-ONLY log: writers append `{t,e}` envelopes (no
  *  pull/merge/hash), so bots/integrations can post without the sync protocol. The
  *  old merge-doc `channel` and append-only `stream` kinds were MERGED — `channel`
- *  is now the single normal room kind, and a legacy persisted `stream` (or
- *  `private`) room reads back as `channel` (see {@link subtypeToRoomKind}).
- *  Encryption follows the space (E2EE private `streamchat` / plaintext public
- *  `pubstream`). `dm` is a 1:1 private room; `automated` is a room with a built-in
- *  integration attached: a bot posts scheduled fetches into it and the user drives
- *  it with `/<command>` msgs. All four share the same append-only storage. */
-export type RoomKind = 'channel' | 'private' | 'dm' | 'automated';
+ *  is now the single normal room kind, and a legacy persisted `stream` (or the
+ *  retired `private`) subtype reads back as `channel` (see {@link subtypeToRoomKind}).
+ *  Whether a room is end-to-end encrypted follows the SPACE (E2EE private space →
+ *  `streamchat` / plaintext public space → `pubstream`), not the room kind. `dm` is a
+ *  1:1 private room; `automated` is a room with a built-in integration attached: a bot
+ *  posts scheduled fetches into it and the user drives it with `/<command>` msgs. */
+export type RoomKind = 'channel' | 'dm' | 'automated';
 
 /** A scheduled-fetch cadence. The additive successor to `intervalMin`/`onOpen`: when
  *  an automation sets `schedule`, it OVERRIDES `intervalMin` for the timing gate;

@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { APP_NAME, notificationTitle, roomDisplayName } from './notification-format';
 
 describe('roomDisplayName', () => {
-  it('prefixes channels and streams with #, leaves DMs bare', () => {
+  it('prefixes channels and automations with #, leaves DMs bare', () => {
     expect(roomDisplayName('general', 'channel')).toBe('#general');
-    expect(roomDisplayName('announcements', 'stream')).toBe('#announcements');
+    expect(roomDisplayName('digest', 'automated')).toBe('#digest');
     expect(roomDisplayName('Alice', 'dm')).toBe('Alice');
     expect(roomDisplayName('general')).toBe('#general'); // unknown kind → channel-style
   });

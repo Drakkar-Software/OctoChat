@@ -1,6 +1,6 @@
 /**
  * Foreground slash-command watcher. Subscribes to the room's `ConversationStore`
- * (the synthetic store useStreamRoom builds) and, on every new message authored
+ * (the synthetic store useRoom builds) and, on every new message authored
  * by anyone *other than the bot* whose text starts with `/`, dispatches to the
  * provider's `onCommand`. The bot's reply is POSTed through the same orchestrator
  * tick path so lastRunAt / lastError stay accurate.

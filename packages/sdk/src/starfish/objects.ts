@@ -44,7 +44,7 @@ export function roomKindToSubtype(kind: Room['kind']): RoomSubtype {
     case 'automated':
       return 'automation';
     default:
-      return 'channel'; // 'channel' | 'private'
+      return 'channel';
   }
 }
 

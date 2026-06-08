@@ -48,7 +48,7 @@ export async function openRoomFromNotification(
   const room = entry?.rooms.find((r) => r.id === roomId);
   router.push({
     pathname: '/room/[id]',
-    // Resolved → real name/kind (correct title + stream rooms via useStreamRoom).
+    // Resolved → real name/kind (correct title; opens via the single useRoom).
     // Unresolved → still open by id (degrades to the prior behavior, never worse).
     params: room ? { id: room.id, name: room.name, kind: room.kind } : { id: roomId },
   });

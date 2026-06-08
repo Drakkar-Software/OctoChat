@@ -7,7 +7,7 @@
  * was retired when `stream` and `channel` merged), so each reader pulls a room's whole
  * log and folds it via {@link fanOut} — exactly like `useRoom` / `notification-preview`.
  */
-import type { AppendElement, Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
+import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { Session } from '../starfish/identity';
 import { readIndexRooms } from '../starfish/object-index';
@@ -16,7 +16,7 @@ import { isPublicSpaceId, publicSpaceAuth, publicSpaceClient, readPublicRoomsDoc
 import { readRooms } from '../starfish/registry';
 import { buildSpaceEncryptor } from '../starfish/space-encryptor';
 import type { StoredMsg } from '../format/message-view';
-import { fanOut, type StreamData } from './stream-log';
+import { fanOut, pullAndFold, type StreamData } from './stream-log';
 import { buildThreadDigest, type ThreadSummary } from './threads';
 import type { Room } from '../domain/types';
 
@@ -30,26 +30,11 @@ export interface CrossRoomThread {
   thread: ThreadSummary;
 }
 
-/** Pull a room's WHOLE append-only log and fold it into the typed `{messages, edits,
- *  pins, …}` arrays. Private rooms decrypt each element with the space encryptor; a
- *  public room reads the plaintext envelope directly (`enc: null`). A single
- *  undecryptable element is skipped, never blanking the room; a pull failure yields an
- *  empty fold. The `full` flag bounds the append-only pull (a19) to the whole log. */
-async function foldRoomLog(client: StarfishClient, enc: Encryptor | null, pullPath: string): Promise<StreamData> {
-  const items = (await client
-    .pull<{ ts: number; data: Record<string, unknown> }>(pullPath, { appendField: 'items', full: true })
-    .catch(() => [])) as { ts: number; data: Record<string, unknown> }[];
-  if (!enc) return fanOut((items ?? []) as unknown as AppendElement[]);
-  const decrypted: { ts: number; data: unknown }[] = [];
-  for (const item of items ?? []) {
-    try {
-      decrypted.push({ ts: item.ts, data: await enc.decrypt(item.data) });
-    } catch {
-      /* a single undecryptable element must not blank the whole room */
-    }
-  }
-  return fanOut(decrypted as AppendElement[]);
-}
+/** Fold a room's whole append-only log via the shared {@link pullAndFold}, swallowing a
+ *  pull failure to an empty fold — a single unreachable/never-opened room must not abort
+ *  a space-wide search/threads/pins sweep (skip it, keep the rest). */
+const foldRoomLog = (client: StarfishClient, enc: Encryptor | null, pullPath: string): Promise<StreamData> =>
+  pullAndFold(client, enc, pullPath).then((r) => r.data).catch(() => fanOut([]));
 
 export async function loadAllMessages(session: Session, spaceId: string): Promise<CrossRoomMessage[]> {
   const out: CrossRoomMessage[] = [];

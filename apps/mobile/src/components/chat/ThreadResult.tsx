@@ -15,7 +15,6 @@ import { Txt } from '@/components/ui/Txt';
 /** Room-kind glyph, matching {@link DesktopChatTopbar}. */
 const ROOM_ICON: Record<RoomKind, IconName> = {
   channel: 'hash',
-  private: 'lock',
   dm: 'dm',
   automated: 'zap',
 };

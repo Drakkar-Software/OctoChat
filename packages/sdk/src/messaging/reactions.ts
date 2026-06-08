@@ -47,7 +47,7 @@ export function replyCounts(messages: { parentId?: string }[]): Map<string, numb
 
 // ── Append-only event builders ───────────────────────────────────────────────
 // Shared by both room hooks (merge-doc `useRoom` writes them into the doc; append-log
-// `useStreamRoom` wraps them in an envelope). Pure + id/ts-injected so the net-toggle
+// `useRoom` wraps them in an envelope). Pure + id/ts-injected so the net-toggle
 // logic — the bit most prone to drift between the two paths — lives in ONE place and is
 // unit-testable. Each hook keeps its own WRITE; only the event shape is shared.
 
