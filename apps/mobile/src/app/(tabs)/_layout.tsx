@@ -62,7 +62,7 @@ export default function TabsLayout() {
           app.) */}
       <Tabs.Screen name="rooms" options={{ title: 'Chat', tabBarIcon: tabIcon('chat') }} />
       <Tabs.Screen name="agents" options={{ title: 'Agents', tabBarIcon: tabIcon('agents') }} />
-      <Tabs.Screen name="dms" options={{ title: 'DMs', tabBarIcon: tabIcon('people') }} />
+      <Tabs.Screen name="dms" options={{ title: 'DMs', tabBarIcon: tabIcon('dm') }} />
       <Tabs.Screen name="search" options={{ title: 'Search', tabBarIcon: tabIcon('search') }} />
     </Tabs>
   );

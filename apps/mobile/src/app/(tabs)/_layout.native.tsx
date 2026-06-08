@@ -65,7 +65,7 @@ export default function NativeTabsLayout() {
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="dms">
         <NativeTabs.Trigger.Label>DMs</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="users" />} />
+        <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Feather} name="message-square" />} />
         <NativeTabs.Trigger.Badge hidden={!dmBadge}>{dmBadge}</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
       {/* `role="search"` makes this the platform search tab: on iOS 26 it floats
