@@ -6,7 +6,7 @@
  * its streaming text; the others show a labelled action).
  */
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -140,6 +140,11 @@ export function ReplySuggestionChip({ status, action, onAccept, onDismiss }: Rep
             borderColor: colors.accentBorder,
           },
           glowShadow(colors.glow, 0.14, 10),
+          // The chip's accentBg is translucent; Android can't derive a rounded
+          // outline from it, so the elevation shadow paints the square view bounds
+          // (a stray bar behind the pill). iOS/web use the shadow* props, so drop
+          // only Android's elevation here.
+          Platform.OS === 'android' && { elevation: 0 },
         ]}
       >
         {/* Leading icon — sparkles while thinking / for a reply, action-specific otherwise */}
