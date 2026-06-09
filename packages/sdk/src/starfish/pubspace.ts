@@ -16,7 +16,7 @@ import { mintMemberCap } from '@drakkar.software/starfish-sharing';
 import { ConflictError, StarfishHttpError } from '@drakkar.software/starfish-client';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { PubAccessMap, Room, RoomKind, Space } from '../domain/types';
+import type { ObjectNode, PubAccessMap, Room, RoomKind, Space } from '../domain/types';
 
 import { randomId, roomSlug } from '../domain/ids';
 
@@ -24,7 +24,7 @@ import { sealToSelf, unsealFromSelf } from './account-seal';
 import type { SealedBlob } from './account-seal';
 import { makeClient } from './client';
 import type { Session } from './identity';
-import { bytesToHex, pubspaceRoomsPull, pubspaceRoomsPush, pubspaceScope } from './paths';
+import { bytesToHex, pubObjIndexPull, pubObjIndexPush, pubspaceRoomsPull, pubspaceRoomsPush, pubspaceScope } from './paths';
 import {
   getPubspaceAccess,
   localPubspaceEntries,
@@ -402,6 +402,44 @@ export async function updatePublicRoomsRegistry(
     };
     try {
       await client.push(pubspaceRoomsPush(session.userId, spaceId), doc as unknown as Record<string, unknown>, hash);
+      return;
+    } catch (err) {
+      if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
+      throw err;
+    }
+  }
+}
+
+/**
+ * Headless read-modify-write of a PUBLIC space's unified OBJECT INDEX (the plaintext
+ * `objects/_index` doc) — the object-tree twin of {@link updatePublicRoomsRegistry}, for
+ * the non-React writers (automations create/edit/delete). Rooms moved out of `_rooms` into
+ * this index (the stream↔channel merge), so this is where an automated room's NODE lives.
+ * Mirrors the WRITE auth the reactive `useMergeDoc` uses for the public index
+ * (`publicSpaceAuth` cap + ownerId), so it targets the exact doc normal channel creation
+ * writes. The index is a hash-checked union-merge doc, so the bounded conflict-retry
+ * re-reads FRESH state on a 409 — never clobbering a sibling device's concurrently-added
+ * node. The mutator returns the next `objects` array, or `null` to no-op.
+ */
+export async function updatePublicObjectIndex(
+  session: Session,
+  spaceId: string,
+  mutator: (nodes: ObjectNode[], now: number) => ObjectNode[] | null,
+): Promise<void> {
+  const { ownerId } = publicSpaceAuth(session, spaceId);
+  const client = publicSpaceClient(session, spaceId);
+  const pullPath = pubObjIndexPull(ownerId, spaceId);
+  const pushPath = pubObjIndexPush(ownerId, spaceId);
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const res = await client.pull(pullPath).catch(() => null);
+    const cur = Array.isArray((res?.data as { objects?: unknown } | undefined)?.objects)
+      ? (res!.data as { objects: ObjectNode[] }).objects
+      : [];
+    const next = mutator(cur, Date.now());
+    if (!next) return;
+    try {
+      await client.push(pushPath, { objects: next }, res?.hash ?? null);
       return;
     } catch (err) {
       if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;

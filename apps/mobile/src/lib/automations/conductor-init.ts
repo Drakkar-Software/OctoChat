@@ -27,7 +27,7 @@ import {
   isPublicSpaceId,
   publicSpaceAuth,
   publicSpaceClient,
-  readPublicRooms,
+  readPublicIndexRooms,
   readSpaces,
   runAutomationTick,
   sessionFromPersisted,
@@ -65,7 +65,7 @@ async function resolveAutomatedRoom(
   if (!isPublicSpaceId(spaceId)) return null;
   const { ownerId } = publicSpaceAuth(session, spaceId);
   const client = publicSpaceClient(session, spaceId);
-  const rooms = await readPublicRooms(client, ownerId, spaceId);
+  const rooms = await readPublicIndexRooms(client, ownerId, spaceId);
   return rooms.find((r) => r.id === roomId) ?? null;
 }
 
@@ -206,7 +206,7 @@ async function reconcile(session: Session): Promise<void> {
       try {
         const { ownerId } = publicSpaceAuth(session, space.id);
         const client = publicSpaceClient(session, space.id);
-        const rooms = await readPublicRooms(client, ownerId, space.id);
+        const rooms = await readPublicIndexRooms(client, ownerId, space.id);
         for (const room of rooms) {
           const a = room.automation;
           if (!a || !a.enabled) continue;

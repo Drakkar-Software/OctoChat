@@ -6,12 +6,13 @@
  */
 import { sealToSelf } from '../starfish/account-seal';
 import { type SealedBlob } from '../starfish/account-seal';
-import { isPublicSpaceId, publicSpaceAuth, createPublicRoom } from '../starfish/pubspace';
+import { isPublicSpaceId, publicSpaceAuth } from '../starfish/pubspace';
 import { createStreamBotCredential } from '../starfish/stream-bots';
+import { roomSlug } from '../domain/ids';
 import type { Session } from '../starfish/identity';
 import type { AutomationMeta, AutomationSchedule, Room } from '../domain/types';
 
-import { AutomationsNotSupportedHere, deleteRoomFromRegistry, patchRoomAutomation, renameRoomInRegistry, setRoomAutomation } from './registry-write';
+import { AutomationsNotSupportedHere, createAutomationNode, deleteRoomFromRegistry, patchRoomAutomation, renameRoomInRegistry } from './registry-write';
 import { tickRoom, type TickKind, type TickOutcome } from './runner-core';
 import { clearAutomationSecrets, saveAutomationSecrets } from './secrets';
 import { getProvider } from './providers';
@@ -56,14 +57,16 @@ export async function createAutomatedRoom(opts: {
   const { session, spaceId } = opts;
   if (!isPublicSpaceId(spaceId)) throw new AutomationsNotSupportedHere();
   if (!getProvider(opts.providerId)) throw new Error(`Unknown automation provider: ${opts.providerId}`);
-  // 1. Create the room as `kind: 'automated'` (storage = pubstream, same as
-  //    a public stream room — the kind only changes UI + runner attach).
-  const room = await createPublicRoom(session, spaceId, opts.name, opts.category ?? 'AUTOMATIONS', 'automated');
-  // 2. Save secret params under the new room id.
-  await saveAutomationSecrets(session.userId, room.id, opts.secrets);
-  // 3. Mint the bot credential scoped to THIS room (sealed to the owner key).
-  const credential = await mintSealedCredential(session, spaceId, room.id);
-  // 4. Stamp the automation meta — device elects itself as the runner by default.
+  const category = opts.category ?? 'AUTOMATIONS';
+  // Mint the room id up-front (same shape `createPublicRoom`/`useRooms.createRoom` use) so
+  // the secrets + bot credential bind to it BEFORE the node write — a failed mint then
+  // leaves no orphan node in the index (the node create is the last, committing step).
+  const roomId = `${spaceId}-${roomSlug(opts.name)}-${Date.now().toString(36)}`;
+  // 1. Save secret params under the new room id (device-local kv).
+  await saveAutomationSecrets(session.userId, roomId, opts.secrets);
+  // 2. Mint the bot credential scoped to THIS room (sealed to the owner key).
+  const credential = await mintSealedCredential(session, spaceId, roomId);
+  // 3. Build the automation meta — device elects itself as the runner by default.
   const meta: AutomationMeta = {
     providerId: opts.providerId,
     params: opts.params,
@@ -76,8 +79,10 @@ export async function createAutomatedRoom(opts: {
     lastRunAt: null,
     lastError: null,
   };
-  await setRoomAutomation(session, spaceId, room.id, meta);
-  return { ...room, automation: meta };
+  // 4. Create the room as an object-index NODE (`subtype: 'automation'`) carrying its meta —
+  //    the model the room list (`objectsToRoomCategories`) + runner now read.
+  await createAutomationNode(session, spaceId, roomId, opts.name, category, meta);
+  return { id: roomId, spaceId, category, name: opts.name, kind: 'automated', automation: meta };
 }
 
 /** Apply an edit from the settings sheet (intervalMin / enabled / params /

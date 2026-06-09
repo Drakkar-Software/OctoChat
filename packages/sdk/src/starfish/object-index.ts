@@ -13,7 +13,7 @@ import type { ObjectNode, Room } from '../domain/types';
 
 import type { Session } from './identity';
 import { DEFAULT_CATEGORY, objectsToRoomCategories, seedIndexNodes, type SeedRoom } from './objects';
-import { objIndexPull, objIndexPush } from './paths';
+import { objIndexPull, objIndexPush, pubObjIndexPull } from './paths';
 import { buildSpaceEncryptor, getSpaceEncryptor } from './space-encryptor';
 
 /** Decode the `objects` array out of a (decrypted) index doc, tolerating a missing /
@@ -47,6 +47,22 @@ export async function readIndexRooms(
   } catch {
     return null;
   }
+}
+
+/**
+ * Read a PUBLIC space's index rooms (plaintext — no encryptor) given a known owner id.
+ * The public twin of {@link readPrivateIndexRooms}, used by the headless automation runner
+ * (`conductor-init`) to enumerate `kind:'automated'` rooms from the unified index — where
+ * they now live, instead of the legacy `_rooms` list. Returns `[]` on any failure / empty
+ * index, so the runner simply schedules nothing rather than throwing.
+ */
+export async function readPublicIndexRooms(
+  client: StarfishClient,
+  ownerId: string,
+  spaceId: string,
+): Promise<Room[]> {
+  const idx = await readIndexRooms(client, null, pubObjIndexPull(ownerId, spaceId), spaceId);
+  return idx?.rooms ?? [];
 }
 
 /**
