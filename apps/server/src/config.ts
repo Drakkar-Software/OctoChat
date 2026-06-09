@@ -174,6 +174,23 @@ export const config: SyncConfig = {
       maxBodyBytes: 262_144,
       allowedMimeTypes: JSON_ONLY,
     },
+    // SELF-SERVICE WEBHOOK REGISTRY: one owner-written doc per public space mapping a
+    // webhookId → `{ tokenHash, roomId, label, … }`. Lets a space OWNER mint their own
+    // inbound webhooks (see packages/sdk webhooks.ts) without an operator: WRITE is
+    // gated on `pubspace:owner` (only the owner manages their webhooks), READ on
+    // `pubspace:owner` (the owner lists/manages them). The inbound `/webhook` route
+    // reads this doc IN-PROCESS to authenticate a caller by hashed token — only the
+    // SHA-256 of each token is stored here, never the raw token. Keyed by `{ownerId}`
+    // (issuer-bound), like the other pubspace collections.
+    {
+      name: "webhooks",
+      storagePath: "pubspaces/{ownerId}/{spaceId}/_webhooks",
+      readRoles: ["pubspace:owner"],
+      writeRoles: ["pubspace:owner"],
+      encryption: "none",
+      maxBodyBytes: 131_072,
+      allowedMimeTypes: JSON_ONLY,
+    },
     // UNIFIED OBJECT INDEX (public/plaintext): mirror of `objindex` for public
     // spaces. Keyed by `{ownerId}`, gated on pubspace:owner/reader/writer (issuer-
     // bound). `none` encryption — public spaces are plaintext by definition.
