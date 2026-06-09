@@ -16,7 +16,7 @@ import { useAiSettings } from '@/lib/ai-settings-context';
 
 import { aiErrorCode, aiStream } from './ai-engine';
 import { ensureModelLoaded } from './ensure-model-loaded';
-import { buildSummaryMessages, SUMMARY_SYSTEM_PROMPT } from './ai-prompt';
+import { buildSummaryMessages, buildSummarySystemPrompt, SUMMARY_CONTEXT_TURNS } from './ai-prompt';
 
 // Re-export so the card can show "≈X GB" before download.
 export { formatBytes };
@@ -59,6 +59,12 @@ export function useSpaceDigest(spaceId: string | null): SpaceDigest {
       const authorIds = [...new Set(all.map((x) => x.msg.authorId))];
       const profiles = await readProfiles(authorIds);
 
+      const shape = ({ room, msg }: (typeof all)[number]) => ({
+        roomName: room.name,
+        author: displayName(msg.authorId, session.userId, profiles.get(msg.authorId)?.pseudo ?? undefined),
+        text: msg.text as string,
+      });
+
       // Filter to unread messages from other users, then shape for the prompt.
       const items = all
         .filter(
@@ -67,18 +73,23 @@ export function useSpaceDigest(spaceId: string | null): SpaceDigest {
             x.msg.authorId !== session.userId &&
             x.msg.ts > lastReadAt(x.room.id),
         )
-        .map(({ room, msg }) => ({
-          roomName: room.name,
-          author: displayName(msg.authorId, session.userId, profiles.get(msg.authorId)?.pseudo ?? undefined),
-          text: msg.text as string,
-        }));
+        .map(shape);
 
       if (items.length === 0) {
         setStatus('empty');
         return;
       }
 
-      const messages = buildSummaryMessages(items);
+      // Lead-in context: the most recent already-read messages (any author,
+      // including the current user) so the summary can resolve what the unread
+      // refers to. Sorted oldest→newest, then the last N kept.
+      const context = all
+        .filter((x) => !!x.msg.text && x.msg.ts <= lastReadAt(x.room.id))
+        .sort((a, b) => a.msg.ts - b.msg.ts)
+        .slice(-SUMMARY_CONTEXT_TURNS)
+        .map(shape);
+
+      const messages = buildSummaryMessages(items, context);
       if (messages.length === 0) {
         setStatus('empty');
         return;
@@ -92,7 +103,7 @@ export function useSpaceDigest(spaceId: string | null): SpaceDigest {
       setStatus('generating');
       let accumulated = '';
       const { promise } = aiStream(messages, {
-        systemPrompt: SUMMARY_SYSTEM_PROMPT,
+        systemPrompt: buildSummarySystemPrompt(session.name),
         onToken: (evt) => {
           accumulated = evt.accumulatedText;
           setSummary(accumulated);

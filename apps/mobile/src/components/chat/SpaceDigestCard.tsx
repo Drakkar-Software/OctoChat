@@ -7,6 +7,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { spacing } from '@/theme';
 import { useAiSettings } from '@/lib/ai-settings-context';
 import { useSpaceDigest } from '@/lib/ai/use-space-digest';
+import { useRoomMentions } from '@/lib/use-room-mentions';
 import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -24,6 +25,8 @@ export function SpaceDigestCard({ spaceId }: SpaceDigestCardProps) {
   const { settings } = useAiSettings();
   const { colors } = useTheme();
   const { status, summary, error, unreadCount, run, reset } = useSpaceDigest(spaceId);
+  // Lets the summary's per-room headings link to their room.
+  const resolveRoom = useRoomMentions(spaceId);
 
   // Hidden if AI is disabled or there's nothing unread (and we haven't already generated).
   if (!settings.enabled) return null;
@@ -96,11 +99,11 @@ export function SpaceDigestCard({ spaceId }: SpaceDigestCardProps) {
             <Skeleton height={11} width="80%" style={styles.skRow} />
           </View>
           {summary ? (
-            <Markdown source={summary} />
+            <Markdown source={summary} resolveRoom={resolveRoom} />
           ) : null}
         </View>
       ) : status === 'ready' ? (
-        <Markdown source={summary ?? ''} />
+        <Markdown source={summary ?? ''} resolveRoom={resolveRoom} />
       ) : status === 'error' ? (
         <View style={styles.errorWrap}>
           <Txt variant="footnote" tone="danger">

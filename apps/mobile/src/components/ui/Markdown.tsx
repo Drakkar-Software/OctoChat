@@ -1,7 +1,7 @@
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
-import { openUrl } from '@/lib/links';
+import { openRoom, openUrl } from '@/lib/links';
 import { parseInline, parseMarkdown, type InlineToken } from '@drakkar.software/octochat-sdk';
 import type { Room } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
@@ -91,12 +91,24 @@ export function Markdown({ source, ...mention }: MarkdownProps) {
     <View style={styles.wrap}>
       {blocks.map((b, i) => {
         if (b.type === 'code') return <CodeBlock key={i} value={b.value} />;
-        if (b.type === 'heading')
+        if (b.type === 'heading') {
+          // A heading that names a known room becomes a link to it (used by the
+          // AI catch-up summary, which heads each section with the room name).
+          const room = mention.resolveRoom?.(b.text);
           return (
-            <Txt key={i} variant={HEADING_VARIANT[b.level]} weight="bold">
+            <Txt
+              key={i}
+              variant={HEADING_VARIANT[b.level]}
+              weight="bold"
+              tone={room ? 'accent' : undefined}
+              style={room ? styles.headingLink : undefined}
+              accessibilityRole={room ? 'link' : 'header'}
+              onPress={room ? () => openRoom(room) : undefined}
+            >
               {b.text}
             </Txt>
           );
+        }
         if (b.type === 'quote')
           return (
             <View key={i} style={[styles.quote, { borderLeftColor: colors.accentBorder, backgroundColor: colors.accentBg }]}>
@@ -136,6 +148,7 @@ const styles = StyleSheet.create({
   wrap: { gap: spacing.sm },
   em: { fontStyle: 'italic' },
   link: { textDecorationLine: 'underline' },
+  headingLink: Platform.select({ web: { cursor: 'pointer' } as object, default: {} }),
   quote: { borderLeftWidth: 3, borderRadius: radii.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
   list: { gap: spacing.xs },
   listRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
