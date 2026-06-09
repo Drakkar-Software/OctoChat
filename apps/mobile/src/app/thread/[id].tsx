@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
@@ -10,7 +11,15 @@ import { useRoom } from '@/lib/use-room';
 import { useRoomSend } from '@/lib/use-room-send';
 import { useUnread } from '@/lib/unread-context';
 import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
-import type { RoomKind } from '@drakkar.software/octochat-sdk';
+import type { RoomKind, StoredMsg } from '@drakkar.software/octochat-sdk';
+import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
+import { buildSuggestionMessages } from '@/lib/ai/ai-prompt';
+import { makeEmptyConversationStore } from '@/lib/use-conversation-data';
+
+// Stable empty store so useStarfishData can be called unconditionally while the
+// real store is still null (thread opening). Created once at module scope — same
+// pattern as room/[id].
+const EMPTY_STORE = makeEmptyConversationStore();
 import { AppBar } from '@/components/ui/AppBar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { IconButton } from '@/components/ui/IconButton';
@@ -53,6 +62,28 @@ export default function ThreadScreen() {
     return true;
   });
 
+  // Reply-suggestion context — scoped to THIS thread (parent + its replies), not
+  // the room's full log, so the on-device model suggests a reply that fits the
+  // thread. Mirrors room/[id]; the same Composer/chip render it. Last message =
+  // the last reply (or the parent when there are none yet).
+  const allMessages = (useStarfishData(store ?? EMPTY_STORE, (d) => d.messages as StoredMsg[] | undefined) ?? []) as StoredMsg[];
+  const threadMessages = useMemo(() => {
+    const parent = allMessages.find((m) => m.id === parentId);
+    const replies = allMessages.filter((m) => m.parentId === parentId);
+    return parent ? [parent, ...replies] : replies;
+  }, [allMessages, parentId]);
+  const lastThreadMsg = threadMessages.at(-1) ?? null;
+  const suggestionContext = useMemo(() => {
+    if (!session || !canWrite) return undefined;
+    // No `onOpenThread` here — threads don't nest, so the model won't suggest one.
+    return {
+      lastMsgId: lastThreadMsg && lastThreadMsg.authorId !== session.userId ? lastThreadMsg.id : null,
+      buildMessages: () => buildSuggestionMessages(threadMessages, session.userId),
+      onReact: (msgId: string, emoji: string) => toggleReaction(msgId, emoji),
+      onPin: isOwner ? (msgId: string) => pinMessage(msgId) : undefined,
+    };
+  }, [session, canWrite, lastThreadMsg, threadMessages, isOwner, toggleReaction, pinMessage]);
+
   return (
     <StackScreen
       contentStyle={styles.content}
@@ -63,6 +94,7 @@ export default function ThreadScreen() {
             placeholder="Reply in thread…"
             draftKey={session ? threadDraftKey(session.userId, roomId, parentId) : undefined}
             offline={!online}
+            suggestionContext={suggestionContext}
             onSend={async (t, file) => {
               // Attachments need a live upload — the Composer blocks this path offline.
               if (file) {

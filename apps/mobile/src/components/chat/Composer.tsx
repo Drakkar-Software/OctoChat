@@ -173,7 +173,7 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey, offline, s
       {reply.status !== 'idle' ? (
         <ReplySuggestionChip
           status={reply.status}
-          text={reply.suggestion}
+          action={reply.action}
           onAccept={reply.accept}
           onDismiss={reply.dismiss}
         />

@@ -8,13 +8,13 @@ import { useAutomationDriver } from '@/lib/automations/use-automation-driver';
 import { useIsAutomationLeader } from '@/lib/automations/leader';
 import { useSession } from '@/lib/session-context';
 import { useRoomsRegistry } from '@/lib/rooms-registry-context';
-import { roomDraftKey } from '@/lib/use-draft';
+import { roomDraftKey, threadDraftKey } from '@/lib/use-draft';
 import { useMessageEditing } from '@/lib/use-message-editing';
 import { useHardwareBack } from '@/lib/use-hardware-back';
 import { useRoom } from '@/lib/use-room';
 import { useRoomSend } from '@/lib/use-room-send';
 import { useUnread } from '@/lib/unread-context';
-import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
+import { spaceIdFromRoomId, kvSet } from '@drakkar.software/octochat-sdk';
 import { isPublicSpaceId, publicSpaceAuth } from '@drakkar.software/octochat-sdk';
 import type { RoomKind, StoredMsg } from '@drakkar.software/octochat-sdk';
 import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
@@ -159,13 +159,25 @@ export default function RoomScreen() {
   // the room opens; empty messages → no suggestion generated.
   const messages = (useStarfishData(store ?? EMPTY_STORE, (d) => d.messages as StoredMsg[] | undefined) ?? []) as StoredMsg[];
   const lastMsg = messages.at(-1) ?? null;
+  // The model can suggest more than a reply: react / pin (owner-only) the last
+  // message, or open a thread — optionally pre-seeded with a starter reply (the
+  // "thread + answer" combo, written to the thread draft before navigating).
   const suggestionContext = useMemo(() => {
     if (!session || !canWrite) return undefined;
     return {
       lastMsgId: lastMsg && lastMsg.authorId !== session.userId ? lastMsg.id : null,
       buildMessages: () => buildSuggestionMessages(messages, session.userId),
+      onReact: (msgId: string, emoji: string) => toggleReaction(msgId, emoji),
+      onPin: isOwner ? (msgId: string) => pinMessage(msgId) : undefined,
+      onOpenThread: async (msgId: string, prefill?: string) => {
+        // Await the draft write BEFORE navigating: on native (AsyncStorage) the
+        // thread's useDraft kvGet could otherwise resolve before this set commits
+        // and the seeded "answer" would silently vanish.
+        if (prefill) await kvSet(threadDraftKey(session.userId, id, msgId), prefill);
+        router.push({ pathname: '/thread/[id]', params: { id: msgId, roomId: id, roomName: name, kind } });
+      },
     };
-  }, [session, canWrite, lastMsg, messages]);
+  }, [session, canWrite, lastMsg, messages, isOwner, toggleReaction, pinMessage, id, name, kind]);
 
   return (
     <StackScreen

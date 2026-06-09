@@ -1,9 +1,16 @@
 /**
- * On-device reply suggestion controller. Runs INSIDE Composer (needs internal
+ * On-device suggestion controller. Runs INSIDE Composer (needs internal
  * text/focused/setText state, same pattern as useEmojiAutocomplete).
  *
+ * The model picks ONE next action reacting to the last message — reply, react,
+ * start a thread (optionally with a starter reply), or pin — instead of always
+ * offering a text reply. Action selection on a small on-device model is
+ * imperfect, so parsing is tolerant and falls back to a plain reply (see
+ * {@link parseSuggestionAction}).
+ *
  * Trigger: composer empty + last message is from someone else (no focus required).
- * Accept: fills the composer text (editable, NOT auto-sent).
+ * Accept: `reply` fills the composer (editable, NOT auto-sent); `react`/`pin` act
+ * on the message directly; `thread` opens the thread (pre-seeded for a combo).
  * Dismiss: clears the suggestion and won't re-show for the same message.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -13,20 +20,28 @@ import { useAiSettings } from '@/lib/ai-settings-context';
 import { aiErrorCode, aiStream } from './ai-engine';
 import type { LLMMessage } from './ai-engine';
 import { ensureModelLoaded } from './ensure-model-loaded';
-import { SUGGESTION_SYSTEM_PROMPT } from './ai-prompt';
+import { buildSuggestionSystemPrompt, parseSuggestionAction, type SuggestionAction, type SuggestionCaps } from './ai-prompt';
 
 export interface ReplySuggestionContext {
-  /** ID of the last message in the room; null when the last message is from the
-   *  current user (no suggestion needed) or the room is empty. */
+  /** ID of the last message in the room/thread; null when the last message is
+   *  from the current user (no suggestion needed) or there are no messages. */
   lastMsgId: string | null;
   /** Closure that builds the LLM turn list from the current message snapshot. */
   buildMessages: () => LLMMessage[];
+  /** Apply an emoji reaction to a message (the `react` action). */
+  onReact?: (msgId: string, emoji: string) => void;
+  /** Pin a message (the `pin` action) — wire only when the viewer is the owner. */
+  onPin?: (msgId: string) => void;
+  /** Open a thread on a message, optionally pre-seeding a starter reply (the
+   *  `thread` action / "thread + answer" combo). Omit where threads can't nest
+   *  (inside a thread) to keep the model from suggesting one. */
+  onOpenThread?: (msgId: string, prefill?: string) => void;
 }
 
 export type SuggestionStatus = 'idle' | 'generating' | 'ready';
 
 export interface ReplySuggestion {
-  suggestion: string | null;
+  action: SuggestionAction | null;
   status: SuggestionStatus;
   accept: () => void;
   dismiss: () => void;
@@ -35,13 +50,24 @@ export interface ReplySuggestion {
 /** Debounce before starting generation after the trigger condition is met. */
 const SUGGEST_DEBOUNCE_MS = 700;
 
+const NOOP: ReplySuggestion = { action: null, status: 'idle', accept: () => {}, dismiss: () => {} };
+
 export function useReplySuggestion(
   ctx: ReplySuggestionContext | undefined,
   composer: { text: string; focused: boolean; setText: (t: string) => void },
 ): ReplySuggestion {
   const { settings } = useAiSettings();
-  const [suggestion, setSuggestion] = useState<string | null>(null);
+  const [action, setAction] = useState<SuggestionAction | null>(null);
   const [status, setStatus] = useState<SuggestionStatus>('idle');
+
+  // Latest ctx held in a ref so the trigger effect can depend on the primitive
+  // `lastMsgId` alone — the handler closures (onOpenThread is inline in the room
+  // screen) change identity every render and must NOT re-arm generation.
+  const ctxRef = useRef(ctx);
+  ctxRef.current = ctx;
+  const caps: SuggestionCaps = { canThread: !!ctx?.onOpenThread, canPin: !!ctx?.onPin };
+  const capsRef = useRef(caps);
+  capsRef.current = caps;
 
   // Refs to avoid stale closures in async callbacks.
   const streamRef = useRef<{ stop: () => void } | null>(null);
@@ -60,7 +86,7 @@ export function useReplySuggestion(
 
   const clearSuggestion = useCallback(() => {
     clearStream();
-    setSuggestion(null);
+    setAction(null);
     setStatus('idle');
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
@@ -69,12 +95,13 @@ export function useReplySuggestion(
   }, [clearStream]);
 
   const generate = useCallback(
-    async (lastMsgId: string, getMessages: () => LLMMessage[]) => {
+    async (lastMsgId: string) => {
       // No `aiIsAvailable()` gate: a device without a platform built-in can still
       // run a downloaded Gemma model, so availability is decided by whether
       // `ensureModelLoaded` below succeeds rather than by the built-in check.
-      const messages = getMessages();
+      const messages = ctxRef.current?.buildMessages() ?? [];
       if (messages.length === 0) return;
+      const caps = capsRef.current;
 
       // Lazily load the downloaded model into memory on first use. If it can't
       // load (e.g. OOM, or the file was removed), skip silently rather than
@@ -87,30 +114,31 @@ export function useReplySuggestion(
 
       clearStream();
       setStatus('generating');
-      setSuggestion(null);
+      setAction(null);
       generatedForRef.current = lastMsgId;
 
       let accumulated = '';
       const handle = aiStream(messages, {
-        systemPrompt: SUGGESTION_SYSTEM_PROMPT,
+        systemPrompt: buildSuggestionSystemPrompt(caps),
         onToken: (evt) => {
           accumulated = evt.accumulatedText;
-          setSuggestion(accumulated);
+          // Parse incrementally so a streaming `reply`/`thread` text still
+          // previews live; null while only the bare keyword has arrived.
+          setAction(parseSuggestionAction(accumulated, caps));
         },
       });
       streamRef.current = handle;
 
       try {
         await handle.promise;
-        // Strip any wrapping quotes the model sometimes adds.
-        const cleaned = accumulated.replace(/^["']|["']$/g, '').trim();
-        setSuggestion(cleaned || null);
-        setStatus(cleaned ? 'ready' : 'idle');
+        const final = parseSuggestionAction(accumulated, caps);
+        setAction(final);
+        setStatus(final ? 'ready' : 'idle');
       } catch (e) {
         const code = aiErrorCode(e);
         if (code !== 'INFERENCE_CANCELLED') {
           // INFERENCE_BUSY or other error — silently reset.
-          setSuggestion(null);
+          setAction(null);
           setStatus('idle');
         }
       } finally {
@@ -127,14 +155,13 @@ export function useReplySuggestion(
     }
   }, [composer.text, clearSuggestion]);
 
-  // Main trigger effect.
+  // Main trigger effect — keyed on the primitive lastMsgId (not ctx identity).
+  const lastMsgId = ctx?.lastMsgId ?? null;
   useEffect(() => {
-    const { lastMsgId } = ctx ?? { lastMsgId: null };
     // Suggestions generate passively — no composer.focused requirement — so the
     // chip is ready before the user taps the input. Aborted only if user types.
     const shouldGenerate =
       settings.enabled &&
-      ctx !== undefined &&
       lastMsgId !== null &&
       composer.text.trim().length === 0 &&
       lastMsgId !== dismissedForRef.current &&
@@ -154,14 +181,13 @@ export function useReplySuggestion(
     }
 
     // Clear previous suggestion for the new lastMsgId.
-    setSuggestion(null);
+    setAction(null);
     setStatus('idle');
 
     const id = lastMsgId;
-    const buildMessages = ctx.buildMessages;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      void generate(id, buildMessages);
+      void generate(id);
     }, SUGGEST_DEBOUNCE_MS);
 
     return () => {
@@ -170,34 +196,34 @@ export function useReplySuggestion(
         debounceRef.current = null;
       }
     };
-  }, [
-    settings.enabled,
-    ctx,
-    ctx?.lastMsgId,
-    composer.text,
-    status,
-    generate,
-    clearStream,
-  ]);
+  }, [settings.enabled, lastMsgId, composer.text, status, generate, clearStream]);
 
   // Abort on unmount.
   useEffect(() => () => clearStream(), [clearStream]);
 
   const accept = useCallback(() => {
-    if (suggestion) {
-      composer.setText(suggestion);
+    const a = action;
+    const id = ctxRef.current?.lastMsgId ?? null;
+    if (a) {
+      if (a.kind === 'reply') composer.setText(a.text);
+      else if (id) {
+        if (a.kind === 'react') ctxRef.current?.onReact?.(id, a.emoji);
+        else if (a.kind === 'pin') ctxRef.current?.onPin?.(id);
+        else if (a.kind === 'thread') ctxRef.current?.onOpenThread?.(id, a.text);
+      }
     }
+    // Mark this message handled so a non-reply action (which leaves the composer
+    // empty) doesn't immediately re-generate a fresh suggestion for it.
+    dismissedForRef.current = id;
     clearSuggestion();
-  }, [suggestion, composer, clearSuggestion]);
+  }, [action, composer, clearSuggestion]);
 
   const dismiss = useCallback(() => {
-    dismissedForRef.current = ctx?.lastMsgId ?? null;
+    dismissedForRef.current = ctxRef.current?.lastMsgId ?? null;
     clearSuggestion();
-  }, [ctx?.lastMsgId, clearSuggestion]);
+  }, [clearSuggestion]);
 
-  if (!settings.enabled || !ctx) {
-    return { suggestion: null, status: 'idle', accept: () => {}, dismiss: () => {} };
-  }
+  if (!settings.enabled || !ctx) return NOOP;
 
-  return { suggestion, status, accept, dismiss };
+  return { action, status, accept, dismiss };
 }

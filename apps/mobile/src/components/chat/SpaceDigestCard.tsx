@@ -13,9 +13,10 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
-import { Markdown } from '@/components/ui/Markdown';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Txt } from '@/components/ui/Txt';
+
+import { DigestSummary } from './DigestSummary';
 
 interface SpaceDigestCardProps {
   spaceId: string | null;
@@ -99,11 +100,11 @@ export function SpaceDigestCard({ spaceId }: SpaceDigestCardProps) {
             <Skeleton height={11} width="80%" style={styles.skRow} />
           </View>
           {summary ? (
-            <Markdown source={summary} resolveRoom={resolveRoom} />
+            <DigestSummary summary={summary} resolveRoom={resolveRoom} />
           ) : null}
         </View>
       ) : status === 'ready' ? (
-        <Markdown source={summary ?? ''} resolveRoom={resolveRoom} />
+        <DigestSummary summary={summary ?? ''} resolveRoom={resolveRoom} />
       ) : status === 'error' ? (
         <View style={styles.errorWrap}>
           <Txt variant="footnote" tone="danger">

@@ -19,17 +19,102 @@ export const SUMMARY_CONTEXT_MAX_CHARS = 1500;
  *  unread summary can reference what came just before it. */
 export const SUMMARY_CONTEXT_TURNS = 10;
 
-export const SUGGESTION_SYSTEM_PROMPT =
-  'You suggest a short, natural reply the user could send next in a group chat. ' +
-  'Output ONLY the reply text — no quotes, no preamble, no explanation. ' +
-  'Keep it to one or two sentences, casual and matching the conversation tone. ' +
-  'Write the reply in the same language as the conversation — never translate to English.';
+/** The next action the on-device model can suggest, reacting to the last message.
+ *  `reply` fills the composer; `react`/`pin` act on the message directly; `thread`
+ *  opens a focused thread, optionally pre-seeded with `text` (the "thread + answer"
+ *  combo). */
+export type SuggestionAction =
+  | { kind: 'reply'; text: string }
+  | { kind: 'react'; emoji: string }
+  | { kind: 'thread'; text?: string }
+  | { kind: 'pin' };
+
+/** Which non-reply actions are available in the current surface — `thread` is off
+ *  inside a thread (no nesting), `pin` is owner-only. The prompt only lists the
+ *  actions that are actually wired, so the model can't suggest a dead one. */
+export interface SuggestionCaps {
+  canThread: boolean;
+  canPin: boolean;
+}
+
+const SUGGEST_ACTION_KEYWORDS = ['REPLY', 'REACT', 'THREAD', 'PIN'] as const;
+
+/** The emoji a REACT suggestion carries: the first whitespace-delimited token,
+ *  kept whole (so ZWJ sequences / skin-tone modifiers survive), rejected when it's
+ *  plainly text (letters/digits/punctuation only) rather than a glyph. */
+function firstEmoji(s: string): string | null {
+  const tok = s.trim().split(/\s+/)[0] ?? '';
+  if (!tok || /^[\p{L}\p{N}\p{P}]+$/u.test(tok)) return null;
+  return tok;
+}
+
+/**
+ * Parse the model's free-text output into a {@link SuggestionAction}. The model is
+ * asked to emit `KEYWORD: content` on one line, but small on-device models are
+ * unreliable, so this is tolerant:
+ *  - no recognized keyword → treat the whole output as a plain reply (the old
+ *    behavior, so a model that ignores the format still works);
+ *  - a keyword for an unavailable action (gated by {@link SuggestionCaps}) falls
+ *    back to its content as a reply, or nothing;
+ *  - returns `null` while still streaming the bare keyword, so a half-typed
+ *    "REP" never flashes as a reply.
+ */
+export function parseSuggestionAction(raw: string, caps: SuggestionCaps): SuggestionAction | null {
+  const text = raw.trim();
+  if (!text) return null;
+
+  // Still streaming the keyword itself (e.g. "REP", "THRE") — wait for content.
+  const upper = text.toUpperCase();
+  if (!/[:\s]/.test(text) && SUGGEST_ACTION_KEYWORDS.some((k) => k.startsWith(upper) && k !== upper)) {
+    return null;
+  }
+
+  const m = /^(REPLY|REACT|THREAD|PIN)\b[:\s]*([\s\S]*)$/i.exec(text);
+  if (!m) return { kind: 'reply', text }; // no tag → the whole thing is the reply
+  const kw = m[1].toUpperCase();
+  const content = m[2].trim();
+
+  if (kw === 'PIN') return caps.canPin ? { kind: 'pin' } : content ? { kind: 'reply', text: content } : null;
+  if (kw === 'REACT') {
+    const e = firstEmoji(content);
+    return e ? { kind: 'react', emoji: e } : null;
+  }
+  if (kw === 'THREAD') {
+    if (!caps.canThread) return content ? { kind: 'reply', text: content } : null;
+    return { kind: 'thread', ...(content ? { text: content } : {}) };
+  }
+  return content ? { kind: 'reply', text: content } : null; // REPLY
+}
+
+/** System prompt that asks the model to pick ONE next action. Only the wired
+ *  actions are listed, so a thread/pin suggestion never surfaces where it can't
+ *  be carried out (see {@link SuggestionCaps}). */
+export function buildSuggestionSystemPrompt(caps: SuggestionCaps): string {
+  const actions = [
+    'REPLY: <a short, natural reply, one or two sentences> — the default, when a text response fits.',
+    'REACT: <one emoji> — when an emoji reaction says it best (acknowledgement, agreement, thanks, celebration).',
+  ];
+  if (caps.canThread)
+    actions.push(
+      'THREAD: <a short reply that opens a focused side-conversation> — when the message deserves its own thread.',
+    );
+  if (caps.canPin)
+    actions.push('PIN: — when the message is worth keeping handy (a decision, announcement, or key link); leave the content empty.');
+
+  return (
+    'You decide the user\'s single best next action in a group chat, reacting to the LAST message. ' +
+    'Choose EXACTLY ONE action and output it on ONE line as the keyword, a colon, then its content:\n' +
+    actions.map((a) => `- ${a}`).join('\n') +
+    '\nOutput ONLY that one line — no quotes, no preamble, no explanation. ' +
+    'Write any reply text in the same language as the conversation — never translate to English.'
+  );
+}
 
 const SUMMARY_RULES =
   'Summarize the key topics, decisions, and open questions from these team chat messages. ' +
   'Do NOT quote messages verbatim — synthesize and compress. ' +
   "Start each room's section with a markdown heading containing only that room's exact name " +
-  '(for example: ## general). Use at most 3 bullet points per room. ' +
+  '(a single # then the name, for example: # general). Use at most 3 bullet points per room. ' +
   'Mention names only when relevant. Skip rooms with only trivial chatter. ' +
   'The input may include a RECENT CONTEXT block of already-read messages — use it only to ' +
   'understand what the unread messages refer to, and summarize ONLY the messages under UNREAD. ' +
