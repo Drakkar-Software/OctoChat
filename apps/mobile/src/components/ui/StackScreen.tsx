@@ -175,13 +175,20 @@ export function StackScreen({
       {/* When a `footer` is present on native (room/thread Composer), wrap the
           body+footer in a keyboard-controller KAV with `behavior="padding"` so the
           composer lifts above the keyboard and the LegendList above it shrinks to
-          match. `automaticOffset` measures this view's screen position so we don't
-          have to compute a `keyboardVerticalOffset` for the AppBar/notch ourselves.
+          match. We do NOT use `automaticOffset` here: that prop calls the async
+          native `viewPositionInWindow` bridge method to measure the KAV's y
+          position. If the user taps the input before that async call resolves (very
+          common on first open), `frame` is still `defaultLayout = {y:0,height:0}`,
+          making `relativeKeyboardHeight = 0` and the composer hidden behind the
+          keyboard. Without `automaticOffset`, `onLayout` sets the frame via
+          `runOnUI` (synchronous JS→UI, no bridge round-trip), so the frame is ready
+          before any tap can happen. The `layout.y` the KAV reports is its position
+          relative to the root View (= header height = insets.top + headerMinHeight),
+          which equals the screen-absolute y, so the math is identical.
           In the desktop shell or on web, KAV degrades to a plain View. */}
       <KAV
         style={styles.flex}
         behavior={footer && Platform.OS !== 'web' && !inShell ? 'padding' : undefined}
-        automaticOffset={footer && Platform.OS !== 'web' && !inShell ? true : undefined}
       >
         <View style={inShell ? styles.centerFull : styles.center}>
           {scroll ? (
