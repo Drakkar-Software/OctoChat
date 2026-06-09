@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Card } from '@/components/ui/Card';
 import { Divider } from '@/components/ui/Divider';
+import { Pill } from '@/components/ui/Pill';
 import { Row } from '@/components/ui/Row';
 import { ToggleRow } from '@/components/ui/ToggleRow';
 import { Txt } from '@/components/ui/Txt';
@@ -20,7 +21,8 @@ import { formatBytes } from '@drakkar.software/octochat-sdk';
 
 export function AiSettingsCard() {
   const { settings, update } = useAiSettings();
-  const { kind, model, progress, download, cancelDownload, removeModel } = useAiModelStatus();
+  const { kind, models, model, recommendedId, progress, download, cancelDownload, removeModel } =
+    useAiModelStatus();
   const { colors } = useTheme();
 
   const unsupported = kind === 'checking' || kind === 'unsupported';
@@ -76,26 +78,39 @@ export function AiSettingsCard() {
               ) : null}
             </>
           ) : needsDownload ? (
-            <>
-              {model && !model.meetsRequirements ? (
-                <Callout tone="warning" iconName="alert">
-                  Your device may not meet the minimum requirements for this model (
-                  {formatBytes(model.minRamBytes)} RAM needed).
-                </Callout>
-              ) : (
+            models.length === 0 ? (
+              <Callout tone="warning" iconName="alert">
+                Your device doesn’t meet the minimum requirements to run an on-device model.
+              </Callout>
+            ) : (
+              <>
                 <Callout tone="info" iconName="info">
-                  An on-device model is needed for AI features.{' '}
-                  {model ? `Download ${model.name} (≈${formatBytes(model.sizeBytes)}).` : ''}
+                  An on-device model is needed for AI features. It downloads once and runs entirely
+                  on your phone. The lighter model is recommended — it uses less memory.
                 </Callout>
-              )}
-              <Button
-                label={model ? `Download ${model.name} (≈${formatBytes(model.sizeBytes)})` : 'Download model'}
-                variant="secondary"
-                iconName="info"
-                disabled={model ? !model.meetsRequirements : false}
-                onPress={() => model && void download(model.id)}
-              />
-            </>
+                {models.map((m) => (
+                  <View key={m.id} style={styles.modelOption}>
+                    <View style={styles.modelInfo}>
+                      <View style={styles.modelTitleRow}>
+                        <Txt variant="callout" weight="semibold">
+                          {m.name}
+                        </Txt>
+                        {m.id === recommendedId ? <Pill label="Recommended" tone="accent" /> : null}
+                      </View>
+                      <Txt variant="caption" tone="inkMuted">
+                        ≈{formatBytes(m.sizeBytes)} · {m.parameterCount} params
+                      </Txt>
+                    </View>
+                    <Button
+                      label="Download"
+                      variant={m.id === recommendedId ? 'secondary' : 'ghost'}
+                      size="sm"
+                      onPress={() => void download(m.id)}
+                    />
+                  </View>
+                ))}
+              </>
+            )
           ) : downloading ? (
             <View style={styles.downloadProgress}>
               <ActivityIndicator size="small" color={colors.accent} />
@@ -122,4 +137,12 @@ const styles = StyleSheet.create({
   checking: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
   downloadProgress: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
   progressText: { flex: 1 },
+  modelOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  modelInfo: { flex: 1, gap: 2 },
+  modelTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
 });

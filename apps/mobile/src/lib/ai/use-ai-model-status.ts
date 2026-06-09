@@ -1,13 +1,12 @@
 /**
  * Device-global model availability + download state. Owned by AiSettingsCard —
- * NOT persisted and NOT root-mounted. Web stub returns 'unsupported' immediately.
- *
- * The id of the active downloaded model IS persisted (via useAiSettings) so the
- * model survives restarts and inference can lazily load it on first use. We never
- * load the model into memory here: that multi-GB spike, done right after a fresh
- * download, is what OOM-killed the app on iOS — see ensure-model-loaded.ts.
+ * NOT root-mounted. The id of the active downloaded model IS persisted (via
+ * useAiSettings) so the model survives restarts and inference can lazily load it
+ * on first use. We never load the model into memory here: that multi-GB spike,
+ * done right after a fresh download, is what OOM-killed the app on iOS — see
+ * ensure-model-loaded.ts. Web stub returns 'unsupported' immediately.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useAiSettings } from '@/lib/ai-settings-context';
 
@@ -17,7 +16,6 @@ import {
   aiDownloadModel,
   aiGetBuiltInModels,
   aiGetDownloadableModels,
-  aiGetRecommendedModel,
   aiIsAvailable,
   aiUnloadModel,
 } from './ai-engine';
@@ -33,19 +31,27 @@ export type ModelStatusKind =
 
 export interface ModelStatus {
   kind: ModelStatusKind;
+  /** Supported (runnable) models only, lightest → heaviest. The chooser list. */
+  models: DownloadableModel[];
+  /** The active/primary model: the one on disk, else the chosen/default one. */
   model: DownloadableModel | null;
+  /** Safer default to highlight in the chooser — the lightest supported model
+   *  (most memory headroom, least likely to OOM on a borderline device). */
+  recommendedId: string | null;
   progress: number;
   download: (id: string) => Promise<void>;
   cancelDownload: (id: string) => Promise<void>;
   removeModel: (id: string) => Promise<void>;
 }
 
+const isOnDisk = (m: DownloadableModel) => m.status === 'ready' || m.status === 'downloaded';
+
 export function useAiModelStatus(): ModelStatus {
   const { settings, update } = useAiSettings();
   const [kind, setKind] = useState<ModelStatusKind>('checking');
-  const [model, setModel] = useState<DownloadableModel | null>(null);
+  const [allModels, setAllModels] = useState<DownloadableModel[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
-  const modelIdRef = useRef<string | null>(null);
 
   // Keep the latest persisted id reachable from async callbacks without making
   // them depend on (and re-run for) settings changes.
@@ -74,27 +80,21 @@ export function useAiModelStatus(): ModelStatus {
       // Fall back to downloadable Gemma models.
       const downloadable = await aiGetDownloadableModels();
       if (!active) return;
-      const recommended = await aiGetRecommendedModel();
-      if (!active) return;
+      setAllModels(downloadable);
 
-      const candidate = recommended ?? downloadable.find((m) => m.meetsRequirements) ?? null;
-      setModel(candidate);
-
-      const onDisk = candidate?.status === 'ready' || candidate?.status === 'downloaded';
+      const onDisk = downloadable.find(isOnDisk);
       if (onDisk) {
         setKind('ready');
-        modelIdRef.current = candidate.id;
-        // Reconcile the durable pointer with the on-disk truth: record the model
-        // so inference loads it lazily (also self-heals installs downloaded before
-        // this pointer existed). The load itself is deferred to first inference.
-        if (activeModelIdRef.current !== candidate.id) update({ activeModelId: candidate.id });
+        setSelectedId(onDisk.id);
+        // Reconcile the durable pointer with the on-disk truth so inference loads
+        // it lazily (also self-heals installs downloaded before this pointer
+        // existed). The load itself is deferred to first inference.
+        if (activeModelIdRef.current !== onDisk.id) update({ activeModelId: onDisk.id });
       } else {
         setKind('needs-download');
         // The recorded model is gone from disk — drop the stale pointer so we
-        // don't try to load a missing file (and so inference falls back cleanly).
-        if (activeModelIdRef.current && activeModelIdRef.current === candidate?.id) {
-          update({ activeModelId: null });
-        }
+        // don't try to load a missing file (and inference falls back cleanly).
+        if (activeModelIdRef.current && downloadable.length > 0) update({ activeModelId: null });
       }
     })();
     return () => {
@@ -106,9 +106,9 @@ export function useAiModelStatus(): ModelStatus {
 
   const download = useCallback(
     async (id: string) => {
+      setSelectedId(id);
       setKind('downloading');
       setProgress(0);
-      modelIdRef.current = id;
       try {
         await aiDownloadModel(id, (p) => setProgress(p));
         // The file is now on disk (status 'downloaded', survives restarts).
@@ -117,6 +117,7 @@ export function useAiModelStatus(): ModelStatus {
         // fresh download, OOM-killed the app on iOS. Inference loads it lazily at
         // a calm moment instead (ensure-model-loaded.ts).
         update({ activeModelId: id });
+        setAllModels(await aiGetDownloadableModels());
         setKind('ready');
         setProgress(1);
       } catch {
@@ -140,12 +141,28 @@ export function useAiModelStatus(): ModelStatus {
       await aiUnloadModel();
       await aiDeleteModel(id);
       update({ activeModelId: null });
+      setSelectedId(null);
+      setAllModels(await aiGetDownloadableModels());
       setKind('needs-download');
       setProgress(0);
-      modelIdRef.current = null;
     },
     [update],
   );
 
-  return { kind, model, progress, download, cancelDownload: cancel, removeModel };
+  // Only the models this device can actually run, lightest first — too-big
+  // models are never offered (the engine also hard-blocks them on download).
+  const models = useMemo(
+    () => allModels.filter((m) => m.meetsRequirements).sort((a, b) => a.sizeBytes - b.sizeBytes),
+    [allModels],
+  );
+  // Safer default: the lightest supported model has the most memory headroom.
+  const recommendedId = models[0]?.id ?? null;
+  // Active/primary model: the one on disk, else the chosen/default one.
+  const model = useMemo(() => {
+    const onDisk = allModels.find(isOnDisk);
+    if (onDisk) return onDisk;
+    return allModels.find((m) => m.id === selectedId) ?? models.find((m) => m.id === recommendedId) ?? null;
+  }, [allModels, models, selectedId, recommendedId]);
+
+  return { kind, models, model, recommendedId, progress, download, cancelDownload: cancel, removeModel };
 }
