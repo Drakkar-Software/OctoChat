@@ -10,6 +10,8 @@
  * Gemma model rather than silently falling back to the platform built-in, so the
  * inference hooks must call this before streaming.
  */
+import { Platform } from 'react-native';
+
 import { aiGetActiveModel, aiSetModel } from './ai-engine';
 
 let inFlightId: string | null = null;
@@ -26,7 +28,13 @@ export async function ensureModelLoaded(modelId: string | null): Promise<void> {
   if (aiGetActiveModel() === modelId) return;
   if (inFlightId !== modelId || !inFlight) {
     inFlightId = modelId;
-    inFlight = aiSetModel(modelId).finally(() => {
+    // Force the CPU backend on Android. LiteRT-LM's GPU backend needs the OpenCL
+    // library, which many Android devices lack; there 'auto' can't recover — GPU
+    // init succeeds but the first inference throws on an uncatchable native
+    // coroutine and crashes the app. iOS uses Metal (no OpenCL), so it keeps the
+    // default ('auto') backend.
+    const backend = Platform.OS === 'android' ? 'cpu' : undefined;
+    inFlight = aiSetModel(modelId, backend).finally(() => {
       inFlightId = null;
       inFlight = null;
     });

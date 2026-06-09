@@ -19,9 +19,9 @@ import {
   streamMessage,
   unloadModel,
 } from 'expo-ai-kit';
-import type { BuiltInModel, DownloadableModel, LLMMessage, ModelErrorCode } from 'expo-ai-kit';
+import type { BuiltInModel, DownloadableModel, InferenceBackend, LLMMessage, ModelErrorCode } from 'expo-ai-kit';
 
-export type { BuiltInModel, DownloadableModel, LLMMessage, ModelErrorCode };
+export type { BuiltInModel, DownloadableModel, InferenceBackend, LLMMessage, ModelErrorCode };
 
 export interface AiStreamHandle {
   promise: Promise<{ text: string }>;
@@ -37,9 +37,12 @@ export { isAvailable as aiIsAvailable };
 export { getBuiltInModels as aiGetBuiltInModels };
 export { getDownloadableModels as aiGetDownloadableModels };
 export { getRecommendedModel as aiGetRecommendedModel };
-export { setModel as aiSetModel };
 export { unloadModel as aiUnloadModel };
 export { getActiveModel as aiGetActiveModel };
+
+export function aiSetModel(id: string, backend?: InferenceBackend): Promise<void> {
+  return setModel(id, backend ? { backend } : undefined);
+}
 
 export function aiDownloadModel(id: string, onProgress?: (p: number) => void): Promise<void> {
   return downloadModel(id, onProgress ? { onProgress } : undefined);

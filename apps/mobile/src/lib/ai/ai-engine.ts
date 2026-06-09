@@ -5,9 +5,9 @@
  *
  * Keep the two files contract-identical.
  */
-import type { BuiltInModel, DownloadableModel, LLMMessage, ModelErrorCode } from 'expo-ai-kit';
+import type { BuiltInModel, DownloadableModel, InferenceBackend, LLMMessage, ModelErrorCode } from 'expo-ai-kit';
 
-export type { BuiltInModel, DownloadableModel, LLMMessage, ModelErrorCode };
+export type { BuiltInModel, DownloadableModel, InferenceBackend, LLMMessage, ModelErrorCode };
 
 export interface AiStreamHandle {
   promise: Promise<{ text: string }>;
@@ -47,7 +47,7 @@ export function aiDeleteModel(_id: string): Promise<void> {
   return Promise.resolve();
 }
 
-export function aiSetModel(_id: string): Promise<void> {
+export function aiSetModel(_id: string, _backend?: InferenceBackend): Promise<void> {
   return Promise.resolve();
 }
 
