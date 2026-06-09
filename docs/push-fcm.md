@@ -685,6 +685,31 @@ and the same self-exclusion `condition`; the placeholder carries the per-room
 Web/desktop have no OS-level bundled-stack API beyond `tag`, so this phase is
 Android-only; iOS keeps the placeholder + Phase 1's `thread-id` grouping.
 
+#### Notification-spam fix (double-buzz when `preview` is on)
+
+With `preview` on, one message is shown TWICE on Android — the OS-rendered placeholder,
+then the decrypted notifee replacement — and each fired the channel's default,
+multi-pulse vibration. Users felt ~4 buzzes per message (and the replacement re-buzzed
+again on every follow-up message in the room). Three changes (all in `src/lib/push/`)
+make one message = one buzz:
+
+1. **`onlyAlertOnce: true`** on the notifee replacement (`background-notify.native.ts`):
+   the placeholder already alerted, so the decrypted upgrade updates the banner SILENTLY
+   instead of re-vibrating. This also makes a burst in the same room (same `id`) update
+   the single banner without buzzing per message.
+2. **Single-pulse `vibrationPattern` `[0, 250]`** on the `messages` channel
+   (`channel.ts`, shared by BOTH the expo-notifications and notifee channel definitions
+   so the immutable channel can't be created with conflicting settings), replacing the
+   OEM default multi-pulse pattern.
+3. **Channel id bump `messages` → `messages-v2`** (`channel.ts` + `app.json`
+   `defaultChannel`): Android channels are immutable once created, so the new vibration
+   pattern only lands under a new id. ⇒ `app.json` `version` bump (1.8.0) + a fresh
+   dev/EAS build. The placeholder (no `channelId` in the bridge formatter) routes via
+   `defaultChannel`, so that must track the bumped id.
+
+With `preview` OFF the handler returns before displaying, so only the placeholder shows
+(one buzz) — unchanged.
+
 ### iOS real-content — deferred (future work)
 
 iOS reliable banner-rewrite needs a **Notification Service Extension**, a *separate

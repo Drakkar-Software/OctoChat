@@ -19,7 +19,7 @@ import * as Notifications from 'expo-notifications';
 import { AppState, Platform } from 'react-native';
 
 import { handleBackgroundPush } from './background-notify';
-import { MESSAGES_CHANNEL_ID } from './channel';
+import { MESSAGES_CHANNEL_ID, MESSAGES_CHANNEL_VIBRATION_PATTERN } from './channel';
 
 export interface PushData {
   type?: string;
@@ -67,6 +67,10 @@ export async function ensureNotificationChannel(): Promise<void> {
     name: 'Messages',
     importance: Notifications.AndroidImportance.HIGH,
     showBadge: true,
+    // Single short pulse instead of the OEM default multi-pulse pattern — one
+    // notification = one buzz (see the notification-spam fix). Must match the
+    // notifee channel definition in `background-notify.native.ts` (immutable channel).
+    vibrationPattern: MESSAGES_CHANNEL_VIBRATION_PATTERN,
   });
 }
 
