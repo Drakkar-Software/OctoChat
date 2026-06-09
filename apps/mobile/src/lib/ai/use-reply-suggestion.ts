@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useAiSettings } from '@/lib/ai-settings-context';
 
-import { aiErrorCode, aiIsAvailable, aiStream } from './ai-engine';
+import { aiErrorCode, aiStream } from './ai-engine';
 import type { LLMMessage } from './ai-engine';
 import { ensureModelLoaded } from './ensure-model-loaded';
 import { SUGGESTION_SYSTEM_PROMPT } from './ai-prompt';
@@ -47,7 +47,6 @@ export function useReplySuggestion(
   const streamRef = useRef<{ stop: () => void } | null>(null);
   const generatedForRef = useRef<string | null>(null);
   const dismissedForRef = useRef<string | null>(null);
-  const platformAvailableRef = useRef<boolean | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Latest persisted model id, read from async generate() without re-creating it.
@@ -71,12 +70,9 @@ export function useReplySuggestion(
 
   const generate = useCallback(
     async (lastMsgId: string, getMessages: () => LLMMessage[]) => {
-      // Lazy availability check — cache to avoid async overhead on every keystroke.
-      if (platformAvailableRef.current === null) {
-        platformAvailableRef.current = await aiIsAvailable();
-      }
-      if (!platformAvailableRef.current) return;
-
+      // No `aiIsAvailable()` gate: a device without a platform built-in can still
+      // run a downloaded Gemma model, so availability is decided by whether
+      // `ensureModelLoaded` below succeeds rather than by the built-in check.
       const messages = getMessages();
       if (messages.length === 0) return;
 

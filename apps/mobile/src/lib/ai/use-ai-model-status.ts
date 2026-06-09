@@ -16,7 +16,6 @@ import {
   aiDownloadModel,
   aiGetBuiltInModels,
   aiGetDownloadableModels,
-  aiIsAvailable,
   aiUnloadModel,
 } from './ai-engine';
 import type { DownloadableModel } from './ai-engine';
@@ -61,15 +60,11 @@ export function useAiModelStatus(): ModelStatus {
   useEffect(() => {
     let active = true;
     void (async () => {
-      const available = await aiIsAvailable();
-      if (!active) return;
-
-      if (!available) {
-        setKind('unsupported');
-        return;
-      }
-
       // Check for a platform built-in (Apple FM / ML Kit) — zero download needed.
+      // No `aiIsAvailable()` gate here: a device WITHOUT a built-in (e.g. one that
+      // can't run Apple Foundation Models) can still run a downloaded Gemma model,
+      // so we fall through to the downloadable path rather than declaring it
+      // unsupported up front. "Unsupported" is decided below by the runnable set.
       const builtIns = await aiGetBuiltInModels();
       if (!active) return;
       if (builtIns.some((m) => m.available)) {
@@ -83,6 +78,7 @@ export function useAiModelStatus(): ModelStatus {
       setAllModels(downloadable);
 
       const onDisk = downloadable.find(isOnDisk);
+      const runnable = downloadable.some((m) => m.meetsRequirements);
       if (onDisk) {
         setKind('ready');
         setSelectedId(onDisk.id);
@@ -90,11 +86,17 @@ export function useAiModelStatus(): ModelStatus {
         // it lazily (also self-heals installs downloaded before this pointer
         // existed). The load itself is deferred to first inference.
         if (activeModelIdRef.current !== onDisk.id) update({ activeModelId: onDisk.id });
-      } else {
+      } else if (runnable) {
         setKind('needs-download');
         // The recorded model is gone from disk — drop the stale pointer so we
         // don't try to load a missing file (and inference falls back cleanly).
         if (activeModelIdRef.current && downloadable.length > 0) update({ activeModelId: null });
+      } else {
+        // Nothing this device can run — the web stub (empty list) or a device
+        // below every model's RAM floor. This is the old `aiIsAvailable()` gate's
+        // job, now decided by the actual runnable set so a no-built-in device with
+        // a runnable Gemma reaches `needs-download` above instead of stalling here.
+        setKind('unsupported');
       }
     })();
     return () => {

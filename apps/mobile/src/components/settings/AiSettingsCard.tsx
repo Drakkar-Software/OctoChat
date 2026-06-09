@@ -37,7 +37,7 @@ export function AiSettingsCard() {
         title="AI suggestions & summaries"
         detail={
           unsupported
-            ? 'Requires iOS 18+ or a recent Android device — not available here'
+            ? 'No on-device AI model is available for this device'
             : 'Reply suggestions and "catch me up" space summaries, on-device'
         }
         value={unsupported ? false : settings.enabled}
