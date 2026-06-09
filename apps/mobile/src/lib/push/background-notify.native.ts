@@ -34,7 +34,7 @@ import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 import { hydratePubspaceCaps } from '@drakkar.software/octochat-sdk';
 import { activeAccountOf, sessionFromPersisted } from '@drakkar.software/octochat-sdk';
 
-import { MESSAGES_CHANNEL_ID } from './channel';
+import { MESSAGES_CHANNEL_ID, MESSAGES_CHANNEL_VIBRATION_PATTERN } from './channel';
 import type { PushData } from './fcm';
 
 /** notifee data must be a string map; drop undefined ids. */
@@ -75,6 +75,13 @@ async function cancelPlaceholder(tag: string): Promise<void> {
  * `id = roomKey` so a later upgrade in the same room replaces this one (latest wins);
  * `groupId = spaceId` bundles a space's rooms. Cancel the FCM placeholder first so the
  * room shows a single banner.
+ *
+ * `onlyAlertOnce: true` is the spam fix: the OS-rendered placeholder already buzzed,
+ * so this decrypted REPLACEMENT must update silently rather than re-vibrate — and a
+ * burst of messages in the same room (same `id`) then updates the one banner without
+ * buzzing per message. The channel's single-pulse `vibrationPattern` (matching the
+ * expo-notifications definition; channels are immutable so both must agree) replaces
+ * Android's default multi-pulse pattern.
  */
 async function displayRealContent(
   title: string,
@@ -83,7 +90,12 @@ async function displayRealContent(
   spaceId: string | undefined,
   data: PushData,
 ): Promise<void> {
-  await notifee.createChannel({ id: MESSAGES_CHANNEL_ID, name: 'Messages', importance: AndroidImportance.HIGH });
+  await notifee.createChannel({
+    id: MESSAGES_CHANNEL_ID,
+    name: 'Messages',
+    importance: AndroidImportance.HIGH,
+    vibrationPattern: MESSAGES_CHANNEL_VIBRATION_PATTERN,
+  });
   await cancelPlaceholder(roomKey);
   await notifee.displayNotification({
     id: roomKey,
@@ -94,6 +106,7 @@ async function displayRealContent(
       channelId: MESSAGES_CHANNEL_ID,
       smallIcon: 'ic_launcher',
       pressAction: { id: 'default' },
+      onlyAlertOnce: true,
       ...(spaceId ? { groupId: spaceId } : {}),
     },
   });
