@@ -203,15 +203,18 @@ export default function RoomScreen() {
       ) : opening ? (
         <ConversationSkeleton />
       ) : openError ? (
-        // A DM open-error is almost always the known paired-device limitation: a QR-
-        // paired device has a fresh keypair, so it's not a recipient of the DM space's
-        // keyring (the peer sealed it to your SEED key). Surface that instead of the
-        // generic keyring copy; the DM rehydrates + decrypts on your primary device.
+        // A DM open-error is an ACCESS problem, not connectivity: `use-room-open` only
+        // routes a SpaceAccessError here (no keyring / not a recipient), so the cause is
+        // almost always that THIS device doesn't hold the DM's key — a QR-paired or
+        // secondary device has a fresh keypair and isn't a recipient of the keyring the
+        // peer sealed to your SEED identity. Explain that plainly (and what to do) rather
+        // than the bare "offline" banner this used to fall through to; the DM decrypts on
+        // your primary device.
         kind === 'dm' ? (
           <EmptyState
             iconName="alert"
-            title="Open this DM on your primary device"
-            subtitle="Direct messages are encrypted to your seed identity, so a paired device can’t unlock them yet."
+            title="This device can’t unlock this DM"
+            subtitle="Direct messages are end-to-end encrypted to your main identity. Open this conversation on the device that holds your recovery phrase — or re-pair this device — to read its history and reply."
           />
         ) : (
           <EmptyState iconName="alert" title="Couldn't open room" subtitle={openError}>
@@ -221,7 +224,16 @@ export default function RoomScreen() {
       ) : store ? (
         <>
           {!online || offline ? (
-            <OfflineBanner />
+            // Genuine connectivity (the access cases above show their own reason). Spell out
+            // that BOTH history and new messages are affected — an empty offline DM looked
+            // broken under the old bare "you're offline" copy.
+            <OfflineBanner
+              message={
+                kind === 'dm'
+                  ? 'You’re offline — this conversation’s history and any messages you send will sync once you’re back online.'
+                  : undefined
+              }
+            />
           ) : syncError ? (
             <Callout tone="warning" iconName="alert">
               {syncError}
