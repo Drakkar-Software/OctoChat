@@ -5,8 +5,10 @@
 import type { StoredMsg } from '@drakkar.software/octochat-sdk';
 import type { LLMMessage } from './ai-engine';
 
-/** How many recent messages to include as context for a reply suggestion. */
-const CONTEXT_TURNS = 8;
+/** Char budget for the conversation context fed to a reply suggestion. Rather than
+ *  a fixed turn count, include as many recent non-empty messages as fit, so the
+ *  model sees the fullest conversation its (small) context window allows. */
+export const SUGGESTION_MAX_CHARS = 4000;
 
 /** Max chars of unread message text to include in a "catch me up" summary.
  *  Built-in models (Apple FM) have a small context window; Gemma 8–16k. */
@@ -96,7 +98,7 @@ export function buildSuggestionSystemPrompt(caps: SuggestionCaps): string {
   ];
   if (caps.canThread)
     actions.push(
-      'THREAD: <a short reply that opens a focused side-conversation> — when the message deserves its own thread.',
+      'THREAD: <your own short reply to post as the first message of a new thread> — when the message deserves its own focused side-conversation. Write what YOU would say in response, exactly like REPLY; do NOT repeat or copy the message you are responding to.',
     );
   if (caps.canPin)
     actions.push('PIN: — when the message is worth keeping handy (a decision, announcement, or key link); leave the content empty.');
@@ -139,13 +141,21 @@ export function buildSuggestionMessages(
   messages: StoredMsg[],
   currentUserId: string,
 ): LLMMessage[] {
-  const recent = messages
-    .slice(-CONTEXT_TURNS)
-    .filter((m) => m.text && m.text.trim().length > 0)
-    .map((m) => ({
-      role: (m.authorId === currentUserId ? 'assistant' : 'user') as 'user' | 'assistant',
-      content: m.text as string,
-    }));
+  // Walk newest → oldest, keeping as many non-empty messages as fit the char
+  // budget, then restore chronological order. The newest message is always kept
+  // even if it alone exceeds the budget, so there's always something to reply to.
+  const recent: LLMMessage[] = [];
+  let budget = SUGGESTION_MAX_CHARS;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const content = messages[i].text?.trim();
+    if (!content) continue;
+    if (recent.length > 0 && content.length > budget) break;
+    budget -= content.length;
+    recent.unshift({
+      role: (messages[i].authorId === currentUserId ? 'assistant' : 'user') as 'user' | 'assistant',
+      content,
+    });
+  }
 
   // Need at least one message from someone else to suggest a reply to.
   if (!recent.some((m) => m.role === 'user')) return [];
