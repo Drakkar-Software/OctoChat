@@ -1,9 +1,8 @@
 /**
- * On-demand AI summary of unread messages across a space. Mirrors use-threads.ts:
- * on-demand (called by the UI via run()), not automatic — decrypting a whole space
- * is expensive and should only run when the user explicitly asks.
+ * AI summary of unread messages across a space. Auto-fires once per space open
+ * when there are unread messages; also callable on demand via run().
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import {
   displayName,
@@ -115,6 +114,23 @@ export function useSpaceDigest(spaceId: string | null): SpaceDigest {
     setSummary(null);
     setError(null);
   }, []);
+
+  // Reset stale state when the user navigates to a different space so the
+  // previous space's summary never flashes while the new one loads.
+  useEffect(() => {
+    if (!spaceId) return;
+    setStatus('idle');
+    setSummary(null);
+    setError(null);
+  }, [spaceId]);
+
+  // Auto-run once per space open when there are unread messages.
+  // The status guard ensures we only fire from idle (post-reset), and run()'s
+  // own guard prevents concurrent calls.
+  useEffect(() => {
+    if (!spaceId || !settings.enabled || unreadCount === 0 || status !== 'idle') return;
+    void run();
+  }, [spaceId, settings.enabled, unreadCount, status, run]);
 
   return { status, summary, error, unreadCount, run, reset };
 }

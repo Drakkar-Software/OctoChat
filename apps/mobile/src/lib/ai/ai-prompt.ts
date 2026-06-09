@@ -18,9 +18,11 @@ export const SUGGESTION_SYSTEM_PROMPT =
   'Keep it to one or two sentences, casual and matching the conversation tone.';
 
 export const SUMMARY_SYSTEM_PROMPT =
-  'Summarize what the user missed in their team chat. ' +
-  'Group by room. Use short markdown bullet points. ' +
-  'Name who said what. Be concise — no intros or closing remarks.';
+  'Summarize the key topics, decisions, and open questions from these team chat messages. ' +
+  'Do NOT quote messages verbatim — synthesize and compress. ' +
+  'Group by room with a header. Use at most 3 bullet points per room. ' +
+  'Mention names only when relevant. Skip rooms with only trivial chatter. ' +
+  'No intro, no closing remarks, no "here is a summary" preamble.';
 
 /**
  * Map recent room messages into the LLM turn format for a reply suggestion.
