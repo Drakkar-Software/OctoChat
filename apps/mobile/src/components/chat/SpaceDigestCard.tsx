@@ -44,13 +44,24 @@ export function SpaceDigestCard({ spaceId }: SpaceDigestCardProps) {
 
   return (
     <Card padded>
-      {/* AI marker replaces a wordy title; regenerate sits at the far right. */}
+      {/* AI marker replaces a wordy title; loading status sits inline beside it,
+          regenerate at the far right. */}
       <View style={styles.header}>
-        <Icon name="sparkles" size={16} color={colors.accent} />
+        <View style={styles.headerLeft}>
+          <Icon name="sparkles" size={13} color={colors.accent} />
+          {status === 'loading' || status === 'generating' ? (
+            <>
+              <ActivityIndicator size="small" color={colors.accent} />
+              <Txt variant="footnote" tone="inkMuted" numberOfLines={1} style={styles.headerStatus}>
+                {status === 'loading' ? 'Decrypting messages…' : 'Generating summary…'}
+              </Txt>
+            </>
+          ) : null}
+        </View>
         {status === 'ready' ? (
           <IconButton
             name="refresh"
-            size={15}
+            size={13}
             color={colors.accent}
             accessibilityLabel="Regenerate summary"
             onPress={() => {
@@ -78,12 +89,6 @@ export function SpaceDigestCard({ spaceId }: SpaceDigestCardProps) {
         </View>
       ) : status === 'loading' || status === 'generating' ? (
         <View style={styles.loading}>
-          <View style={styles.loadingHeader}>
-            <ActivityIndicator size="small" color={colors.accent} />
-            <Txt variant="footnote" tone="inkMuted">
-              {status === 'loading' ? 'Decrypting messages…' : 'Generating summary…'}
-            </Txt>
-          </View>
           {/* Shimmering preview lines while the model streams */}
           <View style={styles.skeletons}>
             <Skeleton height={11} width="90%" />
@@ -116,12 +121,13 @@ export function SpaceDigestCard({ spaceId }: SpaceDigestCardProps) {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 20 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 18 },
+  headerLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  headerStatus: { flexShrink: 1 },
   prompt: { gap: spacing.sm },
   promptDetail: { marginTop: 2 },
   button: { alignSelf: 'flex-start', marginTop: spacing.xs },
   loading: { gap: spacing.sm },
-  loadingHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   skeletons: { gap: 6 },
   skRow: { marginTop: 0 },
   regenerate: { alignSelf: 'flex-start', marginTop: spacing.sm },

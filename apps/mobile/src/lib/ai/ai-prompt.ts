@@ -15,14 +15,16 @@ export const SUMMARY_MAX_CHARS = 6000;
 export const SUGGESTION_SYSTEM_PROMPT =
   'You suggest a short, natural reply the user could send next in a group chat. ' +
   'Output ONLY the reply text — no quotes, no preamble, no explanation. ' +
-  'Keep it to one or two sentences, casual and matching the conversation tone.';
+  'Keep it to one or two sentences, casual and matching the conversation tone. ' +
+  'Write the reply in the same language as the conversation — never translate to English.';
 
 export const SUMMARY_SYSTEM_PROMPT =
   'Summarize the key topics, decisions, and open questions from these team chat messages. ' +
   'Do NOT quote messages verbatim — synthesize and compress. ' +
   'Group by room with a header. Use at most 3 bullet points per room. ' +
   'Mention names only when relevant. Skip rooms with only trivial chatter. ' +
-  'No intro, no closing remarks, no "here is a summary" preamble.';
+  'No intro, no closing remarks, no "here is a summary" preamble. ' +
+  'Write the summary in the same language as the messages — never translate to English.';
 
 /**
  * Map recent room messages into the LLM turn format for a reply suggestion.
