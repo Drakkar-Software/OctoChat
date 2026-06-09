@@ -12,6 +12,7 @@ import { useAiSettings } from '@/lib/ai-settings-context';
 
 import { aiErrorCode, aiIsAvailable, aiStream } from './ai-engine';
 import type { LLMMessage } from './ai-engine';
+import { ensureModelLoaded } from './ensure-model-loaded';
 import { SUGGESTION_SYSTEM_PROMPT } from './ai-prompt';
 
 export interface ReplySuggestionContext {
@@ -49,6 +50,10 @@ export function useReplySuggestion(
   const platformAvailableRef = useRef<boolean | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Latest persisted model id, read from async generate() without re-creating it.
+  const activeModelIdRef = useRef(settings.activeModelId);
+  activeModelIdRef.current = settings.activeModelId;
+
   const clearStream = useCallback(() => {
     streamRef.current?.stop();
     streamRef.current = null;
@@ -74,6 +79,15 @@ export function useReplySuggestion(
 
       const messages = getMessages();
       if (messages.length === 0) return;
+
+      // Lazily load the downloaded model into memory on first use. If it can't
+      // load (e.g. OOM, or the file was removed), skip silently rather than
+      // surfacing built-in output the user didn't ask for.
+      try {
+        await ensureModelLoaded(activeModelIdRef.current);
+      } catch {
+        return;
+      }
 
       clearStream();
       setStatus('generating');

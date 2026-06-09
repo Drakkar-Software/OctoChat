@@ -16,6 +16,7 @@ import { useUnread } from '@/lib/unread-context';
 import { useAiSettings } from '@/lib/ai-settings-context';
 
 import { aiErrorCode, aiStream } from './ai-engine';
+import { ensureModelLoaded } from './ensure-model-loaded';
 import { buildSummaryMessages, SUMMARY_SYSTEM_PROMPT } from './ai-prompt';
 
 // Re-export so the card can show "≈X GB" before download.
@@ -84,6 +85,11 @@ export function useSpaceDigest(spaceId: string | null): SpaceDigest {
         return;
       }
 
+      // Lazily load the downloaded model into memory on first use (deferred off
+      // the post-download spike that OOM-killed the app). A load failure throws
+      // and is surfaced as an error by the surrounding catch.
+      await ensureModelLoaded(settings.activeModelId);
+
       setStatus('generating');
       let accumulated = '';
       const { promise } = aiStream(messages, {
@@ -102,7 +108,7 @@ export function useSpaceDigest(spaceId: string | null): SpaceDigest {
       setError(code ?? 'Failed to generate summary');
       setStatus('error');
     }
-  }, [session, spaceId, settings.enabled, status, lastReadAt]);
+  }, [session, spaceId, settings.enabled, settings.activeModelId, status, lastReadAt]);
 
   const reset = useCallback(() => {
     setStatus('idle');
