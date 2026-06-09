@@ -5,6 +5,7 @@ import { getBase64 } from '@drakkar.software/starfish-protocol';
 import { radii, spacing } from '@/theme';
 import { formatBytes } from '@drakkar.software/octochat-sdk';
 import { saveAttachment } from '@/lib/save-attachment';
+import { impactFeedback } from '@/lib/haptics';
 import type { AttachmentRef } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
@@ -58,6 +59,23 @@ export function AttachmentView({ attachment, onLoad }: AttachmentViewProps) {
     };
   }, [attachment, isImage, onLoad]);
 
+  const handleSave = async () => {
+    if (!onLoad) return;
+    const bytes = await onLoad(attachment);
+    if (bytes) await saveAttachment(bytes, attachment.name, attachment.mime);
+  };
+
+  const handleLightboxDownload = uri
+    ? Platform.OS === 'web'
+      ? () => {
+          const a = document.createElement('a');
+          a.href = uri;
+          a.download = attachment.name;
+          a.click();
+        }
+      : () => { void handleSave(); }
+    : undefined;
+
   if (isImage) {
     const boxStyle = [styles.imageBox, { backgroundColor: colors.fill, borderColor: colors.lineFaint }];
     if (!uri) {
@@ -79,11 +97,13 @@ export function AttachmentView({ attachment, onLoad }: AttachmentViewProps) {
           accessibilityRole="button"
           accessibilityLabel={`View ${attachment.name} larger`}
           onPress={() => setZoomed(true)}
+          onLongPress={Platform.OS !== 'web' ? () => { impactFeedback(); void handleSave(); } : undefined}
+          delayLongPress={260}
           style={boxStyle}
         >
           <Image source={{ uri }} style={styles.image} resizeMode="cover" accessibilityLabel={attachment.name} />
         </Pressable>
-        <Lightbox visible={zoomed} onClose={() => setZoomed(false)} closeLabel={`Close ${attachment.name} preview`}>
+        <Lightbox visible={zoomed} onClose={() => setZoomed(false)} closeLabel={`Close ${attachment.name} preview`} onDownload={handleLightboxDownload} downloadLabel={`Save ${attachment.name}`}>
           {/* Fractions of the viewport keep the full image on-screen; contain preserves aspect. */}
           <Image
             source={{ uri }}

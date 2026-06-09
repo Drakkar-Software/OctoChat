@@ -72,7 +72,7 @@ export function MessageBody({
         // An inline paragraph: text via LinkText, inline code as a mono span,
         // all nested in one Txt so they wrap as a single flowing line.
         return (
-          <Txt key={gi} variant="body" tone={tone}>
+          <Txt key={gi} variant="body" tone={tone} selectable>
             {group.map((token, ti) =>
               token.type === 'code' ? (
                 <Txt key={ti} variant="body" mono style={codeSpan}>
