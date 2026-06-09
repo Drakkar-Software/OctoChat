@@ -10,8 +10,8 @@ import { useSpaceDigest } from '@/lib/ai/use-space-digest';
 import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { Icon } from '@/components/ui/Icon';
+import { IconButton } from '@/components/ui/IconButton';
 import { Markdown } from '@/components/ui/Markdown';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Txt } from '@/components/ui/Txt';
@@ -29,16 +29,42 @@ export function SpaceDigestCard({ spaceId }: SpaceDigestCardProps) {
   if (!settings.enabled) return null;
   if (unreadCount === 0 && status === 'idle') return null;
 
+  // Caught up: there's nothing to summarize, so keep it to a single quiet line
+  // instead of a full titled card.
+  if (status === 'empty') {
+    return (
+      <View style={styles.caughtUp}>
+        <Icon name="check-circle" size={14} color={colors.accent} />
+        <Txt variant="footnote" tone="inkMuted">
+          You&apos;re all caught up
+        </Txt>
+      </View>
+    );
+  }
+
   return (
-    <Card title="CATCH ME UP" padded>
+    <Card padded>
+      {/* AI marker replaces a wordy title; regenerate sits at the far right. */}
+      <View style={styles.header}>
+        <Icon name="sparkles" size={16} color={colors.accent} />
+        {status === 'ready' ? (
+          <IconButton
+            name="refresh"
+            size={15}
+            color={colors.accent}
+            accessibilityLabel="Regenerate summary"
+            onPress={() => {
+              reset();
+              void run();
+            }}
+          />
+        ) : null}
+      </View>
       {status === 'idle' ? (
         <View style={styles.prompt}>
-          <View style={styles.promptHeader}>
-            <Icon name="sparkles" size={15} color={colors.accent} />
-            <Txt variant="subhead" weight="semibold">
-              {unreadCount} unread{unreadCount === 1 ? ' message' : ' messages'}
-            </Txt>
-          </View>
+          <Txt variant="subhead" weight="semibold">
+            {unreadCount} unread{unreadCount === 1 ? ' message' : ' messages'}
+          </Txt>
           <Txt variant="footnote" tone="inkMuted" style={styles.promptDetail}>
             Summarize what you missed across all rooms in this space — on-device, private.
           </Txt>
@@ -69,23 +95,7 @@ export function SpaceDigestCard({ spaceId }: SpaceDigestCardProps) {
           ) : null}
         </View>
       ) : status === 'ready' ? (
-        <View>
-          <Markdown source={summary ?? ''} />
-          <Button
-            label="Regenerate"
-            variant="ghost"
-            size="sm"
-            iconName="refresh"
-            onPress={() => { reset(); void run(); }}
-            style={styles.regenerate}
-          />
-        </View>
-      ) : status === 'empty' ? (
-        <EmptyState
-          iconName="check-circle"
-          title="You're all caught up"
-          subtitle="No unread messages from others in this space."
-        />
+        <Markdown source={summary ?? ''} />
       ) : status === 'error' ? (
         <View style={styles.errorWrap}>
           <Txt variant="footnote" tone="danger">
@@ -106,8 +116,8 @@ export function SpaceDigestCard({ spaceId }: SpaceDigestCardProps) {
 }
 
 const styles = StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 20 },
   prompt: { gap: spacing.sm },
-  promptHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   promptDetail: { marginTop: 2 },
   button: { alignSelf: 'flex-start', marginTop: spacing.xs },
   loading: { gap: spacing.sm },
@@ -116,4 +126,5 @@ const styles = StyleSheet.create({
   skRow: { marginTop: 0 },
   regenerate: { alignSelf: 'flex-start', marginTop: spacing.sm },
   errorWrap: { gap: spacing.sm },
+  caughtUp: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.xs },
 });

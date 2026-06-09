@@ -2,7 +2,7 @@
  * On-device reply suggestion controller. Runs INSIDE Composer (needs internal
  * text/focused/setText state, same pattern as useEmojiAutocomplete).
  *
- * Trigger: composer empty + focused + last message is from someone else.
+ * Trigger: composer empty + last message is from someone else (no focus required).
  * Accept: fills the composer text (editable, NOT auto-sent).
  * Dismiss: clears the suggestion and won't re-show for the same message.
  */
@@ -130,18 +130,19 @@ export function useReplySuggestion(
   // Main trigger effect.
   useEffect(() => {
     const { lastMsgId } = ctx ?? { lastMsgId: null };
+    // Suggestions generate passively — no composer.focused requirement — so the
+    // chip is ready before the user taps the input. Aborted only if user types.
     const shouldGenerate =
       settings.enabled &&
       ctx !== undefined &&
       lastMsgId !== null &&
       composer.text.trim().length === 0 &&
-      composer.focused &&
       lastMsgId !== dismissedForRef.current &&
       lastMsgId !== generatedForRef.current;
 
     if (!shouldGenerate) {
-      // Abort any in-flight generation if conditions no longer hold.
-      if (!composer.focused || composer.text.trim().length > 0) {
+      // Abort any in-flight generation only when the user starts typing.
+      if (composer.text.trim().length > 0) {
         clearStream();
         if (debounceRef.current) {
           clearTimeout(debounceRef.current);
@@ -174,7 +175,6 @@ export function useReplySuggestion(
     ctx,
     ctx?.lastMsgId,
     composer.text,
-    composer.focused,
     status,
     generate,
     clearStream,

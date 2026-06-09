@@ -83,6 +83,7 @@ export function AgentsPanel({
               <ListRow
                 iconName={(provider?.iconName ?? 'zap') as IconName}
                 label={r.name}
+                unread={r.unread}
                 active={r.id === activeRoomId}
                 onPress={() => onOpenRoom(r)}
               />
