@@ -20,6 +20,7 @@ import { createNatsQueue } from "./queue.js";
 import { createFileRevocationStore } from "./revocation-store.js";
 import { makeSpaceRoleEnricher } from "./space-role.js";
 import { makePubspaceRoleEnricher } from "./pubspace-role.js";
+import { createWebhookRoute } from "./webhook.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const DATA_DIR = process.env.STARFISH_DATA_DIR ?? "./data";
@@ -165,6 +166,14 @@ app.route(
   "/",
   createEventsRoute({ enricher: spaceEnricher, nonceCache, revocationStore }),
 );
+
+// Inbound webhook ingress: POST /webhook/:ownerId/:spaceId/:webhookId appends an
+// external message to a public-space room. Fully SELF-SERVICE with NO operator/platform
+// secret: space owners mint their own webhooks (token hashes stored in the owner-written
+// `_webhooks` registry); this route authenticates a caller by hashing the presented
+// token and DERIVES the append-author signing key from that token (no signing key is
+// configured or stored). Mounted BEFORE the sync router's catch-all. See webhook.ts.
+app.route("/", createWebhookRoute({ store, queue }));
 
 // starfish-server is typed against the satellite workspace's hono copy; it's
 // runtime-compatible with ours, so cast across the nominal type-identity gap.

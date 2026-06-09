@@ -64,6 +64,7 @@ export * from './starfish/dm-keys';
 export * from './starfish/dm-inbox';
 export * from './starfish/pubspace';
 export * from './starfish/pubspace-caps';
+export * from './starfish/webhooks';
 
 // ── messaging/ — reads, mutes, reactions, threads, links, cross-room ───────────
 export * from './messaging/reads';
@@ -74,6 +75,7 @@ export * from './messaging/threads';
 export * from './messaging/cross-room';
 export * from './messaging/quick-reactions-settings';
 export * from './messaging/stream-log';
+export * from './messaging/sealed-stream';
 export * from './messaging/autosave';
 
 // ── notifications/ — notification formatting, labels, previews ─────────────────

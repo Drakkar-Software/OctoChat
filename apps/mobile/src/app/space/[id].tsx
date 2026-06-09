@@ -30,6 +30,7 @@ import { SpaceMembersCard } from '@/components/chat/SpaceMembersCard';
 import { SpaceMeta } from '@/components/chat/SpaceMeta';
 import { SpaceStatsCard } from '@/components/chat/SpaceStatsCard';
 import { StreamBotPanel } from '@/components/chat/StreamBotPanel';
+import { WebhookPanel } from '@/components/chat/WebhookPanel';
 
 function copy(text: string) {
   try {
@@ -419,6 +420,13 @@ export default function SpaceScreen() {
                   so no link-cap minting applies. */}
               {isPublic && fromRoomId ? (
                 <StreamBotPanel ownerId={session.userId} spaceId={spaceId} roomId={fromRoomId} />
+              ) : null}
+
+              {/* Owner-only SELF-SERVICE inbound webhooks for the navigated-from room:
+                  mint a paste-able URL + one-time token any external tool can POST to.
+                  PUBLIC rooms only (plaintext append-only log the server can write). */}
+              {isPublic && fromRoomId ? (
+                <WebhookPanel ownerId={session.userId} spaceId={spaceId} roomId={fromRoomId} />
               ) : null}
             </>
           ) : isMember ? (

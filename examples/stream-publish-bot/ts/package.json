@@ -12,9 +12,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@drakkar.software/starfish-identities": "3.0.0-alpha.21",
-    "@drakkar.software/starfish-protocol": "3.0.0-alpha.21",
-    "@drakkar.software/starfish-sharing": "3.0.0-alpha.21"
+    "@drakkar.software/starfish-identities": "3.0.0-alpha.25",
+    "@drakkar.software/starfish-protocol": "3.0.0-alpha.25",
+    "@drakkar.software/starfish-sharing": "3.0.0-alpha.25"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -97,6 +97,17 @@ export const pubspaceRoomsName = (ownerId: string, spaceId: string) => `${pubspa
 export const pubspaceRoomsPull = (ownerId: string, spaceId: string) => pull(pubspaceRoomsName(ownerId, spaceId));
 export const pubspaceRoomsPush = (ownerId: string, spaceId: string) => push(pubspaceRoomsName(ownerId, spaceId));
 
+// ── Self-service webhook registry (per public space) ──────────────────────────
+// One owner-written doc per space mapping a webhookId → { tokenHash, roomId, … }.
+// Lets a space OWNER mint their own inbound webhooks without an operator: the app
+// writes this registry with the owner's account cap (gated `pubspace:owner`), and
+// the server's inbound /webhook route reads it in-process to authenticate a caller
+// by hashed token. Only a hash is stored — never the raw token. Keep in sync with
+// the `webhooks` collection in apps/server.
+export const pubspaceWebhooksName = (ownerId: string, spaceId: string) => `${pubspaceBase(ownerId, spaceId)}/_webhooks`;
+export const pubspaceWebhooksPull = (ownerId: string, spaceId: string) => pull(pubspaceWebhooksName(ownerId, spaceId));
+export const pubspaceWebhooksPush = (ownerId: string, spaceId: string) => push(pubspaceWebhooksName(ownerId, spaceId));
+
 // ── Public room messages (plaintext, append-only) ─────────────────────────────
 // Since `stream` and `channel` merged, EVERY public room's messages live in a
 // `streams/` subtree under the owner's space, in the append-only `pubstream`
