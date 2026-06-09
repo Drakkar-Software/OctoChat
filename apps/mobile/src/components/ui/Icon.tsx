@@ -80,6 +80,7 @@ const ICONS = {
   book: { lib: Feather, n: 'book-open' },
   target: { lib: Feather, n: 'target' },
   layers: { lib: Feather, n: 'layers' },
+  sparkles: { lib: Ionicons, n: 'sparkles' },
 } satisfies Record<string, IconDef>;
 
 export type IconName = keyof typeof ICONS;

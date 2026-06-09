@@ -1,7 +1,7 @@
 {
   "name": "@octochat/mobile",
   "main": "expo-router/entry",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
@@ -15,13 +15,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@drakkar.software/expo-conductor": "^0.2.0",
+    "@drakkar.software/expo-conductor": "0.2.2",
     "@drakkar.software/octochat-sdk": "workspace:*",
-    "@drakkar.software/starfish-client": "3.0.0-alpha.21",
-    "@drakkar.software/starfish-identities": "3.0.0-alpha.21",
-    "@drakkar.software/starfish-keyring": "3.0.0-alpha.21",
-    "@drakkar.software/starfish-protocol": "3.0.0-alpha.21",
-    "@drakkar.software/starfish-sharing": "3.0.0-alpha.21",
+    "@drakkar.software/starfish-client": "3.0.0-alpha.23",
+    "@drakkar.software/starfish-identities": "3.0.0-alpha.23",
+    "@drakkar.software/starfish-keyring": "3.0.0-alpha.23",
+    "@drakkar.software/starfish-protocol": "3.0.0-alpha.23",
+    "@drakkar.software/starfish-sharing": "3.0.0-alpha.23",
     "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
     "@expo-google-fonts/hanken-grotesk": "^0.4.3",
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",
@@ -36,6 +36,7 @@
     "@react-native-firebase/messaging": "^24.0.0",
     "@scure/bip39": "^2.0.0",
     "expo": "~56.0.9",
+    "expo-ai-kit": "0.5.0",
     "expo-background-task": "~56.0.17",
     "expo-blur": "~56.0.3",
     "expo-build-properties": "~56.0.17",

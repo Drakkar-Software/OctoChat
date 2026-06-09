@@ -37,7 +37,7 @@ interface AutomationsViewProps {
 export function AutomationsView({ spaceId, header, inTabs = false }: AutomationsViewProps) {
   const { colors } = useTheme();
   const { session } = useSession();
-  const { categories, isPublic, isOwner, loading } = useRooms(spaceId ?? null);
+  const { categories, isPublic, isOwner, loading, reload } = useRooms(spaceId ?? null);
   const { refresh: refreshRegistry } = useRoomsRegistryActions();
   const [creatorOpen, setCreatorOpen] = useState(false);
 
@@ -91,6 +91,7 @@ export function AutomationsView({ spaceId, header, inTabs = false }: Automations
                 <ListRow
                   iconName={(provider?.iconName ?? 'zap') as IconName}
                   label={r.name}
+                  unread={r.unread}
                   onPress={() =>
                     router.push({ pathname: '/room/[id]', params: { id: r.id, name: r.name, kind: 'automated' } })
                   }
@@ -118,6 +119,9 @@ export function AutomationsView({ spaceId, header, inTabs = false }: Automations
           onClose={() => setCreatorOpen(false)}
           onCreated={async (roomId) => {
             setCreatorOpen(false);
+            // The automation room was created through the headless SDK path, which bypasses
+            // the live object-index store — re-pull it so this list repaints in-session.
+            reload();
             await refreshRegistry(spaceId);
             router.push({ pathname: '/room/[id]', params: { id: roomId, kind: 'automated' } });
           }}

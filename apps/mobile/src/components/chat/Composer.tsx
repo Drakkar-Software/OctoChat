@@ -14,11 +14,13 @@ import { useEmojiAutocomplete } from '@/lib/use-emoji-autocomplete';
 import { useFileDrop } from '@/lib/use-file-drop';
 import { useImagePaste } from '@/lib/use-image-paste';
 import { useTheme } from '@/lib/use-theme';
+import { useReplySuggestion, type ReplySuggestionContext } from '@/lib/ai/use-reply-suggestion';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { Txt } from '@/components/ui/Txt';
 
 import { EmojiSuggestions } from './EmojiSuggestions';
+import { ReplySuggestionChip } from './ReplySuggestionChip';
 
 // Web-only: drop the UA focus outline; the bar itself lifts to an accent ring on focus.
 const WEB_OUTLINE_RESET = (Platform.OS === 'web' ? { outlineStyle: 'none' } : null) as unknown as StyleProp<TextStyle>;
@@ -37,16 +39,22 @@ interface ComposerProps {
    *  pending bubble), but a file CAN'T be queued — so sending an attachment is
    *  blocked with a hint until the connection is back. */
   offline?: boolean;
+  /** Context for on-device AI reply suggestions. Omit to disable the feature for
+   *  this composer (e.g. thread replies, read-only rooms). */
+  suggestionContext?: ReplySuggestionContext;
 }
 
+export type { ReplySuggestionContext };
+
 /** Message input bar — attach a file, insert an emoji, and send. */
-export function Composer({ placeholder, onSend, onEditLast, draftKey, offline }: ComposerProps) {
+export function Composer({ placeholder, onSend, onEditLast, draftKey, offline, suggestionContext }: ComposerProps) {
   const { colors } = useTheme();
   const { text, setText, clearDraft } = useDraft(draftKey);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [pending, setPending] = useState<PickedFile | null>(null);
   const [busy, setBusy] = useState(false);
   const [focused, setFocused] = useState(false);
+  const reply = useReplySuggestion(suggestionContext, { text, focused, setText });
   // Web only: paste a clipboard image straight into the pending attachment slot.
   const pasteRef = useImagePaste((file) => setPending(file));
   // Web only: drop ANY file onto the room/thread screen → pending attachment.
@@ -71,6 +79,7 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey, offline }:
   const submit = async () => {
     if (!hasContent || busy || fileBlocked) return;
     setBusy(true);
+    reply.dismiss();
     try {
       await onSend?.(text.trim(), pending ?? undefined);
       clearDraft();
@@ -157,6 +166,17 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey, offline }:
             You’re offline — files send when you’re back online. Text sends now.
           </Txt>
         </View>
+      ) : null}
+
+      {/* AI reply suggestion chip — only mounted when generating/ready so it
+          never reserves layout space or captures touches while idle. */}
+      {reply.status !== 'idle' ? (
+        <ReplySuggestionChip
+          status={reply.status}
+          text={reply.suggestion}
+          onAccept={reply.accept}
+          onDismiss={reply.dismiss}
+        />
       ) : null}
 
       {/* Glow lives on an absolutely-positioned sibling, not on the TextInput's

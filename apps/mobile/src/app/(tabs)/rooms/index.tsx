@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { ChannelListSkeleton } from '@/components/chat/ChannelListSkeleton';
+import { SpaceDigestCard } from '@/components/chat/SpaceDigestCard';
 import { DmList } from '@/components/chat/DmList';
 import { OfflineBanner } from '@/components/chat/OfflineBanner';
 import { RoomCategoryList } from '@/components/chat/RoomCategoryList';
@@ -91,6 +92,7 @@ export default function RoomsScreen() {
             <>
               {/* Threads + Pinned are space-scoped destinations; automations live in
                   the Agents tab, so automated rooms are stripped from this list. */}
+              <SpaceDigestCard spaceId={activeId ?? space?.id ?? null} />
               <SidebarLinkRow iconName="thread" label="Threads" onPress={() => router.push('/threads')} />
               {hasPins && activeId ? (
                 <SidebarLinkRow

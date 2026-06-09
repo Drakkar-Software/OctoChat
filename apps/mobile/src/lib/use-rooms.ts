@@ -56,7 +56,7 @@ export function useRooms(spaceId: string | null) {
   const reg = useRoomsRegistry(spaceId);
   const { refresh } = useRoomsRegistryActions();
   const objects = useObjects(sid, { enabled });
-  const { nodes, ready, mutate } = objects;
+  const { nodes, ready, mutate, pull: pullObjects } = objects;
   const publicSpace = !!spaceId && isPublicSpaceId(sid);
 
   // Room list, sourced from the unified OBJECT INDEX (the sole source now that `_rooms`
@@ -178,6 +178,11 @@ export function useRooms(spaceId: string | null) {
     [run, mutate],
   );
 
+  // Re-pull the object index from the server — for surfaces that mutate it through a
+  // HEADLESS path that bypasses this hook's `mutate` store (e.g. an automation create via
+  // the SDK), so the live room list repaints in-session instead of waiting for a reload.
+  const reload = useCallback(() => pullObjects(), [pullObjects]);
+
   const moveRoom = useCallback(
     (roomId: string, category: string): Promise<string | null> =>
       run(() =>
@@ -208,5 +213,6 @@ export function useRooms(spaceId: string | null) {
     deleteCategory,
     reorderCategories,
     moveRoom,
+    reload,
   };
 }

@@ -9,6 +9,7 @@ import { useTheme } from '@/lib/use-theme';
 import { AccountSwitcher } from '@/components/account/AccountSwitcher';
 import { AppLockRow } from '@/components/settings/AppLockRow';
 import { DebugStatsCard } from '@/components/settings/DebugStatsCard';
+import { AiSettingsCard } from '@/components/settings/AiSettingsCard';
 import { NotificationSettingsCard } from '@/components/settings/NotificationSettingsCard';
 import { QuickReactionsCard } from '@/components/settings/QuickReactionsCard';
 import { UpdateSettingsCard } from '@/components/settings/UpdateSettingsCard';
@@ -160,6 +161,8 @@ export default function YouScreen() {
         />
         <AppLockRow />
       </Card>
+
+      <AiSettingsCard />
 
       <NotificationSettingsCard />
 

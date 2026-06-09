@@ -12,6 +12,7 @@ import { initOctoChat } from '@/lib/octochat-init';
 import { registerServiceWorker } from '@/lib/pwa';
 import { ensureNotificationChannel, registerBackgroundPushHandler } from '@/lib/push/fcm';
 import { MutesProvider } from '@/lib/mutes-context';
+import { AiSettingsProvider } from '@/lib/ai-settings-context';
 import { NotificationSettingsProvider } from '@/lib/notification-settings-context';
 import { OutboxProvider } from '@/lib/outbox-context';
 import { ProfileProvider } from '@/lib/profile-context';
@@ -103,6 +104,7 @@ export default function RootLayout() {
               reconcile fast-path, and the live unread overlay is applied in the
               `useRooms` consumer, below UnreadProvider. ProfileProvider only needs the
               session. */}
+          <AiSettingsProvider>
           <NotificationSettingsProvider>
             <QuickReactionsProvider>
             <MutesProvider>
@@ -131,6 +133,7 @@ export default function RootLayout() {
             </MutesProvider>
             </QuickReactionsProvider>
           </NotificationSettingsProvider>
+          </AiSettingsProvider>
           </OutboxProvider>
         </SessionProvider>
         </KeyboardProvider>

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
@@ -16,7 +16,14 @@ import { useRoomSend } from '@/lib/use-room-send';
 import { useUnread } from '@/lib/unread-context';
 import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 import { isPublicSpaceId, publicSpaceAuth } from '@drakkar.software/octochat-sdk';
-import type { RoomKind } from '@drakkar.software/octochat-sdk';
+import type { RoomKind, StoredMsg } from '@drakkar.software/octochat-sdk';
+import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
+import { buildSuggestionMessages } from '@/lib/ai/ai-prompt';
+import { makeEmptyConversationStore } from '@/lib/use-conversation-data';
+
+// Stable empty store so useStarfishData can be called unconditionally while the
+// real store is still null (room opening). Created once at module scope.
+const EMPTY_STORE = makeEmptyConversationStore();
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
@@ -148,6 +155,18 @@ export default function RoomScreen() {
   // so DMs get their own pushed list keyed by the dm- space.
   const openDmThreads = () => router.push({ pathname: '/threads/[spaceId]', params: { spaceId, peer: name } });
 
+  // Build suggestion context from the live message log. The store is null until
+  // the room opens; empty messages → no suggestion generated.
+  const messages = (useStarfishData(store ?? EMPTY_STORE, (d) => d.messages as StoredMsg[] | undefined) ?? []) as StoredMsg[];
+  const lastMsg = messages.at(-1) ?? null;
+  const suggestionContext = useMemo(() => {
+    if (!session || !canWrite) return undefined;
+    return {
+      lastMsgId: lastMsg && lastMsg.authorId !== session.userId ? lastMsg.id : null,
+      buildMessages: () => buildSuggestionMessages(messages, session.userId),
+    };
+  }, [session, canWrite, lastMsg, messages]);
+
   return (
     <StackScreen
       contentStyle={styles.content}
@@ -181,6 +200,7 @@ export default function RoomScreen() {
             placeholder={`Message ${title}`}
             draftKey={session ? roomDraftKey(session.userId, id) : undefined}
             offline={!online}
+            suggestionContext={suggestionContext}
             onSend={async (t, file) => {
               // A file needs a live upload — the Composer blocks this path while
               // offline (attachments aren't queued), so we only reach it online.
