@@ -22,10 +22,10 @@ import { randomId, roomSlug } from '../domain/ids';
 
 import { sealToSelf, unsealFromSelf } from './account-seal';
 import type { SealedBlob } from './account-seal';
+import { fromBase64Url, toBase64Url } from './base64url';
 import { makeClient } from './client';
 import type { Session } from './identity';
-import { updateObjectIndex } from './object-index';
-import { bytesToHex, pubObjIndexPull, pubObjIndexPush, pubspaceRoomsPull, pubspaceRoomsPush, pubspaceScope } from './paths';
+import { pubObjIndexPull, pubObjIndexPush, pubspaceRoomsPull, pubspaceRoomsPush, pubspaceScope, userIdFromEdPub } from './paths';
 import {
   getPubspaceAccess,
   localPubspaceEntries,
@@ -52,26 +52,6 @@ export interface PublicInviteToken {
   key: string;
   /** Read/write link (true) or read-only (false). */
   write: boolean;
-}
-
-// ── base64url for the link fragment (UTF-8 safe, web + native) ────────────────
-function toBase64Url(json: string): string {
-  const bytes = new TextEncoder().encode(json);
-  let bin = '';
-  for (const b of bytes) bin += String.fromCharCode(b);
-  const b64 = typeof btoa === 'function' ? btoa(bin) : Buffer.from(json, 'utf-8').toString('base64');
-  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function fromBase64Url(b64url: string): string {
-  const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
-  if (typeof atob === 'function') {
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return new TextDecoder().decode(bytes);
-  }
-  return Buffer.from(b64, 'base64').toString('utf-8');
 }
 
 /** Pack an invite into a `/join#…` link. The credential rides in the fragment
@@ -105,16 +85,6 @@ function newPublicSpaceId(): string {
 }
 
 const monogram = (name: string) => name.trim().slice(0, 2).toUpperCase() || 'PS';
-
-/** The cap subject's userId, mirroring the SDK derivation: SHA-256(edPub), first
- *  32 hex chars. Reproduced here so a randomly-generated throwaway keypair gets a
- *  matching, self-consistent identity without a slow Argon2 root bootstrap. */
-export async function ephemeralUserId(edPubHex: string): Promise<string> {
-  const bytes = new Uint8Array(edPubHex.length / 2);
-  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(edPubHex.slice(i * 2, i * 2 + 2), 16);
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
-  return bytesToHex(new Uint8Array(digest)).slice(0, 32);
-}
 
 interface PublicRoomsDoc {
   v: 1;
@@ -223,7 +193,7 @@ export async function createPublicInvite(
   // the UI. The subject userId mirrors the SDK derivation (SHA-256(edPub)) so the
   // minted cap is self-consistent.
   const ek = generateDeviceKeys();
-  const userIdHex = await ephemeralUserId(ek.edPub);
+  const userIdHex = await userIdFromEdPub(ek.edPub);
   const cap = await mintMemberCap(
     session.keys.edPriv,
     session.keys.edPub,
@@ -429,7 +399,22 @@ export async function updatePublicObjectIndex(
 ): Promise<void> {
   const { ownerId } = publicSpaceAuth(session, spaceId);
   const client = publicSpaceClient(session, spaceId);
-  // Plaintext index → no encryptor; the shared RMW loop ({@link updateObjectIndex}) carries
-  // the bounded conflict-retry the private twin reuses.
-  await updateObjectIndex(client, null, pubObjIndexPull(ownerId, spaceId), pubObjIndexPush(ownerId, spaceId), mutator);
+  const pullPath = pubObjIndexPull(ownerId, spaceId);
+  const pushPath = pubObjIndexPush(ownerId, spaceId);
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const res = await client.pull(pullPath).catch(() => null);
+    const cur = Array.isArray((res?.data as { objects?: unknown } | undefined)?.objects)
+      ? (res!.data as { objects: ObjectNode[] }).objects
+      : [];
+    const next = mutator(cur, Date.now());
+    if (!next) return;
+    try {
+      await client.push(pushPath, { objects: next }, res?.hash ?? null);
+      return;
+    } catch (err) {
+      if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
+      throw err;
+    }
+  }
 }

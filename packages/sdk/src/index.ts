@@ -62,6 +62,8 @@ export * from './starfish/dm';
 export * from './starfish/dm-ids';
 export * from './starfish/dm-keys';
 export * from './starfish/dm-inbox';
+export * from './starfish/dm-link';
+export * from './starfish/base64url';
 export * from './starfish/pubspace';
 export * from './starfish/pubspace-caps';
 export * from './starfish/webhooks';

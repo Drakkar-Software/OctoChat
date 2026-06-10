@@ -122,6 +122,37 @@ export const pubstreamRoomPull = (ownerId: string, spaceId: string, roomId: stri
 export const pubstreamRoomPush = (ownerId: string, spaceId: string, roomId: string) =>
   push(pubstreamRoomName(ownerId, spaceId, roomId));
 
+// ── DM inbox (per-recipient invite delivery, TIME-SHARDED per user) ───────────
+// The cross-space DELIVERY channel behind the shareable "DM me" link: anyone may
+// anonymously APPEND a DM invite (sealed to the owner's published KEM key) to the
+// owner's inbox, and the owner's reconciler pulls + trial-unseals it (see
+// dm-link.ts / dm-inbox.ts). Reads are owner-only (the collection's `{identity}`
+// binding); writes are open by design — the link is identity-derived and permanent.
+//
+// The inbox is sharded by UTC MONTH (`dminbox/{ownerId}/{shard}`): a sender always
+// writes the CURRENT month's shard, and the owner scans the current + previous
+// shard. This bounds the damage of a flood — the per-shard append cap can only be
+// hit for the current month, and the shard self-heals at the next month boundary —
+// so a spammer cannot PERMANENTLY brick delivery (an append-only log has no client
+// trim, and the identity-link design has no rotation). Keep the path + shard
+// convention in sync with the `dminbox` collection in apps/server.
+export const dminboxName = (ownerId: string, shard: string) => `dminbox/${ownerId}/${shard}`;
+export const dminboxPull = (ownerId: string, shard: string) => pull(dminboxName(ownerId, shard));
+export const dminboxPush = (ownerId: string, shard: string) => push(dminboxName(ownerId, shard));
+
+/** The inbox shard id for a moment in time: UTC `YYYY-MM`. UTC (not local) so a
+ *  sender and the owner on different devices/timezones always agree on the shard. */
+export const dmInboxShard = (d: Date = new Date()): string =>
+  `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+
+/** The shards the owner must scan: the current month plus the previous one, so an
+ *  invite delivered near a month boundary is still seen on the next reconcile.
+ *  `Date.UTC(y, m-1, 1)` wraps January → previous December correctly. */
+export function dmInboxShards(d: Date = new Date()): string[] {
+  const prev = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1));
+  return [dmInboxShard(d), dmInboxShard(prev)];
+}
+
 // ── Public-space directory index (server-maintained projection) ───────────────
 // A read-only list document the server keeps up to date via the `starfish-projection`
 // plugin: every `pubspace` `_rooms` write folds the public space's `{ name, ownerId,
@@ -162,7 +193,7 @@ export function spaceMemberScope(spaceId: string, canWrite: boolean): ScopePrese
 export function accountScope(userId: string): ScopePreset {
   return {
     ops: ['read', 'list', 'write'],
-    collections: ['profile', 'devices', 'spaces', 'rooms', 'pubspace'],
+    collections: ['profile', 'devices', 'spaces', 'rooms', 'pubspace', 'dminbox'],
     paths: [
       `user/${userId}/profile`,
       `users/${userId}/_devices`,
@@ -171,6 +202,9 @@ export function accountScope(userId: string): ScopePreset {
       // The owner's own public spaces — server grants `pubspace:owner` because this is
       // a device cap (auth.identity = issUserId = userId = the {ownerId} segment).
       `pubspaces/${userId}/**`,
+      // The owner's own DM inbox (every month shard) — read is `cap:read:dminbox`
+      // with the collection's `{identity}` binding (the same own-doc gate as `_spaces`).
+      `dminbox/${userId}/**`,
     ],
   };
 }
@@ -187,13 +221,18 @@ export function accountScope(userId: string): ScopePreset {
 export function linkedDeviceScope(userId: string): ScopePreset {
   return {
     ops: ['read', 'list', 'write'],
-    collections: ['chat', 'profile', 'devices', 'spaces', 'rooms', 'pubspace'],
+    collections: ['chat', 'profile', 'devices', 'spaces', 'rooms', 'pubspace', 'dminbox'],
     paths: [
       'spaces/**',
       `user/${userId}/profile`,
       `users/${userId}/_devices`,
       `user/${userId}/_spaces`,
       `pubspaces/${userId}/**`,
+      // The DM inbox, every month shard (see accountScope). Devices paired BEFORE
+      // this path shipped keep their old cap until re-paired — the inbox scan
+      // tolerates the resulting 403 (acceptance lands on the root device anyway,
+      // whose keys the invites seal to).
+      `dminbox/${userId}/**`,
     ],
   };
 }
@@ -236,6 +275,7 @@ export function pubstreamBotScope(ownerId: string, spaceId: string, roomId: stri
   };
 }
 
+
 /** Extract the single space id a member cap is scoped to (from its `spaces/<id>/**`).
  *  Returns null if the cap names no space path OR more than one distinct space — a
  *  member cap is expected to be scoped to exactly one space, so an ambiguous
@@ -255,4 +295,16 @@ export function bytesToHex(b: Uint8Array): string {
   let s = '';
   for (const x of b) s += x.toString(16).padStart(2, '0');
   return s;
+}
+
+/** The canonical OctoChat identity derivation: `userId = sha256(edPub)[0:32]` (hex).
+ *  One home for it — the public-invite ephemeral subject (`pubspace.ts`), the "DM me"
+ *  link binding (`dm-link.ts`) and the matching server-side check all share this so a
+ *  derivation tweak can never drift between them. Mirrors the userId the Starfish
+ *  identities SDK assigns a bootstrapped root. */
+export async function userIdFromEdPub(edPubHex: string): Promise<string> {
+  const bytes = new Uint8Array(edPubHex.length / 2);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(edPubHex.slice(i * 2, i * 2 + 2), 16);
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+  return bytesToHex(new Uint8Array(digest)).slice(0, 32);
 }

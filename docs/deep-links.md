@@ -11,9 +11,14 @@ OctoChat opens from links three ways:
 | **Custom scheme** | `octochat://join#<token>` | Native, once installed |
 | **Universal / App Link** | `https://oc.drakkar.software/join#<token>` | Native, opens the app directly (web fallback if not installed) |
 
+Two link kinds ride this machinery, both with their credential in a `#fragment`:
+**space invitation links** (`…/join#<token>`, see `encodePublicInviteLink`) and
+**"DM me" links** (`…/dm#<token>`, see `encodeDmLink` + [dm-links.md](dm-links.md)).
+
 Expo Router maps file routes to URLs automatically, so `octochat://rooms`,
-`octochat://room/<id>`, `octochat://join`, `octochat://search` already resolve
-in any standalone/dev build — `scheme: "octochat"` is set in `app.json`.
+`octochat://room/<id>`, `octochat://join`, `octochat://dm`, `octochat://search`
+already resolve in any standalone/dev build — `scheme: "octochat"` is set in
+`app.json`.
 
 ## Done in the repo
 
@@ -24,13 +29,14 @@ in any standalone/dev build — `scheme: "octochat"` is set in `app.json`.
   and **native** (raw `Linking.getInitialURL()` + `url` event — the fragment is
   read from the raw URL, never through a parser, which would drop it).
   `src/app/join.tsx` consumes it and auto-joins the public space once per
-  credential (cold start + warm resume).
+  credential (cold start + warm resume); `src/app/dm.tsx` consumes a DM-link
+  fragment behind an explicit confirm tap.
 - **`WEB_BASE`** (`src/lib/starfish/config.ts`, from `EXPO_PUBLIC_WEB_URL`) — the
   public origin used to build shareable invite links on native (web uses the live
   `window.location.origin`).
 - **Native association config** in `app.json` — `ios.associatedDomains:
   ["applinks:oc.drakkar.software"]` and an Android `intentFilters` entry for
-  `https://oc.drakkar.software/join*` with `autoVerify: true`.
+  `https://oc.drakkar.software/join*` + `/dm*` with `autoVerify: true`.
 - **`EXPO_PUBLIC_WEB_URL=https://oc.drakkar.software`** in all three `eas.json`
   build profiles, so native-built invite links emit the full `https://…/join#…`.
 
@@ -38,13 +44,13 @@ So `octochat://join#<token>` auto-joins on native **today**. The `https://` form
 opening the app needs the two hosted files below — plus a rebuild (the `app.json`
 native keys only take effect in a fresh build).
 
-> Scope is deliberately **`/join` only** (the one link the app generates — see
-> `encodePublicInviteLink`). The Android `pathPrefix: "/join"` is essential:
-> without it `autoVerify` would claim the *entire* host and every
-> `https://oc.drakkar.software/…` link — the web app included — would open the
-> native app on Android. Only widen the AASA `paths` / Android `pathPrefix` when
-> you actually ship `/room|/space|/thread` link-sharing **and** make those screens
-> robust to missing params + membership.
+> Scope is deliberately **`/join` + `/dm` only** (the two links the app generates —
+> see `encodePublicInviteLink` / `encodeDmLink`). The Android per-path
+> `pathPrefix` entries are essential: without them `autoVerify` would claim the
+> *entire* host and every `https://oc.drakkar.software/…` link — the web app
+> included — would open the native app on Android. Only widen the AASA `paths` /
+> Android `pathPrefix` when you actually ship `/room|/space|/thread` link-sharing
+> **and** make those screens robust to missing params + membership.
 
 ## Remaining: host two association files on `oc.drakkar.software`
 
@@ -66,7 +72,7 @@ extension, `Content-Type: application/json`:
     "details": [
       {
         "appID": "<APPLE_TEAM_ID>.com.drakkarsoftware.octochat",
-        "paths": ["/join", "/join/*"]
+        "paths": ["/join", "/join/*", "/dm", "/dm/*"]
       }
     ]
   }

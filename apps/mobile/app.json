@@ -30,6 +30,11 @@
               "scheme": "https",
               "host": "oc.drakkar.software",
               "pathPrefix": "/join"
+            },
+            {
+              "scheme": "https",
+              "host": "oc.drakkar.software",
+              "pathPrefix": "/dm"
             }
           ],
           "category": [

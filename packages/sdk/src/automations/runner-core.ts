@@ -7,13 +7,10 @@
 import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 
 import { openStreamBotCredential } from '../starfish/stream-bots';
-import { isPublicSpaceId } from '../starfish/pubspace';
-import { streamRoomPush } from '../starfish/paths';
 import type { Room } from '../domain/types';
 import type { Session } from '../starfish/identity';
 
 import { appendAsBot, type BotRedeemer } from './append';
-import { openPrivateBot } from './private-bot';
 import { dedupeFetch } from './hash';
 import { effectiveSchedule, nextScheduledRunAt } from './schedule';
 import { loadAutomationSecrets } from './secrets';
@@ -48,15 +45,6 @@ async function newBotKeys(): Promise<BotRedeemer> {
  *  groups consecutive same-author messages). */
 function botAuthorId(roomId: string): string {
   return `bot-${roomId}`;
-}
-
-/** The chat envelope a bot post lands as — shared by the public (plaintext) and private
- *  (encrypted) transports so the two only differ in HOW they ship `element`, not WHAT.
- *  The id keys on {@link botAuthorId} for author-grouping; `authorId` is the on-wire author
- *  (the `bot-` label for public, the bot's keyring-member userId for private — distinct from
- *  the owner, so the owner still gets push/unread for the post). */
-function buildBotElement(roomId: string, authorId: string, now: number, text: string) {
-  return { t: 'msg', e: { id: `${botAuthorId(roomId)}-${now}`, authorId, ts: now, text } };
 }
 
 export async function tickRoom(opts: {
@@ -111,22 +99,23 @@ export async function tickRoom(opts: {
   }
 
   try {
-    // The credential is sealed to the minting account key in the synced doc — open it with
-    // the seed (a reader can't). NOTE: a QR-paired runner device has a fresh key and can't
-    // open it → this throws → 'failed'; manage/run automations from the primary device
-    // (consistent with the DM-keyring paired-device limitation). The TWO transports differ
-    // only here (see buildBotElement): a public space redeems an audience cap and POSTs
-    // plaintext; a private space opens the enrolled bot keyring identity and ENCRYPTS + appends.
-    if (isPublicSpaceId(room.spaceId)) {
-      const cred = await openStreamBotCredential(session, auto.credential);
-      const redeemer = await newBotKeys();
-      const element = buildBotElement(room.id, botAuthorId(room.id), now, result.text);
-      await appendAsBot({ botToken: cred.token, signPath: cred.signPath, redeemer, element });
-    } else {
-      const { client, encryptor, userId } = await openPrivateBot(session, room.spaceId, auto.credential);
-      const element = buildBotElement(room.id, userId, now, result.text);
-      await client.append(streamRoomPush(room.id), await encryptor.encrypt(element));
-    }
+    // The credential is sealed to the minting account key in the synced doc — open it
+    // with the seed (a reader can't). NOTE: a QR-paired runner device has a fresh key
+    // and can't open it → this throws → 'failed'; manage/run automations from the
+    // primary device (consistent with the DM-keyring paired-device limitation).
+    const cred = await openStreamBotCredential(session, auto.credential);
+    const redeemer = await newBotKeys();
+    const author = botAuthorId(room.id);
+    const element = {
+      t: 'msg',
+      e: { id: `${author}-${now}`, authorId: author, ts: now, text: result.text },
+    };
+    await appendAsBot({
+      botToken: cred.token,
+      signPath: cred.signPath,
+      redeemer,
+      element,
+    });
     return { kind: 'posted', text: result.text, hash: postHash };
   } catch (e) {
     return { kind: 'failed', error: String((e as Error)?.message ?? e) };

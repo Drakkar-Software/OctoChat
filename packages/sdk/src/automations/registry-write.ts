@@ -3,29 +3,19 @@
  * legacy `_rooms` registry into `objects/_index` (the stream↔channel merge), an automated
  * room is a `room` NODE with `subtype: 'automation'` carrying its `automation` meta — the
  * shape {@link objectsToRoomCategories} projects back to a `kind: 'automated'` Room. These
- * helpers go through {@link indexUpdaterFor}: the plaintext {@link updatePublicObjectIndex}
- * funnel for a PUBLIC space, the encrypted {@link updatePrivateObjectIndex} twin for a
- * PRIVATE (owned) one — the mutator callbacks are identical, only the resolved index
- * client/encryptor/paths differ (both share one conflict-retry loop, see updateObjectIndex).
+ * helpers go through the {@link updatePublicObjectIndex} funnel (public-space-only; the
+ * create UI blocks private). v1 only public spaces — this guard is here so a stray call
+ * doesn't silently no-op against the wrong model.
  */
 import { isPublicSpaceId, updatePublicObjectIndex } from '../starfish/pubspace';
-import { updatePrivateObjectIndex } from '../starfish/object-index';
 import { addObject, archiveObject, categoryId, patchObject, roomKindToSubtype } from '../starfish/objects';
 import type { Session } from '../starfish/identity';
 import type { AutomationMeta, ObjectNode } from '../domain/types';
 
-/** Retained for genuinely-unsupported callers (e.g. a JOINED, non-owner private space, where
- *  this device can't author the owner-gated index). No longer thrown for an owned private
- *  space — those now route through {@link updatePrivateObjectIndex}. */
 export class AutomationsNotSupportedHere extends Error {
   constructor() {
-    super('Automated rooms are available only in public or owned private spaces.');
+    super('Automated rooms are available only in public spaces in this version.');
   }
-}
-
-/** Pick the object-index RMW funnel for a space: plaintext (public) or encrypted (private). */
-function indexUpdaterFor(spaceId: string) {
-  return isPublicSpaceId(spaceId) ? updatePublicObjectIndex : updatePrivateObjectIndex;
 }
 
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -46,7 +36,8 @@ export async function createAutomationNode(
   category: string,
   automation: AutomationMeta,
 ): Promise<void> {
-  await indexUpdaterFor(spaceId)(session, spaceId, (nodes, now) => {
+  if (!isPublicSpaceId(spaceId)) throw new AutomationsNotSupportedHere();
+  await updatePublicObjectIndex(session, spaceId, (nodes, now) => {
     let next = nodes;
     let catId = findCategoryNode(next, category)?.id;
     if (!catId) {
@@ -72,7 +63,8 @@ export async function patchRoomAutomation(
   roomId: string,
   patch: Partial<AutomationMeta>,
 ): Promise<void> {
-  await indexUpdaterFor(spaceId)(session, spaceId, (nodes, now) => {
+  if (!isPublicSpaceId(spaceId)) throw new AutomationsNotSupportedHere();
+  await updatePublicObjectIndex(session, spaceId, (nodes, now) => {
     const node = nodes.find((n) => n.id === roomId);
     if (!node?.automation) return null;
     return patchObject(nodes, roomId, { automation: { ...node.automation, ...patch } }, now);
@@ -86,9 +78,10 @@ export async function renameRoomInRegistry(
   roomId: string,
   name: string,
 ): Promise<void> {
+  if (!isPublicSpaceId(spaceId)) throw new AutomationsNotSupportedHere();
   const trimmed = name.trim();
   if (!trimmed) return;
-  await indexUpdaterFor(spaceId)(session, spaceId, (nodes, now) => {
+  await updatePublicObjectIndex(session, spaceId, (nodes, now) => {
     const node = nodes.find((n) => n.id === roomId);
     if (!node || node.title === trimmed) return null;
     return patchObject(nodes, roomId, { title: trimmed }, now);
@@ -101,7 +94,8 @@ export async function deleteRoomFromRegistry(
   spaceId: string,
   roomId: string,
 ): Promise<void> {
-  await indexUpdaterFor(spaceId)(session, spaceId, (nodes, now) => {
+  if (!isPublicSpaceId(spaceId)) throw new AutomationsNotSupportedHere();
+  await updatePublicObjectIndex(session, spaceId, (nodes, now) => {
     if (!nodes.some((n) => n.id === roomId && !n.archived)) return null;
     return archiveObject(nodes, roomId, now);
   });
