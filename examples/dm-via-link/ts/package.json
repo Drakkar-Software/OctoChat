@@ -1,0 +1,22 @@
+{
+  "name": "octochat-dm-via-link",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Example: from a fresh identity, open an E2EE DM from a user's profile link and send a message + image + file, then fetch the conversation. Uses the in-repo @drakkar.software/octochat-sdk (TS-only DM machinery).",
+  "engines": {
+    "node": ">=20.12"
+  },
+  "scripts": {
+    "start": "tsx src/dm.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@drakkar.software/starfish-identities": "3.0.0-alpha.25"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
