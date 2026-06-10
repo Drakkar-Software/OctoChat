@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { getBase64 } from '@drakkar.software/starfish-protocol';
 
 import { layout, radii, spacing } from '@/theme';
 import { formatBytes } from '@drakkar.software/octochat-sdk';
 import { saveAttachment } from '@/lib/save-attachment';
 import { impactFeedback } from '@/lib/haptics';
 import type { AttachmentRef } from '@drakkar.software/octochat-sdk';
+import { useAttachmentImage } from '@/lib/use-attachment-image';
 import { useTheme } from '@/lib/use-theme';
 import { Icon } from '@/components/ui/Icon';
 import { Lightbox } from '@/components/ui/Lightbox';
@@ -18,12 +18,6 @@ import { Txt } from '@/components/ui/Txt';
 // the stream), and a 3:4 default footprint before the true ratio is measured.
 const IMAGE_MAX_HEIGHT = layout.chatImageMaxWidth;
 const IMAGE_FALLBACK_HEIGHT = Math.round((layout.chatImageMaxWidth * 3) / 4);
-
-/** Decrypted bytes → a renderable URI. Web uses an object URL; native a data URI. */
-function bytesToUri(bytes: Uint8Array, mime: string): string {
-  if (Platform.OS === 'web') return URL.createObjectURL(new Blob([bytes as BlobPart], { type: mime }));
-  return `data:${mime};base64,${getBase64().encode(bytes)}`;
-}
 
 interface AttachmentViewProps {
   attachment: AttachmentRef;
@@ -37,47 +31,13 @@ export function AttachmentView({ attachment, onLoad }: AttachmentViewProps) {
   const { colors } = useTheme();
   const win = useWindowDimensions();
   const isImage = attachment.kind === 'image';
-  const [uri, setUri] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [zoomed, setZoomed] = useState(false);
-  // Intrinsic image aspect (height ÷ width), measured once the decrypted URI is
-  // ready, so the inline thumbnail keeps the photo's true shape inside the width
-  // cap instead of a fixed-box cover crop. Null until measured.
-  const [ratio, setRatio] = useState<number | null>(null);
-
-  // Images decrypt eagerly so they show inline; files fetch only on download.
-  useEffect(() => {
-    if (!isImage || !onLoad) return;
-    let url: string | null = null;
-    let cancelled = false;
-    (async () => {
-      try {
-        const bytes = await onLoad(attachment);
-        if (cancelled || !bytes) {
-          if (!cancelled) setFailed(true);
-          return;
-        }
-        url = bytesToUri(bytes, attachment.mime);
-        setUri(url);
-        // Measure the decrypted image so the inline thumbnail preserves aspect
-        // within the width cap. Failure here just leaves the default ratio.
-        Image.getSize(
-          url,
-          (w, h) => {
-            if (!cancelled && w > 0) setRatio(h / w);
-          },
-          () => {},
-        );
-      } catch {
-        if (!cancelled) setFailed(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-      if (url && Platform.OS === 'web') URL.revokeObjectURL(url);
-    };
-  }, [attachment, isImage, onLoad]);
+  // Decrypt → URI lifecycle with retry: images decrypt eagerly so they show
+  // inline (files fetch only on download). `ratio` is the intrinsic aspect
+  // (height ÷ width), measured once ready so the thumbnail keeps the photo's true
+  // shape inside the width cap; `retry` re-attempts a failed load.
+  const { uri, failed, ratio, retry } = useAttachmentImage(attachment, isImage, onLoad);
 
   const handleSave = async () => {
     if (!onLoad) return;
@@ -105,12 +65,17 @@ export function AttachmentView({ attachment, onLoad }: AttachmentViewProps) {
     const boxStyle = [styles.imageBox, sizing, { backgroundColor: colors.fill, borderColor: colors.lineFaint }];
     if (!uri) {
       return failed ? (
-        <View style={[styles.imageBox, sizing, styles.imageFail, { backgroundColor: colors.fill, borderColor: colors.lineFaint }]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Retry loading ${attachment.name}`}
+          onPress={retry}
+          style={[styles.imageBox, sizing, styles.imageFail, { backgroundColor: colors.fill, borderColor: colors.lineFaint }]}
+        >
           <Icon name="image" size={18} color={colors.inkMuted} />
           <Txt variant="micro" tone="inkMuted">
-            Couldn&apos;t load image
+            Couldn&apos;t load image · tap to retry
           </Txt>
-        </View>
+        </Pressable>
       ) : (
         // Shimmering placeholder that matches the app's loading language and the
         // thumbnail's footprint (width-capped; default height until measured).
