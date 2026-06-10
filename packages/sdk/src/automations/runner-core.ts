@@ -10,6 +10,8 @@ import { openStreamBotCredential } from '../starfish/stream-bots';
 import type { Room } from '../domain/types';
 import type { Session } from '../starfish/identity';
 
+import { getLlm } from '../ai/engine-port';
+
 import { appendAsBot, type BotRedeemer } from './append';
 import { dedupeFetch } from './hash';
 import { effectiveSchedule, nextScheduledRunAt } from './schedule';
@@ -64,22 +66,24 @@ export async function tickRoom(opts: {
   const secrets = await loadAutomationSecrets(session.userId, room.id);
   const mergedParams = { ...auto.params, ...secrets } as Record<string, unknown>;
 
+  // Per-tick context. `llm` is present only when the host wired an on-device
+  // engine (native + a usable model); absent on web / unconfigured devices.
+  const llm = getLlm();
+  const runCtx = {
+    lastRunAt: auto.lastRunAt,
+    secretParams: secrets,
+    httpFetch: boundFetch,
+    ...(llm ? { llm } : {}),
+  };
+
   let result: RunResult;
   try {
     if (trigger === 'scheduled') {
       if (!provider.fetch) return { kind: 'skipped' };
-      result = await provider.fetch(mergedParams, {
-        lastRunAt: auto.lastRunAt,
-        secretParams: secrets,
-        httpFetch: boundFetch,
-      });
+      result = await provider.fetch(mergedParams, runCtx);
     } else {
       if (!provider.onCommand) return { kind: 'skipped' };
-      result = await provider.onCommand(trigger.cmd, trigger.args, mergedParams, {
-        lastRunAt: auto.lastRunAt,
-        secretParams: secrets,
-        httpFetch: boundFetch,
-      });
+      result = await provider.onCommand(trigger.cmd, trigger.args, mergedParams, runCtx);
     }
   } catch (e) {
     return { kind: 'failed', error: String((e as Error)?.message ?? e) };

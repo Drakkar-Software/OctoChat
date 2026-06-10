@@ -7,11 +7,14 @@
  * into the SDK. Call {@link initOctoChat} once at boot, before any SDK API runs
  * (see `app/_layout.tsx`, right after `configureStarfishPlatform()`).
  */
-import { configureOctoChat, configureKv } from '@drakkar.software/octochat-sdk';
+import { Platform } from 'react-native';
+
+import { configureOctoChat, configureKv, configureLlm } from '@drakkar.software/octochat-sdk';
 // The RAW platform kv impl (localStorage / AsyncStorage) is fed into the SDK's
 // `configureKv` here; feature code reads through the DI accessor on the core entry.
 import { kvGet, kvSet, kvRemove } from '@drakkar.software/octochat-sdk/platform';
 
+import { generateText } from '@/lib/ai/llm-adapter';
 import { SYNC_BASE, SYNC_NAMESPACE, EVENTS_URL, WEB_BASE } from '@/lib/octochat-config';
 
 let done = false;
@@ -26,4 +29,9 @@ export function initOctoChat(): void {
     webBase: WEB_BASE,
   });
   configureKv({ get: kvGet, set: kvSet, remove: kvRemove });
+  // Wire the on-device LLM for AI automations — native only. `expo-ai-kit` is a
+  // native module (the web engine is an inert stub), so leaving the port
+  // unconfigured on web makes AI automations report "not available on this device"
+  // rather than silently posting empty output.
+  if (Platform.OS !== 'web') configureLlm(generateText);
 }
