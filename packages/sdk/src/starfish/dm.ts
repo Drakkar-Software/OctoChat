@@ -5,7 +5,8 @@
  * (`kind:'dm'`). The peer is added with the EXISTING space-invite machinery
  * (`inviteToSpace`/`acceptSpaceInvite`), so message crypto is the normal space keyring
  * — nothing new. The only DM-specific plumbing is key discovery (`dm-keys.ts`), cap
- * DELIVERY through a shared space (`dm-inbox.ts`), and dedup via the `dms` map.
+ * DELIVERY — through a shared space's carrier (`dm-inbox.ts`) or, with no space in
+ * common, the recipient's DM-link inbox (`dm-link.ts`) — and dedup via the `dms` map.
  *
  * DM spaces carry a `dm-` id prefix (random, NOT deterministic — so unguessable, no
  * TOFU squatting) so they're trivially distinguishable from normal `sp-` spaces: the
@@ -20,7 +21,7 @@ import { ownerEnsureKeyring } from './client';
 import { acceptSpaceInvite, inviteToSpace } from './members';
 import { isPublicSpaceId } from './pubspace';
 import { dmRoomId, dmWinner, isDmSpaceId, newDmSpaceId } from './dm-ids';
-import { appendDmInvite, scanDmInbox } from './dm-inbox';
+import { appendDmInvite, scanDmInbox, scanDmLinkInbox } from './dm-inbox';
 import type { PeerKeys } from './dm-keys';
 import { ownerTrustedAdders, type Session } from './identity';
 import { DEFAULT_CATEGORY } from './objects';
@@ -37,10 +38,14 @@ export interface DmRef {
   roomId: string;
 }
 
-/** Create a private DM space owned by this session: seed its keyring + the single
- *  `kind:'dm'` room doc, stamp ownership in `_rooms`, and record the space locally.
- *  The peer is added separately via {@link inviteToSpace} (keyring + roster + cap). */
-async function createDmSpace(session: Session, peerPseudo: string): Promise<DmRef> {
+/** Create a private DM space owned by this session — keyring + ownership stamp +
+ *  the single `kind:'dm'` room node — WITHOUT registering it in the session's own
+ *  space list. The link flow ({@link createDmViaLink}) registers only after invite
+ *  DELIVERY succeeds, so a failed delivery leaves an unreferenced (harmless,
+ *  unguessable-id) `_rooms`/keyring orphan rather than a ghost DM — the posture
+ *  {@link createSpace} documents for a failed seed. Invisible to {@link healDmMap},
+ *  which scans only `_spaces` entries. */
+export async function createDmSpaceCore(session: Session, peerPseudo: string): Promise<DmRef> {
   const spaceId = newDmSpaceId();
   const roomId = dmRoomId(spaceId);
   // Seed the space keyring (owner = this session). The DM room itself is an append-only
@@ -52,11 +57,23 @@ async function createDmSpace(session: Session, peerPseudo: string): Promise<DmRe
   // in the encrypted object index — seed it with the keyring we just opened.
   await writeRooms(session.chatClient, spaceId, session.userId, [], null, { name: peerPseudo });
   await pushIndexSeed(session.chatClient, enc, spaceId, [{ id: roomId, name: peerPseudo, kind: 'dm', category: DEFAULT_CATEGORY }]);
-  // Record in our own space list (filtered out of the rail by isDmSpaceId). The stored
-  // name is cosmetic — the DM list always derives the peer's pseudo per viewer.
-  const space: Space = { id: spaceId, name: peerPseudo, short: peerPseudo.slice(0, 2).toUpperCase(), members: 2 };
-  await addJoinedSpace(session.accountClient, session.userId, space);
   return { spaceId, roomId };
+}
+
+/** The {@link Space} record a DM space stores in the owner's `_spaces` list (filtered
+ *  out of the rail by isDmSpaceId). The stored name is cosmetic — the DM list always
+ *  derives the peer's pseudo per viewer. */
+export function dmSpaceRecord(spaceId: string, peerPseudo: string): Space {
+  return { id: spaceId, name: peerPseudo, short: peerPseudo.slice(0, 2).toUpperCase(), members: 2 };
+}
+
+/** Create a private DM space owned by this session: seed its keyring + the single
+ *  `kind:'dm'` room doc, stamp ownership in `_rooms`, and record the space locally.
+ *  The peer is added separately via {@link inviteToSpace} (keyring + roster + cap). */
+async function createDmSpace(session: Session, peerPseudo: string): Promise<DmRef> {
+  const ref = await createDmSpaceCore(session, peerPseudo);
+  await addJoinedSpace(session.accountClient, session.userId, dmSpaceRecord(ref.spaceId, peerPseudo));
+  return ref;
 }
 
 /**
@@ -154,10 +171,55 @@ export async function healDmMap(session: Session, rawSpaces: Space[], dmMap: DmM
 }
 
 /**
- * Scan the DM-invite carriers in every shared private space, accept new invites
- * (verifying the cap binds to this identity), and record peer→space mappings — applying
- * the {@link dmWinner} rule when we ALSO created our own space for that peer. Returns
- * true if any mapping changed (so the caller can refresh the DM list).
+ * Accept a batch of scanned invites: resolve each DM space's authoritative owner as
+ * the peer, apply the {@link dmWinner} rule against any space WE created for that
+ * peer, and accept + persist the mapping. Mutates `dms`/`accepted` in place so a
+ * later invite in the same reconcile run dedups. Returns true if any mapping
+ * changed. Best-effort per invite, never throws. The shared accept half of
+ * {@link reconcileDmInbox} — identical for carrier and DM-link inbox invites.
+ */
+async function acceptScannedInvites(
+  session: Session,
+  invites: { inviteJson: string; spaceId: string }[],
+  dms: DmMap,
+  accepted: Set<string>,
+): Promise<boolean> {
+  let changed = false;
+  for (const inv of invites) {
+    // The DM space's authoritative owner (the peer who invited us) — server-gated, so
+    // it can't be forged. We're already in its roster (the inviter added us), so we
+    // can read it before fully accepting.
+    let peerUserId: string | null;
+    try {
+      peerUserId = (await readRooms(session.accountClient, inv.spaceId)).owner;
+    } catch {
+      continue;
+    }
+    if (!peerUserId) continue;
+    const winner = dmWinner(session.userId, peerUserId, dms[peerUserId], inv.spaceId);
+    if (winner !== inv.spaceId) continue; // our own space wins — ignore the loser (don't accept it)
+    try {
+      await acceptSpaceInvite(session, inv.inviteJson); // idempotent; verifies cap.sub === self
+    } catch {
+      continue; // not actually bound to us / keyring not shared — skip
+    }
+    if (dms[peerUserId] !== inv.spaceId) {
+      await setDmMapping(session.accountClient, session.userId, peerUserId, inv.spaceId);
+      dms[peerUserId] = inv.spaceId; // reflect locally so a later invite in this run dedups
+      accepted.add(inv.spaceId);
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+/**
+ * Scan every DM-invite delivery channel — the carriers in every shared private space
+ * AND this identity's own personal DM inbox (where "DM me" link openers deliver, see
+ * dm-link.ts) — accept new invites (verifying the cap binds to this identity), and
+ * record peer→space mappings, applying the {@link dmWinner} rule when we ALSO
+ * created our own space for that peer. Returns true if any mapping changed (so the
+ * caller can refresh the DM list).
  *
  * Best-effort throughout: an unreadable space, a poisoned carrier element, or a single
  * un-acceptable invite is skipped, never fatal.
@@ -176,31 +238,11 @@ export async function reconcileDmInbox(session: Session, knownSpaces: Space[]): 
       continue; // can't open this shared space's keyring — skip its carrier
     }
     const invites = await scanDmInbox(session, client, s.id, accepted).catch(() => []);
-    for (const inv of invites) {
-      // The DM space's authoritative owner (the peer who invited us) — server-gated, so
-      // it can't be forged. We're already in its roster (the inviter added us), so we
-      // can read it before fully accepting.
-      let peerUserId: string | null;
-      try {
-        peerUserId = (await readRooms(session.accountClient, inv.spaceId)).owner;
-      } catch {
-        continue;
-      }
-      if (!peerUserId) continue;
-      const winner = dmWinner(session.userId, peerUserId, dms[peerUserId], inv.spaceId);
-      if (winner !== inv.spaceId) continue; // our own space wins — ignore the loser (don't accept it)
-      try {
-        await acceptSpaceInvite(session, inv.inviteJson); // idempotent; verifies cap.sub === self
-      } catch {
-        continue; // not actually bound to us / keyring not shared — skip
-      }
-      if (dms[peerUserId] !== inv.spaceId) {
-        await setDmMapping(session.accountClient, session.userId, peerUserId, inv.spaceId);
-        dms[peerUserId] = inv.spaceId; // reflect locally so a later invite in this run dedups
-        accepted.add(inv.spaceId);
-        changed = true;
-      }
-    }
+    if (await acceptScannedInvites(session, invites, dms, accepted)) changed = true;
   }
+  // The personal DM inbox (every identity implicitly has one — "DM me" link
+  // deliveries land here). Same sealed bundles, same accept path as a carrier.
+  const invites = await scanDmLinkInbox(session, accepted).catch(() => []);
+  if (await acceptScannedInvites(session, invites, dms, accepted)) changed = true;
   return changed;
 }

@@ -87,12 +87,17 @@ export async function addDeviceToSpaceKeyring(
  * Owner: invite an identity into a space. Adds them to the space keyring (one
  * keyring → all channels), records them in the roster (gates `space:member`),
  * and mints a single space-scoped member cap. Returns the invite bundle JSON.
+ * `spaceName` (when given) names the bundle without a `_spaces` lookup — used when
+ * the space isn't in the inviter's list (yet), e.g. a DM-link space registered only
+ * after delivery succeeds (see dm-link.ts), or when the INVITEE-facing name differs
+ * from the inviter's own (a DM is named after the respective peer on each side).
  */
 export async function inviteToSpace(
   session: Session,
   spaceId: string,
   requestJson: string,
   canWrite = true,
+  spaceName?: string,
 ): Promise<string> {
   const req = JSON.parse(requestJson) as JoinRequest;
   if (!req.edPub || !req.kemPub || !req.userId) throw new Error('That is not a valid join request.');
@@ -108,9 +113,12 @@ export async function inviteToSpace(
     'chat',
     spaceMemberScope(spaceId, canWrite),
   );
-  const { spaces } = await readSpaces(session.accountClient, session.userId);
-  const spaceName = spaces.find((s) => s.id === spaceId)?.name ?? 'Space';
-  const invite: SpaceInvite = { spaceId, spaceName, cap };
+  let name = spaceName?.trim();
+  if (!name) {
+    const { spaces } = await readSpaces(session.accountClient, session.userId);
+    name = spaces.find((s) => s.id === spaceId)?.name ?? 'Space';
+  }
+  const invite: SpaceInvite = { spaceId, spaceName: name, cap };
   return JSON.stringify(invite);
 }
 

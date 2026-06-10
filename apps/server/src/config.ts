@@ -233,5 +233,40 @@ export const config: SyncConfig = {
       maxBodyBytes: 16_384,
       allowedMimeTypes: JSON_ONLY,
     },
+    // DM INBOX: the per-recipient delivery channel behind the shareable "DM me"
+    // link — the cross-space alternative to the shared-space carrier in
+    // packages/sdk dm-inbox.ts. ANYONE may anonymously APPEND a DM invite sealed
+    // to the owner's published KEM key (an opaque SealedBlob — the server never
+    // reads invite contents), and the owner's reconciler pulls + trial-unseals it.
+    // READ is owner-only with no custom machinery: `{identity}` is
+    // resolver-enforced to equal the cap-bound user id (like `spaces`), and an
+    // anonymous reader only carries `public`, which isn't in readRoles. Writes are
+    // deliberately OPEN (`public`, like `pairing`): the link is identity-derived
+    // and permanent — there is nothing to revoke, and knowing a userId is enough
+    // to deliver (by design; see docs/dm-links.md). The default append author
+    // proof still applies (anonymous-but-verified: each element is signed by the
+    // sender's key).
+    //
+    // The inbox is TIME-SHARDED by UTC month (`{shard}` = `YYYY-MM`). This bounds
+    // abuse: `maxItems` caps a SINGLE month's shard, so a flood can only fill the
+    // current month and the shard self-heals at the next boundary — a spammer
+    // cannot PERMANENTLY brick delivery (an append-only log has no client trim,
+    // and the identity link has no rotation). Senders write the current shard; the
+    // client scans current + previous (see dmInboxShards in packages/sdk paths.ts —
+    // keep the path + shard convention in sync). Per-IP rate limit + small body
+    // cap throttle the fill rate.
+    {
+      name: "dminbox",
+      storagePath: "dminbox/{identity}/{shard}",
+      readRoles: ["cap:read:dminbox"],
+      writeRoles: ["public"],
+      encryption: "none",
+      appendOnly: { type: "by_timestamp", maxItems: 500 },
+      maxBodyBytes: 16_384,
+      allowedMimeTypes: JSON_ONLY,
+      rateLimit: {
+        push: { windowMs: 60_000, maxRequests: 30, bucket: "ip" },
+      },
+    },
   ],
 };

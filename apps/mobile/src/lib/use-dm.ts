@@ -1,27 +1,29 @@
 /**
  * The "Message <user>" action + its availability, for the profile screen.
  *
- * A DM is only offerable when (a) the peer is not yourself, (b) you share a PRIVATE
- * space (the carrier for delivering the invite — see `starfish/dm.ts`), and (c) the
- * peer has published their identity keys. The hook resolves all three for a given peer
- * and exposes a single `status` the thin profile page maps onto button visibility.
+ * A DM is offerable to ANY peer who isn't you and has published their identity
+ * keys — no shared space required. Delivery picks the cheapest channel: if you
+ * already share a PRIVATE space, the invite rides that space's carrier
+ * (`createOrOpenDm`); otherwise it goes through the peer's per-recipient inbox
+ * (`createOrOpenDmViaInbox`, the same path a "DM me" link uses). The hook resolves
+ * keys (+ an optional shared space) and exposes a single `status` the thin profile
+ * page maps onto button visibility.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { router } from 'expo-router';
 
 import { useSession } from './session-context';
 import { useSpacesContext } from './spaces-context';
-import { createOrOpenDm, dmRoomId, findSharedSpaceWith } from '@drakkar.software/octochat-sdk';
+import { createOrOpenDm, createOrOpenDmViaInbox, dmRoomId, findSharedSpaceWith } from '@drakkar.software/octochat-sdk';
 import { readPeerKeys, type PeerKeys } from '@drakkar.software/octochat-sdk';
 
 /**
  * - `self` — this is your own profile (hide the button).
- * - `checking` — still resolving shared space / keys.
- * - `no-shared-space` — you don't share a private space with them (hide).
- * - `no-keys` — shared space exists, but they haven't published keys yet (disable).
- * - `ready` — a DM can be opened.
+ * - `checking` — still resolving keys / shared space.
+ * - `no-keys` — they haven't published identity keys yet, so no DM is possible (disable).
+ * - `ready` — a DM can be opened (via a shared-space carrier or the peer's inbox).
  */
-export type DmStatus = 'self' | 'checking' | 'no-shared-space' | 'no-keys' | 'ready';
+export type DmStatus = 'self' | 'checking' | 'no-keys' | 'ready';
 
 export interface UseDm {
   status: DmStatus;
@@ -56,19 +58,18 @@ export function useDm(peerUserId: string): UseDm {
     setStatus('checking');
     void (async () => {
       try {
-        const shared = await findSharedSpaceWith(session, peerUserId, spaces);
-        if (cancelled) return;
-        setSharedSpaceId(shared);
-        if (!shared) {
-          setStatus('no-shared-space');
-          return;
-        }
-        const keys = await readPeerKeys(peerUserId);
+        // Keys are the gate (the DM is sealed to them); a shared space only picks
+        // the cheaper delivery channel, it's no longer required.
+        const [keys, shared] = await Promise.all([
+          readPeerKeys(peerUserId),
+          findSharedSpaceWith(session, peerUserId, spaces).catch(() => null),
+        ]);
         if (cancelled) return;
         setPeerKeys(keys);
+        setSharedSpaceId(shared);
         setStatus(keys ? 'ready' : 'no-keys');
       } catch {
-        if (!cancelled) setStatus('no-shared-space');
+        if (!cancelled) setStatus('no-keys');
       }
     })();
     return () => {
@@ -80,11 +81,15 @@ export function useDm(peerUserId: string): UseDm {
 
   const openDm = useCallback(
     async (peerPseudo: string) => {
-      if (!session || !sharedSpaceId || !peerKeys) return;
+      if (!session || !peerKeys) return;
       setBusy(true);
       setError(null);
       try {
-        const { roomId } = await createOrOpenDm(session, peerUserId, peerKeys, peerPseudo, sharedSpaceId);
+        // Prefer the shared-space carrier when one exists (no public-inbox write);
+        // otherwise deliver through the peer's inbox — works with no space in common.
+        const { roomId } = sharedSpaceId
+          ? await createOrOpenDm(session, peerUserId, peerKeys, peerPseudo, sharedSpaceId)
+          : await createOrOpenDmViaInbox(session, { userId: peerUserId, ...peerKeys }, peerPseudo);
         await refresh(); // surface the new DM in the Direct Messages section
         router.push({ pathname: '/room/[id]', params: { id: roomId, name: peerPseudo, kind: 'dm' } });
       } catch {

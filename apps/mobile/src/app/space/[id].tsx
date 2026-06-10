@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { WEB_BASE } from '@/lib/octochat-config';
+import { webOrigin } from '@/lib/links';
 import { isDmSpaceId } from '@drakkar.software/octochat-sdk';
 import { useMutes } from '@/lib/mutes-context';
 import { useRooms } from '@/lib/use-rooms';
@@ -20,12 +20,12 @@ import { Callout } from '@/components/ui/Callout';
 import { Card } from '@/components/ui/Card';
 import { CopyField } from '@/components/ui/CopyField';
 import { Icon } from '@/components/ui/Icon';
+import { LinkQrCode } from '@/components/ui/LinkQrCode';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { TextField } from '@/components/ui/TextField';
 import { ToggleRow } from '@/components/ui/ToggleRow';
 import { Txt } from '@/components/ui/Txt';
-import { QrCode } from '@/components/onboarding/QrCode';
 import { CategoryManager } from '@/components/chat/CategoryManager';
 import { SpaceMembersCard } from '@/components/chat/SpaceMembersCard';
 import { SpaceMeta } from '@/components/chat/SpaceMeta';
@@ -39,14 +39,6 @@ function copy(text: string) {
   } catch {
     /* ignore */
   }
-}
-
-/** Origin for shareable invite links: the live web origin on web, else the
- *  configured universal-links domain (`WEB_BASE`) so native invites are full
- *  `https://<domain>/join#…` URLs that open the app. '' yields a host-less link. */
-function webOrigin(): string {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') return window.location.origin;
-  return WEB_BASE;
 }
 
 export default function SpaceScreen() {
@@ -314,14 +306,7 @@ export default function SpaceScreen() {
                       <Txt variant="footnote" weight="semibold" center>
                         {link.write ? 'Read & write link' : 'Read-only link'}
                       </Txt>
-                      {/* Public-invite links pack ~1.3 KB (member cap + ephemeral key + space id)
-                          into the URL fragment — at the pairing QR's defaults (small render,
-                          ecl="M", 22% center mark) the modules end up sub-2px and the logo blots
-                          out the dense center, so no scanner can read it. Render bigger, drop the
-                          mark, and use ecl="L" so the picked QR version stays low (bigger modules). */}
-                      <View style={styles.qr}>
-                        <QrCode value={link.url} size={280} ecl="L" hideMark />
-                      </View>
+                      <LinkQrCode value={link.url} />
                       <CopyField label="Invitation link" value={link.url} copyLabel="Copy link" lines={3} />
                     </View>
                   ) : null}
@@ -377,24 +362,7 @@ export default function SpaceScreen() {
                           onPress={() => setShowQr((s) => !s)}
                         />
                       </View>
-                      {showQr ? (
-                        inviteCap.length > 2500 ? (
-                          // react-native-qrcode-svg at ecl="L" tops out around 2953 bytes
-                          // (Version 40 binary capacity); private-invite JSON carries a hex
-                          // Kyber pubkey + Ed25519 sig and can sit on that edge. Fall back
-                          // to copy/paste instead of rendering a code scanners can't read.
-                          <Callout tone="warning" iconName="alert" title="Invite too large for a QR">
-                            Copy/paste the invite instead — scanners can&apos;t read codes this dense.
-                          </Callout>
-                        ) : (
-                          // Same size class as the public-invite QR above — render bigger,
-                          // drop the center mark, and use ecl="L" so the picked QR version
-                          // stays low (bigger modules) and stays scannable.
-                          <View style={styles.qr}>
-                            <QrCode value={inviteCap} size={280} ecl="L" hideMark />
-                          </View>
-                        )
-                      ) : null}
+                      {showQr ? <LinkQrCode value={inviteCap} maxBytes={2500} /> : null}
                     </View>
                   ) : null}
                 </Card>
@@ -455,5 +423,4 @@ const styles = StyleSheet.create({
   inviteBox: { gap: spacing.sm },
   typeRow: { flexDirection: 'row', gap: spacing.sm },
   linkBox: { gap: spacing.md },
-  qr: { alignItems: 'center', paddingVertical: spacing.sm },
 });

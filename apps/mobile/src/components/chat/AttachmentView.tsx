@@ -37,7 +37,7 @@ export function AttachmentView({ attachment, onLoad }: AttachmentViewProps) {
   // inline (files fetch only on download). `ratio` is the intrinsic aspect
   // (height ÷ width), measured once ready so the thumbnail keeps the photo's true
   // shape inside the width cap; `retry` re-attempts a failed load.
-  const { uri, failed, ratio, retry } = useAttachmentImage(attachment, isImage, onLoad);
+  const { uri, failed, retrying, ratio, retry } = useAttachmentImage(attachment, isImage, onLoad);
 
   const handleSave = async () => {
     if (!onLoad) return;
@@ -64,6 +64,15 @@ export function AttachmentView({ attachment, onLoad }: AttachmentViewProps) {
     const sizing = { width: boxWidth, maxWidth: '100%' as const, height: boxHeight };
     const boxStyle = [styles.imageBox, sizing, { backgroundColor: colors.fill, borderColor: colors.lineFaint }];
     if (!uri) {
+      // A recovery attempt is in flight — a spinner so the tap visibly registers
+      // (the first load uses the shimmer skeleton below).
+      if (retrying) {
+        return (
+          <View style={[styles.imageBox, sizing, styles.imageFail, { backgroundColor: colors.fill, borderColor: colors.lineFaint }]}>
+            <ActivityIndicator size="small" color={colors.accent} />
+          </View>
+        );
+      }
       return failed ? (
         <Pressable
           accessibilityRole="button"

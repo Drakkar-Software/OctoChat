@@ -47,6 +47,9 @@ leaves your device. The server syncs ciphertext it can't read.
 - **Threads** — reply in-thread anywhere; a dedicated Threads tab gathers every
   thread in the active space, decrypted across rooms.
 - **1:1 direct messages** — encrypted private conversations with another member.
+- **"DM me" links** — a shareable link/QR (your identity, made portable) anyone
+  can open to start an encrypted DM with you, even with no space in common (see
+  [`docs/dm-links.md`](docs/dm-links.md)).
 - **Explore** — a directory of public spaces you can discover and join.
 - **Automations & bots** — automated rooms driven by scheduled fetches or
   slash-command bots, plus append-only "stream" rooms for easy bot push (see the

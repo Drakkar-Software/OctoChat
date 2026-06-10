@@ -1,12 +1,17 @@
 /**
- * The DM-invite carrier — the app-only delivery channel that lets an initiator hand a
- * peer the signed cap + space id for a new 1:1 DM, without a server inbox.
+ * The DM-invite delivery channels: the shared-space CARRIER (a reserved stream room
+ * inside a space both users already share) and the per-recipient DM-LINK inbox (a
+ * dedicated server collection a "DM me" link bearer can append to — the cross-space
+ * path, see dm-link.ts). Both deliver the same sealed invite bundles and are
+ * trial-unsealed by the same {@link unsealInviteElements} core.
  *
  * A user's own `_spaces` doc is owner-authenticated, so A cannot write into B's docs.
  * The only A→B channel that needs no server change is a doc inside a space they
  * ALREADY share. The carrier rides the append-only `streamchat` collection (member
  * read+write, opaque bodies — see apps/server/src/config.ts) at a RESERVED room id per
  * shared space, `${spaceId}-_dminbox`. A appends; B reads on its inbox reconcile.
+ * The DM inbox (`dminbox/{ownerId}`) is the server-side alternative for peers with
+ * NO shared space: an owner-read, anonymously-writable per-user log.
  *
  * Privacy: each element carries ONLY a {@link SealedBlob} (sealed to the recipient's
  * published KEM key) + a timestamp — no plaintext `to`/`from`. Every member of the
@@ -20,7 +25,7 @@ import type { StarfishClient } from '@drakkar.software/starfish-client';
 import type { SealedBlob } from './account-seal';
 import { sealToRecipient, unsealFromRecipient } from './account-seal';
 import type { Session } from './identity';
-import { streamRoomPull, streamRoomPush } from './paths';
+import { dmInboxShards, dminboxPull, streamRoomPull, streamRoomPush } from './paths';
 
 /** Reserved carrier room-id suffix. `spaceIdFromRoomId` still resolves the host space
  *  (`sp-x-_dminbox` → `sp-x`), and the room is never in any `_rooms` registry so it
@@ -67,24 +72,18 @@ export async function appendDmInvite(
 }
 
 /**
- * Read the carrier in `sharedSpaceId` and return every invite THIS session can
- * trial-unseal, skipping any whose space is in `acceptedSpaceIds` (already joined) and
- * silently skipping malformed / not-for-us / undecryptable elements. `client` must be
- * authorized for the shared space. Never throws on a bad element — a single poisoned
- * append must not blank the inbox.
+ * Trial-unseal a pulled list of carrier/inbox elements into the invites THIS session
+ * can open, skipping any whose space is in `acceptedSpaceIds` (already joined) and
+ * silently skipping malformed / not-for-us / undecryptable elements. Never throws on
+ * a bad element — a single poisoned append must not blank the inbox. The shared core
+ * of {@link scanDmInbox} (shared-space carrier) and {@link scanDmLinkInbox}
+ * (per-recipient DM-link inbox) — both deliver the exact same sealed bundles.
  */
-export async function scanDmInbox(
+export async function unsealInviteElements(
   session: Session,
-  client: StarfishClient,
-  sharedSpaceId: string,
+  items: { ts: number; data: Record<string, unknown> }[] | null | undefined,
   acceptedSpaceIds?: ReadonlySet<string>,
 ): Promise<ScannedInvite[]> {
-  const items = (await client
-    .pull<{ ts: number; data: Record<string, unknown> }>(streamRoomPull(dmInboxRoomId(sharedSpaceId)), {
-      appendField: 'items',
-      full: true, // a19: append-only pulls must be bounded; scan the whole inbox log
-    })
-    .catch(() => [])) as { ts: number; data: Record<string, unknown> }[];
   const out: ScannedInvite[] = [];
   for (const item of items ?? []) {
     const el = item?.data as Partial<DmInviteElement> | undefined;
@@ -103,6 +102,54 @@ export async function scanDmInbox(
     }
     if (!spaceId || acceptedSpaceIds?.has(spaceId)) continue;
     out.push({ inviteJson, spaceId, senderEdPub: el.sealed.entry.addedBy });
+  }
+  return out;
+}
+
+/**
+ * Read the carrier in `sharedSpaceId` and return every invite THIS session can
+ * trial-unseal (see {@link unsealInviteElements}). `client` must be authorized for
+ * the shared space.
+ */
+export async function scanDmInbox(
+  session: Session,
+  client: StarfishClient,
+  sharedSpaceId: string,
+  acceptedSpaceIds?: ReadonlySet<string>,
+): Promise<ScannedInvite[]> {
+  const items = (await client
+    .pull<{ ts: number; data: Record<string, unknown> }>(streamRoomPull(dmInboxRoomId(sharedSpaceId)), {
+      appendField: 'items',
+      full: true, // a19: append-only pulls must be bounded; scan the whole inbox log
+    })
+    .catch(() => [])) as { ts: number; data: Record<string, unknown> }[];
+  return unsealInviteElements(session, items, acceptedSpaceIds);
+}
+
+/**
+ * Read THIS session's own per-recipient DM inbox (where "DM me" link openers and
+ * profile-initiated DMs deliver invites with no shared space, see dm-link.ts) and
+ * trial-unseal it like a carrier. The inbox is month-sharded, so this scans the
+ * CURRENT + PREVIOUS shard (an invite delivered near a month boundary is still
+ * seen) — each shard is bounded by the collection's per-shard maxItems, so the
+ * scanned set never grows without bound. Best-effort: an unreachable shard —
+ * including the 403 a pre-feature paired device's stale cap gets, or a 404 for a
+ * month with no invites — returns `[]` (the root device is the one that can
+ * accept anyway, since invites seal to the published root keys).
+ */
+export async function scanDmLinkInbox(
+  session: Session,
+  acceptedSpaceIds?: ReadonlySet<string>,
+): Promise<ScannedInvite[]> {
+  const out: ScannedInvite[] = [];
+  for (const shard of dmInboxShards()) {
+    const items = (await session.accountClient
+      .pull<{ ts: number; data: Record<string, unknown> }>(dminboxPull(session.userId, shard), {
+        appendField: 'items',
+        full: true, // bounded by the collection's per-shard maxItems
+      })
+      .catch(() => [])) as { ts: number; data: Record<string, unknown> }[];
+    out.push(...(await unsealInviteElements(session, items, acceptedSpaceIds)));
   }
   return out;
 }

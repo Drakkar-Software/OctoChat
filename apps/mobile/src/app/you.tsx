@@ -8,6 +8,7 @@ import { useSession } from '@/lib/session-context';
 import { useTheme } from '@/lib/use-theme';
 import { AccountSwitcher } from '@/components/account/AccountSwitcher';
 import { AppLockRow } from '@/components/settings/AppLockRow';
+import { DmLinkCard } from '@/components/settings/DmLinkCard';
 import { DebugStatsCard } from '@/components/settings/DebugStatsCard';
 import { AiSettingsCard } from '@/components/settings/AiSettingsCard';
 import { NotificationSettingsCard } from '@/components/settings/NotificationSettingsCard';
@@ -138,6 +139,8 @@ export default function YouScreen() {
           />
           <AppLockRow />
         </Card>
+
+        <DmLinkCard />
       </SettingsSection>
 
       <SettingsSection title="Preferences">

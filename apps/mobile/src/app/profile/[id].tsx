@@ -21,9 +21,9 @@ export default function ProfileScreen() {
   'use no memo';
   const { id } = useLocalSearchParams<{ id: string }>();
   const user = useUserProfile(id);
-  // The "Message" affordance + its availability (self / no shared private space / peer
-  // hasn't published keys / ready). Logic lives in the hook; this page only maps the
-  // status onto button visibility.
+  // The "Message" affordance + its availability (self / peer hasn't published keys /
+  // ready — any peer with keys is DM-able now, no shared space required). Logic lives
+  // in the hook; this page only maps the status onto button visibility.
   const { status, busy, error, openDm } = useDm(id);
   const showMessage = status === 'ready' || status === 'no-keys';
 
