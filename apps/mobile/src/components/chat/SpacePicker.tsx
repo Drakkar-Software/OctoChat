@@ -21,6 +21,7 @@ interface SpacePickerProps {
   onSelectSpace: (id: string) => void;
   onSelectDms: () => void;
   onAddSpace: () => void;
+  onBrowseSpaces: () => void;
 }
 
 /**
@@ -38,6 +39,7 @@ export function SpacePicker({
   onSelectSpace,
   onSelectDms,
   onAddSpace,
+  onBrowseSpaces,
 }: SpacePickerProps) {
   const { colors } = useTheme();
   const [query, setQuery] = useState('');
@@ -87,6 +89,7 @@ export function SpacePicker({
             <>
               <View style={[styles.divider, { backgroundColor: colors.lineFaint }]} />
               <ListRow iconName="plus" label="Join or create a space" onPress={onAddSpace} />
+              <ListRow iconName="globe" label="Browse spaces" onPress={onBrowseSpaces} />
             </>
           ) : null}
         </View>

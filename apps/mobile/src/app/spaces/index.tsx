@@ -40,6 +40,7 @@ export default function SpacesScreen() {
         onSelectSpace={choose}
         onSelectDms={() => choose(DM_HOME_ID)}
         onAddSpace={() => router.push('/join')}
+        onBrowseSpaces={() => router.push('/spaces/explore')}
       />
     </StackScreen>
   );
