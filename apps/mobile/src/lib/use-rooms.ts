@@ -24,6 +24,14 @@ export interface RoomCategory {
   rooms: Room[];
 }
 
+/** UserIds of the auto-provisioned bots enrolled as roster members of a space's PRIVATE
+ *  automations (one per automated room — see the SDK `provisionPrivateBot`). Subtracted from the
+ *  member roster everywhere it's displayed so a bot doesn't show as a phantom, profile-less
+ *  member. Empty for public spaces (their bots never join the roster). */
+export function automationBotUserIds(rooms: Room[]): string[] {
+  return rooms.flatMap((r) => (r.kind === 'automated' && r.automation?.botUserId ? [r.automation.botUserId] : []));
+}
+
 // `excludeAutomatedRooms` (the Agents/Chat split filter) moved to the SDK — re-exported
 // here so existing `import { excludeAutomatedRooms } from '@/lib/use-rooms'` call sites
 // (the rooms screen + desktop sidebar) keep working. `RoomCategory` is structurally the
@@ -71,7 +79,12 @@ export function useRooms(spaceId: string | null) {
   const rooms = useMemo<Room[]>(() => categories.flatMap((c) => c.rooms), [categories]);
 
   const isOwner = !!session && reg.owner !== null && reg.owner === session.userId;
-  const memberCount = publicSpace ? null : 1 + reg.members.length;
+  // Exclude automation bots (real roster members in private spaces) from the human count.
+  const memberCount = useMemo(() => {
+    if (publicSpace) return null;
+    const bots = new Set(automationBotUserIds(rooms));
+    return 1 + reg.members.filter((id) => !bots.has(id)).length;
+  }, [publicSpace, reg.members, rooms]);
 
   // Map a failed index write to a user-facing message; CategoryError carries a friendly
   // validation message (duplicate/empty name). No owner gate — members may write.

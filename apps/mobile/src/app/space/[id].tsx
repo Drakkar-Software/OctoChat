@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
@@ -6,7 +6,7 @@ import { spacing } from '@/theme';
 import { WEB_BASE } from '@/lib/octochat-config';
 import { isDmSpaceId } from '@drakkar.software/octochat-sdk';
 import { useMutes } from '@/lib/mutes-context';
-import { useRooms } from '@/lib/use-rooms';
+import { automationBotUserIds, useRooms } from '@/lib/use-rooms';
 import { useSession } from '@/lib/session-context';
 import { useSpaces } from '@/lib/use-spaces';
 import { useSpaceSettings } from '@/lib/use-space-settings';
@@ -93,7 +93,11 @@ export default function SpaceScreen() {
   // Category management (owner-only Card below). Shares the same registry the rooms
   // list reads — actions are owner-gated + refresh on success (see useRooms).
   const { rooms, categories, createCategory, renameCategory, deleteCategory, reorderCategories } = useRooms(spaceId);
-  const memberCount = 1 + members.length; // owner + roster (public spaces have no roster)
+  // Automation bots are real roster members (private spaces) — drop them from the human roster so
+  // the count + members list don't show phantom, profile-less members.
+  const botIds = useMemo(() => new Set(automationBotUserIds(rooms)), [rooms]);
+  const humanMembers = useMemo(() => members.filter((id) => !botIds.has(id)), [members, botIds]);
+  const memberCount = 1 + humanMembers.length; // owner + roster (public spaces have no roster)
 
   // Per-user mute prefs (synced). Surfaced for every member: silence the whole space
   // (also drops its native FCM topic) or just the room the user navigated from.
@@ -217,7 +221,7 @@ export default function SpaceScreen() {
           </Card>
 
           {isPublic ? null : (
-            <SpaceMembersCard ownerId={ownerId} members={members} currentUserId={session.userId} />
+            <SpaceMembersCard ownerId={ownerId} members={humanMembers} currentUserId={session.userId} />
           )}
 
           {loading ? null : isOwner ? (

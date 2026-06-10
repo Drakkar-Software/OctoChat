@@ -7,6 +7,7 @@
  * decrypt, cross-room search/threads/pins, space stats, notification labels, and the
  * one-shot seed `createSpace`/`createDmSpace` write at space creation.
  */
+import { ConflictError } from '@drakkar.software/starfish-client';
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { ObjectNode, Room } from '../domain/types';
@@ -139,4 +140,62 @@ export async function pushIndexSeed(
 export async function seedSpaceObjectIndex(session: Session, spaceId: string, rooms: SeedRoom[]): Promise<void> {
   const { encryptor, client } = await getSpaceEncryptor(spaceId, session, { owner: session.userId, members: [] });
   await pushIndexSeed(client, encryptor, spaceId, rooms);
+}
+
+/**
+ * Headless read-modify-write of a space's unified OBJECT INDEX, factored out of
+ * {@link updatePublicObjectIndex} so the PUBLIC (plaintext) and PRIVATE (E2EE) index
+ * writers share ONE bounded conflict-retry loop. `encryptor` is null for a public index
+ * (plaintext body) and the space encryptor for a private one — the only difference between
+ * the two is the resolved `{client, encryptor, paths}`. The index is a hash-checked
+ * union-merge doc, so a 409 re-reads FRESH state and re-runs the mutator, never clobbering
+ * a sibling device's concurrently-added node. The mutator returns the next `objects` array,
+ * or `null` to no-op.
+ */
+export async function updateObjectIndex(
+  client: StarfishClient,
+  encryptor: Encryptor | null,
+  pullPath: string,
+  pushPath: string,
+  mutator: (nodes: ObjectNode[], now: number) => ObjectNode[] | null,
+): Promise<void> {
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const res = await client.pull(pullPath).catch(() => null);
+    const plain = res?.data
+      ? encryptor
+        ? await encryptor.decrypt(res.data as Record<string, unknown>)
+        : (res.data as Record<string, unknown>)
+      : null;
+    const cur = Array.isArray((plain as { objects?: unknown } | null)?.objects)
+      ? (plain as { objects: ObjectNode[] }).objects
+      : [];
+    const next = mutator(cur, Date.now());
+    if (!next) return;
+    const body = encryptor ? await encryptor.encrypt({ objects: next }) : { objects: next };
+    try {
+      await client.push(pushPath, body as Record<string, unknown>, res?.hash ?? null);
+      return;
+    } catch (err) {
+      if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
+      throw err;
+    }
+  }
+}
+
+/**
+ * PRIVATE twin of {@link updatePublicObjectIndex}: headless RMW of an OWNED private space's
+ * encrypted `objects/_index`. Opens the (cached) owner space encryptor and routes through the
+ * shared {@link updateObjectIndex} loop. Owner-only — `getSpaceEncryptor` with our own userId
+ * as the registry owner resolves the owner keyring (existing keyring → open; absent → mint),
+ * which is exactly the authority an owner-run automation's index write needs. Used by the
+ * automation registry mutators ({@link ../automations/registry-write}) for private spaces.
+ */
+export async function updatePrivateObjectIndex(
+  session: Session,
+  spaceId: string,
+  mutator: (nodes: ObjectNode[], now: number) => ObjectNode[] | null,
+): Promise<void> {
+  const { encryptor, client } = await getSpaceEncryptor(spaceId, session, { owner: session.userId, members: [] });
+  await updateObjectIndex(client, encryptor, objIndexPull(spaceId), objIndexPush(spaceId), mutator);
 }

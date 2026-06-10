@@ -20,8 +20,10 @@ import { SidebarLinkRow } from './SidebarLinkRow';
 
 interface AgentsPanelProps {
   categories: RoomCategory[];
-  /** Automations require a public space; gates the help copy. */
-  isPublic?: boolean;
+  /** Whether automations apply to this context. `false` (e.g. the DM home, which is not a
+   *  space) shows an info callout instead of the agent list. Absent/`true` → a real space
+   *  (public OR private), so the list renders. */
+  available?: boolean;
   /** Open one of the automated rooms (the bot conversation). */
   onOpenRoom: (room: Room) => void;
   /** Open the full automations surface (creator + per-agent settings). */
@@ -45,7 +47,7 @@ interface AgentsPanelProps {
  */
 export function AgentsPanel({
   categories,
-  isPublic,
+  available,
   onOpenRoom,
   onOpenAutomations,
   automationsActive,
@@ -61,11 +63,11 @@ export function AgentsPanel({
   const memberView = isOwner === false;
   const [detail, setDetail] = useState<Room | null>(null);
 
-  if (isPublic === false) {
+  if (available === false) {
     return (
       <View style={styles.note}>
         <Callout tone="info" iconName="info">
-          Automations are only available in public spaces in this version.
+          Open a space to manage its automations.
         </Callout>
       </View>
     );

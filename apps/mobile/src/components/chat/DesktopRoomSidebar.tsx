@@ -209,7 +209,6 @@ export function DesktopRoomSidebar({
         {mode === 'agents' ? (
           <AgentsPanel
             categories={categories}
-            isPublic={isPublic}
             activeRoomId={activeRoomId}
             onOpenRoom={onOpenRoom}
             onOpenAutomations={onOpenAutomations}

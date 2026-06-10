@@ -24,6 +24,7 @@ import { sealToSelf, unsealFromSelf } from './account-seal';
 import type { SealedBlob } from './account-seal';
 import { makeClient } from './client';
 import type { Session } from './identity';
+import { updateObjectIndex } from './object-index';
 import { bytesToHex, pubObjIndexPull, pubObjIndexPush, pubspaceRoomsPull, pubspaceRoomsPush, pubspaceScope } from './paths';
 import {
   getPubspaceAccess,
@@ -108,7 +109,7 @@ const monogram = (name: string) => name.trim().slice(0, 2).toUpperCase() || 'PS'
 /** The cap subject's userId, mirroring the SDK derivation: SHA-256(edPub), first
  *  32 hex chars. Reproduced here so a randomly-generated throwaway keypair gets a
  *  matching, self-consistent identity without a slow Argon2 root bootstrap. */
-async function ephemeralUserId(edPubHex: string): Promise<string> {
+export async function ephemeralUserId(edPubHex: string): Promise<string> {
   const bytes = new Uint8Array(edPubHex.length / 2);
   for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(edPubHex.slice(i * 2, i * 2 + 2), 16);
   const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
@@ -428,22 +429,7 @@ export async function updatePublicObjectIndex(
 ): Promise<void> {
   const { ownerId } = publicSpaceAuth(session, spaceId);
   const client = publicSpaceClient(session, spaceId);
-  const pullPath = pubObjIndexPull(ownerId, spaceId);
-  const pushPath = pubObjIndexPush(ownerId, spaceId);
-  const MAX_ATTEMPTS = 3;
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const res = await client.pull(pullPath).catch(() => null);
-    const cur = Array.isArray((res?.data as { objects?: unknown } | undefined)?.objects)
-      ? (res!.data as { objects: ObjectNode[] }).objects
-      : [];
-    const next = mutator(cur, Date.now());
-    if (!next) return;
-    try {
-      await client.push(pushPath, { objects: next }, res?.hash ?? null);
-      return;
-    } catch (err) {
-      if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
-      throw err;
-    }
-  }
+  // Plaintext index → no encryptor; the shared RMW loop ({@link updateObjectIndex}) carries
+  // the bounded conflict-retry the private twin reuses.
+  await updateObjectIndex(client, null, pubObjIndexPull(ownerId, spaceId), pubObjIndexPush(ownerId, spaceId), mutator);
 }

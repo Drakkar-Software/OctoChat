@@ -26,8 +26,9 @@ const KAV = Platform.OS === 'web' ? View : KeyboardAvoidingView;
 
 interface Props {
   session: Session;
-  /** The public space the new automated room lands in. The creator does NOT
-   *  open in private spaces (the caller gates that and shows a callout). */
+  /** The space the new automated room lands in — PUBLIC or an OWNED PRIVATE one. The caller
+   *  only opens the creator when the user owns the space (`canCreate`); the SDK
+   *  ({@link createAutomatedRoom}) branches the bot credential on space type. */
   spaceId: string;
   onClose: () => void;
   onCreated: (roomId: string) => void;

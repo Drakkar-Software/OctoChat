@@ -12,34 +12,46 @@ import { roomSlug } from '../domain/ids';
 import type { Session } from '../starfish/identity';
 import type { AutomationMeta, AutomationSchedule, Room } from '../domain/types';
 
-import { AutomationsNotSupportedHere, createAutomationNode, deleteRoomFromRegistry, patchRoomAutomation, renameRoomInRegistry } from './registry-write';
+import { createAutomationNode, deleteRoomFromRegistry, patchRoomAutomation, renameRoomInRegistry } from './registry-write';
+import { provisionPrivateBot } from './private-bot';
 import { tickRoom, type TickKind, type TickOutcome } from './runner-core';
 import { clearAutomationSecrets, saveAutomationSecrets } from './secrets';
 import { getProvider } from './providers';
 
 const BOT_TTL_SEC = 365 * 24 * 3600;
 
-/** Mint a fresh bot credential for an automated room and SEAL it to the minting
- *  account key, so the bearer token never enters the synced registry in the clear
- *  (a space reader would otherwise lift it and forge bot posts). The caller persists
- *  the sealed blob into the registry; the runner / settings sheet open it with the seed
- *  (`openStreamBotCredential`). The seal binds to the seed-derived key — it opens on the
- *  minting device or a seed-restored device, NOT a QR-paired device (which has a fresh
- *  keypair), exactly like the `pubAccess` + DM-keyring seals. */
+/** Mint a fresh bot credential for an automated room and SEAL it to the minting account key,
+ *  so secrets never enter the synced registry in the clear. The caller persists the sealed
+ *  blob into the registry; the runner opens it with the seed. The seal binds to the
+ *  seed-derived key — it opens on the minting device or a seed-restored device, NOT a
+ *  QR-paired device (fresh keypair), like the `pubAccess` + DM-keyring seals.
+ *
+ *  Two flavors behind one `SealedBlob` field:
+ *  - PUBLIC: a `pubstream` audience cap ({@link createStreamBotCredential}) the runner redeems
+ *    to POST plaintext.
+ *  - PRIVATE: a full bot IDENTITY enrolled in the space keyring ({@link provisionPrivateBot}),
+ *    so the runner can ENCRYPT + append as a distinct member. */
 async function mintSealedCredential(
   session: Session,
   spaceId: string,
   roomId: string,
-): Promise<SealedBlob> {
-  if (!isPublicSpaceId(spaceId)) throw new AutomationsNotSupportedHere();
+): Promise<{ credential: SealedBlob; botUserId?: string }> {
+  if (!isPublicSpaceId(spaceId)) {
+    // A private bot is a real roster member → return its userId so the caller can record it on
+    // the meta (`botUserId`) for the member-list filter.
+    const { credential, userId } = await provisionPrivateBot(session, spaceId);
+    return { credential, botUserId: userId };
+  }
   const { ownerId } = publicSpaceAuth(session, spaceId);
   const cred = await createStreamBotCredential(session, ownerId, spaceId, roomId, { ttlSec: BOT_TTL_SEC });
-  return sealToSelf(session, JSON.stringify(cred));
+  return { credential: await sealToSelf(session, JSON.stringify(cred)) };
 }
 
-/** Public-space-only: create a new automated room AND stamp its automation meta
- *  + bot credential + the device-local secrets. Returns the created Room. The
- *  category bucket defaults to 'AUTOMATIONS' so automated rooms group cleanly. */
+/** Create a new automated room AND stamp its automation meta + bot credential + the
+ *  device-local secrets. Works for a PUBLIC space or an OWNED PRIVATE one — the credential
+ *  mint branches on space type ({@link mintSealedCredential}); everything else is identical.
+ *  Returns the created Room. The category bucket defaults to 'AUTOMATIONS' so automated rooms
+ *  group cleanly. */
 export async function createAutomatedRoom(opts: {
   session: Session;
   spaceId: string;
@@ -55,7 +67,6 @@ export async function createAutomatedRoom(opts: {
   schedule?: AutomationSchedule;
 }): Promise<Room> {
   const { session, spaceId } = opts;
-  if (!isPublicSpaceId(spaceId)) throw new AutomationsNotSupportedHere();
   if (!getProvider(opts.providerId)) throw new Error(`Unknown automation provider: ${opts.providerId}`);
   const category = opts.category ?? 'AUTOMATIONS';
   // Mint the room id up-front (same shape `createPublicRoom`/`useRooms.createRoom` use) so
@@ -64,8 +75,9 @@ export async function createAutomatedRoom(opts: {
   const roomId = `${spaceId}-${roomSlug(opts.name)}-${Date.now().toString(36)}`;
   // 1. Save secret params under the new room id (device-local kv).
   await saveAutomationSecrets(session.userId, roomId, opts.secrets);
-  // 2. Mint the bot credential scoped to THIS room (sealed to the owner key).
-  const credential = await mintSealedCredential(session, spaceId, roomId);
+  // 2. Mint the bot credential scoped to THIS room (sealed to the owner key). A private space
+  //    also yields the enrolled bot's userId, recorded on the meta for the member-list filter.
+  const { credential, botUserId } = await mintSealedCredential(session, spaceId, roomId);
   // 3. Build the automation meta — device elects itself as the runner by default.
   const meta: AutomationMeta = {
     providerId: opts.providerId,
@@ -75,6 +87,7 @@ export async function createAutomatedRoom(opts: {
     ...(opts.schedule ? { schedule: opts.schedule } : {}),
     enabled: true,
     credential,
+    ...(botUserId ? { botUserId } : {}),
     runOnDeviceId: session.keys.edPub,
     lastRunAt: null,
     lastError: null,
@@ -105,13 +118,14 @@ export async function renameAutomatedRoom(session: Session, room: Room, name: st
   await renameRoomInRegistry(session, room.spaceId, room.id, name);
 }
 
-/** Rotate the bot credential — generate a new audience cap and patch the room.
- *  Doesn't revoke the old one (audience caps aren't revocable client-side); the
- *  old credential becomes orphaned and expires per its TTL. Returns the new sealed
- *  blob so the caller can reflect it into its in-memory cache without a re-read. */
+/** Rotate the bot credential — mint a fresh one and patch the room. Doesn't revoke the old
+ *  (public audience caps aren't revocable client-side; a private bot's old keyring/roster entry
+ *  is left in place — harmless, an orphaned member). A PRIVATE rotate provisions a NEW bot
+ *  identity, so its `botUserId` is patched alongside the credential. Returns the new sealed blob
+ *  so the caller can reflect it into its in-memory cache without a re-read. */
 export async function rotateAutomatedRoomCredential(session: Session, room: Room): Promise<SealedBlob> {
-  const credential = await mintSealedCredential(session, room.spaceId, room.id);
-  await patchRoomAutomation(session, room.spaceId, room.id, { credential });
+  const { credential, botUserId } = await mintSealedCredential(session, room.spaceId, room.id);
+  await patchRoomAutomation(session, room.spaceId, room.id, { credential, ...(botUserId ? { botUserId } : {}) });
   return credential;
 }
 

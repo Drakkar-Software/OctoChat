@@ -22,10 +22,12 @@ export default function AgentsScreen() {
   const { session } = useSession();
   const { activeId } = useSpaces();
   const isDmHome = isDmHomeId(activeId);
-  const { categories, isPublic, isOwner } = useRooms(isDmHome ? null : activeId);
+  const { categories, isOwner } = useRooms(isDmHome ? null : activeId);
 
+  // Automations live in a PUBLIC space or an OWNED PRIVATE one; the owner manages them and any
+  // member browses an existing one. Not gated on `isPublic` anymore — owned private spaces qualify.
   const hasAutomations = categories.some((c) => c.rooms.some((r) => r.kind === 'automated'));
-  const showAutomations = !!session && !!activeId && !isDmHome && isPublic && (isOwner || hasAutomations);
+  const showAutomations = !!session && !!activeId && !isDmHome && (isOwner || hasAutomations);
 
   const openRoom = (room: Room) =>
     router.push({ pathname: '/room/[id]', params: { id: room.id, name: room.name, kind: room.kind } });
@@ -48,7 +50,7 @@ export default function AgentsScreen() {
       ) : (
         <AgentsPanel
           categories={categories}
-          isPublic={isDmHome ? false : isPublic}
+          available={!isDmHome}
           onOpenRoom={openRoom}
           onOpenAutomations={
             showAutomations && activeId

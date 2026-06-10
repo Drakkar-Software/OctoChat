@@ -27,6 +27,7 @@ import {
   isPublicSpaceId,
   publicSpaceAuth,
   publicSpaceClient,
+  readPrivateSpaceRooms,
   readPublicIndexRooms,
   readSpaces,
   runAutomationTick,
@@ -56,16 +57,29 @@ function parseTaskId(id: string): { spaceId: string; roomId: string } | null {
   return { spaceId: decodeURIComponent(parts[0]!), roomId: decodeURIComponent(parts[1]!) };
 }
 
-/** Resolve one automated room from the synced public-space registry (headless-safe). */
+/** Read a space's automated rooms from its unified object index, headless-safe, branching on
+ *  space type: a PUBLIC space reads the plaintext index with its owner/cap; a PRIVATE space
+ *  uses the NON-MINTING soft reader (`readPrivateSpaceRooms` → `buildSpaceEncryptor`), which
+ *  returns `[]` when this device holds no keyring for the space (so we never mint a keyring on
+ *  a passive scan, and a joined/non-owner space simply schedules nothing). The owner-only
+ *  `runOnDeviceId` election downstream is what actually restricts private automations to the
+ *  owner's device. */
+async function readSpaceRooms(session: Session, spaceId: string): Promise<Room[]> {
+  if (isPublicSpaceId(spaceId)) {
+    const { ownerId } = publicSpaceAuth(session, spaceId);
+    const client = publicSpaceClient(session, spaceId);
+    return readPublicIndexRooms(client, ownerId, spaceId);
+  }
+  return readPrivateSpaceRooms(session, spaceId);
+}
+
+/** Resolve one automated room from the synced object index (headless-safe). */
 async function resolveAutomatedRoom(
   session: Session,
   spaceId: string,
   roomId: string,
 ): Promise<Room | null> {
-  if (!isPublicSpaceId(spaceId)) return null;
-  const { ownerId } = publicSpaceAuth(session, spaceId);
-  const client = publicSpaceClient(session, spaceId);
-  const rooms = await readPublicIndexRooms(client, ownerId, spaceId);
+  const rooms = await readSpaceRooms(session, spaceId);
   return rooms.find((r) => r.id === roomId) ?? null;
 }
 
@@ -202,11 +216,10 @@ async function reconcile(session: Session): Promise<void> {
   try {
     const { spaces } = await readSpaces(session.accountClient, session.userId);
     for (const space of spaces) {
-      if (!isPublicSpaceId(space.id)) continue; // automations are public-space-only
       try {
-        const { ownerId } = publicSpaceAuth(session, space.id);
-        const client = publicSpaceClient(session, space.id);
-        const rooms = await readPublicIndexRooms(client, ownerId, space.id);
+        // Public OR owned-private; a private space this device can't open reads as no rooms,
+        // and the `runOnDeviceId` election below keeps non-owner devices from scheduling.
+        const rooms = await readSpaceRooms(session, space.id);
         for (const room of rooms) {
           const a = room.automation;
           if (!a || !a.enabled) continue;

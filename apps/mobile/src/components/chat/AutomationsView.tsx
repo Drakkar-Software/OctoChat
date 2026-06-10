@@ -10,7 +10,6 @@ import { useRooms } from '@/lib/use-rooms';
 import { useSession } from '@/lib/session-context';
 import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';
-import { Callout } from '@/components/ui/Callout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
@@ -36,7 +35,7 @@ interface AutomationsViewProps {
 export function AutomationsView({ spaceId, header, inTabs = false }: AutomationsViewProps) {
   const { colors } = useTheme();
   const { session } = useSession();
-  const { categories, isPublic, isOwner, loading, reload } = useRooms(spaceId ?? null);
+  const { categories, isOwner, loading, reload } = useRooms(spaceId ?? null);
   const { refresh: refreshRegistry } = useRoomsRegistryActions();
   const [creatorOpen, setCreatorOpen] = useState(false);
   // Members inspect an agent in a read-only sheet; owners jump straight into the room
@@ -48,7 +47,9 @@ export function AutomationsView({ spaceId, header, inTabs = false }: Automations
     [categories],
   );
 
-  const canCreate = !!session && !!spaceId && isPublic && isOwner;
+  // Owners create automations in a PUBLIC space or an OWNED PRIVATE one (the SDK branches the
+  // bot credential on space type). Non-owners only browse existing ones.
+  const canCreate = !!session && !!spaceId && isOwner;
 
   const openRoom = (r: Room) =>
     router.push({ pathname: '/room/[id]', params: { id: r.id, name: r.name, kind: 'automated' } });
@@ -57,10 +58,6 @@ export function AutomationsView({ spaceId, header, inTabs = false }: Automations
     <StackScreen header={header} contentStyle={styles.content} inTabs={inTabs} scroll>
       {!session ? (
         <SignInPrompt subtitle="Sign in to manage automations." />
-      ) : !isPublic ? (
-        <Callout tone="info" iconName="info">
-          Automations are only available in public spaces in this version.
-        </Callout>
       ) : loading ? null : automatedRooms.length === 0 ? (
         <EmptyState
           iconName="zap"

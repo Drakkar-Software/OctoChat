@@ -145,6 +145,13 @@ export interface AutomationMeta {
    *  whichever device rotates. A LEGACY pre-seal room stored this in the clear — see
    *  `openStreamBotCredential` for the back-compat read. */
   credential: SealedBlob;
+  /** PRIVATE spaces only: the enrolled bot's userId. A private automation's bot is a real
+   *  keyring + roster member (that's what authorizes its encrypted post — see
+   *  `provisionPrivateBot`), so it lands in the space's `members` roster. Recording its userId
+   *  here — in the clear, like the roster itself — lets the member-list/count UIs subtract it
+   *  so the bot doesn't show as a phantom, profile-less member. Absent for a PUBLIC automation
+   *  (its bot is an ephemeral audience-cap subject, never a roster member). */
+  botUserId?: string;
   /** The deterministic id of the device elected to run this automation. Other
    *  devices see status but never fire — single-runner election avoids dup posts. */
   runOnDeviceId: string | null;
