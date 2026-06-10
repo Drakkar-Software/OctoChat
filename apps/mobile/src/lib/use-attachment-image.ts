@@ -32,6 +32,9 @@ export interface AttachmentImage {
   uri: string | null;
   /** The load (network or decrypt) failed; show the retry placeholder. */
   failed: boolean;
+  /** A manual/auto re-attempt is in flight — show a spinner so the tap visibly
+   *  registers (the first load uses the shimmer skeleton instead). */
+  retrying: boolean;
   /** Intrinsic aspect (height ÷ width), measured once the URI is ready. */
   ratio: number | null;
   /** Re-attempt the load (clears the failed state). */
@@ -52,6 +55,7 @@ export function useAttachmentImage(
 ): AttachmentImage {
   const [uri, setUri] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [ratio, setRatio] = useState<number | null>(null);
   // Bumped to force the load effect to re-run (manual retry / reconnect).
   const [attempt, setAttempt] = useState(0);
@@ -59,6 +63,9 @@ export function useAttachmentImage(
   const retry = useCallback(() => {
     setFailed(false);
     setUri(null);
+    // Flip to loading synchronously with the tap so the spinner shows at once,
+    // even before the effect's own attempt begins.
+    setLoading(true);
     setAttempt((n) => n + 1);
   }, []);
 
@@ -67,6 +74,7 @@ export function useAttachmentImage(
     let url: string | null = null;
     let cancelled = false;
     setFailed(false);
+    setLoading(true);
     (async () => {
       try {
         const bytes = await onLoad(attachment);
@@ -88,6 +96,8 @@ export function useAttachmentImage(
         );
       } catch {
         if (!cancelled) setFailed(true);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -108,5 +118,7 @@ export function useAttachmentImage(
     });
   }, [enabled, retry]);
 
-  return { uri, failed, ratio, retry };
+  // `retrying` is reserved for re-attempts (attempt > 0) so the very first load
+  // keeps the shimmer skeleton; a recovery attempt shows a spinner instead.
+  return { uri, failed, retrying: loading && attempt > 0, ratio, retry };
 }
