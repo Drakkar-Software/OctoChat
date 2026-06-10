@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { Platform, StyleSheet } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { LegendList, type LegendListRef } from '@legendapp/list/react-native';
 
 import { authorFor, dayLabel, isContinuation, mergePendingMessages, resolvePinned, sameDay, toDisplayMessage } from '@drakkar.software/octochat-sdk';
@@ -7,6 +7,8 @@ import type { OutboxMessage } from '@/lib/outbox';
 import { replyCounts } from '@drakkar.software/octochat-sdk';
 import type { AttachmentRef } from '@drakkar.software/octochat-sdk';
 import { useConversationData, type ConversationStore } from '@/lib/use-conversation-data';
+
+import { EmptyState } from '@/components/ui/EmptyState';
 
 import { DateDivider, UnreadDivider } from './Dividers';
 import { MessageGroup } from './MessageGroup';
@@ -40,10 +42,13 @@ export function RoomConversation({
   onRetry,
   editingId,
   onEditingChange,
+  roomName,
 }: {
   store: ConversationStore;
   /** Space this room belongs to — resolves `#channel` mentions to links. */
   spaceId?: string;
+  /** Channel name — names the first-message empty state ("Start the conversation in #x"). */
+  roomName?: string;
   currentUserId: string;
   /** The viewer's pseudo — flags messages that `@`-mention them. */
   currentUserName?: string;
@@ -142,6 +147,15 @@ export function RoomConversation({
       maintainScrollAtEnd
       maintainScrollAtEndThreshold={0.1}
       maintainVisibleContentPosition
+      ListEmptyComponent={
+        <View style={styles.empty}>
+          <EmptyState
+            iconName="chat"
+            title={roomName ? `#${roomName}` : 'No messages yet'}
+            subtitle={roomName ? `Start the conversation in #${roomName}.` : 'Be the first to say something.'}
+          />
+        </View>
+      }
       renderItem={({ item: m, index }) => {
         const prev = top[index - 1];
         const rc = threadCounts.get(m.id) ?? 0;
@@ -186,4 +200,6 @@ export function RoomConversation({
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
+  // Give the (otherwise zero-height) empty slot room so the haloed state centers.
+  empty: { flexGrow: 1, minHeight: 320, justifyContent: 'center' },
 });

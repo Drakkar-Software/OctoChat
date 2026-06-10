@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import { layout, spacing } from '@/theme';
+import { layout, shadows, spacing } from '@/theme';
 import type { RoomKind } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
 import { useDms } from '@/lib/use-dms';
@@ -36,7 +36,13 @@ export function DesktopChatTopbar({ name, kind = 'channel', spaceId, onSearch, o
   const dms = useDms();
   const dm = kind === 'dm' ? dms.find((d) => d.spaceId === spaceId) : undefined;
   return (
-    <View style={[styles.bar, { height: layout.desktopTopbarHeight, backgroundColor: colors.paper, borderBottomColor: colors.lineSoft }]}>
+    <View
+      style={[
+        styles.bar,
+        shadows.sm,
+        { height: layout.desktopTopbarHeight, backgroundColor: colors.paper, borderBottomColor: colors.lineSoft, borderTopColor: colors.hairlineHi },
+      ]}
+    >
       {kind === 'dm' ? (
         <Avatar label={dm?.initials ?? name.slice(0, 2).toUpperCase()} image={dm?.image} size={24} />
       ) : (
@@ -65,6 +71,8 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingHorizontal: spacing.lg,
     borderBottomWidth: 1,
+    // Lit top edge — the paper catches light from above and floats over the stream.
+    borderTopWidth: 1,
   },
   name: { flex: 1, minWidth: 0 },
 });

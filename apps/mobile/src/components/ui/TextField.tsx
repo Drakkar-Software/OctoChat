@@ -2,10 +2,11 @@ import { useState } from 'react';
 import type { NativeSyntheticEvent, StyleProp, TextInputContentSizeChangeEventData, TextInputProps, TextStyle, ViewStyle } from 'react-native';
 import { Platform, StyleSheet, TextInput, View } from 'react-native';
 
-import { fonts, glowShadow, radii, spacing, type as typeScale } from '@/theme';
+import { fonts, glowShadow, opacity as opacityToken, radii, spacing, type as typeScale } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
 
 import { Icon, type IconName } from './Icon';
+import { Txt } from './Txt';
 
 // On web, drop the browser's default focus outline — the field container shows
 // a themed accent ring + glow on focus, which is the (more on-brand) indicator.
@@ -26,6 +27,14 @@ interface TextFieldProps extends Omit<TextInputProps, 'style' | 'placeholderText
   /** Multiline only: grow the field to fit its content instead of scrolling inside a
    *  fixed box (the page scrolls). Pairs with `plain` for a Notion-style page editor. */
   autoGrow?: boolean;
+  /** Uppercase mono label rendered above the field. */
+  label?: string;
+  /** Footnote rendered below the field (overridden by `error`). */
+  helper?: string;
+  /** Validation message: paints the border/glow danger and shows the message below. */
+  error?: string;
+  /** Dim + block input (on-brand disabled state). */
+  disabled?: boolean;
   containerStyle?: StyleProp<ViewStyle>;
 }
 
@@ -42,6 +51,10 @@ export function TextField({
   multiline = false,
   plain = false,
   autoGrow = false,
+  label,
+  helper,
+  error,
+  disabled = false,
   containerStyle,
   onFocus,
   onBlur,
@@ -50,6 +63,8 @@ export function TextField({
 }: TextFieldProps) {
   const { colors } = useTheme();
   const [focused, setFocused] = useState(false);
+  const hasMeta = !!(label || helper || error);
+  const metaBelow = error || helper;
   // Auto-grow tracks the rendered content height so the field expands with the text
   // (no inner scroll) — the doc page scrolls as one surface instead.
   const [contentHeight, setContentHeight] = useState(0);
@@ -69,8 +84,14 @@ export function TextField({
   // box covers the full glow area — otherwise the wrapper's paperAlt glow
   // leaks below the bordered field as a darker strip.
   const multilineMin = multiline ? { minHeight: minHeight ?? 72 } : null;
-  return (
-    <View style={[plain ? styles.wrapperPlain : styles.wrapper, containerStyle]}>
+  const inner = (
+    <View
+      style={[
+        plain ? styles.wrapperPlain : styles.wrapper,
+        hasMeta ? null : containerStyle,
+        disabled ? styles.disabled : null,
+      ]}
+    >
       {/* The recessed fill + focus glow IS the box — a plain field has neither. */}
       {plain ? null : (
         <View
@@ -79,7 +100,7 @@ export function TextField({
             StyleSheet.absoluteFill,
             styles.glowLayer,
             { backgroundColor: colors.paperAlt },
-            focused ? glowShadow(colors.glow, 0.2, 12) : null,
+            focused ? glowShadow(error ? colors.danger : colors.glow, 0.2, 12) : error ? glowShadow(colors.danger, 0.14, 8) : null,
           ]}
         />
       )}
@@ -88,14 +109,15 @@ export function TextField({
           plain ? styles.fieldPlain : styles.field,
           multilineMin,
           multiline ? { alignItems: 'flex-start' } : null,
-          plain ? null : { borderColor: focused ? colors.accentBorder : colors.lineSoft },
+          plain ? null : { borderColor: error ? colors.dangerBorder : focused ? colors.accentBorder : colors.lineSoft },
         ]}
       >
         {leadingIcon ? (
-          <Icon name={leadingIcon} size={16} color={focused ? colors.accent : colors.inkMuted} />
+          <Icon name={leadingIcon} size={16} color={error ? colors.danger : focused ? colors.accent : colors.inkMuted} />
         ) : null}
         <TextInput
           {...rest}
+          editable={disabled ? false : rest.editable}
           multiline={multiline}
           {...(autoGrow ? { scrollEnabled: false } : {})}
           onContentSizeChange={onSize}
@@ -127,6 +149,24 @@ export function TextField({
       </View>
     </View>
   );
+
+  // No label/helper/error → render exactly as before (containerStyle on the field).
+  if (!hasMeta) return inner;
+  return (
+    <View style={containerStyle}>
+      {label ? (
+        <Txt variant="caption" weight="semibold" mono uppercase tone="inkSoft" style={styles.label}>
+          {label}
+        </Txt>
+      ) : null}
+      {inner}
+      {metaBelow ? (
+        <Txt variant="footnote" tone={error ? 'danger' : 'inkMuted'} style={styles.meta}>
+          {metaBelow}
+        </Txt>
+      ) : null}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -135,6 +175,9 @@ const styles = StyleSheet.create({
   },
   // No control-height floor: a plain field is sized purely by its text/minHeight.
   wrapperPlain: {},
+  disabled: { opacity: opacityToken.disabled },
+  label: { marginBottom: spacing.xs },
+  meta: { marginTop: spacing.xs, paddingHorizontal: spacing.xs },
   glowLayer: {
     borderRadius: radii.md,
   },

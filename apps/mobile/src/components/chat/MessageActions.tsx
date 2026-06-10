@@ -57,7 +57,8 @@ export function MessageActions({ visible, onReact, onReply, onEdit, onDelete, on
       style={[
         styles.bar,
         paperBorder(colors),
-        shadows.sm,
+        // Floating over the message stream — lift it off the depth gradient.
+        shadows.md,
       ]}
     >
       {confirming ? (

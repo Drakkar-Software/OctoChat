@@ -1,4 +1,4 @@
-import { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 
 import { motion } from '@/theme';
 import { tapFeedback } from '@/lib/haptics';
@@ -27,11 +27,13 @@ export function useScalePress({ scaleTo = 0.97, fadeTo = 1 }: ScalePressOptions 
     opacity: 1 + (fadeTo - 1) * t.value,
   }));
   const onPressIn = () => {
+    // Crisp grab on press-in…
     t.value = withTiming(1, { duration: motion.fast });
     tapFeedback();
   };
   const onPressOut = () => {
-    t.value = withTiming(0, { duration: motion.fast });
+    // …then a tactile spring back to rest (a touch of overshoot reads as physical).
+    t.value = withSpring(0, motion.spring);
   };
   return { t, animStyle, onPressIn, onPressOut };
 }

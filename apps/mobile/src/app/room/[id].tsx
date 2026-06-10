@@ -294,6 +294,7 @@ export default function RoomScreen() {
             onRetry={retry}
             editingId={editingId}
             onEditingChange={setEditingId}
+            roomName={kind === 'dm' ? undefined : name}
           />
           {/* Publish this room's recent threads to the desktop sidebar (no UI).
               Stream rooms support threads too (replies are appended with a parentId),

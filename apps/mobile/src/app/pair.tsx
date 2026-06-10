@@ -1,23 +1,22 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Platform, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
-import { fonts, radii, spacing, type as typeScale } from '@/theme';
+import { spacing } from '@/theme';
 import { completeDevicePairing, type PairResult } from '@drakkar.software/octochat-sdk';
 import { useSession } from '@/lib/session-context';
-import { useTheme } from '@/lib/use-theme';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { StackScreen } from '@/components/ui/StackScreen';
+import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 import { QrScanner } from '@/components/onboarding/QrScanner';
 import { SeedLockSetup } from '@/components/onboarding/SeedLockSetup';
 
 export default function PairScreen() {
-  const { colors } = useTheme();
   const { addLinkedDevice, session, passkeyAvailable } = useSession();
   const [code, setCode] = useState('');
   const [pin, setPin] = useState('');
@@ -58,7 +57,7 @@ export default function PairScreen() {
         <Txt variant="callout" mono tone="inkSoft" center>
           {result.fingerprint}
         </Txt>
-        <Callout tone="info" iconName="shield">
+        <Callout tone="accent" iconName="shield">
           Pairing validated for identity {result.userId.slice(0, 8)}…. Your owned spaces
           are ready on this device; spaces you only joined need a re-invite from their
           owner.
@@ -100,13 +99,11 @@ export default function PairScreen() {
   }
 
   const input = (value: string, set: (v: string) => void, placeholder: string, secure = false) => (
-    <TextInput
+    <TextField
+      mono
       value={value}
       onChangeText={set}
       placeholder={placeholder}
-      placeholderTextColor={colors.inkMuted}
-      underlineColorAndroid="transparent"
-      style={[styles.input, { color: colors.ink, backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}
       autoCapitalize="none"
       autoCorrect={false}
       secureTextEntry={secure}
@@ -146,13 +143,4 @@ export default function PairScreen() {
 const styles = StyleSheet.create({
   content: { padding: spacing.screenX, gap: spacing.lg },
   center: { padding: spacing.xl, gap: spacing.md, alignItems: 'center', justifyContent: 'center' },
-  input: {
-    height: 44,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    paddingHorizontal: spacing.md,
-    fontFamily: fonts.mono,
-    fontSize: typeScale.footnote.fontSize,
-    includeFontPadding: false,
-  },
 });

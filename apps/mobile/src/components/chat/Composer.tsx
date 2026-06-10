@@ -3,7 +3,7 @@ import type { NativeSyntheticEvent, StyleProp, TextInputKeyPressEventData, TextS
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { fonts, glowShadow, radii, spacing, type as typeScale } from '@/theme';
+import { fonts, glowShadow, layout, radii, spacing, type as typeScale } from '@/theme';
 import { submitOnEnter } from '@/lib/composer-keys';
 import { useDraft } from '@/lib/use-draft';
 import { formatBytes } from '@drakkar.software/octochat-sdk';
@@ -237,6 +237,7 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey, offline, s
             accessibilityLabel="Send"
             disabled={!hasContent || busy || fileBlocked}
             onPress={submit}
+            hitSlop={8}
             style={({ pressed }) => [
               styles.send,
               { backgroundColor: colors.fill },
@@ -250,7 +251,7 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey, offline, s
             {busy ? (
               <ActivityIndicator size="small" color={colors.onAccent} />
             ) : (
-              <Icon name="send" size={15} color={hasContent ? colors.onAccent : colors.inkMuted} />
+              <Icon name="send" size={17} color={hasContent ? colors.onAccent : colors.inkMuted} />
             )}
           </Pressable>
         </View>
@@ -344,13 +345,13 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   send: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: layout.composerSendSize,
+    height: layout.composerSendSize,
+    borderRadius: layout.composerSendSize / 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   // Tactile press dip on the send button (web + native), via Pressable's `pressed`.
   sendPressed: { transform: [{ scale: 0.9 }] },
-  sendFill: { borderRadius: 17 },
+  sendFill: { borderRadius: layout.composerSendSize / 2 },
 });

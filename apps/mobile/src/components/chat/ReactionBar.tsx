@@ -50,7 +50,8 @@ function ReactionChip({ emoji, count, mine, userIds, nameFor, onPress }: Reactio
           style={[
             styles.tooltip,
             paperBorder(colors),
-            shadows.sm,
+            // Floating tooltip — lift it clearly off the message surface.
+            shadows.md,
           ]}
         >
           {userIds.map((id) => (

@@ -262,6 +262,8 @@ export const fonts = {
 
 /** Type scale: [fontSize, lineHeight]. */
 export const type = {
+  /** Hero display — true page-defining moment (front door, identity hero). */
+  displayLg: { fontSize: 40, lineHeight: 44 },
   display: { fontSize: 28, lineHeight: 34 },
   title: { fontSize: 22, lineHeight: 28 },
   heading: { fontSize: 17, lineHeight: 22 },
@@ -275,6 +277,9 @@ export const type = {
 
 /** Uppercase mono labels share this tracking ("ENTER PIN", "SECURITY"…). */
 export const labelTracking = 0.8;
+
+/** Tight tracking for the large display step — big Bricolage reads better pulled in. */
+export const displayTracking = -0.6;
 
 /** 4px spacing scale + semantic aliases. */
 export const spacing = {
@@ -387,6 +392,9 @@ export const motion = {
   autosaveLog: 1500,
   /** Spring config for press / drag interactions (Reanimated). */
   spring: { damping: 18, stiffness: 220, mass: 0.8 },
+  /** Orchestrated page-load reveals (StaggerList): `base` head delay + per-index
+   *  `step`. Keep small — one staggered entrance, never per-scroll jitter. */
+  stagger: { base: 0, step: 45 },
 } as const;
 
 export const opacity = {
@@ -399,6 +407,10 @@ export const opacity = {
 export const layout = {
   /** Cap reading width on large/web screens. */
   maxContentWidth: 720,
+  /** Composer send disc diameter — the app's hero send control (>= a comfy tap). */
+  composerSendSize: 40,
+  /** Max width of an EmptyState's copy column so subtitles wrap to a tidy block. */
+  emptyStateMaxWidth: 320,
   tabBarHeight: 64,
   headerMinHeight: 52,
   /** At/above this viewport width (web) the app switches to the desktop shell. */

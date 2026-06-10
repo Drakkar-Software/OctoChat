@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 
-import { glowShadow, motion, radii, spacing } from '@/theme';
+import { glowShadow, layout, motion, radii, spacing } from '@/theme';
 import { tapFeedback } from '@/lib/haptics';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
@@ -16,6 +16,11 @@ interface EmptyStateProps {
   title: string;
   subtitle?: string;
   children?: ReactNode;
+  /** Promote the title to the display font for a hero empty state (front-of-house
+   *  surfaces). Opt-in so the many existing compact empty states are unchanged. */
+  hero?: boolean;
+  /** Primary action slot rendered under the copy (e.g. a `Button`), centered. */
+  action?: ReactNode;
   /** Make the centered icon disc pressable — lets the sign-in prompt's lock itself
    *  trigger a passkey unlock. Whenever `iconName` changes (e.g. lock → unlock) the
    *  disc runs a one-shot scale-pop, reading as the lock springing open. */
@@ -24,7 +29,7 @@ interface EmptyStateProps {
 
 /** Centered icon + copy used for empty tabs and the not-found screen. The icon
  *  disc sits inside a slow bioluminescent halo so empty space feels alive. */
-export function EmptyState({ iconName, title, subtitle, children, onIconPress }: EmptyStateProps) {
+export function EmptyState({ iconName, title, subtitle, children, hero = false, action, onIconPress }: EmptyStateProps) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
   const pop = useSharedValue(1);
@@ -84,7 +89,7 @@ export function EmptyState({ iconName, title, subtitle, children, onIconPress }:
           disc
         )}
       </PulseHalo>
-      <Txt variant="title" weight="bold" center style={styles.title}>
+      <Txt variant={hero ? 'display' : 'title'} weight="bold" center style={styles.title}>
         {title}
       </Txt>
       {subtitle ? (
@@ -93,6 +98,7 @@ export function EmptyState({ iconName, title, subtitle, children, onIconPress }:
         </Txt>
       ) : null}
       {children}
+      {action ? <View style={styles.action}>{action}</View> : null}
     </View>
   );
 }
@@ -110,5 +116,6 @@ const styles = StyleSheet.create({
   // Clear the halo's bloom (rings expand to ~1.85×) so the pulse doesn't ride up
   // onto the title — the `wrap` gap alone leaves it overlapping at full bloom.
   title: { marginTop: spacing.sm },
-  subtitle: { maxWidth: 320 },
+  subtitle: { maxWidth: layout.emptyStateMaxWidth },
+  action: { marginTop: spacing.sm, alignItems: 'center' },
 });
