@@ -16,7 +16,7 @@ import {
   setAiSettings,
   subscribeAiSettings,
   type AiSettings,
-} from './ai-settings';
+} from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 
 interface AiSettingsValue {

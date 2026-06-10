@@ -25,7 +25,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { Txt } from '@/components/ui/Txt';
 import { FadeView } from '@/components/ui/FadeView';
 
-import type { SuggestionAction } from '@/lib/ai/ai-prompt';
+import type { SuggestionAction } from '@drakkar.software/octochat-sdk';
 import type { SuggestionStatus } from '@/lib/ai/use-reply-suggestion';
 
 interface ReplySuggestionChipProps {

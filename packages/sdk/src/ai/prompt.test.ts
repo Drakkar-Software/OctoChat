@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseSuggestionAction, type SuggestionCaps } from './ai-prompt';
+import { parseSuggestionAction, type SuggestionCaps } from './prompt';
 
 const ALL: SuggestionCaps = { canThread: true, canPin: true };
 const NONE: SuggestionCaps = { canThread: false, canPin: false };

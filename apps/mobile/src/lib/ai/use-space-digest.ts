@@ -16,7 +16,7 @@ import { useAiSettings } from '@/lib/ai-settings-context';
 
 import { aiErrorCode, aiStream } from './ai-engine';
 import { ensureModelLoaded } from './ensure-model-loaded';
-import { buildSummaryMessages, buildSummarySystemPrompt, SUMMARY_CONTEXT_TURNS } from './ai-prompt';
+import { buildSummaryMessages, buildSummarySystemPrompt, SUMMARY_CONTEXT_TURNS } from '@drakkar.software/octochat-sdk';
 
 // Re-export so the card can show "≈X GB" before download.
 export { formatBytes };

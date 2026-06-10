@@ -1,11 +1,12 @@
 /**
  * Per-identity AI feature preferences, persisted to the platform KV store.
- * Module-level snapshot + listener pattern — mirrors notification-settings.ts.
+ * Module-level snapshot + listener pattern — mirrors the SDK's
+ * quick-reactions-settings store.
  *
  * Defaults to disabled (opt-in) because enabling the feature may trigger a
  * multi-GB model download.
  */
-import { kvGet, kvSet } from '@drakkar.software/octochat-sdk';
+import { kvGet, kvSet } from '../config/adapters';
 
 export interface AiSettings {
   /** Master switch — enables reply suggestions and space summaries. */

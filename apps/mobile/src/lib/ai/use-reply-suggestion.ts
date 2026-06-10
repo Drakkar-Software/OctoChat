@@ -20,7 +20,7 @@ import { useAiSettings } from '@/lib/ai-settings-context';
 import { aiErrorCode, aiStream } from './ai-engine';
 import type { LLMMessage } from './ai-engine';
 import { ensureModelLoaded } from './ensure-model-loaded';
-import { buildSuggestionSystemPrompt, parseSuggestionAction, type SuggestionAction, type SuggestionCaps } from './ai-prompt';
+import { buildSuggestionSystemPrompt, parseSuggestionAction, type SuggestionAction, type SuggestionCaps } from '@drakkar.software/octochat-sdk';
 
 export interface ReplySuggestionContext {
   /** ID of the last message in the room/thread; null when the last message is

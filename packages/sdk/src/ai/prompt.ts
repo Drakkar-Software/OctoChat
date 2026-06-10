@@ -2,8 +2,8 @@
  * Pure, platform-agnostic prompt builders for both on-device AI features.
  * No imports of expo-ai-kit or React — safe everywhere, unit-testable.
  */
-import type { StoredMsg } from '@drakkar.software/octochat-sdk';
-import type { LLMMessage } from './ai-engine';
+import type { StoredMsg } from '../format/message-view';
+import type { LLMMessage } from './llm';
 
 /** Char budget for the conversation context fed to a reply suggestion. Rather than
  *  a fixed turn count, include as many recent non-empty messages as fit, so the

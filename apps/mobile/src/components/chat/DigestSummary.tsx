@@ -8,7 +8,7 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { openRoom } from '@/lib/links';
-import { splitDigestSections } from '@/lib/ai/digest-sections';
+import { splitDigestSections } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
 import type { Room } from '@drakkar.software/octochat-sdk';
 import { Markdown } from '@/components/ui/Markdown';

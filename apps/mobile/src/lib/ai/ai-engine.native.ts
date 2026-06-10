@@ -19,9 +19,11 @@ import {
   streamMessage,
   unloadModel,
 } from 'expo-ai-kit';
-import type { BuiltInModel, DownloadableModel, InferenceBackend, LLMMessage, ModelErrorCode } from 'expo-ai-kit';
+import type { BuiltInModel, DownloadableModel, InferenceBackend, ModelErrorCode } from 'expo-ai-kit';
+import type { LLMMessage } from '@drakkar.software/octochat-sdk';
 
-export type { BuiltInModel, DownloadableModel, InferenceBackend, LLMMessage, ModelErrorCode };
+export type { BuiltInModel, DownloadableModel, InferenceBackend, ModelErrorCode };
+export type { LLMMessage };
 
 export interface AiStreamHandle {
   promise: Promise<{ text: string }>;

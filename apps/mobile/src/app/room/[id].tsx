@@ -18,7 +18,7 @@ import { spaceIdFromRoomId, kvSet } from '@drakkar.software/octochat-sdk';
 import { isPublicSpaceId, publicSpaceAuth } from '@drakkar.software/octochat-sdk';
 import type { RoomKind, StoredMsg } from '@drakkar.software/octochat-sdk';
 import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
-import { buildSuggestionMessages } from '@/lib/ai/ai-prompt';
+import { buildSuggestionMessages } from '@drakkar.software/octochat-sdk';
 import { makeEmptyConversationStore } from '@/lib/use-conversation-data';
 
 // Stable empty store so useStarfishData can be called unconditionally while the
