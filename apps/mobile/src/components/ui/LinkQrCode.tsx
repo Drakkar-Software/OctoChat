@@ -12,6 +12,10 @@ interface LinkQrCodeProps {
    *  dense private-invite cap can sit on that edge). Omit for links that never
    *  approach the limit (the public-space / DM-link fragments). */
   maxBytes?: number;
+  /** Rendered edge length in px (default 280). Shrink for a compact card (the
+   *  DM-link calling card sits it at ~168); the recipe stays scannable down to
+   *  the short DM/public-link fragments. */
+  size?: number;
 }
 
 /**
@@ -23,7 +27,7 @@ interface LinkQrCodeProps {
  * them. Bigger render + no mark + ecl="L" keeps the picked QR version low (bigger
  * modules) and scannable.
  */
-export function LinkQrCode({ value, maxBytes }: LinkQrCodeProps) {
+export function LinkQrCode({ value, maxBytes, size = 280 }: LinkQrCodeProps) {
   if (maxBytes != null && value.length > maxBytes) {
     return (
       <Callout tone="warning" iconName="alert" title="Too large for a QR">
@@ -33,7 +37,7 @@ export function LinkQrCode({ value, maxBytes }: LinkQrCodeProps) {
   }
   return (
     <View style={styles.qr}>
-      <QrCode value={value} size={280} ecl="L" hideMark />
+      <QrCode value={value} size={size} ecl="L" hideMark />
     </View>
   );
 }

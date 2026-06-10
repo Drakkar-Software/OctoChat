@@ -8,6 +8,7 @@ import { AppBar } from '@/components/ui/AppBar';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { DmList } from '@/components/chat/DmList';
+import { ScanDmButton } from '@/components/chat/ScanDmButton';
 
 /**
  * Direct Messages bottom tab. Lists every DM (across all peers) via the global
@@ -27,6 +28,7 @@ export default function DmsScreen() {
       ) : (
         <View style={styles.dmHome}>
           <DmList dms={dms} onOpen={openDm} />
+          <ScanDmButton />
         </View>
       )}
     </StackScreen>
@@ -35,5 +37,5 @@ export default function DmsScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: 96 },
-  dmHome: { minHeight: 320 },
+  dmHome: { minHeight: 320, gap: spacing.lg },
 });

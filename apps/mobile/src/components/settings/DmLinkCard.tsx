@@ -1,49 +1,66 @@
-import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { spacing } from '@/theme';
+import { glowShadow, radii, spacing } from '@/theme';
+import { useCopy } from '@/lib/clipboard';
+import { canShare, shareText } from '@/lib/share';
 import { useDmLink } from '@/lib/use-dm-link';
+import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { CopyField } from '@/components/ui/CopyField';
 import { LinkQrCode } from '@/components/ui/LinkQrCode';
 import { Txt } from '@/components/ui/Txt';
 
 /**
- * The "DM me" link on the own-profile screen: copy/share/QR the account's
- * permanent link. The link is just the identity made portable (see the SDK's
- * `dm-link.ts`) — same on every device, nothing to generate, reset or expire —
- * so this card is pure display over {@link useDmLink}.
+ * The "DM me" calling card on the own-profile screen. The link is the IDENTITY
+ * made portable (SDK `dm-link.ts`) — permanent, the same on every device,
+ * nothing to generate or revoke — so this is pure display over {@link useDmLink}.
+ *
+ * The raw URL is never shown: the QR *is* the shareable artifact (someone scans
+ * it from the DMs tab to open an encrypted DM with you), and the two icon
+ * actions hand the link off — copy, or the OS share sheet — without surfacing it.
  */
 export function DmLinkCard() {
+  const { colors } = useTheme();
   const { loading, link } = useDmLink();
-  const [showQr, setShowQr] = useState(false);
+  const { copied, copy } = useCopy();
+  const showShare = canShare();
 
   return (
-    <Card title="DM LINK">
-      <Txt variant="footnote" tone="inkSoft">
-        Anyone who opens your link can start an end-to-end encrypted DM with you — even with no space in common.
-      </Txt>
+    <Card title="DM ME" tone="accent" elevation="md">
       {loading ? (
         <Txt variant="footnote" tone="inkMuted">
           Loading…
         </Txt>
       ) : link ? (
-        <View style={styles.linkBox}>
-          <CopyField label="Your DM link" value={link} copyLabel="Copy link" share shareTitle="DM me on OctoChat" lines={3} />
-          <View style={styles.actionRow}>
-            <Button
-              label={showQr ? 'Hide QR' : 'Show QR'}
-              variant="secondary"
-              size="sm"
-              iconName="qr-scan"
-              onPress={() => setShowQr((s) => !s)}
-            />
+        <View style={styles.body}>
+          <View style={[styles.halo, { backgroundColor: colors.accentBg }, glowShadow(colors.glow, 0.3, 16)]}>
+            <LinkQrCode value={link} size={168} />
           </View>
-          {showQr ? <LinkQrCode value={link} /> : null}
-          <Txt variant="footnote" tone="inkMuted">
-            The link is tied to your identity and never changes.
+          <Txt variant="footnote" tone="inkSoft" center style={styles.caption}>
+            Scan or share to start an end-to-end encrypted DM — even with no space in common.
           </Txt>
+          <View style={styles.actions}>
+            <Button
+              label={copied ? 'Link copied' : 'Copy link'}
+              iconName={copied ? 'check' : 'copy'}
+              iconOnly
+              shape="pill"
+              size="md"
+              variant={showShare ? 'secondary' : 'primary'}
+              onPress={() => copy(link)}
+            />
+            {showShare ? (
+              <Button
+                label="Share link"
+                iconName="share"
+                iconOnly
+                shape="pill"
+                size="md"
+                variant="primary"
+                onPress={() => void shareText(link, 'DM me on OctoChat')}
+              />
+            ) : null}
+          </View>
         </View>
       ) : (
         <Txt variant="footnote" tone="inkMuted">
@@ -55,6 +72,9 @@ export function DmLinkCard() {
 }
 
 const styles = StyleSheet.create({
-  linkBox: { gap: spacing.sm },
-  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  body: { alignItems: 'center', gap: spacing.md },
+  // Glowing accent well that frames the QR as a bioluminescent calling card.
+  halo: { padding: spacing.sm, borderRadius: radii.xl },
+  caption: { maxWidth: 260 },
+  actions: { flexDirection: 'row', gap: spacing.md },
 });
