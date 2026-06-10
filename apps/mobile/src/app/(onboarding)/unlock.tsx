@@ -1,8 +1,9 @@
 import { Redirect, router } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
+import { HeroMark } from '@/components/brand/HeroMark';
 import { AppBar } from '@/components/ui/AppBar';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { SeedUnlock } from '@/components/onboarding/SeedUnlock';
@@ -27,6 +28,9 @@ export default function UnlockScreen() {
       contentStyle={styles.content}
       header={<AppBar title="Unlock OctoChat" subtitle="welcome back" />}
     >
+      <View style={styles.brand}>
+        <HeroMark size={72} />
+      </View>
       <SeedUnlock
         methods={unlockMethods}
         onUnlock={unlock}
@@ -39,4 +43,5 @@ export default function UnlockScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.screenX, gap: spacing.lg },
+  brand: { alignItems: 'center', paddingVertical: spacing.sm },
 });

@@ -3,8 +3,8 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import type { Room } from '@drakkar.software/octochat-sdk';
 import { spacing } from '@/theme';
-import { getProvider } from '@drakkar.software/octochat-sdk';
 import { useRoomsRegistryActions } from '@/lib/rooms-registry-context';
 import { useRooms } from '@/lib/use-rooms';
 import { useSession } from '@/lib/session-context';
@@ -14,10 +14,9 @@ import { Callout } from '@/components/ui/Callout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
-import { Txt } from '@/components/ui/Txt';
+import { AgentRow } from '@/components/chat/AgentRow';
+import { AgentDetailSheet } from '@/components/chat/AgentsPanel';
 import { AutomatedRoomCreator } from '@/components/chat/AutomatedRoomCreator';
-import { ListRow } from '@/components/chat/ListRow';
-import type { IconName } from '@/components/ui/Icon';
 
 interface AutomationsViewProps {
   /** Space whose automations are listed; `null` while none is active. */
@@ -40,6 +39,9 @@ export function AutomationsView({ spaceId, header, inTabs = false }: Automations
   const { categories, isPublic, isOwner, loading, reload } = useRooms(spaceId ?? null);
   const { refresh: refreshRegistry } = useRoomsRegistryActions();
   const [creatorOpen, setCreatorOpen] = useState(false);
+  // Members inspect an agent in a read-only sheet; owners jump straight into the room
+  // (where they reach the settings sheet). Branch the row tap on ownership.
+  const [detail, setDetail] = useState<Room | null>(null);
 
   const automatedRooms = useMemo(
     () => categories.flatMap((c) => c.rooms).filter((r) => r.kind === 'automated'),
@@ -47,6 +49,9 @@ export function AutomationsView({ spaceId, header, inTabs = false }: Automations
   );
 
   const canCreate = !!session && !!spaceId && isPublic && isOwner;
+
+  const openRoom = (r: Room) =>
+    router.push({ pathname: '/room/[id]', params: { id: r.id, name: r.name, kind: 'automated' } });
 
   return (
     <StackScreen header={header} contentStyle={styles.content} inTabs={inTabs} scroll>
@@ -72,39 +77,9 @@ export function AutomationsView({ spaceId, header, inTabs = false }: Automations
         </EmptyState>
       ) : (
         <View style={styles.list}>
-          {automatedRooms.map((r) => {
-            const provider = r.automation ? getProvider(r.automation.providerId) : null;
-            // Single-line summary derived from the synced AutomationMeta — kept
-            // terse so it fits in the row's existing single-label slot. Order:
-            // disabled > error > commands-only > scheduled cadence.
-            const status = !r.automation?.enabled
-              ? 'Disabled'
-              : r.automation.lastError
-                ? 'Failed'
-                : r.automation.onOpen
-                  ? 'On open'
-                  : r.automation.intervalMin === 0
-                    ? 'Commands-only'
-                    : `Every ${r.automation.intervalMin} min`;
-            return (
-              <View key={r.id} style={styles.item}>
-                <ListRow
-                  iconName={(provider?.iconName ?? 'zap') as IconName}
-                  label={r.name}
-                  unread={r.unread}
-                  onPress={() =>
-                    router.push({ pathname: '/room/[id]', params: { id: r.id, name: r.name, kind: 'automated' } })
-                  }
-                />
-                <View style={styles.statusLine}>
-                  <Txt variant="caption" tone="inkMuted" style={styles.statusText}>
-                    {provider ? `${provider.name} · ` : ''}
-                    {status}
-                  </Txt>
-                </View>
-              </View>
-            );
-          })}
+          {automatedRooms.map((r) => (
+            <AgentRow key={r.id} room={r} onPress={() => (isOwner ? openRoom(r) : setDetail(r))} />
+          ))}
           {canCreate ? (
             <View style={[styles.createBar, { borderTopColor: colors.lineFaint }]}>
               <Button label="New automation" iconName="plus" variant="primary" full onPress={() => setCreatorOpen(true)} />
@@ -127,6 +102,17 @@ export function AutomationsView({ spaceId, header, inTabs = false }: Automations
           }}
         />
       ) : null}
+      {detail ? (
+        <AgentDetailSheet
+          room={detail}
+          onOpenRoom={() => {
+            const r = detail;
+            setDetail(null);
+            openRoom(r);
+          }}
+          onClose={() => setDetail(null)}
+        />
+      ) : null}
     </StackScreen>
   );
 }
@@ -134,9 +120,6 @@ export function AutomationsView({ spaceId, header, inTabs = false }: Automations
 const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: 96 },
   list: { gap: spacing.xs },
-  item: { gap: 2 },
-  statusLine: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs },
-  statusText: {},
   cta: { alignSelf: 'center' },
   createBar: { marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1 },
 });

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import Conductor, { type ConductorStatus } from '@drakkar.software/expo-conductor';
 
-import { radii, spacing } from '@/theme';
+import { motion, radii, spacing } from '@/theme';
 import {
   deleteAutomatedRoom,
   isValidCronExpression,
@@ -24,12 +25,17 @@ import { useTheme } from '@/lib/use-theme';
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
+import { Card } from '@/components/ui/Card';
 import { CopyField } from '@/components/ui/CopyField';
 import { Icon } from '@/components/ui/Icon';
 import { IntervalPicker, type Cadence } from '@/components/chat/IntervalPicker';
 import { TextField } from '@/components/ui/TextField';
 import { Toggle } from '@/components/ui/Toggle';
 import { Txt } from '@/components/ui/Txt';
+
+/** Distance the sheet springs up from on mount — larger than the tallest sheet so it
+ *  always starts fully offscreen regardless of content height. */
+const SHEET_RISE = 700;
 
 interface Props {
   session: Session;
@@ -67,6 +73,17 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
   // don't nag about it). Surfaces an "OS is limiting background runs" hint so a user whose
   // scheduled ticks aren't firing knows it's a system setting, not a bug.
   const [bgStatus, setBgStatus] = useState<ConductorStatus | null>(null);
+
+  // A bottom sheet rises from the bottom edge rather than fading. Spring up on mount
+  // (the scrim keeps Modal's fade). Reduced motion → resting position.
+  const reduced = useReducedMotion();
+  const rise = useSharedValue(reduced ? 0 : SHEET_RISE);
+  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: rise.value }] }));
+
+  useEffect(() => {
+    if (reduced) return;
+    rise.value = withSpring(0, motion.spring);
+  }, [reduced, rise]);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
@@ -215,6 +232,7 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
           scroller takes the gesture directly. */}
       <View style={[styles.backdrop, { backgroundColor: colors.scrim }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Dismiss" />
+        <Animated.View style={[styles.sheetWrap, sheetStyle]}>
         <View style={[styles.sheet, { backgroundColor: colors.paper }]}>
           <ScrollView style={styles.scroll} contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
             <Txt variant="micro" weight="bold" mono uppercase tone="inkMuted">
@@ -225,33 +243,39 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
               {provider.description}
             </Txt>
 
-            <View style={styles.field}>
-              <Txt variant="caption" tone="inkMuted">
-                Name
-              </Txt>
-              <TextField
-                value={name}
-                onChangeText={setName}
-                placeholder="my-automation"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
+            {/* Group the long stack into titled paper sections (General / Schedule /
+                Settings) so the consequential controls aren't on one flat plane —
+                each Card supplies the lit-from-above depth the config surface lacked. */}
+            <Card title="General">
+              <View style={styles.field}>
+                <Txt variant="caption" tone="inkMuted">
+                  Name
+                </Txt>
+                <TextField
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="my-automation"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+              <View style={styles.row}>
+                <Txt variant="footnote" weight="semibold" style={styles.rowLabel}>
+                  Enabled
+                </Txt>
+                <Toggle value={enabled} onValueChange={setEnabled} accessibilityLabel="Enable automation" />
+              </View>
+            </Card>
 
-            <View style={styles.row}>
-              <Txt variant="footnote" weight="semibold" style={styles.rowLabel}>
-                Enabled
-              </Txt>
-              <Toggle value={enabled} onValueChange={setEnabled} accessibilityLabel="Enable automation" />
-            </View>
-
-            <IntervalPicker value={cadence} onChange={setCadence} />
+            {/* Card supplies the uppercase-mono "Schedule" title to match General /
+                Settings; hideHeading drops IntervalPicker's own sentence-case heading so the
+                three section headers read as one family. */}
+            <Card title="Schedule">
+              <IntervalPicker value={cadence} onChange={setCadence} hideHeading />
+            </Card>
 
             {provider.paramFields.length ? (
-              <>
-                <Txt variant="footnote" weight="semibold">
-                  Settings
-                </Txt>
+              <Card title="Settings">
                 {provider.paramFields.map((f) => {
                   const isSecret = !!f.secret;
                   const value = isSecret ? ((secrets[f.key] as string | undefined) ?? '') : ((params[f.key] as string | undefined) ?? '');
@@ -261,9 +285,14 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
                   };
                   return (
                     <View key={f.key} style={styles.field}>
-                      <Txt variant="caption" tone="inkMuted">
-                        {f.label}
-                      </Txt>
+                      <View style={styles.fieldLabel}>
+                        {/* A lock glyph marks a credential so a secret field is visually
+                            distinct from a plain param, not just dotted-out. */}
+                        {isSecret ? <Icon name="lock" size={12} color={colors.inkMuted} /> : null}
+                        <Txt variant="caption" tone="inkMuted">
+                          {f.label}
+                        </Txt>
+                      </View>
                       <TextField
                         value={String(value)}
                         onChangeText={onChange}
@@ -277,7 +306,7 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
                     </View>
                   );
                 })}
-              </>
+              </Card>
             ) : null}
 
             <View style={styles.actions}>
@@ -333,11 +362,22 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
               </Callout>
             ) : null}
 
-            <View style={styles.danger}>
+            {/* Danger zone — a dangerBg-tinted, danger-bordered well sets the destructive
+                action spatially and chromatically apart from the config fields above it. */}
+            <View
+              style={[
+                styles.danger,
+                { backgroundColor: colors.dangerBg, borderColor: colors.dangerBorder, borderTopColor: colors.hairlineHi },
+              ]}
+            >
+              <Txt variant="caption" weight="semibold" mono uppercase color={colors.danger}>
+                Danger zone
+              </Txt>
               <Button label="Delete automation" iconName="trash" variant="danger" onPress={remove} loading={busy === 'delete'} />
             </View>
           </ScrollView>
         </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -345,8 +385,11 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end' },
+  // The animated wrapper owns the height cap so the inner sheet keeps its rounded
+  // top + paper fill while the translateY rise plays.
+  sheetWrap: { maxHeight: '90%' },
   sheet: {
-    maxHeight: '90%',
+    flexShrink: 1,
     borderTopLeftRadius: radii.sheet,
     borderTopRightRadius: radii.sheet,
   },
@@ -355,10 +398,18 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs },
   rowLabel: { flex: 1 },
   field: { gap: 4 },
+  fieldLabel: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   actions: { gap: spacing.sm, paddingTop: spacing.xs },
   actionRow: { flexDirection: 'row', gap: spacing.sm },
   actionCell: { flex: 1 },
   collapseHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs },
   collapseLabel: { flex: 1 },
-  danger: { paddingTop: spacing.lg },
+  // Danger well: tinted, danger-bordered, lit top edge — set apart from the fields.
+  danger: {
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderRadius: radii.md,
+  },
 });

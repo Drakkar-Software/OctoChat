@@ -8,10 +8,12 @@ import type { OutboxMessage } from '@/lib/outbox';
 import { plural } from '@drakkar.software/octochat-sdk';
 import type { AttachmentRef } from '@drakkar.software/octochat-sdk';
 import { useConversationData, type ConversationStore } from '@/lib/use-conversation-data';
+import { useTheme } from '@/lib/use-theme';
 import { Txt } from '@/components/ui/Txt';
 
 import { DateDivider, UnreadDivider } from './Dividers';
 import { MessageGroup } from './MessageGroup';
+import { ThreadParentCard } from './ThreadParentCard';
 
 /** Highlighted parent message + its replies, read from the room's synced store. */
 export function ThreadConversation({
@@ -61,6 +63,7 @@ export function ThreadConversation({
   /** Retry a failed pending reply by id. */
   onRetry?: (id: string) => void;
 }) {
+  const { colors } = useTheme();
   const { messages, reactions, edits, pins, pseudo, avatar, nameFor, resolveRoom, resolveUser, selfName } = useConversationData(
     store,
     spaceId,
@@ -107,27 +110,33 @@ export function ThreadConversation({
       ListHeaderComponent={
         <>
           {parent ? (
-            <MessageGroup
-              message={toDisplayMessage(parent, reactions, currentUserId, { selfName, lastReadAt, edits, pins, ownerId })}
-              author={authorFor(parent.authorId, currentUserId, pseudo(parent.authorId), avatar(parent.authorId))}
-              nameFor={nameFor}
-              resolveRoom={resolveRoom}
-              resolveUser={resolveUser}
-              onOpenMention={onOpenProfile}
-              currentUserName={selfName}
-              onToggleReaction={(emoji) => onToggleReaction(parent.id, emoji)}
-              onEdit={parent.authorId === currentUserId && parent.text ? (t) => onEditMessage(parent.id, t) : undefined}
-              onDelete={parent.authorId === currentUserId ? () => onDeleteMessage(parent.id) : undefined}
-              onPin={pinHandler(parent.id)}
-              onPressAuthor={onOpenProfile ? () => onOpenProfile(parent.authorId) : undefined}
-              onLoadAttachment={onLoadAttachment}
-              highlighted
-            />
+            // The parent is the thread's origin: frame it in an accent anchor card
+            // (own identity) rather than the generic highlighted-mention tint, so it
+            // reads as a branched side-conversation, not a slightly-tinted room.
+            <ThreadParentCard>
+              <MessageGroup
+                message={toDisplayMessage(parent, reactions, currentUserId, { selfName, lastReadAt, edits, pins, ownerId })}
+                author={authorFor(parent.authorId, currentUserId, pseudo(parent.authorId), avatar(parent.authorId))}
+                nameFor={nameFor}
+                resolveRoom={resolveRoom}
+                resolveUser={resolveUser}
+                onOpenMention={onOpenProfile}
+                currentUserName={selfName}
+                onToggleReaction={(emoji) => onToggleReaction(parent.id, emoji)}
+                onEdit={parent.authorId === currentUserId && parent.text ? (t) => onEditMessage(parent.id, t) : undefined}
+                onDelete={parent.authorId === currentUserId ? () => onDeleteMessage(parent.id) : undefined}
+                onPin={pinHandler(parent.id)}
+                onPressAuthor={onOpenProfile ? () => onOpenProfile(parent.authorId) : undefined}
+                onLoadAttachment={onLoadAttachment}
+              />
+            </ThreadParentCard>
           ) : null}
           <View style={styles.label}>
+            <View style={[styles.labelRule, { backgroundColor: colors.ruleSoft }]} />
             <Txt variant="micro" weight="bold" mono uppercase tone="inkMuted">
               {plural(replies.length, 'reply', 'replies')}
             </Txt>
+            <View style={[styles.labelRule, { backgroundColor: colors.ruleSoft }]} />
           </View>
         </>
       }
@@ -173,5 +182,14 @@ const ESTIMATED_ROW_HEIGHT = 80;
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  label: { paddingHorizontal: spacing.screenX, paddingVertical: spacing.sm },
+  // "N replies" rule that separates the anchor card from the reply stream — flanked
+  // by a hairline so it reads as a deliberate divider, not a stray label.
+  label: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.screenX,
+    paddingVertical: spacing.md,
+  },
+  labelRule: { flex: 1, height: StyleSheet.hairlineWidth },
 });

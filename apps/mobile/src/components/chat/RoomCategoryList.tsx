@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
@@ -9,11 +9,17 @@ import { useCategoryCollapse } from '@/lib/use-category-collapse';
 import { useTheme } from '@/lib/use-theme';
 import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
+import { StaggerList } from '@/components/ui/StaggerList';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
 import { MoveToCategorySheet } from './MoveToCategorySheet';
 import { RoomCategorySection } from './RoomCategorySection';
+
+// Spaces whose room list has already played its entrance cascade this session — so
+// the "dive" is a once-per-space delight on first open, not a re-blank on every
+// switch back (the sidebar is the highest-traffic surface in the app).
+const divedSpaces = new Set<string>();
 
 interface RoomCategoryListProps {
   categories: RoomCategory[];
@@ -67,27 +73,39 @@ export function RoomCategoryList({
     setCatError(typeof message === 'string' ? message : null);
   };
 
+  // Cascade only the FIRST time this space's list is shown this session.
+  const firstDive = useMemo(() => {
+    const seen = divedSpaces.has(spaceId);
+    if (!seen) divedSpaces.add(spaceId);
+    return !seen;
+  }, [spaceId]);
+
+  const sections = categories.map((cat) => {
+    const containsActive = !!activeRoomId && cat.rooms.some((r) => r.id === activeRoomId);
+    const collapsed = isCollapsed(cat.name) && !containsActive;
+    return (
+      <RoomCategorySection
+        key={cat.name}
+        category={cat}
+        activeRoomId={activeRoomId}
+        threads={threads}
+        collapsed={collapsed}
+        onToggleCollapse={() => toggle(cat.name)}
+        onOpenRoom={onOpenRoom}
+        onOpenThread={onOpenThread}
+        onCreateRoom={onCreateRoom}
+        onMoveRoom={onMoveRoom ? (roomId) => onMoveRoom(roomId, cat.name) : undefined}
+        onRequestMove={onMoveRoom ? (room) => setMoving(room) : undefined}
+      />
+    );
+  });
+
   return (
     <View>
-      {categories.map((cat) => {
-        const containsActive = !!activeRoomId && cat.rooms.some((r) => r.id === activeRoomId);
-        const collapsed = isCollapsed(cat.name) && !containsActive;
-        return (
-          <RoomCategorySection
-            key={cat.name}
-            category={cat}
-            activeRoomId={activeRoomId}
-            threads={threads}
-            collapsed={collapsed}
-            onToggleCollapse={() => toggle(cat.name)}
-            onOpenRoom={onOpenRoom}
-            onOpenThread={onOpenThread}
-            onCreateRoom={onCreateRoom}
-            onMoveRoom={onMoveRoom ? (roomId) => onMoveRoom(roomId, cat.name) : undefined}
-            onRequestMove={onMoveRoom ? (room) => setMoving(room) : undefined}
-          />
-        );
-      })}
+      {/* "Dive into a space": the category sections cascade in the first time a space
+          is opened (once per space per session, never on scroll / re-visit), and
+          collapse to instant under reduced motion. */}
+      {firstDive ? <StaggerList cap={6}>{sections}</StaggerList> : sections}
 
       {onCreateCategory ? (
         addingCat ? (

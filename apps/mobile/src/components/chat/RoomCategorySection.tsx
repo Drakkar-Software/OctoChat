@@ -76,7 +76,11 @@ export function RoomCategorySection({
       ref={dropRef}
       style={[
         styles.section,
-        dropOver ? { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder } : { borderColor: 'transparent' },
+        // A quiet lit-from-above top divider separates one shelf from the next so
+        // categories read as distinct groups without adding chrome. The drag-over
+        // state still wins, washing the whole section in accent.
+        { borderTopColor: colors.ruleSoft },
+        dropOver ? { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder, borderTopColor: colors.accentBorder } : null,
       ]}
     >
       {/* Collapse toggle and the add button are separate press targets so the
@@ -84,9 +88,15 @@ export function RoomCategorySection({
       <View style={styles.header}>
         <Pressable accessibilityRole="button" onPress={onToggleCollapse} style={styles.toggle}>
           <Icon name={collapsed ? 'chev' : 'chevron-down'} size={12} color={colors.inkMuted} />
-          <Txt variant="micro" weight="bold" mono uppercase tone="inkMuted">
+          <Txt variant="caption" weight="bold" mono uppercase tone="inkMuted" numberOfLines={1} style={styles.label}>
             {category.name}
           </Txt>
+          {/* A faint room count so even a collapsed shelf communicates its size. */}
+          {category.rooms.length ? (
+            <Txt variant="caption" mono tone="inkFaint">
+              {category.rooms.length}
+            </Txt>
+          ) : null}
         </Pressable>
         {onCreateRoom ? (
           <IconButton
@@ -157,9 +167,19 @@ export function RoomCategorySection({
 }
 
 const styles = StyleSheet.create({
-  section: { marginBottom: spacing.sm, borderWidth: 1, borderRadius: radii.md },
+  // A shelf: a lit top hairline + a touch of breathing room above it groups each
+  // category's rows. The 1px frame stays (transparent at rest) so the drag-over
+  // accent border has somewhere to paint without shifting layout.
+  section: {
+    marginBottom: spacing.sm,
+    paddingTop: spacing.xs,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    borderRadius: radii.md,
+  },
   header: { flexDirection: 'row', alignItems: 'center', paddingRight: spacing.xs },
-  toggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: spacing.md },
+  toggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingVertical: 6, paddingHorizontal: spacing.md },
+  label: { flex: 1 },
   addBox: { marginTop: spacing.xs },
   addField: { marginHorizontal: spacing.xs, marginTop: spacing.xs },
   notice: { marginHorizontal: spacing.xs, marginTop: spacing.xs },

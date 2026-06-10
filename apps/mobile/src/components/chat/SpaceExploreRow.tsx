@@ -1,19 +1,28 @@
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { radii, spacing } from '@/theme';
 import { plural } from '@drakkar.software/octochat-sdk';
 import type { PublicSpaceEntry } from '@drakkar.software/octochat-sdk';
+import { useHover } from '@/lib/use-hover';
+import { useScalePress } from '@/lib/use-scale-press';
 import { useTheme } from '@/lib/use-theme';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
 import { Pill } from '@/components/ui/Pill';
 import { Txt } from '@/components/ui/Txt';
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 interface SpaceExploreRowProps {
   /** The public space to list. */
   space: PublicSpaceEntry;
   /** The owner's resolved display pseudo, if known (falls back to a short id). */
   ownerName?: string;
+  /** Press handler — the directory is invite-only, so this typically surfaces the
+   *  "joining needs an invite link" hint rather than navigating. When omitted the
+   *  row is a static, non-interactive preview. */
+  onPress?: () => void;
 }
 
 /** Two-letter monogram for a public space's avatar fallback (matches pubspace.ts). */
@@ -26,20 +35,24 @@ const shortOwner = (id: string | null) => (id ? `user-${id.slice(0, 6)}` : 'unkn
  * One space in the public-space directory (Explore screen): a lit-edge card with
  * a faint accent "light rail" — the marine motif reused as a shaft of light from
  * the deep — carrying the space's image/monogram, name and an owner · channel-count
- * meta line, with a `PUBLIC` tag. View-only: there's no join affordance because the
- * directory entry grants no access (joining needs the owner's invite link, stated
- * once on the screen).
+ * meta line, with an `INVITE-ONLY` tag. The directory grants no access (joining
+ * needs the owner's invite link), so when an `onPress` is wired the row gives
+ * honest hover/press feedback and surfaces that invite-only path rather than
+ * navigating; without one it stays a static preview.
  */
-export function SpaceExploreRow({ space, ownerName }: SpaceExploreRowProps) {
+export function SpaceExploreRow({ space, ownerName, onPress }: SpaceExploreRowProps) {
   const { colors } = useTheme();
+  const { hovered, hoverProps } = useHover();
+  const { animStyle, onPressIn, onPressOut } = useScalePress({ scaleTo: 0.985 });
   const owner = ownerName ?? shortOwner(space.ownerId);
-  return (
-    <View
-      style={[
-        styles.row,
-        { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft, borderTopColor: colors.hairlineHi },
-      ]}
-    >
+  const surface = {
+    backgroundColor: hovered ? colors.hover : colors.paperAlt,
+    borderColor: hovered ? colors.accentBorder : colors.lineSoft,
+    borderTopColor: colors.hairlineHi,
+  };
+
+  const body = (
+    <>
       {/* A faint shaft of bioluminescent light down the leading edge. */}
       <View style={[styles.rail, { backgroundColor: colors.accentBorder }]} />
       <Avatar label={monogram(space.name)} image={space.image} size={42} />
@@ -55,10 +68,31 @@ export function SpaceExploreRow({ space, ownerName }: SpaceExploreRowProps) {
         </View>
       </View>
       <View style={styles.tags}>
-        <Pill label="PUBLIC" tone="accent" iconName="globe" style={styles.tagPill} />
+        {/* The directory is preview-only — a clear "invite-only" tag makes the
+            lack of a join affordance read as deliberate, not broken. */}
+        <Pill label="INVITE-ONLY" iconName="key" mono style={styles.tagPill} />
         <Pill label={plural(space.rooms, 'channel')} iconName="hash" mono style={styles.tagPill} />
       </View>
-    </View>
+    </>
+  );
+
+  // Static preview when no handler is wired; otherwise a pressable that surfaces
+  // the invite-only hint (with hover wash + a soft press spring for honest feedback).
+  if (!onPress) {
+    return <View style={[styles.row, surface]}>{body}</View>;
+  }
+  return (
+    <AnimatedPressable
+      accessibilityRole="button"
+      accessibilityLabel={`${space.name ?? 'Untitled space'} — invite-only`}
+      onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      {...hoverProps}
+      style={[styles.row, surface, animStyle]}
+    >
+      {body}
+    </AnimatedPressable>
   );
 }
 

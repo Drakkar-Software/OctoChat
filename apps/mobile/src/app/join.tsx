@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Card } from '@/components/ui/Card';
 import { CopyField } from '@/components/ui/CopyField';
+import { Divider } from '@/components/ui/Divider';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
@@ -106,6 +107,9 @@ export default function JoinScreen() {
 
   return (
     <StackScreen scroll contentStyle={styles.content} header={<AppBar title="Join or create" onBack={() => router.back()} />}>
+      <Txt variant="caption" mono uppercase tone="inkMuted">
+        Start something new
+      </Txt>
       <Card title="CREATE A SPACE">
         <View style={styles.typeRow}>
           <Button
@@ -156,25 +160,12 @@ export default function JoinScreen() {
         ) : null}
       </Card>
 
-      <Card title="DISCOVER">
-        <Txt variant="footnote" tone="inkSoft">
-          Browse public spaces anyone can find, then ask an owner for an invitation link.
+      <View style={styles.joinHeader}>
+        <Divider />
+        <Txt variant="caption" mono uppercase tone="inkMuted">
+          Join an existing space
         </Txt>
-        <Button
-          label="Browse public spaces"
-          variant="secondary"
-          size="md"
-          iconName="globe"
-          onPress={() => router.push('/spaces/explore')}
-        />
-      </Card>
-
-      <Card title="YOUR JOIN REQUEST">
-        <Txt variant="footnote" tone="inkSoft">
-          For private spaces: send this to an owner so they can invite you.
-        </Txt>
-        <CopyField value={myRequest} copyLabel="Copy join request" share shareTitle="My OctoChat join request" />
-      </Card>
+      </View>
 
       <Card title="PASTE AN INVITE">
         <Txt variant="footnote" tone="inkSoft">
@@ -224,6 +215,26 @@ export default function JoinScreen() {
           </Callout>
         ) : null}
       </Card>
+
+      <Card title="DISCOVER">
+        <Txt variant="footnote" tone="inkSoft">
+          Browse public spaces anyone can find, then ask an owner for an invitation link.
+        </Txt>
+        <Button
+          label="Browse public spaces"
+          variant="secondary"
+          size="md"
+          iconName="globe"
+          onPress={() => router.push('/spaces/explore')}
+        />
+      </Card>
+
+      <Card title="YOUR JOIN REQUEST">
+        <Txt variant="footnote" tone="inkSoft">
+          For private spaces: send this to an owner so they can invite you.
+        </Txt>
+        <CopyField value={myRequest} copyLabel="Copy join request" share shareTitle="My OctoChat join request" />
+      </Card>
     </StackScreen>
   );
 }
@@ -233,4 +244,5 @@ const styles = StyleSheet.create({
   typeRow: { flexDirection: 'row', gap: spacing.sm },
   actionRow: { flexDirection: 'row', gap: spacing.sm },
   actionBtn: { flex: 1 },
+  joinHeader: { gap: spacing.sm, marginTop: spacing.xs },
 });

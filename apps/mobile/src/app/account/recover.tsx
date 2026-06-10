@@ -7,6 +7,7 @@ import { useSession } from '@/lib/session-context';
 import { AppBar } from '@/components/ui/AppBar';
 import { IconButton } from '@/components/ui/IconButton';
 import { StackScreen } from '@/components/ui/StackScreen';
+import { AccountFlowHeader } from '@/components/account/AccountFlowHeader';
 import { SeedRecoverForm } from '@/components/onboarding/SeedRecoverForm';
 
 /** Add-account · recover: append an existing seed to the unlocked vault and
@@ -45,6 +46,7 @@ export default function RecoverAccountScreen() {
         />
       }
     >
+      <AccountFlowHeader title="Restore from seed" subtitle="Enter the 12-word seed of an existing account to add it here." />
       <SeedRecoverForm submitLabel="Add account" busy={busy} error={error} onSubmit={add} />
     </StackScreen>
   );

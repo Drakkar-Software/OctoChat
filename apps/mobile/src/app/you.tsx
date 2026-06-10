@@ -12,13 +12,13 @@ import { DebugStatsCard } from '@/components/settings/DebugStatsCard';
 import { AiSettingsCard } from '@/components/settings/AiSettingsCard';
 import { NotificationSettingsCard } from '@/components/settings/NotificationSettingsCard';
 import { QuickReactionsCard } from '@/components/settings/QuickReactionsCard';
+import { SettingsSection } from '@/components/settings/SettingsSection';
 import { UpdateSettingsCard } from '@/components/settings/UpdateSettingsCard';
 import { AppBar } from '@/components/ui/AppBar';
-import { Avatar } from '@/components/ui/Avatar';
+import { EditableAvatar } from '@/components/ui/EditableAvatar';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Divider } from '@/components/ui/Divider';
-import { Icon } from '@/components/ui/Icon';
 import { Row } from '@/components/ui/Row';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
@@ -71,106 +71,85 @@ export default function YouScreen() {
         />
       }
     >
-      <View style={styles.identity}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Change profile photo"
-          onPress={pickAvatar}
-          style={styles.avatarWrap}
-        >
-          <Avatar label={initials} image={avatarDraft} size={68} />
-          <View style={[styles.cameraBadge, { backgroundColor: colors.accent, borderColor: colors.paper }]}>
-            <Icon name="camera" size={12} color={colors.onAccent} />
-          </View>
-        </Pressable>
-        <View style={styles.identityText}>
-          <Txt variant="heading" weight="bold">
-            {profile.name}
-          </Txt>
-          <Txt variant="footnote" mono tone="inkMuted">
-            {profile.handle}
-          </Txt>
-          <View style={styles.avatarActions}>
-            <Pressable accessibilityRole="button" onPress={pickAvatar} hitSlop={6}>
-              <Txt variant="footnote" weight="semibold" tone="accent">
-                {avatarDraft ? 'Change photo' : 'Upload photo'}
-              </Txt>
-            </Pressable>
-            {avatarDraft ? (
-              <Pressable accessibilityRole="button" onPress={removeAvatar} hitSlop={6}>
-                <Txt variant="footnote" weight="semibold" tone="danger">
-                  Remove
-                </Txt>
-              </Pressable>
-            ) : null}
-          </View>
-          {avatarError ? (
-            <Txt variant="micro" tone="danger">
-              {avatarError}
+      <EditableAvatar
+        label={initials}
+        image={avatarDraft}
+        onPick={pickAvatar}
+        onRemove={removeAvatar}
+        error={avatarError}
+        accessibilityLabel="Change profile photo"
+      >
+        <Txt variant="heading" weight="bold">
+          {profile.name}
+        </Txt>
+        <Txt variant="footnote" mono tone="inkMuted">
+          {profile.handle}
+        </Txt>
+      </EditableAvatar>
+
+      <SettingsSection title="Identity">
+        <Card title="ABOUT">
+          <View style={styles.field}>
+            <Txt variant="micro" weight="semibold" mono uppercase tone="inkMuted">
+              Display name
             </Txt>
-          ) : null}
-        </View>
-      </View>
+            <TextField
+              value={draft}
+              onChangeText={setDraft}
+              placeholder="Your display name"
+              autoCapitalize="words"
+              autoCorrect={false}
+              maxLength={40}
+              returnKeyType="done"
+              onSubmitEditing={() => {
+                if (dirty) save();
+              }}
+            />
+          </View>
+        </Card>
 
-      <Card title="ABOUT">
-        <View style={styles.field}>
-          <Txt variant="micro" weight="semibold" mono uppercase tone="inkMuted">
-            Display name
-          </Txt>
-          <TextField
-            value={draft}
-            onChangeText={setDraft}
-            placeholder="Your display name"
-            autoCapitalize="words"
-            autoCorrect={false}
-            maxLength={40}
-            returnKeyType="done"
-            onSubmitEditing={() => {
-              if (dirty) save();
-            }}
-          />
-        </View>
-      </Card>
+        <Card title="ACCOUNTS">
+          <AccountSwitcher />
+        </Card>
 
-      <Card title="ACCOUNTS">
-        <AccountSwitcher />
-      </Card>
-
-      <Card title="SECURITY">
-        {nostrPubHex ? (
+        <Card title="SECURITY">
+          {nostrPubHex ? (
+            <Row
+              iconName="key"
+              title="Linked to Nostr"
+              detail={`${nostrPubHex.slice(0, 8)}…${nostrPubHex.slice(-8)} · sign in with the same extension`}
+              detailMono
+            />
+          ) : (
+            <Row
+              iconName="shield"
+              accent
+              title="Recovery seed"
+              detail="12 words · view or back up"
+              onPress={() => router.push('/account/backup')}
+            />
+          )}
+          <Divider style={styles.divider} />
           <Row
-            iconName="key"
-            title="Linked to Nostr"
-            detail={`${nostrPubHex.slice(0, 8)}…${nostrPubHex.slice(-8)} · sign in with the same extension`}
-            detailMono
+            iconName="devices"
+            title="Add a device"
+            detail="Show pairing QR · PIN-sealed"
+            onPress={() => router.push('/account/add-device')}
           />
-        ) : (
-          <Row
-            iconName="shield"
-            title="Recovery seed"
-            detail="12 words · view or back up"
-            onPress={() => router.push('/account/backup')}
-          />
-        )}
-        <Divider style={styles.divider} />
-        <Row
-          iconName="devices"
-          title="Add a device"
-          detail="Show pairing QR · PIN-sealed"
-          onPress={() => router.push('/account/add-device')}
-        />
-        <AppLockRow />
-      </Card>
+          <AppLockRow />
+        </Card>
+      </SettingsSection>
 
-      <AiSettingsCard />
+      <SettingsSection title="Preferences">
+        <AiSettingsCard />
+        <NotificationSettingsCard />
+        <QuickReactionsCard />
+      </SettingsSection>
 
-      <NotificationSettingsCard />
-
-      <QuickReactionsCard />
-
-      <UpdateSettingsCard />
-
-      <DebugStatsCard />
+      <SettingsSection title="This device">
+        <UpdateSettingsCard />
+        <DebugStatsCard />
+      </SettingsSection>
 
       {accounts.length > 1 ? (
         <Button
@@ -190,21 +169,6 @@ export default function YouScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.screenX, gap: spacing.lg, paddingBottom: 96 },
-  identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
-  avatarWrap: { position: 'relative' },
-  cameraBadge: {
-    position: 'absolute',
-    right: -2,
-    bottom: -2,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  identityText: { flex: 1, gap: 2 },
-  avatarActions: { flexDirection: 'row', gap: spacing.md, marginTop: 2 },
   field: { gap: 3 },
   divider: { marginVertical: spacing.xs },
 });

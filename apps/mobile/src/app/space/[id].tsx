@@ -14,6 +14,7 @@ import { useSpaceStats } from '@/lib/use-space-stats';
 import { useTheme } from '@/lib/use-theme';
 import { AppBar } from '@/components/ui/AppBar';
 import { Avatar } from '@/components/ui/Avatar';
+import { EditableAvatar } from '@/components/ui/EditableAvatar';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Card } from '@/components/ui/Card';
@@ -174,13 +175,23 @@ export default function SpaceScreen() {
       ) : (
         <>
           <Card title="INFORMATION">
-            <Txt variant="title" weight="bold" numberOfLines={1}>
-              {name}
-            </Txt>
-            <SpaceMeta isPublic={isPublic} memberCount={memberCount} iconSize={12} variant="footnote" />
-            <Txt variant="caption" mono tone="inkMuted" numberOfLines={1}>
-              {spaceId}
-            </Txt>
+            <View style={styles.identity}>
+              <Avatar label={shortLabel} image={space?.image} size={48} />
+              <View style={styles.identityText}>
+                <Txt variant="title" weight="bold" numberOfLines={1}>
+                  {name}
+                </Txt>
+                <SpaceMeta isPublic={isPublic} memberCount={memberCount} iconSize={12} variant="footnote" />
+              </View>
+            </View>
+            <View style={styles.idLine}>
+              <Txt variant="micro" weight="semibold" mono uppercase tone="inkMuted">
+                ID
+              </Txt>
+              <Txt variant="micro" mono tone="inkFaint" numberOfLines={1} style={styles.idValue}>
+                {spaceId}
+              </Txt>
+            </View>
           </Card>
 
           <Card title="NOTIFICATIONS">
@@ -212,43 +223,20 @@ export default function SpaceScreen() {
           {loading ? null : isOwner ? (
             <>
               <Card title="SETTINGS">
-                <View style={styles.imageRow}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Change space image"
-                    onPress={pickImage}
-                    style={styles.imageWrap}
-                  >
-                    <Avatar label={shortLabel} image={imageDraft} size={68} />
-                    <View style={[styles.cameraBadge, { backgroundColor: colors.accent, borderColor: colors.paper }]}>
-                      <Icon name="camera" size={12} color={colors.onAccent} />
-                    </View>
-                  </Pressable>
-                  <View style={styles.imageText}>
-                    <Txt variant="footnote" tone="inkSoft">
-                      Space image
-                    </Txt>
-                    <View style={styles.imageActions}>
-                      <Pressable accessibilityRole="button" onPress={pickImage} hitSlop={6}>
-                        <Txt variant="footnote" weight="semibold" tone="accent">
-                          {imageDraft ? 'Change image' : 'Upload image'}
-                        </Txt>
-                      </Pressable>
-                      {imageDraft ? (
-                        <Pressable accessibilityRole="button" onPress={removeImage} hitSlop={6}>
-                          <Txt variant="footnote" weight="semibold" tone="danger">
-                            Remove
-                          </Txt>
-                        </Pressable>
-                      ) : null}
-                    </View>
-                    {imageError ? (
-                      <Txt variant="micro" tone="danger">
-                        {imageError}
-                      </Txt>
-                    ) : null}
-                  </View>
-                </View>
+                <EditableAvatar
+                  label={shortLabel}
+                  image={imageDraft}
+                  onPick={pickImage}
+                  onRemove={removeImage}
+                  error={imageError}
+                  accessibilityLabel="Change space image"
+                  uploadLabel="Upload image"
+                  changeLabel="Change image"
+                >
+                  <Txt variant="footnote" tone="inkSoft">
+                    Space image
+                  </Txt>
+                </EditableAvatar>
 
                 <Txt variant="footnote" tone="inkSoft">
                   Space name
@@ -442,7 +430,15 @@ export default function SpaceScreen() {
                 onPress={doLeave}
               />
             </Card>
-          ) : null}
+          ) : (
+            <Card title="ACCESS">
+              <Callout tone="info" iconName="key" title="You're not a member yet">
+                {isPublic
+                  ? 'You’re viewing this public space’s details. Open it with an invitation link from its owner.'
+                  : 'You’re viewing this space’s details. Join with an invitation link from its owner.'}
+              </Callout>
+            </Card>
+          )}
         </>
       )}
     </StackScreen>
@@ -451,22 +447,11 @@ export default function SpaceScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.screenX, gap: spacing.lg },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  identityText: { flex: 1, gap: spacing.xs },
+  idLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  idValue: { flex: 1 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  imageRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
-  imageWrap: { position: 'relative' },
-  cameraBadge: {
-    position: 'absolute',
-    right: -2,
-    bottom: -2,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  imageText: { flex: 1, gap: 2 },
-  imageActions: { flexDirection: 'row', gap: spacing.md, marginTop: 2 },
   inviteBox: { gap: spacing.sm },
   typeRow: { flexDirection: 'row', gap: spacing.sm },
   linkBox: { gap: spacing.md },

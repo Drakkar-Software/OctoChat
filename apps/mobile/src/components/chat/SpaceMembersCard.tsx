@@ -50,7 +50,7 @@ export function SpaceMembersCard({ ownerId, members, currentUserId }: SpaceMembe
             <Fragment key={id}>
               {i > 0 ? <Divider style={styles.divider} /> : null}
               <View style={styles.row}>
-                <Avatar size={32} label={u.initials} image={u.avatar} />
+                <Avatar size={32} label={u.initials} image={u.avatar} tint />
                 <Txt variant="callout" weight="semibold" numberOfLines={1} style={styles.name}>
                   {u.name}
                 </Txt>

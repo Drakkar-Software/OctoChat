@@ -12,18 +12,24 @@ import { Icon, type IconName } from './Icon';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent';
 export type ButtonSize = 'sm' | 'md' | 'lg';
+export type ButtonShape = 'rounded' | 'pill';
 
 interface ButtonProps {
   label: string;
   onPress?: () => void;
   variant?: ButtonVariant;
   size?: ButtonSize;
+  /** Corner treatment — `rounded` (default, radii.lg) or a fully-rounded `pill`. */
+  shape?: ButtonShape;
   /** Stretch to fill the parent's width. */
   full?: boolean;
   /** Optional leading icon, auto-colored to match the label. */
   iconName?: IconName;
+  /** Render the icon alone (square target, `label` becomes the a11y label).
+   *  Requires `iconName`. */
+  iconOnly?: boolean;
   disabled?: boolean;
   /** Show a spinner in place of the leading icon and block presses — for async
    *  actions (e.g. generating an invite link) so the wait reads as "working". */
@@ -47,6 +53,8 @@ function variantColors(c: Palette, variant: ButtonVariant) {
       return { bg: 'transparent', border: 'transparent', fg: c.inkSoft };
     case 'danger':
       return { bg: c.paper, border: c.dangerBorder, fg: c.danger };
+    case 'accent':
+      return { bg: 'transparent', border: 'transparent', fg: c.accentInk };
   }
 }
 
@@ -57,8 +65,10 @@ export function Button({
   onPress,
   variant = 'secondary',
   size = 'md',
+  shape = 'rounded',
   full = false,
   iconName,
+  iconOnly = false,
   disabled = false,
   loading = false,
   style,
@@ -70,11 +80,19 @@ export function Button({
   const { animStyle, onPressIn, onPressOut } = useScalePress({ scaleTo: 0.97 });
 
   const isPrimary = variant === 'primary';
-  const hoverWash = !hovered ? null : isPrimary ? colors.brightWash : colors.hover;
+  const isPill = shape === 'pill';
+  const radius = isPill ? radii.pill : radii.lg;
+  // `accent` is a low-emphasis text action — it hovers with the accent wash, not
+  // the primary's bright gradient overlay.
+  const hoverWash = !hovered ? null : isPrimary ? colors.brightWash : variant === 'accent' ? colors.accentBg : colors.hover;
+  // Icon-only collapses to a square target: drop the gap + horizontal padding
+  // so the glyph sits centered in a minHeight×minHeight tap area.
+  const square = iconOnly && !!iconName;
 
   return (
     <AnimatedPressable
       accessibilityRole="button"
+      accessibilityLabel={square ? label : undefined}
       disabled={disabled || loading}
       onPress={onPress}
       {...hoverProps}
@@ -85,10 +103,12 @@ export function Button({
         {
           backgroundColor: v.bg,
           borderColor: v.border,
+          borderRadius: radius,
           paddingVertical: s.paddingVertical,
-          paddingHorizontal: s.paddingHorizontal,
+          paddingHorizontal: square ? 0 : s.paddingHorizontal,
           minHeight: s.minHeight,
-          gap: s.gap,
+          minWidth: square ? s.minHeight : undefined,
+          gap: square ? 0 : s.gap,
           opacity: disabled ? opacity.disabled : 1,
           alignSelf: full ? 'stretch' : 'flex-start',
           width: full ? '100%' : undefined,
@@ -101,18 +121,20 @@ export function Button({
       {isPrimary ? (
         <LinearGradient
           colors={[colors.accentGradTop, colors.accentGradBottom]}
-          style={[StyleSheet.absoluteFill, styles.fill]}
+          style={[StyleSheet.absoluteFill, { borderRadius: radius }]}
         />
       ) : null}
-      {hoverWash ? <View style={[StyleSheet.absoluteFill, styles.fill, { backgroundColor: hoverWash }]} /> : null}
+      {hoverWash ? <View style={[StyleSheet.absoluteFill, { borderRadius: radius, backgroundColor: hoverWash }]} /> : null}
       {loading ? (
         <ActivityIndicator size="small" color={v.fg} />
       ) : iconName ? (
         <Icon name={iconName} size={s.fontSize + 2} color={v.fg} />
       ) : null}
-      <Text style={[styles.label, { color: v.fg, fontSize: s.fontSize }]} numberOfLines={1}>
-        {label}
-      </Text>
+      {square ? null : (
+        <Text style={[styles.label, { color: v.fg, fontSize: s.fontSize }]} numberOfLines={1}>
+          {label}
+        </Text>
+      )}
     </AnimatedPressable>
   );
 }
@@ -123,9 +145,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderRadius: radii.lg,
   },
-  fill: { borderRadius: radii.lg },
   label: {
     fontFamily: fonts.bodySemibold,
     letterSpacing: 0.1,

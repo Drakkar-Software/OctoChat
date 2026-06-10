@@ -7,7 +7,7 @@ import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';
 import { StackScreen } from '@/components/ui/StackScreen';
-import { Txt } from '@/components/ui/Txt';
+import { AccountFlowHeader } from '@/components/account/AccountFlowHeader';
 
 /** Add-account chooser: create a fresh identity or recover one from a seed. Both
  *  append to the already-unlocked vault and switch to it — no PIN step. */
@@ -28,9 +28,10 @@ export default function AddAccountScreen() {
         />
       }
     >
-      <Txt variant="body" tone="inkSoft">
-        Hold several identities here and switch between them instantly. Your current account stays signed in.
-      </Txt>
+      <AccountFlowHeader
+        title="Another identity"
+        subtitle="Hold several accounts here and switch between them instantly. Your current account stays signed in."
+      />
       <View style={styles.actions}>
         <Button
           label="Create new identity"

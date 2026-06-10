@@ -153,6 +153,14 @@ export function MessageGroup({
   // wider, stronger accent bar + deeper tint so it stands out from a read mention
   // or a thread's highlighted parent.
   const strong = !!message.mention && !!message.unread;
+  // The viewer's own messages render their name in accent so "you" punches out of
+  // the column at a glance (sharp accent punctuation, not spread color). `authorFor`
+  // sets the name to "You" only when authorId === currentUserId, so this is reliable
+  // without any new call-site wiring.
+  const isSelf = author.name === 'You';
+  // A failed (un-retried) send needs to be scannable against a busy stream — give
+  // its row a danger-tinted left edge so "needs action" reads at a glance.
+  const failed = message.pending === 'failed';
   // Make the avatar/name open the author's profile when a handler is wired;
   // render them inert otherwise so the component stays usable read-only.
   const authorLink = (node: ReactNode) =>
@@ -178,17 +186,21 @@ export function MessageGroup({
     styles.row,
     continuation ? styles.continuation : null,
     dimmed ? styles.pendingDim : null,
-    strong
-      ? { backgroundColor: colors.accentBgStrong }
-      : tinted
-        ? { backgroundColor: colors.accentBg }
-        : hovered
-          ? { backgroundColor: colors.hover }
-          : null,
+    failed
+      ? { backgroundColor: colors.dangerBg }
+      : strong
+        ? { backgroundColor: colors.accentBgStrong }
+        : tinted
+          ? { backgroundColor: colors.accentBg }
+          : hovered
+            ? { backgroundColor: colors.hover }
+            : null,
   ];
   const content = (
     <>
-      {tinted ? (
+      {failed ? (
+        <View style={[styles.mentionBar, { width: 3, backgroundColor: colors.danger }]} />
+      ) : tinted ? (
         <View
           style={[
             styles.mentionBar,
@@ -205,25 +217,33 @@ export function MessageGroup({
           ) : null}
         </View>
       ) : (
-        authorLink(<Avatar label={author.initials} image={author.avatar} size={AVATAR_SIZE} presence={author.presence} />)
+        authorLink(<Avatar label={author.initials} image={author.avatar} size={AVATAR_SIZE} presence={author.presence} tint />)
       )}
       <View style={styles.body}>
         {continuation ? null : (
           <View style={styles.head}>
             {authorLink(
-              <Txt variant="callout" weight="bold">
+              <Txt variant="callout" weight="bold" tone={isSelf ? 'accent' : undefined}>
                 {author.name}
               </Txt>,
             )}
             <Txt variant="micro" mono tone="inkMuted">
               {message.time}
             </Txt>
+            {message.edited ? (
+              <Txt variant="micro" mono tone="inkFaint">
+                · edited
+              </Txt>
+            ) : null}
           </View>
         )}
         {message.deleted ? (
-          <Txt variant="body" tone="inkFaint">
-            Message deleted
-          </Txt>
+          <View style={[styles.tombstone, { backgroundColor: colors.surface, borderColor: colors.lineFaint }]}>
+            <Icon name="trash" size={12} color={colors.inkFaint} />
+            <Txt variant="footnote" tone="inkFaint">
+              Message deleted
+            </Txt>
+          </View>
         ) : editing ? (
           <MessageEditor
             initialText={message.text ?? ''}
@@ -246,9 +266,11 @@ export function MessageGroup({
                 currentUserName={currentUserName}
               />
             ) : null}
-            {message.edited ? (
-              <Txt variant="micro" tone="inkFaint">
-                (edited)
+            {/* Non-continuation rows carry the "edited" mark in the header timestamp
+                row; a continuation has no header, so surface it inline here. */}
+            {message.edited && continuation ? (
+              <Txt variant="micro" mono tone="inkFaint">
+                edited
               </Txt>
             ) : null}
             {message.pending ? <PendingNote status={message.pending} onRetry={onRetry} /> : null}
@@ -317,6 +339,18 @@ const styles = StyleSheet.create({
   pendingDim: { opacity: 0.6 },
   // Clock/alert + status text under an unsent message.
   pendingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  // Removed-message slot: a quiet chip (trash glyph + label) so a deletion reads as
+  // a tombstone, not just dimmed prose.
+  tombstone: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+  },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   thread: {
     flexDirection: 'row',

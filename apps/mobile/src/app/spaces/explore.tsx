@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
@@ -6,6 +7,7 @@ import { plural } from '@drakkar.software/octochat-sdk';
 import { useExploreSpaces } from '@/lib/use-explore-spaces';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
+import { Callout } from '@/components/ui/Callout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Pill } from '@/components/ui/Pill';
 import { StackScreen } from '@/components/ui/StackScreen';
@@ -21,6 +23,10 @@ import { SpaceExploreRow, SpaceExploreRowSkeleton } from '@/components/chat/Spac
 export default function ExploreScreen() {
   const { spaces, ownerNames, loading, reload } = useExploreSpaces();
   const hasSpaces = spaces.length > 0;
+  // Tapping a directory row reveals the invite-only path forward (the directory
+  // grants no access — joining still needs the owner's link), so the inert-looking
+  // row becomes an honest, actionable affordance rather than a dead tap.
+  const [hintFor, setHintFor] = useState<string | null>(null);
 
   return (
     <StackScreen
@@ -60,7 +66,19 @@ export default function ExploreScreen() {
       ) : hasSpaces ? (
         <View style={styles.list}>
           {spaces.map((s) => (
-            <SpaceExploreRow key={s.id} space={s} ownerName={s.ownerId ? ownerNames.get(s.ownerId) : undefined} />
+            <View key={s.id} style={styles.rowGroup}>
+              <SpaceExploreRow
+                space={s}
+                ownerName={s.ownerId ? ownerNames.get(s.ownerId) : undefined}
+                onPress={() => setHintFor((cur) => (cur === s.id ? null : s.id))}
+              />
+              {hintFor === s.id ? (
+                <Callout tone="info" iconName="key" title="Invite-only">
+                  This directory is preview-only. Ask {s.name ?? 'the space'}’s owner for an invitation link, then paste
+                  it on the Join screen to get in.
+                </Callout>
+              ) : null}
+            </View>
           ))}
         </View>
       ) : (
@@ -80,4 +98,5 @@ const styles = StyleSheet.create({
   kicker: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   leadCopy: { maxWidth: 460 },
   list: { gap: spacing.sm },
+  rowGroup: { gap: spacing.sm },
 });

@@ -1,7 +1,10 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { layout, radii, spacing } from '@/theme';
+import type { ReactNode } from 'react';
+
+import { layout, motion, radii, spacing } from '@/theme';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { iconForNode } from '@drakkar.software/octochat-sdk';
@@ -38,9 +41,19 @@ export function ObjectTree({ nodes, onOpen, collapsed, onToggle }: ObjectTreePro
 function ObjectTreeRow({ node, onOpen, collapsed, onToggle }: { node: ObjectTreeNode } & Omit<ObjectTreeProps, 'nodes'>) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
+  const reduced = useReducedMotion();
   const hasChildren = node.children.length > 0;
   const isCollapsed = collapsed.has(node.id);
   const isCategory = node.type === 'category';
+
+  // Animate the disclosure chevron between closed (0°) and open (90°) so the tree reads
+  // as breathing open rather than snapping. Reduced motion → settles instantly.
+  const turn = useSharedValue(isCollapsed ? 0 : 1);
+  useEffect(() => {
+    const to = isCollapsed ? 0 : 1;
+    turn.value = reduced ? to : withTiming(to, { duration: motion.fast });
+  }, [isCollapsed, reduced, turn]);
+  const chevStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.value * 90}deg` }] }));
 
   const open = useCallback(() => {
     if (isCategory) onToggle(node.id);
@@ -67,9 +80,9 @@ function ObjectTreeRow({ node, onOpen, collapsed, onToggle }: { node: ObjectTree
           style={styles.disclosure}
         >
           {hasChildren ? (
-            <View style={isCollapsed ? undefined : styles.chevOpen}>
+            <Animated.View style={chevStyle}>
               <Icon name="chev" size={12} color={colors.inkFaint} />
-            </View>
+            </Animated.View>
           ) : null}
         </Pressable>
         {node.emoji ? (
@@ -92,10 +105,28 @@ function ObjectTreeRow({ node, onOpen, collapsed, onToggle }: { node: ObjectTree
         </Txt>
       </Pressable>
       {hasChildren && !isCollapsed ? (
-        <ObjectTree nodes={node.children} onOpen={onOpen} collapsed={collapsed} onToggle={onToggle} />
+        // Fade the subtree in as it mounts so expansion reads as the tree opening, not a
+        // hard cut. Collapse stays an instant unmount (the row's chevron carries the close).
+        <SubtreeReveal>
+          <ObjectTree nodes={node.children} onOpen={onOpen} collapsed={collapsed} onToggle={onToggle} />
+        </SubtreeReveal>
       ) : null}
     </>
   );
+}
+
+/** A one-shot fade-in on mount for an expanded subtree. FadeView only animates on a
+ *  visibility *change*, so a freshly-mounted subtree needs its own 0→1 entrance — the
+ *  same shared-value pattern used by the brand seals. Honors reduced motion. */
+function SubtreeReveal({ children }: { children: ReactNode }) {
+  const reduced = useReducedMotion();
+  const opacity = useSharedValue(reduced ? 1 : 0);
+  useEffect(() => {
+    if (reduced) return;
+    opacity.value = withTiming(1, { duration: motion.base });
+  }, [reduced, opacity]);
+  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  return <Animated.View style={style}>{children}</Animated.View>;
 }
 
 /** Caller-side hook for the per-device collapse set (keep tree rendering pure). */
@@ -115,7 +146,6 @@ export function useTreeCollapse(): { collapsed: Set<ID>; toggle: (id: ID) => voi
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, height: layout.objectTreeRowHeight, paddingRight: spacing.sm, borderRadius: radii.md },
   disclosure: { width: 16, height: 16, alignItems: 'center', justifyContent: 'center' },
-  chevOpen: { transform: [{ rotate: '90deg' }] },
   emoji: { width: 18, textAlign: 'center' },
   leafIcon: { width: 18, alignItems: 'center' },
   label: { flex: 1, minWidth: 0, letterSpacing: 0 },

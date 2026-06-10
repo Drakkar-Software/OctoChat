@@ -297,6 +297,8 @@ export const spacing = {
   gutter: 12,
   /** Minimum tappable control height. */
   controlMinHeight: 48,
+  /** Vertical padding for a compact list row (channels, DMs). */
+  rowY: 9,
 } as const;
 
 export const radii = {
@@ -411,6 +413,10 @@ export const layout = {
   composerSendSize: 40,
   /** Max width of an EmptyState's copy column so subtitles wrap to a tidy block. */
   emptyStateMaxWidth: 320,
+  /** Diameter of the camera badge overlaid on an editable avatar. */
+  avatarBadge: 24,
+  /** Max width of an inline chat image attachment (aspect-preserved within it). */
+  chatImageMaxWidth: 260,
   tabBarHeight: 64,
   headerMinHeight: 52,
   /** At/above this viewport width (web) the app switches to the desktop shell. */
@@ -458,6 +464,26 @@ export function presenceColor(p: Palette, status: PresenceStatus): string {
     case 'offline':
       return p.inkFaint;
   }
+}
+
+
+/**
+ * Deterministic monogram tint (background + readable ink) keyed off a stable id,
+ * so image-less avatars are distinguishable instead of a wall of identical grey
+ * discs. Kept marine-adjacent (accent + the muted status hues) so it reads as
+ * sharp accent punctuation, never a rainbow.
+ */
+export function avatarTint(p: Palette, key: string): { bg: string; fg: string } {
+  const tints = [
+    { bg: p.accentSoft, fg: p.accentInk },
+    { bg: p.successBg, fg: p.success },
+    { bg: p.warningBg, fg: p.warning },
+    { bg: p.dangerBg, fg: p.danger },
+    { bg: p.accentBgStrong, fg: p.accentInk },
+  ] as const;
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return tints[h % tints.length];
 }
 
 

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { layout, spacing } from '@/theme';
+import { layout, shadows, spacing } from '@/theme';
 import { useInShell } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
 
@@ -18,13 +18,17 @@ interface AppBarProps {
   left?: ReactNode;
   /** Right-aligned actions. */
   right?: ReactNode;
+  /** Float the bar over the depth gradient: a lit (hairlineHi) top edge + a
+   *  soft drop shadow so it reads as a raised surface. Default `false` keeps the
+   *  flat paper band with the plain bottom rule. */
+  elevated?: boolean;
 }
 
 /**
  * iOS-style header: symmetric flexible side regions with a centered title +
  * optional sub-line. Used across every pushed screen.
  */
-export function AppBar({ title, subtitle, onBack, left, right }: AppBarProps) {
+export function AppBar({ title, subtitle, onBack, left, right, elevated = false }: AppBarProps) {
   const { colors } = useTheme();
   const inShell = useInShell();
   const leftNode =
@@ -34,7 +38,16 @@ export function AppBar({ title, subtitle, onBack, left, right }: AppBarProps) {
     ) : null);
 
   return (
-    <View style={[styles.bar, inShell && styles.barShell, { backgroundColor: colors.paper, borderBottomColor: colors.lineSoft }]}>
+    <View
+      style={[
+        styles.bar,
+        inShell && styles.barShell,
+        { backgroundColor: colors.paper, borderBottomColor: colors.lineSoft },
+        // borderTopColor renders nothing without a matching width — add both.
+        elevated && { borderTopWidth: 1, borderTopColor: colors.hairlineHi },
+        elevated && shadows.sm,
+      ]}
+    >
       {/* On desktop the title hugs the start; on mobile both sides flex to center it. */}
       {leftNode ? (
         <View style={inShell ? styles.sideShell : styles.side}>{leftNode}</View>

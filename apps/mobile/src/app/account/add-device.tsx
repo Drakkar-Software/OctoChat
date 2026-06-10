@@ -12,8 +12,11 @@ import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { IconButton } from '@/components/ui/IconButton';
 import { Pill } from '@/components/ui/Pill';
+import { PulseHalo } from '@/components/ui/PulseHalo';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { Txt } from '@/components/ui/Txt';
+import { useTheme } from '@/lib/use-theme';
+import { AccountFlowHeader } from '@/components/account/AccountFlowHeader';
 import { PinDots } from '@/components/onboarding/PinDots';
 import { PinPad } from '@/components/onboarding/PinPad';
 import { QrCode } from '@/components/onboarding/QrCode';
@@ -24,6 +27,7 @@ const PIN_LENGTH = 6;
  *  Lives under `account/` (not `(onboarding)/`) — entered only from settings on
  *  an already-unlocked vault, so it must not be gated by the onboarding stack. */
 export default function AddDeviceScreen() {
+  const { colors } = useTheme();
   const { session } = useSession();
   const [pin, setPin] = useState('');
   const [stage, setStage] = useState<'pin' | 'qr'>('pin');
@@ -73,6 +77,8 @@ export default function AddDeviceScreen() {
           />
         }
       >
+        <AccountFlowHeader title="Pair a new device" subtitle="Bring another device into this identity, sealed with your PIN." />
+
         <Callout tone="accent" iconName="shield">
           Confirm with your device PIN. It encrypts the pairing code so it&apos;s useless without the PIN.
         </Callout>
@@ -127,7 +133,13 @@ export default function AddDeviceScreen() {
         and scan this — then enter the same PIN.
       </Txt>
 
-      {payload ? <QrCode size={240} value={payload} /> : null}
+      {payload ? (
+        // A slow bioluminescent halo around the code so "waiting for scan" visibly
+        // breathes — the pairing feels alive, not a static placeholder.
+        <PulseHalo size={240} color={colors.accent}>
+          <QrCode size={240} value={payload} />
+        </PulseHalo>
+      ) : null}
 
       <View style={styles.statusRow}>
         <Pill tone="accent" label="WAITING FOR SCAN…" mono />

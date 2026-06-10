@@ -5,11 +5,11 @@ import { spacing } from '@/theme';
 import { useDm } from '@/lib/use-dm';
 import { useUserProfile } from '@/lib/use-user-profile';
 import { AppBar } from '@/components/ui/AppBar';
-import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Card } from '@/components/ui/Card';
 import { CopyField } from '@/components/ui/CopyField';
+import { ProfileHero } from '@/components/ui/ProfileHero';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { Txt } from '@/components/ui/Txt';
 
@@ -29,17 +29,7 @@ export default function ProfileScreen() {
 
   return (
     <StackScreen scroll contentStyle={styles.content} header={<AppBar title="Profile" onBack={() => router.back()} />}>
-      <View style={styles.identity}>
-        <Avatar label={user.initials} image={user.avatar} size={68} ring />
-        <View style={styles.identityText}>
-          <Txt variant="heading" weight="bold" numberOfLines={1}>
-            {user.name}
-          </Txt>
-          <Txt variant="footnote" mono tone="inkMuted" numberOfLines={1}>
-            {user.handle}
-          </Txt>
-        </View>
-      </View>
+      <ProfileHero name={user.name} handle={user.handle} avatarLabel={user.initials} image={user.avatar} />
 
       {showMessage ? (
         <View style={styles.actions}>
@@ -75,7 +65,5 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.screenX, gap: spacing.lg },
-  identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
-  identityText: { flex: 1, gap: 2 },
   actions: { gap: spacing.sm },
 });

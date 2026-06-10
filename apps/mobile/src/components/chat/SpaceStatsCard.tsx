@@ -1,13 +1,13 @@
-import { Fragment } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { spacing } from '@/theme';
+import { radii, spacing } from '@/theme';
 import { formatBytes } from '@drakkar.software/octochat-sdk';
 import type { SpaceStats } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
 import { Callout } from '@/components/ui/Callout';
 import { Card } from '@/components/ui/Card';
 import { Divider } from '@/components/ui/Divider';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { Txt } from '@/components/ui/Txt';
 
 interface SpaceStatsCardProps {
@@ -15,62 +15,81 @@ interface SpaceStatsCardProps {
   loading: boolean;
 }
 
+/** One labelled metric tile in the 2×2 grid. */
+function Stat({ label, value }: { label: string; value: number }) {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.tile, { backgroundColor: colors.paperAlt, borderColor: colors.lineFaint }]}>
+      <Txt variant="title" weight="bold">
+        {value}
+      </Txt>
+      <Txt variant="micro" weight="semibold" mono uppercase tone="inkMuted">
+        {label}
+      </Txt>
+    </View>
+  );
+}
+
 /**
- * STORAGE card for the space screen (owner-only). Shows the space's approximate
- * stored size plus room / message / thread / attachment counts. Size is computed
- * client-side and labelled "~" — it is not an authoritative server figure (see
- * `space-stats.ts`). While the per-room fan-out runs it shows a spinner.
+ * STORAGE card for the space screen (owner-only): the space's approximate stored
+ * size as a display-scale hero, with room / message / thread / attachment counts in
+ * a 2×2 grid. Size is computed client-side and labelled "~" (see `space-stats.ts`).
  */
 export function SpaceStatsCard({ stats, loading }: SpaceStatsCardProps) {
-  const { colors } = useTheme();
-
-  const rows = stats
-    ? [
-        { label: 'Approx. size', value: `~${formatBytes(stats.bytes)}` },
-        { label: 'Rooms', value: String(stats.rooms) },
-        { label: 'Messages', value: String(stats.messages) },
-        { label: 'Threads', value: String(stats.threads) },
-        { label: 'Attachments', value: String(stats.attachments) },
-      ]
-    : [];
+  if (loading || !stats) {
+    return (
+      <Card title="STORAGE">
+        <Skeleton width={140} height={32} />
+        <View style={styles.grid}>
+          {[0, 1, 2, 3].map((i) => (
+            <View key={i} style={styles.tileSkeleton}>
+              <Skeleton width={48} height={22} />
+              <Skeleton width={64} height={10} />
+            </View>
+          ))}
+        </View>
+      </Card>
+    );
+  }
 
   return (
     <Card title="STORAGE">
-      {loading || !stats ? (
-        <View style={styles.loading}>
-          <ActivityIndicator color={colors.accent} />
-          <Txt variant="footnote" tone="inkMuted">
-            Calculating…
-          </Txt>
-        </View>
-      ) : (
-        <>
-          {rows.map((r, i) => (
-            <Fragment key={r.label}>
-              {i > 0 ? <Divider style={styles.divider} /> : null}
-              <View style={styles.row}>
-                <Txt variant="footnote" tone="inkSoft">
-                  {r.label}
-                </Txt>
-                <Txt variant="callout" weight="semibold">
-                  {r.value}
-                </Txt>
-              </View>
-            </Fragment>
-          ))}
-          {stats.partial ? (
-            <Callout tone="warning" iconName="alert" title="Some rooms couldn’t be read">
-              Totals may be lower than the real size.
-            </Callout>
-          ) : null}
-        </>
-      )}
+      <View style={styles.sizeRow}>
+        <Txt variant="display" weight="bold">
+          ~{formatBytes(stats.bytes)}
+        </Txt>
+        <Txt variant="caption" weight="semibold" mono uppercase tone="inkMuted">
+          approx. size
+        </Txt>
+      </View>
+      <Divider style={styles.divider} />
+      <View style={styles.grid}>
+        <Stat label="Rooms" value={stats.rooms} />
+        <Stat label="Messages" value={stats.messages} />
+        <Stat label="Threads" value={stats.threads} />
+        <Stat label="Attachments" value={stats.attachments} />
+      </View>
+      {stats.partial ? (
+        <Callout tone="warning" iconName="alert" title="Some rooms couldn’t be read">
+          Totals may be lower than the real size.
+        </Callout>
+      ) : null}
     </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  loading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  sizeRow: { gap: 2 },
   divider: { marginVertical: spacing.xs },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  tile: {
+    flexGrow: 1,
+    flexBasis: '46%',
+    gap: 2,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.md,
+    borderWidth: 1,
+  },
+  tileSkeleton: { flexGrow: 1, flexBasis: '46%', gap: spacing.xs, paddingVertical: spacing.sm },
 });

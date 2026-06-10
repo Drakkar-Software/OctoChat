@@ -4,17 +4,19 @@ import { Tabs } from 'expo-router';
 import { BottomTabBar } from 'expo-router/build/react-navigation/bottom-tabs';
 import { StyleSheet, View, type ColorValue } from 'react-native';
 
-import { fonts, radii, spacing } from '@/theme';
+import { fonts, glowShadow, radii, shadows, spacing, type } from '@/theme';
 import { useResponsive } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { DesktopUpdateBanner } from '@/components/ui/DesktopUpdateBanner';
 
-/** Tab icon with a Material-style accent pill behind the active tab. */
+/** Tab icon with a Material-style accent pill behind the active tab — the pill
+ *  carries a faint bioluminescent glow so the selected mode reads like the
+ *  spaces rail's active tile, not a flat fill. */
 function TabBarIcon({ name, color, size, focused }: { name: IconName; color: string; size: number; focused: boolean }) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.iconWrap, focused && { backgroundColor: colors.accentBg }]}>
+    <View style={[styles.iconWrap, focused && { backgroundColor: colors.accentBg, ...glowShadow(colors.glow, 0.18, 12) }]}>
       <Icon name={name} size={size} color={color} />
     </View>
   );
@@ -40,10 +42,18 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.inkMuted,
         // On wide screens the desktop sidebar replaces the bottom tab bar.
+        // Otherwise the web bar gets marine depth: a lit-from-above hairline edge
+        // (hairlineHi) plus a soft upward shadow so it floats over the content
+        // instead of reading as a flat paper strip. (Native uses _layout.native.)
         tabBarStyle: isWide
           ? { display: 'none' }
-          : { backgroundColor: colors.paper, borderTopColor: colors.lineSoft },
-        tabBarLabelStyle: { fontFamily: fonts.bodyMedium, fontSize: 10 },
+          : {
+              backgroundColor: colors.paper,
+              borderTopColor: colors.hairlineHi,
+              ...shadows.md,
+              shadowOffset: { width: 0, height: -6 },
+            },
+        tabBarLabelStyle: { fontFamily: fonts.bodyMedium, fontSize: type.micro.fontSize },
         tabBarIconStyle: { marginTop: 2 },
       }}
       // Wraps the default tab bar so the update banner sits just above it on

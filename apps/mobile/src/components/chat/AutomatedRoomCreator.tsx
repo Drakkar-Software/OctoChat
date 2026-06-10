@@ -1,13 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 
-import { radii, spacing } from '@/theme';
+import { motion, paperBorder, radii, spacing } from '@/theme';
 import { createAutomatedRoom, isValidCronExpression } from '@drakkar.software/octochat-sdk';
 import { syncAutomationTasks } from '@/lib/automations/conductor-init';
 import { getProvider, PROVIDERS } from '@drakkar.software/octochat-sdk';
 import type { AutomationProvider } from '@drakkar.software/octochat-sdk';
 import type { Session } from '@drakkar.software/octochat-sdk';
+import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
@@ -46,6 +48,16 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // A bottom sheet's natural motion is a rise from the bottom edge, not a fade. Spring
+  // the sheet up on mount (the scrim keeps Modal's fade). Reduced motion → resting.
+  const reduced = useReducedMotion();
+  const rise = useSharedValue(reduced ? 0 : SHEET_RISE);
+  useEffect(() => {
+    if (reduced) return;
+    rise.value = withSpring(0, motion.spring);
+  }, [reduced, rise]);
+  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: rise.value }] }));
 
   const picked = useMemo<AutomationProvider | null>(() => provider ?? null, [provider]);
 
@@ -108,6 +120,7 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
         onPress={onClose}
         accessibilityLabel="Dismiss"
       >
+        <Animated.View style={[styles.sheetWrap, sheetStyle]}>
         <Pressable style={[styles.sheet, { backgroundColor: colors.paper }]} onPress={() => undefined}>
           <View style={[styles.grabber, { backgroundColor: colors.lineSoft }]} />
           <ScrollView style={styles.scroll} contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
@@ -124,28 +137,7 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
             {!picked ? (
               <View style={styles.providerList}>
                 {PROVIDERS.map((p) => (
-                  <Pressable
-                    key={p.id}
-                    accessibilityRole="button"
-                    onPress={() => pick(p)}
-                    style={({ pressed }) => [
-                      styles.providerRow,
-                      {
-                        backgroundColor: pressed ? colors.hover : colors.paperAlt,
-                        borderColor: colors.lineSoft,
-                      },
-                    ]}
-                  >
-                    <Icon name={p.iconName as IconName} size={18} color={colors.inkSoft} />
-                    <View style={styles.providerText}>
-                      <Txt variant="footnote" weight="semibold">
-                        {p.name}
-                      </Txt>
-                      <Txt variant="caption" tone="inkMuted">
-                        {p.description}
-                      </Txt>
-                    </View>
-                  </Pressable>
+                  <ProviderRow key={p.id} provider={p} onPick={() => pick(p)} />
                 ))}
               </View>
             ) : (
@@ -219,17 +211,56 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
             )}
           </ScrollView>
         </Pressable>
+        </Animated.View>
       </Pressable>
       </KAV>
     </Modal>
   );
 }
 
+/** Distance the sheet springs up from on mount. Larger than the tallest sheet so it
+ *  always starts fully offscreen regardless of content height. */
+const SHEET_RISE = 600;
+
+/** One pick-an-integration row — raised lit paper (paperBorder) that picks up the hover
+ *  wash on web and a press wash on touch, so the provider menu feels responsive like the
+ *  rest of the app instead of inert until tapped. */
+function ProviderRow({ provider, onPick }: { provider: AutomationProvider; onPick: () => void }) {
+  const { colors } = useTheme();
+  const { hovered, hoverProps } = useHover();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={provider.name}
+      onPress={onPick}
+      {...hoverProps}
+      style={({ pressed }) => [
+        styles.providerRow,
+        paperBorder(colors),
+        { backgroundColor: pressed || hovered ? colors.hover : colors.paperAlt },
+      ]}
+    >
+      <Icon name={provider.iconName as IconName} size={18} color={colors.inkSoft} />
+      <View style={styles.providerText}>
+        <Txt variant="footnote" weight="semibold">
+          {provider.name}
+        </Txt>
+        <Txt variant="caption" tone="inkMuted">
+          {provider.description}
+        </Txt>
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   kav: { flex: 1 },
   backdrop: { flex: 1, justifyContent: 'flex-end' },
+  // The animated wrapper owns the height cap so the inner sheet keeps its rounded top +
+  // paper fill while the translateY rise plays.
+  sheetWrap: { maxHeight: '90%' },
   sheet: {
-    maxHeight: '90%',
+    flexShrink: 1,
     borderTopLeftRadius: radii.sheet,
     borderTopRightRadius: radii.sheet,
   },

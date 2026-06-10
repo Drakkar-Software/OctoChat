@@ -30,7 +30,11 @@ export default function RecoverScreen() {
       await signIn(words);
       router.replace('/(tabs)/rooms');
     } catch (e) {
-      setError(String((e as Error)?.message ?? e));
+      // The words already passed the form's 12-word + checksum check, so a failure
+      // here is a restore problem, not a typo — read it as a recoverable hint rather
+      // than a raw stack message.
+      const detail = String((e as Error)?.message ?? e);
+      setError(`Couldn't restore from this phrase: ${detail}. Double-check the words and their order, then try again.`);
       setBusy(false);
     }
   };

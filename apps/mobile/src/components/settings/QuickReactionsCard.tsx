@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
+const TARGET = spacing.controlMinHeight;
 import { COMPOSER_EMOJIS } from '@drakkar.software/octochat-sdk';
 import { useQuickReactions } from '@/lib/quick-reactions-context';
 import { DEFAULT_QUICK_REACTIONS } from '@drakkar.software/octochat-sdk';
@@ -101,17 +102,18 @@ export function QuickReactionsCard() {
 const styles = StyleSheet.create({
   slots: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   slot: {
-    width: 44,
-    height: 44,
+    width: TARGET,
+    height: TARGET,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.md,
     borderWidth: 1,
   },
-  palette: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.md },
+  // gap loosened to sm so the now-48px hit areas don't crowd into mis-taps.
+  palette: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
   paletteItem: {
-    width: 38,
-    height: 38,
+    width: TARGET,
+    height: TARGET,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.sm,

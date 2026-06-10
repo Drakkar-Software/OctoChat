@@ -9,6 +9,7 @@ import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';
 import { StackScreen } from '@/components/ui/StackScreen';
+import { AccountFlowHeader } from '@/components/account/AccountFlowHeader';
 import { SeedBackup } from '@/components/onboarding/SeedBackup';
 
 /** Add-account · create: generate a fresh seed, then append it to the unlocked
@@ -61,6 +62,7 @@ export default function CreateAccountScreen() {
         </View>
       }
     >
+      <AccountFlowHeader title="Back up your seed" subtitle="These 12 words are the only way to recover this new account." />
       <SeedBackup words={words} error={error} />
     </StackScreen>
   );

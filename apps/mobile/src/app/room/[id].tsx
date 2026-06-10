@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
-import { spacing } from '@/theme';
+import { motion, spacing } from '@/theme';
 import { useAutomationCommands } from '@/lib/automations/use-automation-commands';
 import { useAutomationDriver } from '@/lib/automations/use-automation-driver';
 import { useIsAutomationLeader } from '@/lib/automations/leader';
@@ -28,6 +28,7 @@ import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Reveal } from '@/components/ui/Reveal';
 import { IconButton } from '@/components/ui/IconButton';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
@@ -254,7 +255,12 @@ export default function RoomScreen() {
           </EmptyState>
         )
       ) : store ? (
-        <>
+        // Fade the decrypted conversation up where the skeleton sat (a soft
+        // "materializing" instead of a jump-cut). Reveal mounts only when this
+        // branch does — i.e. exactly at the skeleton→content swap — and collapses
+        // to an instant show under reduced motion (via FadeView). styles.fill keeps
+        // the LegendList filling the pane.
+        <Reveal duration={motion.base} style={styles.fill}>
           {!online || offline ? (
             // Genuine connectivity (the access cases above show their own reason). Spell out
             // that BOTH history and new messages are affected — an empty offline DM looked
@@ -300,7 +306,7 @@ export default function RoomScreen() {
               Stream rooms support threads too (replies are appended with a parentId),
               so this runs for every kind. */}
           <ThreadDigestPublisher store={store} roomId={id} readBefore={readBefore} />
-        </>
+        </Reveal>
       ) : (
         <EmptyState iconName="globe" title="Connecting…" />
       )}
@@ -322,4 +328,6 @@ export default function RoomScreen() {
 const styles = StyleSheet.create({
   content: { paddingTop: spacing.xs, paddingBottom: spacing.md },
   cta: { alignSelf: 'center' },
+  // Keeps the conversation list filling the pane through the reveal wrapper.
+  fill: { flex: 1 },
 });

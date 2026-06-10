@@ -10,7 +10,12 @@ import { Txt } from './Txt';
 
 interface RowProps {
   iconName?: IconName;
+  /** Explicit leading-icon color (wins over `accent`). */
   iconColor?: string;
+  /** Punctuate this row's icon with the marine accent — reserve for the one
+   *  primary/active row per card so accent stays a signal, not decoration. The
+   *  resting default is the muted `inkSoft` glyph. */
+  accent?: boolean;
   title: string;
   detail?: string;
   detailMono?: boolean;
@@ -20,12 +25,12 @@ interface RowProps {
 }
 
 /** Generic settings/list row: leading icon, title + detail, trailing accessory. */
-export function Row({ iconName, iconColor, title, detail, detailMono, right, onPress }: RowProps) {
+export function Row({ iconName, iconColor, accent, title, detail, detailMono, right, onPress }: RowProps) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
   const content = (
     <>
-      {iconName ? <Icon name={iconName} size={18} color={iconColor ?? colors.accent} /> : null}
+      {iconName ? <Icon name={iconName} size={18} color={iconColor ?? (accent ? colors.accent : colors.inkSoft)} /> : null}
       <View style={styles.text}>
         <Txt variant="callout" weight="semibold">
           {title}

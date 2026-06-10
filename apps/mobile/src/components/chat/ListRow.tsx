@@ -85,11 +85,20 @@ export function ListRow({
       {...hoverProps}
       style={[styles.row, { backgroundColor: bg }]}
     >
-      {active ? <View style={[styles.rail, { backgroundColor: colors.accent }]} /> : null}
+      {/* A single leading rail: accent for the open room, unread-tinted for an
+          unread (but not-open) row so unread destinations punch out of the muted
+          column at a glance. Muted rows stay quiet (emphasized is false). */}
+      {active ? (
+        <View style={[styles.rail, { backgroundColor: colors.accent }]} />
+      ) : emphasized ? (
+        <View style={[styles.rail, { backgroundColor: colors.unread }]} />
+      ) : null}
       {avatarLabel != null ? (
         <Avatar label={avatarLabel} image={avatarImage} size={22} />
       ) : iconName ? (
-        <Icon name={iconName} size={15} color={active ? colors.accent : emphasized ? colors.ink : colors.inkMuted} />
+        // Unread tints the glyph to accent too — the dead icon column becomes the
+        // primary attention cue (active still wins with accent).
+        <Icon name={iconName} size={15} color={active || emphasized ? colors.accent : colors.inkMuted} />
       ) : null}
       <Txt
         variant="subhead"
@@ -120,7 +129,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    paddingVertical: 9,
+    paddingVertical: spacing.rowY,
     paddingHorizontal: spacing.md,
     borderRadius: radii.md,
   },

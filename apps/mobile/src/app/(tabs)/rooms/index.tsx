@@ -11,6 +11,7 @@ import { excludeAutomatedRooms, useRooms } from '@/lib/use-rooms';
 import { useSpaces } from '@/lib/use-spaces';
 import { useDms, type DmEntry } from '@/lib/use-dms';
 import type { Room } from '@drakkar.software/octochat-sdk';
+import { Divider } from '@/components/ui/Divider';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
@@ -86,8 +87,29 @@ export default function RoomsScreen() {
           {/* Hoisted above the empty-state so an offline user is always told WHY the
               list is sparse — even when the cache is empty and they see "No rooms yet". */}
           {!online ? <OfflineBanner message="You’re offline — showing your last-synced rooms." /> : null}
-          {categories.length === 0 && !isOwner ? (
-            <EmptyState iconName="hash" title="No rooms yet" subtitle="Create a channel to get started." />
+          {categories.length === 0 ? (
+            // Owner gets a welcoming first-channel state (+ the create control below);
+            // a non-owner is told the space is empty rather than to "create a channel".
+            <>
+              <View style={styles.emptyFloor}>
+                <EmptyState
+                  iconName="hash"
+                  title="No channels yet"
+                  subtitle={isOwner ? 'Create your first channel to start the conversation.' : 'The owner hasn’t added channels yet.'}
+                />
+              </View>
+              {isOwner ? (
+                <RoomCategoryList
+                  categories={[]}
+                  userId={session.userId}
+                  spaceId={activeId ?? space?.id ?? ''}
+                  onOpenRoom={openRoom}
+                  onCreateRoom={(category, name) => createRoom(name, category)}
+                  onMoveRoom={moveRoom}
+                  onCreateCategory={createCategory}
+                />
+              ) : null}
+            </>
           ) : (
             <>
               {/* Threads + Pinned are space-scoped destinations; automations live in
@@ -101,6 +123,9 @@ export default function RoomsScreen() {
                   onPress={() => router.push({ pathname: '/pinned/[id]', params: { id: activeId } })}
                 />
               ) : null}
+              {/* Separate the space-scoped destinations (Threads/Pinned) from the
+                  channel list so views read distinctly from rooms. */}
+              <Divider style={styles.navDivider} />
               <RoomCategoryList
                 categories={excludeAutomatedRooms(categories)}
                 userId={session.userId}
@@ -121,4 +146,8 @@ export default function RoomsScreen() {
 const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: 96 },
   dmHome: { minHeight: 320 },
+  // EmptyState is flex:1; give it a floor so the owner-no-rooms state centers above
+  // the create control instead of collapsing in the scroll container.
+  emptyFloor: { minHeight: 260 },
+  navDivider: { marginVertical: spacing.xs, marginHorizontal: spacing.xs },
 });

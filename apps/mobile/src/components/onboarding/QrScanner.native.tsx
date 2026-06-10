@@ -2,10 +2,10 @@ import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
-import { radii } from '@/theme';
+import { paperBorder, radii, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';
-import { Txt } from '@/components/ui/Txt';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 /** Native camera QR scanner — fires onScan once with the decoded payload. */
 export function QrScanner({ onScan }: { onScan: (data: string) => void }) {
@@ -19,11 +19,15 @@ export function QrScanner({ onScan }: { onScan: (data: string) => void }) {
 
   if (!permission?.granted) {
     return (
-      <View style={[styles.box, styles.center, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
-        <Txt variant="footnote" tone="inkSoft" center>
-          Camera access is needed to scan the pairing QR.
-        </Txt>
-        <Button label="Grant camera" variant="secondary" size="sm" onPress={() => requestPermission()} />
+      <View style={[styles.denied, paperBorder(colors)]}>
+        <EmptyState
+          iconName="camera"
+          title="Camera access needed"
+          subtitle="Allow the camera to scan a pairing or invitation QR code."
+          action={
+            <Button label="Grant camera" variant="secondary" size="sm" iconName="camera" onPress={() => requestPermission()} />
+          }
+        />
       </View>
     );
   }
@@ -44,6 +48,9 @@ export function QrScanner({ onScan }: { onScan: (data: string) => void }) {
 }
 
 const styles = StyleSheet.create({
-  box: { height: 240, borderRadius: radii.lg, borderWidth: 2, overflow: 'hidden' },
-  center: { alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16 },
+  // Fixed height: the live CameraView fills via absoluteFill, so its parent must be sized.
+  box: { height: 260, borderRadius: radii.lg, borderWidth: 2, overflow: 'hidden' },
+  // The denied state sizes to EmptyState's own content (its wrap is flex + padded), so a
+  // minHeight gives it presence without clipping the halo/title/action at a fixed height.
+  denied: { minHeight: 240, borderRadius: radii.lg, borderWidth: 1, padding: spacing.sm },
 });

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { layout, radii, spacing } from '@/theme';
@@ -10,6 +11,7 @@ import type { DmEntry } from '@/lib/use-dms';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { useViewMode } from '@/lib/view-mode';
+import { Divider } from '@/components/ui/Divider';
 import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 
@@ -116,6 +118,19 @@ export function DesktopRoomSidebar({
   const headerHover = useHover();
   const jumpHover = useHover();
 
+  // Make the advertised ⌘K / Ctrl+K shortcut real (web): focus the jump-to action.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !onJumpTo) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        onJumpTo();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onJumpTo]);
+
   // The virtual DM space: same sidebar shell, a "Direct Messages" header over the full
   // DM list — no jump-to, nav group or categories (none apply to DMs).
   if (isDmHome) {
@@ -211,17 +226,21 @@ export function DesktopRoomSidebar({
                 sit ABOVE the channel categories so the sidebar reads as one nav
                 stack. Automations moved to the Agents mode above. */}
             {onOpenExplore || onOpenThreads || onOpenPinned ? (
-              <View style={styles.navGroup}>
-                {onOpenExplore ? (
-                  <SidebarLinkRow iconName="globe" label="Explore" active={exploreActive} onPress={onOpenExplore} />
-                ) : null}
-                {onOpenThreads ? (
-                  <SidebarLinkRow iconName="thread" label="Threads" active={threadsActive} onPress={onOpenThreads} />
-                ) : null}
-                {onOpenPinned ? (
-                  <SidebarLinkRow iconName="pin" label="Pinned" active={pinnedActive} onPress={onOpenPinned} />
-                ) : null}
-              </View>
+              <>
+                <View style={styles.navGroup}>
+                  {onOpenExplore ? (
+                    <SidebarLinkRow iconName="globe" label="Explore" active={exploreActive} onPress={onOpenExplore} />
+                  ) : null}
+                  {onOpenThreads ? (
+                    <SidebarLinkRow iconName="thread" label="Threads" active={threadsActive} onPress={onOpenThreads} />
+                  ) : null}
+                  {onOpenPinned ? (
+                    <SidebarLinkRow iconName="pin" label="Pinned" active={pinnedActive} onPress={onOpenPinned} />
+                  ) : null}
+                </View>
+                {/* Separate the nav destinations from the channel list. */}
+                <Divider style={styles.navDivider} />
+              </>
             ) : null}
             {loading ? (
               <ChannelListSkeleton />
@@ -278,6 +297,7 @@ const styles = StyleSheet.create({
   list: { flex: 1 },
   listContent: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.lg },
   navGroup: { paddingBottom: spacing.sm },
+  navDivider: { marginHorizontal: spacing.xs, marginBottom: spacing.sm },
   banner: { paddingBottom: spacing.sm },
   empty: { padding: spacing.md },
 });

@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { layout, spacing } from '@/theme';
+import { layout, shadows, spacing } from '@/theme';
 import { DM_HOME_ID, isDmHomeId } from '@/lib/dm-home';
 import { useProfile } from '@/lib/profile-context';
 import { useTheme } from '@/lib/use-theme';
@@ -29,7 +29,15 @@ export function SpaceTabHeader() {
   const meLabel = (profile?.name ?? '··').slice(0, 2).toUpperCase();
 
   return (
-    <View style={[styles.bar, { backgroundColor: colors.paper, borderBottomColor: colors.lineSoft }]}>
+    // Lit-from-above top edge (hairlineHi) + a soft drop shadow give the header
+    // marine depth so it reads as a raised surface, not a flat paper strip.
+    <View
+      style={[
+        styles.bar,
+        shadows.sm,
+        { backgroundColor: colors.paper, borderBottomColor: colors.lineSoft, borderTopColor: colors.hairlineHi },
+      ]}
+    >
       <SpaceSwitcher
         space={space}
         isDmHome={isDmHome}
@@ -52,6 +60,7 @@ const styles = StyleSheet.create({
     minHeight: layout.headerMinHeight,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: 1,
   },
 });

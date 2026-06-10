@@ -2,8 +2,9 @@ import { useCallback, useState, type MutableRefObject } from 'react';
 import type { NativeSyntheticEvent, StyleProp, TextInputKeyPressEventData, TextStyle } from 'react-native';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 
-import { fonts, glowShadow, layout, radii, spacing, type as typeScale } from '@/theme';
+import { fonts, glowShadow, layout, motion, radii, spacing, type as typeScale } from '@/theme';
 import { submitOnEnter } from '@/lib/composer-keys';
 import { useDraft } from '@/lib/use-draft';
 import { formatBytes } from '@drakkar.software/octochat-sdk';
@@ -76,6 +77,12 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey, offline, s
   // block the send (and surface a hint) until the connection is back.
   const fileBlocked = !!offline && !!pending;
 
+  // Send payoff: a one-shot scale-pop on the send disc the instant a message goes
+  // out — the most-repeated gesture gets a moment of craft. Reduced-motion-safe.
+  const sendPop = useSharedValue(1);
+  const reducedMotion = useReducedMotion();
+  const sendPopStyle = useAnimatedStyle(() => ({ transform: [{ scale: sendPop.value }] }));
+
   const submit = async () => {
     if (!hasContent || busy || fileBlocked) return;
     setBusy(true);
@@ -85,6 +92,13 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey, offline, s
       clearDraft();
       setPending(null);
       setEmojiOpen(false);
+      if (!reducedMotion) {
+        // Quick punch out, then a springy settle (overshoot) — a felt payoff, not a twitch.
+        sendPop.value = withSequence(
+          withTiming(1.25, { duration: motion.fast }),
+          withSpring(1, motion.spring),
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -231,29 +245,34 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey, offline, s
               setEmojiOpen((v) => !v);
             }}
           />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !hasContent || busy || fileBlocked }}
-            accessibilityLabel="Send"
-            disabled={!hasContent || busy || fileBlocked}
-            onPress={submit}
-            hitSlop={8}
-            style={({ pressed }) => [
-              styles.send,
-              { backgroundColor: colors.fill },
-              hasContent ? glowShadow(colors.glow, 0.3, 7) : null,
-              pressed && hasContent ? styles.sendPressed : null,
-            ]}
-          >
-            {hasContent ? (
-              <LinearGradient colors={[colors.accentGradTop, colors.accentGradBottom]} style={[StyleSheet.absoluteFill, styles.sendFill]} />
-            ) : null}
-            {busy ? (
-              <ActivityIndicator size="small" color={colors.onAccent} />
-            ) : (
-              <Icon name="send" size={17} color={hasContent ? colors.onAccent : colors.inkMuted} />
-            )}
-          </Pressable>
+          {/* Outer Animated.View carries the send-pop scale: a Reanimated animated
+              style inside a Pressable *function* style isn't reliably processed,
+              so the pop lives on the wrapper, the press dip on the Pressable. */}
+          <Animated.View style={sendPopStyle}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !hasContent || busy || fileBlocked }}
+              accessibilityLabel="Send"
+              disabled={!hasContent || busy || fileBlocked}
+              onPress={submit}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.send,
+                { backgroundColor: colors.fill },
+                hasContent ? glowShadow(colors.glow, 0.3, 7) : null,
+                pressed && hasContent ? styles.sendPressed : null,
+              ]}
+            >
+              {hasContent ? (
+                <LinearGradient colors={[colors.accentGradTop, colors.accentGradBottom]} style={[StyleSheet.absoluteFill, styles.sendFill]} />
+              ) : null}
+              {busy ? (
+                <ActivityIndicator size="small" color={colors.onAccent} />
+              ) : (
+                <Icon name="send" size={17} color={hasContent ? colors.onAccent : colors.inkMuted} />
+              )}
+            </Pressable>
+          </Animated.View>
         </View>
       </View>
     </View>

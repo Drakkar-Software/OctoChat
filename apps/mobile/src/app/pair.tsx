@@ -9,12 +9,12 @@ import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Card } from '@/components/ui/Card';
-import { Pill } from '@/components/ui/Pill';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 import { QrScanner } from '@/components/onboarding/QrScanner';
 import { SeedLockSetup } from '@/components/onboarding/SeedLockSetup';
+import { VerifiedSeal } from '@/components/onboarding/VerifiedSeal';
 
 export default function PairScreen() {
   const { addLinkedDevice, session, passkeyAvailable } = useSession();
@@ -50,13 +50,7 @@ export default function PairScreen() {
         contentStyle={needsLock ? styles.content : styles.center}
         header={<AppBar title="Device paired" onBack={() => router.back()} />}
       >
-        <Pill tone="success" label="VERIFIED ✓" mono />
-        <Txt variant="title" weight="bold" center>
-          Fingerprint matches
-        </Txt>
-        <Txt variant="callout" mono tone="inkSoft" center>
-          {result.fingerprint}
-        </Txt>
+        <VerifiedSeal fingerprint={result.fingerprint} label="Fingerprint matches" />
         <Callout tone="accent" iconName="shield">
           Pairing validated for identity {result.userId.slice(0, 8)}…. Your owned spaces
           are ready on this device; spaces you only joined need a re-invite from their

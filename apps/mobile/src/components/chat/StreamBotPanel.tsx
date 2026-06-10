@@ -1,20 +1,18 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
 
 import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 
-import { radii, spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
 import {
   createStreamBotCredential,
   type StreamBotCredential,
 } from '@drakkar.software/octochat-sdk';
 import type { ConversationStore } from '@/lib/use-conversation-data';
-import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { CopyField } from '@/components/ui/CopyField';
-import { Txt } from '@/components/ui/Txt';
+
+import { OwnerConfigPanel } from './OwnerConfigPanel';
 
 /** 30-day default TTL for a bot credential (time-boxed; the owner re-generates to rotate). */
 const DEFAULT_TTL_SEC = 30 * 24 * 3600;
@@ -27,7 +25,6 @@ const DEFAULT_TTL_SEC = 30 * 24 * 3600;
  * this: a bot there is invited as a keyring member instead (it must seal to post).
  */
 export function StreamBotPanel({ ownerId, spaceId, roomId }: { ownerId: string; spaceId: string; roomId: string }) {
-  const { colors } = useTheme();
   const { session } = useSession();
   const [cred, setCred] = useState<StreamBotCredential | null>(null);
   const [busy, setBusy] = useState(false);
@@ -47,15 +44,10 @@ export function StreamBotPanel({ ownerId, spaceId, roomId }: { ownerId: string; 
   };
 
   return (
-    <View style={[styles.wrap, { borderColor: colors.lineSoft, backgroundColor: colors.paperAlt }]}>
-      <View style={styles.head}>
-        <Txt variant="footnote" weight="semibold">
-          Connect a bot
-        </Txt>
-        <Txt variant="caption" tone="inkMuted">
-          Let an integration append to this stream with one signed request — no sync protocol.
-        </Txt>
-      </View>
+    <OwnerConfigPanel
+      title="Connect a bot"
+      subtitle="Let an integration append to this stream with one signed request — no sync protocol."
+    >
       {cred ? (
         <>
           <CopyField label="Bot link token" value={cred.token} lines={3} />
@@ -74,7 +66,7 @@ export function StreamBotPanel({ ownerId, spaceId, roomId }: { ownerId: string; 
           {error}
         </Callout>
       ) : null}
-    </View>
+    </OwnerConfigPanel>
   );
 }
 
@@ -103,14 +95,3 @@ export function StreamBotPanelWhenEmpty({
   if (!isEmpty) return null;
   return <StreamBotPanel ownerId={ownerId} spaceId={spaceId} roomId={roomId} />;
 }
-
-const styles = StyleSheet.create({
-  wrap: {
-    gap: spacing.sm,
-    margin: spacing.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderRadius: radii.lg,
-  },
-  head: { gap: 2 },
-});

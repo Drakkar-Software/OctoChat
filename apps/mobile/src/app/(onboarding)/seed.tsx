@@ -2,15 +2,34 @@ import { useMemo, useState } from 'react';
 import { Redirect, router } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 
-import { spacing } from '@/theme';
+import { radii, spacing } from '@/theme';
 import { generateSeedWords } from '@drakkar.software/octochat-sdk';
 import { useArgon2Progress } from '@/lib/use-argon2-progress';
 import { useSession } from '@/lib/session-context';
+import { useTheme } from '@/lib/use-theme';
 import { AppBar } from '@/components/ui/AppBar';
 import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';
 import { StackScreen } from '@/components/ui/StackScreen';
+import { Txt } from '@/components/ui/Txt';
 import { SeedBackup } from '@/components/onboarding/SeedBackup';
+
+const TOTAL_STEPS = 2;
+
+/** Two-segment progress for the create-identity ceremony (this is its final step). */
+function StepDots({ step, total }: { step: number; total: number }) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.steps}>
+      {Array.from({ length: total }).map((_, i) => (
+        <View
+          key={i}
+          style={[styles.segment, { backgroundColor: i < step ? colors.accent : colors.lineSoft }]}
+        />
+      ))}
+    </View>
+  );
+}
 
 export default function SeedScreen() {
   const { signIn, prepareSignIn, session } = useSession();
@@ -50,7 +69,7 @@ export default function SeedScreen() {
       header={
         <AppBar
           title="Backup seed"
-          subtitle="Step 2 of 2"
+          subtitle={<StepDots step={TOTAL_STEPS} total={TOTAL_STEPS} />}
           onBack={() => router.back()}
           right={<IconButton name="x" onPress={() => router.back()} accessibilityLabel="Cancel" />}
         />
@@ -75,7 +94,24 @@ export default function SeedScreen() {
         </View>
       }
     >
-      <SeedBackup words={words} error={error} />
+      <SeedBackup
+        words={words}
+        error={error}
+        intro={
+          <View style={styles.intro}>
+            <Txt variant="display" weight="bold">
+              Your recovery phrase
+            </Txt>
+            <Txt variant="body" tone="inkSoft">
+              Write these 12 words down somewhere private. They&apos;re the{' '}
+              <Txt variant="body" weight="bold" tone="ink">
+                only
+              </Txt>{' '}
+              way to recover your account.
+            </Txt>
+          </View>
+        }
+      />
     </StackScreen>
   );
 }
@@ -83,4 +119,7 @@ export default function SeedScreen() {
 const styles = StyleSheet.create({
   content: { padding: spacing.screenX, gap: spacing.lg },
   footer: { paddingHorizontal: spacing.screenX, paddingTop: spacing.md },
+  steps: { flexDirection: 'row', gap: spacing.xs, alignItems: 'center' },
+  segment: { width: 20, height: 3, borderRadius: radii.xs },
+  intro: { gap: spacing.sm },
 });

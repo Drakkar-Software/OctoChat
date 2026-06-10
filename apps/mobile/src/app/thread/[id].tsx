@@ -4,6 +4,7 @@ import { StyleSheet } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
+import { useTheme } from '@/lib/use-theme';
 import { useRoomsRegistry } from '@/lib/rooms-registry-context';
 import { threadDraftKey } from '@/lib/use-draft';
 import { useHardwareBack } from '@/lib/use-hardware-back';
@@ -22,8 +23,9 @@ import { makeEmptyConversationStore } from '@/lib/use-conversation-data';
 const EMPTY_STORE = makeEmptyConversationStore();
 import { AppBar } from '@/components/ui/AppBar';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { IconButton } from '@/components/ui/IconButton';
+import { Icon } from '@/components/ui/Icon';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
+import { Txt } from '@/components/ui/Txt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { Composer } from '@/components/chat/Composer';
 import { ConversationSkeleton } from '@/components/chat/ConversationSkeleton';
@@ -37,6 +39,7 @@ export default function ThreadScreen() {
   const roomId = params.roomId;
   const roomName = params.roomName ?? roomId;
   const kind = (params.kind ?? 'channel') as RoomKind;
+  const { colors } = useTheme();
   const { session } = useSession();
   const { lastReadAt } = useUnread();
   // Every room is an append-only log now — one hook for all kinds. Replies post the same
@@ -87,7 +90,23 @@ export default function ThreadScreen() {
   return (
     <StackScreen
       contentStyle={styles.content}
-      header={<AppBar title="Thread" subtitle={`#${roomName}`} onBack={goBack} right={<IconButton name="dots" accessibilityLabel="Thread options" />} />}
+      header={
+        <AppBar
+          title="Thread"
+          // A thread glyph + the source channel signals "side conversation off
+          // #room" — the navigation cue the bare "#room" string lacked. The old
+          // dots button was inert (no handler), so it's dropped rather than faked.
+          subtitle={
+            <>
+              <Icon name="thread" size={12} color={colors.accent} />
+              <Txt variant="caption" tone="inkMuted" numberOfLines={1}>
+                {kind === 'dm' ? roomName : `#${roomName}`}
+              </Txt>
+            </>
+          }
+          onBack={goBack}
+        />
+      }
       footer={
         canWrite ? (
           <Composer

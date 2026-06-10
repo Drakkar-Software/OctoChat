@@ -33,6 +33,8 @@ export function SeedUnlock({ methods, onUnlock, onDone, onForget }: SeedUnlockPr
   const [entry, setEntry] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Bumped on a failed unlock so the PIN dots play a short mismatch shake.
+  const [shake, setShake] = useState(0);
   const hasPasskey = methods.includes('passkey');
 
   // Slow-unlock flourish: while busy the keypad fades out (over ~2s, on the
@@ -56,6 +58,8 @@ export function SeedUnlock({ methods, onUnlock, onDone, onForget }: SeedUnlockPr
       setError(String((e as Error)?.message ?? e));
       setEntry('');
       setBusy(false);
+      // Kinetic "wrong PIN" signal: shake the dots (no-op under reduced motion).
+      if (method === 'pin') setShake((n) => n + 1);
     }
   };
 
@@ -103,7 +107,7 @@ export function SeedUnlock({ methods, onUnlock, onDone, onForget }: SeedUnlockPr
             <Txt variant="caption" weight="semibold" mono uppercase tone="inkSoft" center>
               Enter PIN
             </Txt>
-            <PinDots length={PIN_LENGTH} filled={entry.length} />
+            <PinDots length={PIN_LENGTH} filled={entry.length} shake={shake} />
           </>
         )}
       </View>
