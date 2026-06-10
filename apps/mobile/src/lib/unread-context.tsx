@@ -358,3 +358,11 @@ export function useUnread(): UnreadValue {
   if (!v) throw new Error('useUnread must be used within UnreadProvider');
   return v;
 }
+
+/** Format an unread count for a bottom-tab badge: `undefined` at zero (so the
+ *  trigger hides the badge), capped at "99+". Shared by every native tab badge
+ *  (Chat · Agents · DMs) so the cap + hide-on-zero rule stays in one place. */
+export function tabBadgeLabel(count: number): string | undefined {
+  if (count <= 0) return undefined;
+  return count > 99 ? '99+' : String(count);
+}

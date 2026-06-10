@@ -5,8 +5,9 @@ import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { fonts } from '@/theme';
 import { useResponsive } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
-import { useUnread } from '@/lib/unread-context';
+import { tabBadgeLabel, useUnread } from '@/lib/unread-context';
 import { useTotalDmUnread } from '@/lib/use-dms';
+import { useActiveAgentUnread } from '@/lib/use-agent-unread';
 
 /**
  * Native (iOS / Android) bottom tabs. Renders the real platform tab bar —
@@ -27,15 +28,19 @@ import { useTotalDmUnread } from '@/lib/use-dms';
  * mirroring the web `Icon` set; the native feel comes from the bar itself.
  * `totalUnread` (every unread message across rooms — thread replies
  * included, since a reply is a room message) badges the Rooms tab; web/desktop
- * surfaces the same count on the space-rail tiles instead.
+ * surfaces the same count on the space-rail tiles instead. The DMs and Agents
+ * tabs carry their own badges too: DMs sums every DM room's unread (global),
+ * while Agents sums the ACTIVE space's automated rooms — matching that tab's own
+ * active-space scope. All three format through `tabBadgeLabel` (hide at zero,
+ * cap at "99+").
  */
 export default function NativeTabsLayout() {
   const { colors } = useTheme();
   const { isWide } = useResponsive();
   const { totalUnread } = useUnread();
-  const badge = totalUnread > 0 ? (totalUnread > 99 ? '99+' : String(totalUnread)) : undefined;
-  const dmUnread = useTotalDmUnread();
-  const dmBadge = dmUnread > 0 ? (dmUnread > 99 ? '99+' : String(dmUnread)) : undefined;
+  const badge = tabBadgeLabel(totalUnread);
+  const agentBadge = tabBadgeLabel(useActiveAgentUnread());
+  const dmBadge = tabBadgeLabel(useTotalDmUnread());
   return (
     <NativeTabs
       // On wide native layouts (iPad / foldable) the AppFrame desktop sidebar
@@ -62,6 +67,7 @@ export default function NativeTabsLayout() {
       <NativeTabs.Trigger name="agents">
         <NativeTabs.Trigger.Label>Agents</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon src={<NativeTabs.Trigger.VectorIcon family={Ionicons} name="sparkles-outline" />} />
+        <NativeTabs.Trigger.Badge hidden={!agentBadge}>{agentBadge}</NativeTabs.Trigger.Badge>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="dms">
         <NativeTabs.Trigger.Label>DMs</NativeTabs.Trigger.Label>
