@@ -13,8 +13,8 @@ const ctx = (over: Partial<RunCtx> = {}): RunCtx => ({
 });
 
 describe('catalog', () => {
-  it('exports rss/http by id', () => {
-    expect(PROVIDERS.map((p) => p.id).sort()).toEqual(['http', 'rss']);
+  it('exports ai/rss/http by id', () => {
+    expect(PROVIDERS.map((p) => p.id).sort()).toEqual(['ai', 'http', 'rss']);
   });
   it('getProvider returns null for unknown ids', () => {
     expect(getProvider('nope')).toBeNull();

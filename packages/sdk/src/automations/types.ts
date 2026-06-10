@@ -8,6 +8,7 @@
  *     `{ text }` reply (or `{ skip: true }` for silent commands).
  * Both are optional — `rss` is fetch-only, `http` is command-only.
  */
+import type { LlmAdapter } from '../ai/engine-port';
 
 /** A single declarative form field for a provider's params. */
 export interface ParamField {
@@ -41,6 +42,10 @@ export interface RunCtx {
   /** Plain `fetch` indirection so unit tests can stub network calls without
    *  monkey-patching the global. */
   httpFetch: typeof fetch;
+  /** On-device LLM generator, injected by the runner from the configured port
+   *  (see `ai/engine-port.ts`). Absent when no model is wired (web / a device
+   *  without one) — an AI provider then posts a "not available here" notice. */
+  llm?: LlmAdapter;
 }
 
 /** What a provider's `fetch` / `onCommand` returns. Posting the text is the

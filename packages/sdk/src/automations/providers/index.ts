@@ -5,6 +5,7 @@
  */
 import type { AutomationProvider } from '../types';
 
+import { aiProvider } from './ai';
 import { httpProvider } from './http';
 import { rssProvider } from './rss';
 
@@ -14,7 +15,7 @@ import { rssProvider } from './rss';
 // the provider's own implementation enforces its real param shape internally.
 type AnyProvider = AutomationProvider<any>;
 
-export const PROVIDERS: AnyProvider[] = [rssProvider, httpProvider];
+export const PROVIDERS: AnyProvider[] = [aiProvider, rssProvider, httpProvider];
 
 /** Resolve a provider by id, or `null` for an unknown id (a registry entry might
  *  pin an id that no longer ships — the runner skips it; the UI shows "Unknown

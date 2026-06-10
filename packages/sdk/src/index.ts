@@ -109,6 +109,7 @@ export { subscribeArgon2Progress } from './platform/hash-wasm-shim';
 
 // ── ai/ — on-device AI: LLM types, pure prompt builders, digest split, settings ─
 export * from './ai/llm';
+export * from './ai/engine-port';
 export * from './ai/prompt';
 export * from './ai/digest-sections';
 export * from './ai/settings';
