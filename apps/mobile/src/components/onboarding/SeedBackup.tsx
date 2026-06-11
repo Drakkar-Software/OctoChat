@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { copyText } from '@/lib/clipboard';
+import { useCopy } from '@/lib/clipboard';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Txt } from '@/components/ui/Txt';
@@ -26,6 +26,7 @@ interface SeedBackupProps {
  */
 export function SeedBackup({ words, error, intro }: SeedBackupProps) {
   const [revealed, setRevealed] = useState(false);
+  const { copied, copy } = useCopy();
   return (
     <>
       {intro ?? (
@@ -48,15 +49,13 @@ export function SeedBackup({ words, error, intro }: SeedBackupProps) {
           iconName={revealed ? 'eye-off' : 'eye'}
           onPress={() => setRevealed((v) => !v)}
         />
-        {Platform.OS === 'web' ? (
-          <Button
-            label="Copy"
-            variant="ghost"
-            size="sm"
-            iconName="copy"
-            onPress={() => void copyText(words.join(' '))}
-          />
-        ) : null}
+        <Button
+          label={copied ? 'Copied!' : 'Copy'}
+          variant={copied ? 'accent' : 'ghost'}
+          size="sm"
+          iconName={copied ? 'check-circle' : 'copy'}
+          onPress={() => void copy(words.join(' '))}
+        />
       </View>
 
       {error ? (
