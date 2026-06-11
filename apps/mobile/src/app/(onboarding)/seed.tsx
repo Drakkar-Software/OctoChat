@@ -1,10 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Redirect, router } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
 import { generateSeedWords } from '@drakkar.software/octochat-sdk';
-import { useArgon2Progress } from '@/lib/use-argon2-progress';
 import { useSession } from '@/lib/session-context';
 import { useTheme } from '@/lib/use-theme';
 import { AppBar } from '@/components/ui/AppBar';
@@ -32,34 +31,18 @@ function StepDots({ step, total }: { step: number; total: number }) {
 }
 
 export default function SeedScreen() {
-  const { signIn, prepareSignIn, session } = useSession();
+  const { prepareSignIn, session } = useSession();
   const words = useMemo(() => generateSeedWords(), []);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const argon2 = useArgon2Progress();
 
   // Already signed in: this screen creates the FIRST account, so running signIn here
   // would replace the whole vault. Adding accounts goes through /account/* instead.
   if (session) return <Redirect href="/(tabs)/rooms" />;
 
-  const confirm = async () => {
-    if (busy) return;
-    // First account on web: the seed must be sealed behind a PIN/passkey before it
-    // touches disk, so route through the lock-setup screen instead of persisting here.
-    if (Platform.OS === 'web') {
-      prepareSignIn(words);
-      router.push('/(onboarding)/lock');
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      await signIn(words);
-      router.replace('/(tabs)/rooms');
-    } catch (e) {
-      setError(String((e as Error)?.message ?? e));
-      setBusy(false);
-    }
+  const confirm = () => {
+    prepareSignIn(words);
+    // Web requires PIN/passkey setup before the seed touches disk.
+    // Native delegates the slow Argon2 derivation to the creating screen.
+    router.push(Platform.OS === 'web' ? '/(onboarding)/lock' : '/(onboarding)/creating');
   };
 
   return (
@@ -77,18 +60,10 @@ export default function SeedScreen() {
       footer={
         <View style={styles.footer}>
           <Button
-            label={
-              busy
-                ? argon2 != null
-                  ? `Creating identity… ${Math.round(argon2 * 100)}%`
-                  : 'Creating identity…'
-                : "I've written it down  →"
-            }
+            label="I've written it down  →"
             variant="primary"
             size="lg"
             full
-            loading={busy}
-            disabled={busy}
             onPress={confirm}
           />
         </View>
@@ -96,7 +71,6 @@ export default function SeedScreen() {
     >
       <SeedBackup
         words={words}
-        error={error}
         intro={
           <View style={styles.intro}>
             <Txt variant="display" weight="bold">

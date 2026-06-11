@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Redirect, router } from 'expo-router';
 import { Platform, StyleSheet } from 'react-native';
 
@@ -9,34 +8,16 @@ import { StackScreen } from '@/components/ui/StackScreen';
 import { SeedRecoverForm } from '@/components/onboarding/SeedRecoverForm';
 
 export default function RecoverScreen() {
-  const { signIn, prepareSignIn, session } = useSession();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { prepareSignIn, session } = useSession();
 
   // Already signed in: recovering here creates a NEW first account and replaces the
   // vault. Adding an existing seed as another account goes through /account/recover.
   if (session) return <Redirect href="/(tabs)/rooms" />;
 
-  const restore = async (words: string[]) => {
-    // First account on web: seal the recovered seed behind a PIN/passkey first.
-    if (Platform.OS === 'web') {
-      prepareSignIn(words);
-      router.push('/(onboarding)/lock');
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      await signIn(words);
-      router.replace('/(tabs)/rooms');
-    } catch (e) {
-      // The words already passed the form's 12-word + checksum check, so a failure
-      // here is a restore problem, not a typo — read it as a recoverable hint rather
-      // than a raw stack message.
-      const detail = String((e as Error)?.message ?? e);
-      setError(`Couldn't restore from this phrase: ${detail}. Double-check the words and their order, then try again.`);
-      setBusy(false);
-    }
+  const restore = (words: string[]) => {
+    prepareSignIn(words);
+    // Web requires PIN/passkey setup first; native delegates the derivation wait to creating.
+    router.push(Platform.OS === 'web' ? '/(onboarding)/lock' : '/(onboarding)/creating');
   };
 
   return (
@@ -45,7 +26,7 @@ export default function RecoverScreen() {
       contentStyle={styles.content}
       header={<AppBar title="Recover identity" subtitle="enter your 12-word seed" onBack={() => router.back()} />}
     >
-      <SeedRecoverForm submitLabel="Recover" busy={busy} error={error} onSubmit={restore} />
+      <SeedRecoverForm submitLabel="Recover" busy={false} onSubmit={restore} />
     </StackScreen>
   );
 }
