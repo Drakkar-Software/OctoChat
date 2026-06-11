@@ -9,7 +9,7 @@ import type { Keyring } from '@drakkar.software/starfish-keyring';
 import { signRequest, stableStringify } from '@drakkar.software/starfish-protocol';
 import type { SignableMethod } from '@drakkar.software/starfish-protocol';
 
-import { getSyncBase, getSyncNamespace, getSyncPrefix } from '../config/config';
+import { getSyncBase, getSyncNamespace, getSyncPrefix, getOnServerReachable } from '../config/config';
 import { fetchWithTimeout } from './fetch-timeout';
 import { pullCache, PULL_CACHE_MAX_AGE_MS } from './pull-cache';
 import { cacheProfile, loadCachedProfile } from './profile-cache';
@@ -47,6 +47,11 @@ export function makeClient(cap: unknown, devEdPrivHex: string): StarfishClient {
     // and any structured pull survive offline (ciphertext-at-rest). See pull-cache.ts.
     cache: pullCache(),
     cacheMaxAgeMs: PULL_CACHE_MAX_AGE_MS,
+    // Stale-while-revalidate: 429 + 5xx serve the cached snapshot immediately and
+    // retry in the background (honoring Retry-After). On success the host's
+    // onServerReachable fires → reportReachability(true) → rooms auto-recover.
+    cacheFallbackStatuses: [429, 500, 502, 503, 504],
+    onRevalidated: () => getOnServerReachable()?.(),
   });
 }
 

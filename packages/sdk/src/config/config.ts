@@ -20,6 +20,12 @@ export interface OctoChatConfig {
   /** Public origin of the web app, used to build shareable invite links on
    *  platforms without `window.location` (native). Empty by default. */
   webBase?: string;
+  /**
+   * Called when a background Starfish revalidation succeeds after a 429/5xx
+   * cache-fallback (stale-while-revalidate). Use it to signal that the server
+   * is reachable again so any stale views re-pull and recover.
+   */
+  onServerReachable?: () => void;
 }
 
 let cfg: OctoChatConfig | null = null;
@@ -61,3 +67,5 @@ export const getSyncPrefix = (): string => {
 export const getEventsUrl = (): string => req().eventsUrl ?? `${getSyncBase()}${getSyncPrefix()}/events`;
 /** Public web origin (right-trimmed of trailing slashes; `''` by default). */
 export const getWebBase = (): string => (req().webBase ?? '').replace(/\/+$/, '');
+/** Callback to invoke when a background Starfish revalidation succeeds. */
+export const getOnServerReachable = (): (() => void) | undefined => cfg?.onServerReachable;
