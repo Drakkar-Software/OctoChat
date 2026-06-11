@@ -26,6 +26,16 @@ let cfg: OctoChatConfig | null = null;
 
 /** Configure the SDK. Call once at app boot before any sync/identity API. */
 export function configureOctoChat(config: OctoChatConfig): void {
+  // Guard against the common mistake of passing `namespace` (wrong key) instead of
+  // `syncNamespace`. TypeScript's excess-property check is bypassed when the config
+  // is assembled via a conditional spread (e.g. `...(ns ? { namespace: ns } : {})`),
+  // so the wrong key would be silently ignored — writes would go without the namespace
+  // prefix and hit nginx 404s. Fail fast instead.
+  if ('namespace' in config && !config.syncNamespace) {
+    throw new Error(
+      `octochat-sdk: configureOctoChat received "namespace" — did you mean "syncNamespace"?`,
+    );
+  }
   const ns = (config.syncNamespace ?? '').trim();
   if (ns !== '' && !/^[A-Za-z0-9_-]+$/.test(ns)) {
     throw new Error(`octochat-sdk: syncNamespace must be a bare name ([A-Za-z0-9_-]+), got "${ns}"`);
