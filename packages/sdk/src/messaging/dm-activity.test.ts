@@ -1,0 +1,277 @@
+/**
+ * Unit tests for dm-activity.ts — the authoritative DM head-timestamp store.
+ *
+ * We mock `buildSpaceEncryptor` (the network step) and `loadStreamLog` (the local
+ * streamlog cache step) so the tests run without a real Starfish server or kv blobs.
+ * kv is in-memory via `configureKv`. `streamRoomPull` is deterministic so no mock needed.
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { configureKv } from '../config/adapters';
+
+// ── Mocks (must come before the module import) ──────────────────────────────────
+
+const mockLoadStreamLog = vi.fn(async (_roomId: string) => []);
+vi.mock('./stream-log', () => ({
+  loadStreamLog: (...args: unknown[]) => mockLoadStreamLog(...args),
+}));
+
+type FakePull = (path: string, opts: Record<string, unknown>) => Promise<unknown[]>;
+let fakePull: FakePull = async () => [];
+const mockBuildSpaceEncryptor = vi.fn(async () => ({
+  client: { pull: (...args: Parameters<FakePull>) => fakePull(...args) },
+  enc: null,
+}));
+vi.mock('../starfish/space-encryptor', () => ({
+  buildSpaceEncryptor: (...args: unknown[]) => mockBuildSpaceEncryptor(...args),
+}));
+
+import {
+  getDmHeads,
+  loadDmHeadsFromKv,
+  refreshDmHeads,
+  resetDmHeads,
+  subscribeDmHeads,
+} from './dm-activity';
+
+// ── In-memory kv ────────────────────────────────────────────────────────────────
+
+const mem = new Map<string, string>();
+configureKv({
+  get: async (k) => mem.get(k) ?? null,
+  set: async (k, v) => { mem.set(k, v); },
+  remove: async (k) => { mem.delete(k); },
+});
+
+const SESSION = { userId: 'u1', keys: { edPriv: '' } } as never;
+const DM_SPACE = 'dm-aabbccdd';
+const DM_ROOM = 'dm-aabbccdd-dm';
+
+// ── Test helpers ─────────────────────────────────────────────────────────────────
+
+function makeItems(ts: number) {
+  return [{ ts, data: {} }];
+}
+
+beforeEach(() => {
+  mem.clear();
+  resetDmHeads();
+  mockLoadStreamLog.mockReset();
+  mockLoadStreamLog.mockResolvedValue([]);
+  mockBuildSpaceEncryptor.mockReset();
+  fakePull = async () => [];
+  mockBuildSpaceEncryptor.mockImplementation(async () => ({
+    client: { pull: (...args: Parameters<FakePull>) => fakePull(...args) },
+    enc: null,
+  }));
+  vi.useRealTimers();
+});
+
+// ── loadDmHeadsFromKv ────────────────────────────────────────────────────────────
+
+describe('loadDmHeadsFromKv', () => {
+  it('seeds the store from persisted kv', async () => {
+    mem.set(`octochat.dmhead.u1`, JSON.stringify({ [DM_ROOM]: 1_000 }));
+    await loadDmHeadsFromKv('u1');
+    expect(getDmHeads()[DM_ROOM]).toBe(1_000);
+  });
+
+  it('tolerates absent key gracefully', async () => {
+    await loadDmHeadsFromKv('u1');
+    expect(getDmHeads()[DM_ROOM]).toBeUndefined();
+  });
+
+  it('tolerates corrupt kv gracefully', async () => {
+    mem.set(`octochat.dmhead.u1`, 'not-json{{{');
+    await expect(loadDmHeadsFromKv('u1')).resolves.not.toThrow();
+  });
+
+  it('max-merges: a higher existing value survives a lower kv value', async () => {
+    // Simulate a live SSE event that arrived before loadDmHeadsFromKv.
+    // We do this by seeding kv with a lower ts than the result of a refresh.
+    mem.set(`octochat.dmhead.u1`, JSON.stringify({ [DM_ROOM]: 500 }));
+    fakePull = async () => makeItems(2_000);
+    mockBuildSpaceEncryptor.mockImplementation(async () => ({
+      client: { pull: (...args: Parameters<FakePull>) => fakePull(...args) },
+      enc: null,
+    }));
+    // First: load a high ts from a network refresh.
+    await refreshDmHeads(SESSION, [DM_SPACE]);
+    const highTs = getDmHeads()[DM_ROOM];
+    expect(highTs).toBe(2_000);
+    // Then load a stale kv blob — must not roll the head back.
+    await loadDmHeadsFromKv('u1');
+    expect(getDmHeads()[DM_ROOM]).toBe(2_000);
+  });
+});
+
+// ── refreshDmHeads — source 2: local streamlog cache ────────────────────────────
+
+describe('refreshDmHeads — source 2: local streamlog cache', () => {
+  it('takes the max ts from the opened-room cache (no network call)', async () => {
+    // Disable the network step by making buildSpaceEncryptor fail.
+    mockBuildSpaceEncryptor.mockRejectedValue(new Error('offline'));
+    mockLoadStreamLog.mockResolvedValue([{ ts: 1_500, data: {} }, { ts: 800, data: {} }]);
+
+    await refreshDmHeads(SESSION, [DM_SPACE]);
+
+    expect(getDmHeads()[DM_ROOM]).toBe(1_500);
+    expect(mockLoadStreamLog).toHaveBeenCalledWith(DM_ROOM);
+  });
+
+  it('ignores a streamlog item with no ts (0 / undefined)', async () => {
+    mockBuildSpaceEncryptor.mockRejectedValue(new Error('offline'));
+    mockLoadStreamLog.mockResolvedValue([{ ts: 0, data: {} }, { data: {} }]);
+
+    await refreshDmHeads(SESSION, [DM_SPACE]);
+
+    // ts=0 means "no real timestamp" — the head must not be set.
+    expect(getDmHeads()[DM_ROOM]).toBeUndefined();
+  });
+});
+
+// ── refreshDmHeads — source 3: authoritative server pull ────────────────────────
+
+describe('refreshDmHeads — source 3: authoritative server head pull', () => {
+  it('reads outer ts from last:1 pull, never touching data (no decrypt)', async () => {
+    fakePull = async (_path, opts) => {
+      expect(opts['last']).toBe(1);
+      expect(opts['appendField']).toBe('items');
+      // Simulate sealed data — should never be touched.
+      return [{ ts: 3_000, data: 'SEALED_BLOB_NEVER_DECRYPTED' }];
+    };
+
+    await refreshDmHeads(SESSION, [DM_SPACE]);
+
+    expect(getDmHeads()[DM_ROOM]).toBe(3_000);
+  });
+
+  it('a per-DM pull failure does not drop sibling DM heads', async () => {
+    const DM_SPACE_2 = 'dm-11223344';
+    const DM_ROOM_2 = 'dm-11223344-dm';
+
+    let call = 0;
+    fakePull = async (_path) => {
+      call++;
+      if (call === 1) throw new Error('no cap');
+      return makeItems(9_000);
+    };
+
+    await refreshDmHeads(SESSION, [DM_SPACE, DM_SPACE_2]);
+
+    // The second DM must still land even though the first failed.
+    const heads = getDmHeads();
+    const succeeded = heads[DM_ROOM] === 9_000 || heads[DM_ROOM_2] === 9_000;
+    expect(succeeded).toBe(true);
+  });
+
+  it('max-merge: a lower server value never rolls back a higher existing head', async () => {
+    fakePull = async () => makeItems(5_000);
+    await refreshDmHeads(SESSION, [DM_SPACE]);
+    expect(getDmHeads()[DM_ROOM]).toBe(5_000);
+
+    // Server returns a stale/lower value (shouldn't happen but be defensive).
+    vi.useRealTimers();
+    fakePull = async () => makeItems(1_000);
+    await refreshDmHeads(SESSION, [DM_SPACE], { force: true });
+    expect(getDmHeads()[DM_ROOM]).toBe(5_000); // unchanged
+  });
+});
+
+// ── Throttle ─────────────────────────────────────────────────────────────────────
+
+describe('refreshDmHeads throttle', () => {
+  it('skips the network step on a too-soon second call', async () => {
+    fakePull = async () => makeItems(1_000);
+    await refreshDmHeads(SESSION, [DM_SPACE]);
+    expect(mockBuildSpaceEncryptor).toHaveBeenCalledTimes(1);
+
+    // Second call immediately — network step must be skipped.
+    fakePull = async () => makeItems(2_000);
+    await refreshDmHeads(SESSION, [DM_SPACE]);
+    expect(mockBuildSpaceEncryptor).toHaveBeenCalledTimes(1); // still 1
+    expect(getDmHeads()[DM_ROOM]).toBe(1_000); // unchanged from first call
+  });
+
+  it('force:true bypasses the throttle', async () => {
+    fakePull = async () => makeItems(1_000);
+    await refreshDmHeads(SESSION, [DM_SPACE]);
+
+    fakePull = async () => makeItems(7_000);
+    await refreshDmHeads(SESSION, [DM_SPACE], { force: true });
+    expect(getDmHeads()[DM_ROOM]).toBe(7_000);
+  });
+});
+
+// ── Concurrent call coalescing ───────────────────────────────────────────────────
+
+describe('refreshDmHeads concurrency', () => {
+  it('coalesces two concurrent calls onto a single in-flight promise', async () => {
+    let resolveFirst!: () => void;
+    const firstDone = new Promise<void>((r) => (resolveFirst = r));
+    let pullCalls = 0;
+    fakePull = async () => {
+      pullCalls++;
+      await firstDone;
+      return makeItems(4_000);
+    };
+
+    // Fire two simultaneous refreshes.
+    const p1 = refreshDmHeads(SESSION, [DM_SPACE]);
+    const p2 = refreshDmHeads(SESSION, [DM_SPACE]);
+
+    resolveFirst();
+    await Promise.all([p1, p2]);
+
+    // The network pull must have been initiated only once despite two callers.
+    expect(pullCalls).toBe(1);
+    expect(getDmHeads()[DM_ROOM]).toBe(4_000);
+  });
+});
+
+// ── Subscribe / listeners ────────────────────────────────────────────────────────
+
+describe('subscribeDmHeads', () => {
+  it('fires listener when heads advance', async () => {
+    fakePull = async () => makeItems(6_000);
+    let fired = 0;
+    const unsub = subscribeDmHeads(() => { fired++; });
+
+    await refreshDmHeads(SESSION, [DM_SPACE]);
+    unsub();
+
+    expect(fired).toBeGreaterThan(0);
+  });
+
+  it('does not fire after unsubscribe', async () => {
+    let fired = 0;
+    const unsub = subscribeDmHeads(() => { fired++; });
+    unsub();
+
+    fakePull = async () => makeItems(6_000);
+    await refreshDmHeads(SESSION, [DM_SPACE]);
+    expect(fired).toBe(0);
+  });
+});
+
+// ── resetDmHeads ─────────────────────────────────────────────────────────────────
+
+describe('resetDmHeads', () => {
+  it('clears all heads on sign-out', async () => {
+    fakePull = async () => makeItems(1_000);
+    await refreshDmHeads(SESSION, [DM_SPACE]);
+    expect(getDmHeads()[DM_ROOM]).toBe(1_000);
+
+    resetDmHeads();
+    expect(getDmHeads()[DM_ROOM]).toBeUndefined();
+  });
+
+  it('allows a fresh refresh after reset (no stale coalesce)', async () => {
+    fakePull = async () => makeItems(1_000);
+    await refreshDmHeads(SESSION, [DM_SPACE]);
+    resetDmHeads();
+
+    fakePull = async () => makeItems(2_500);
+    await refreshDmHeads(SESSION, [DM_SPACE]);
+    expect(getDmHeads()[DM_ROOM]).toBe(2_500);
+  });
+});

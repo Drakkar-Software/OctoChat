@@ -9,6 +9,7 @@
 import { useMemo, useSyncExternalStore } from 'react';
 
 import { dmRoomId, getArchivedDms, isDmArchived, subscribeArchivedDms } from '@drakkar.software/octochat-sdk';
+import { getDmHeads, subscribeDmHeads } from '@drakkar.software/octochat-sdk';
 import { usePseudos, useAvatars } from './use-pseudos';
 import { useUnread } from './unread-context';
 import { useDmMap } from './spaces-context';
@@ -50,6 +51,10 @@ export function useDms(): DmEntry[] {
   // archived-dms.ts is a singleton like mutes.ts). The snapshot reference changes on
   // every toggle, so this is the minimal dependency for recompute.
   const _archivedDms = useSyncExternalStore(subscribeArchivedDms, getArchivedDms, getArchivedDms);
+  // Authoritative DM head timestamps (server-assigned, cross-device consistent). Used
+  // as the primary sort key so web and mobile sort DMs identically. The snapshot
+  // reference changes whenever `refreshDmHeads` advances any head, so recompute fires.
+  const dmHeads = useSyncExternalStore(subscribeDmHeads, getDmHeads, getDmHeads);
 
   // `pseudo` reads a module cache the React Compiler can't track; the joined ids,
   // unread map, latest-activity, and archived-set drive recompute.
@@ -70,15 +75,19 @@ export function useDms(): DmEntry[] {
           archived: isDmArchived(spaceId),
         };
       })
-      // Primary: most-recent SSE event desc (0 = no event yet → sorts to end).
+      // Primary: authoritative server head ts (cross-device consistent) MAX-merged with
+      // live SSE ts (instant reorder on a new message without waiting for a refresh).
+      // Both are 0 when absent, so an unranked DM sorts to the end alphabetically.
       // Tiebreak: peer name asc so unranked DMs keep a stable alphabetical order.
       .sort((a, b) => {
-        const tsDiff = latestActivityAt(b.roomId) - latestActivityAt(a.roomId);
+        const rankB = Math.max(dmHeads[b.roomId] ?? 0, latestActivityAt(b.roomId));
+        const rankA = Math.max(dmHeads[a.roomId] ?? 0, latestActivityAt(a.roomId));
+        const tsDiff = rankB - rankA;
         if (tsDiff !== 0) return tsDiff;
         return a.name.localeCompare(b.name);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [peerIds, dms, unreadByRoom, latestActivityAt, _archivedDms, pseudo, avatar]);
+  }, [peerIds, dms, unreadByRoom, latestActivityAt, _archivedDms, dmHeads, pseudo, avatar]);
 }
 
 /** Total unread across every DM — the virtual DM space's rail-tile badge count. */

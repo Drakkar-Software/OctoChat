@@ -77,6 +77,7 @@ export * from './messaging/threads';
 export * from './messaging/cross-room';
 export * from './messaging/quick-reactions-settings';
 export * from './messaging/archived-dms';
+export * from './messaging/dm-activity';
 export * from './messaging/stream-log';
 export * from './messaging/sealed-stream';
 export * from './messaging/autosave';

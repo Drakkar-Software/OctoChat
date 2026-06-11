@@ -31,6 +31,7 @@ import { consumePrimedSpaces } from './spaces-prime';
 import { hydrateMutes } from '@drakkar.software/octochat-sdk';
 import { flushReadsNow, hydrateReads } from '@drakkar.software/octochat-sdk';
 import { hydrateArchivedDms } from '@drakkar.software/octochat-sdk';
+import { refreshDmHeads } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 
 interface SpacesContextValue {
@@ -86,6 +87,10 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     await hydrateReads(session.userId, reads);
     await hydrateMutes(session.userId, mutes);
     hydrateArchivedDms(archivedDms);
+    // Refresh the DM head-timestamps (authoritative sort key for the DM list).
+    // Fire-and-forget — the internal throttle absorbs nav spam; failures degrade
+    // gracefully to the kv + local-cache values already in the store.
+    void refreshDmHeads(session, Object.values(dmMap)).catch(() => {});
     // Accept any inbound DM invites delivered through a shared space's carrier
     // (best-effort, fire-and-forget so a carrier hiccup never blocks the rails). If a
     // new DM was accepted, re-read so its peer→space mapping reaches the DM section.
