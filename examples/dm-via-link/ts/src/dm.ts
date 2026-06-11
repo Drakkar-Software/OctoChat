@@ -46,6 +46,7 @@ import {
   buildSession,
   createDmViaLink,
   decodeDmLink,
+  ensureProfileKeys,
   getSpaceEncryptor,
   loadAttachment,
   myDmLink,
@@ -82,6 +83,11 @@ const RECIPIENT_NAME = process.env.RECIPIENT_NAME?.trim() || 'Coral Friend';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Maximum time (ms) to wait for a freshly-written profile to become readable.
+ *  Remote/deployed servers may lag several seconds on read-after-write; 15 s
+ *  covers realistic CDN/edge-cache propagation while failing fast locally. */
+const PROFILE_PUBLISH_TIMEOUT_MS = 15_000;
+
 /** A tiny but VALID payload for each attachment kind: a 1×1 transparent PNG
  *  (image) and a UTF-8 text blob (file). `uploadAttachment` derives `kind` from
  *  the mime, so the image renders as a thumbnail and the text as a file card. */
@@ -92,19 +98,36 @@ const fileBytes = (): Uint8Array =>
   new TextEncoder().encode('Hello from the OctoChat DM example!\nThis rides E2EE as a file attachment.\n');
 
 /** A fresh root-device session, WAITED until its profile keys are published.
- *  `buildSession` publishes them in the background; `createDmViaLink` later
- *  cross-checks a link's embedded keys against the owner's published profile, so
- *  a recipient must be published before its link is usable. (Mirrors the SDK
- *  e2e's `newUser`.) */
+ *  `buildSession` publishes them fire-and-forget (errors swallowed). We await an
+ *  explicit `ensureProfileKeys` so a real write failure surfaces immediately
+ *  (e.g. a 4xx from the deployed server) instead of a blind 5-second timeout.
+ *  The call is idempotent — if the background publish already landed, it reads
+ *  keys-present and returns without writing again. Then we poll until the write
+ *  is visible, using `PROFILE_PUBLISH_TIMEOUT_MS` to cover remote read-after-write
+ *  lag (CDN/edge-cache propagation) that a local server never hits.
+ *  `createDmViaLink` cross-checks a link's embedded keys against the owner's
+ *  published profile, so a recipient must be readable before its link is usable. */
 async function newUser(name: string): Promise<Session> {
   const keys = generateDeviceKeys();
   const userId = await userIdFromEdPub(keys.edPub);
   const session = await buildSession({ userId, keys }, name);
-  for (let i = 0; i < 50; i++) {
+  // Await the write explicitly — surfaces a real server error instead of a blind timeout.
+  // A ConflictError (hash_mismatch) means buildSession's fire-and-forget background
+  // publish won the write race; the keys ARE written — just continue to poll.
+  await ensureProfileKeys(session.accountClient, userId, keys).catch((e: unknown) => {
+    // hash_mismatch = ConflictError: buildSession's fire-and-forget background publish
+    // won the write race; the keys ARE written — just continue to poll.
+    if ((e as Error)?.message !== 'hash_mismatch') throw e;
+  });
+  const pollInterval = 150;
+  const maxPolls = Math.ceil(PROFILE_PUBLISH_TIMEOUT_MS / pollInterval);
+  for (let i = 0; i < maxPolls; i++) {
     if (await readPeerKeys(userId)) return session;
-    await sleep(100);
+    if (i > 0 && i % 20 === 0)
+      console.log(`[dm] …waiting for ${name}'s keys to read back (${i * pollInterval}ms / ${PROFILE_PUBLISH_TIMEOUT_MS}ms)`);
+    await sleep(pollInterval);
   }
-  throw new Error(`profile keys for ${name} never published`);
+  throw new Error(`profile keys for ${name} published but not readable after ${PROFILE_PUBLISH_TIMEOUT_MS}ms`);
 }
 
 /** Decode a DM link to its token, accepting either a full `…/dm#<token>` URL or
@@ -115,7 +138,7 @@ function tokenFrom(link: string): DmLinkToken {
 }
 
 async function main(): Promise<void> {
-  configureOctoChat({ syncBase: SERVER, ...(NAMESPACE ? { namespace: NAMESPACE } : {}) });
+  configureOctoChat({ syncBase: SERVER, ...(NAMESPACE ? { syncNamespace: NAMESPACE } : {}) });
   // The SDK persists caps / registry / warm-start logs through a platform KV; an
   // in-memory Map is all a one-shot script needs.
   const mem = new Map<string, string>();
