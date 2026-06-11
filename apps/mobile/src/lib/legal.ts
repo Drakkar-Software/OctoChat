@@ -59,10 +59,10 @@ export const privacy: LegalDoc = {
       ],
     },
     {
-      title: 'Data Retention and Deletion',
+      title: 'Data Retention',
       paragraphs: [
-        'You may delete your account at any time from Settings → Account. Deleting your account removes your identity keys from your device. Server-side encrypted records are subject to the retention policy of the server operator.',
-        'Because messages are encrypted, deleting your device keys renders any stored ciphertext permanently inaccessible — there is no recovery path, by design.',
+        'OctoChat is a persistent, append-only system by design. Messages and server-side records are retained per the server operator\'s infrastructure policy. There is no "delete account" feature — this is intentional: the append-only model is fundamental to the security and auditability of the system.',
+        'You may remove OctoChat from your device at any time, which discards your local keys. Because messages are end-to-end encrypted, your local keys are the only way to decrypt stored ciphertext. Removing them renders your message history permanently inaccessible on that device — without recovery, by design.',
       ],
     },
     {

@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { layout, radii, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
 import type { LegalDoc } from '@/lib/legal';
-import { Wordmark } from '@/components/brand/Wordmark';
 import { IconButton } from '@/components/ui/IconButton';
 import { Txt } from '@/components/ui/Txt';
 
@@ -36,7 +35,15 @@ export function LegalPage({ doc }: LegalPageProps) {
           { paddingTop: insets.top + 8, borderBottomColor: colors.lineFaint, backgroundColor: colors.canvas },
         ]}
       >
-        <Wordmark size={16} color={colors.inkSoft} />
+        <View style={styles.navBrand}>
+          <Image
+            source={require('../../assets/images/logo-512.png')}
+            style={styles.navLogo}
+          />
+          <Txt variant="callout" weight="semibold" color={colors.inkSoft}>
+            Octo<Txt variant="callout" weight="semibold" color={colors.accent}>Chat</Txt>
+          </Txt>
+        </View>
         <IconButton name="arrow-l" size={20} color={colors.inkSoft} onPress={handleBack} accessibilityLabel="Back" />
       </View>
 
@@ -106,6 +113,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
+  },
+  navBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  navLogo: {
+    width: 26,
+    height: 26,
+    borderRadius: 6,
+    resizeMode: 'contain',
   },
 
   // Hero

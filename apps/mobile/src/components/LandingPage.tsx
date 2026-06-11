@@ -1,12 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Animated, Image, Linking, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 
 import { fonts, radii, shadows, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
 import { DepthBackdrop } from '@/components/ui/DepthBackdrop';
-import { Octopus } from '@/components/brand/Octopus';
 import { Wordmark } from '@/components/brand/Wordmark';
 import { Button } from '@/components/ui/Button';
 import { Icon, type IconName } from '@/components/ui/Icon';
@@ -119,7 +118,13 @@ export function LandingPage() {
                 webCss({ filter: 'blur(30px)' }),
               ]}
             />
-            <Octopus size={desktop ? 96 : 72} color={colors.accent} />
+            <Image
+              source={require('../../assets/images/logo-512.png')}
+              style={[
+                styles.logoImage,
+                { width: desktop ? 160 : 120, height: desktop ? 160 : 120, borderRadius: desktop ? 40 : 30 },
+              ]}
+            />
           </View>
 
           {/* Giant wordmark */}
@@ -171,20 +176,20 @@ export function LandingPage() {
               iconName="send"
               onPress={() => router.replace('/(onboarding)/welcome')}
             />
-            <Button
-              label="Sign In"
-              variant="secondary"
-              size="lg"
-              shape="pill"
-              onPress={() => router.replace('/(onboarding)/welcome')}
-            />
           </View>
 
           {/* Trust strip */}
           <View style={styles.trustRow}>
             <Icon name="lock" size={11} color={colors.inkMuted} />
             <Txt variant="caption" color={colors.inkMuted}>
-              Open source · Self-hosted · E2E encrypted
+              <Txt
+                variant="caption"
+                color={colors.inkMuted}
+                onPress={() => Linking.openURL('https://github.com/Drakkar-Software/OctoChat')}
+              >
+                Open source
+              </Txt>
+              {' · Self-hosted · E2E encrypted'}
             </Txt>
           </View>
         </View>
@@ -270,7 +275,10 @@ export function LandingPage() {
             desktop && styles.ctaBannerCardDesktop,
           ]}
         >
-          <Octopus size={44} color={colors.accent} />
+          <Image
+            source={require('../../assets/images/logo-512.png')}
+            style={[styles.logoImage, { width: 56, height: 56, borderRadius: 14 }]}
+          />
           <Txt variant="display" weight="bold" color={colors.ink} center>
             Ready to dive in?
           </Txt>
@@ -284,13 +292,6 @@ export function LandingPage() {
               size="lg"
               shape="pill"
               iconName="arrow-r"
-              onPress={() => router.replace('/(onboarding)/welcome')}
-            />
-            <Button
-              label="Open App"
-              variant="secondary"
-              size="lg"
-              shape="pill"
               onPress={() => router.replace('/(onboarding)/welcome')}
             />
           </View>
@@ -309,6 +310,14 @@ export function LandingPage() {
             <Txt variant="caption" color={colors.inkFaint}>·</Txt>
             <Txt variant="caption" color={colors.inkMuted} onPress={() => router.push('/terms')}>
               Terms of Service
+            </Txt>
+            <Txt variant="caption" color={colors.inkFaint}>·</Txt>
+            <Txt
+              variant="caption"
+              color={colors.inkMuted}
+              onPress={() => Linking.openURL('https://github.com/Drakkar-Software/OctoChat')}
+            >
+              GitHub ↗
             </Txt>
             <Txt variant="caption" color={colors.inkFaint}>·</Txt>
             <Txt variant="caption" color={colors.inkFaint}>
@@ -346,14 +355,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.xl,
-    width: 140,
-    height: 140,
+    width: 200,
+    height: 200,
   },
   markGlow: {
     position: 'absolute',
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
   },
 
   titleRow: {
@@ -415,6 +424,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     borderRadius: radii.pill,
   },
+
+  logoImage: { resizeMode: 'contain' },
 
   // ── Features ─────────────────────────────────────────────────────
   featuresSection: {
