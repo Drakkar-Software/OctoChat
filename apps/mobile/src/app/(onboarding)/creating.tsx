@@ -22,7 +22,7 @@ import { Txt } from '@/components/ui/Txt';
 import { Callout } from '@/components/ui/Callout';
 import { Button } from '@/components/ui/Button';
 
-const LOGO = require('../../../../assets/images/logo.png') as number;
+const LOGO = require('../../../assets/images/logo.png') as number;
 
 const TIPS: { icon: IconName; title: string; body: string }[] = [
   {
