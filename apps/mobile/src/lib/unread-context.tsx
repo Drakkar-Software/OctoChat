@@ -39,7 +39,7 @@ import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
 import { useSpacesContext } from './spaces-context';
 import { kvGet, kvSet } from '@drakkar.software/octochat-sdk';
-import { isDmInboxRoomId } from '@drakkar.software/octochat-sdk';
+import { isDmInboxRoomId, isDmSpaceId } from '@drakkar.software/octochat-sdk';
 import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 import { buildAuthHeaders } from '@drakkar.software/octochat-sdk';
 import { dispatchRoomChange, emitSseStatus } from './room-events-bus';
@@ -258,9 +258,15 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       if (spaceIds.length > 0) {
         const live = new Set(spaceIds);
         const pruned = Object.fromEntries(
-          Object.entries(initial).filter(
-            ([roomId]) => live.has(spaceIdFromRoomId(roomId)) && !isDmInboxRoomId(roomId),
-          ),
+          Object.entries(initial).filter(([roomId]) => {
+            if (isDmInboxRoomId(roomId)) return false; // carrier — never a real room
+            const sp = spaceIdFromRoomId(roomId);
+            // DM rooms are exempt from the left-space prune: the `dms` map isn't in
+            // `spaceIds` yet on a cold start (the primed-spaces fast path carries no
+            // `dms`), and a DM is never "left" — its count clears on read/reconcile,
+            // not on space removal. Pruning here wiped persisted DM unread on restart.
+            return isDmSpaceId(sp) || live.has(sp);
+          }),
         );
         if (Object.keys(pruned).length !== Object.keys(initial).length) {
           initial = pruned;
