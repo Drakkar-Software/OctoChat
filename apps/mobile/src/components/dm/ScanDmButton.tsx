@@ -12,11 +12,11 @@ import { QrScanner } from '@/components/onboarding/QrScanner';
 import { Txt } from '@/components/ui/Txt';
 
 /**
- * "Scan a DM code" — the inverse of the profile's DM calling card. Point the
- * camera at someone's DM QR to open an end-to-end encrypted DM with them, even
- * with no space in common. Camera scanning is native-only (web has no
- * `QrScanner`), so the affordance simply isn't rendered on web. All flow logic
- * lives in {@link useDmScan}; this is the thin camera/confirm surface over it.
+ * Header action that opens the camera to scan someone's DM QR — the inverse of
+ * {@link ShareDmButton}. Point it at a DM QR to open an E2EE DM with no space in
+ * common. Camera scanning is native-only (web has no `QrScanner`), so the icon
+ * simply isn't rendered on web. All flow logic lives in {@link useDmScan}; this
+ * is the thin trigger + camera/confirm surface over it.
  */
 export function ScanDmButton() {
   if (Platform.OS === 'web') return null;
@@ -30,7 +30,7 @@ function ScanDmButtonNative() {
 
   return (
     <>
-      <Button label="Scan a DM code" variant="secondary" size="md" iconName="qr-scan" full onPress={scan.open} />
+      <IconButton name="qr-scan" accessibilityLabel="Scan a DM code" onPress={scan.open} />
 
       <Modal visible={scan.phase !== 'idle'} animationType="slide" onRequestClose={scan.cancel}>
         <View style={[styles.sheet, { backgroundColor: colors.canvas, paddingTop: insets.top + spacing.sm }]}>
