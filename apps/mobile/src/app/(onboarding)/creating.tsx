@@ -10,17 +10,19 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
 
 import { motion, radii, spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
 import { useArgon2Progress } from '@/lib/use-argon2-progress';
 import { useTheme } from '@/lib/use-theme';
-import { Octopus } from '@/components/brand/Octopus';
 import { Icon } from '@/components/ui/Icon';
 import type { IconName } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 import { Callout } from '@/components/ui/Callout';
 import { Button } from '@/components/ui/Button';
+
+const LOGO = require('../../../../assets/images/logo.png') as number;
 
 const TIPS: { icon: IconName; title: string; body: string }[] = [
   {
@@ -138,7 +140,7 @@ export default function CreatingScreen() {
       {/* Hero */}
       <View style={styles.hero}>
         <Animated.View style={octopusStyle}>
-          <Octopus size={72} color={colors.accent} />
+          <Image source={LOGO} style={{ width: 96, height: 96 }} contentFit="contain" />
         </Animated.View>
         <Txt variant="display" weight="bold" style={styles.centered}>
           Creating your identity

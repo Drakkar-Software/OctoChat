@@ -1,10 +1,11 @@
 import { StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 
 import { displayTracking, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
 import { Txt } from '@/components/ui/Txt';
 
-import { Octopus } from './Octopus';
+const LOGO = require('../../../assets/images/logo.png') as number;
 
 interface WordmarkProps {
   /** Font size of the wordmark text; the mark scales with it. */
@@ -24,7 +25,7 @@ export function Wordmark({ size = 20, color, hideMark = false }: WordmarkProps) 
   const span = { fontSize: size, lineHeight: Math.round(size * 1.1), letterSpacing: displayTracking };
   return (
     <View style={styles.row}>
-      {!hideMark && <Octopus size={size + 10} />}
+      {!hideMark && <Image source={LOGO} style={{ width: size + 10, height: size + 10 }} contentFit="contain" />}
       <Txt variant="display" color={color ?? colors.ink} style={span}>
         Octo
         <Txt variant="display" color={colors.accent} style={span}>

@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { StyleSheet } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -10,22 +9,22 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
+import { Image } from 'expo-image';
 
-import { glowShadow, motion, radii } from '@/theme';
+import { motion } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
 import { PulseHalo } from '@/components/ui/PulseHalo';
 
-import { Octopus } from './Octopus';
+const LOGO = require('../../../assets/images/logo.png') as number;
 
 interface HeroMarkProps {
-  /** Diameter of the disc; the octopus scales to fit. */
+  /** Diameter of the logo; drives halo size too. */
   size?: number;
 }
 
 /**
- * The onboarding hero lockup: the octopus inside a glowing marine disc that
- * breathes (a slow vertical float) within a bioluminescent halo. Encapsulates
- * the motion so route pages stay declarative.
+ * The onboarding hero lockup: the logo PNG floating inside a bioluminescent
+ * halo. Encapsulates the motion so route pages stay declarative.
  */
 export function HeroMark({ size = 128 }: HeroMarkProps) {
   const { colors } = useTheme();
@@ -45,33 +44,8 @@ export function HeroMark({ size = 128 }: HeroMarkProps) {
   return (
     <Animated.View style={floatStyle}>
       <PulseHalo size={size} color={colors.accent} rings={3}>
-        <Animated.View
-          style={[
-            styles.disc,
-            {
-              width: size,
-              height: size,
-              borderRadius: size / 2,
-              backgroundColor: colors.accentBg,
-              borderColor: colors.accentBorder,
-              borderTopColor: colors.hairlineHi,
-            },
-            glowShadow(colors.glow, 0.3, 24),
-            // Android renders the elevation shadow of this fully-rounded disc as a
-            // polygon (the rounded-rect outline shadow degrades to a hexagon/octagon
-            // at radius size/2) — the "weird shape" seen behind the mark. Web
-            // (boxShadow) and iOS (shadow* props) draw a clean bloom and ignore
-            // `elevation`, so zeroing it only strips Android's artifact. Same fix as EmptyState.
-            { elevation: 0 },
-          ]}
-        >
-          <Octopus size={Math.round(size * 0.64)} />
-        </Animated.View>
+        <Image source={LOGO} style={{ width: size, height: size }} contentFit="contain" />
       </PulseHalo>
     </Animated.View>
   );
 }
-
-const styles = StyleSheet.create({
-  disc: { borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-});

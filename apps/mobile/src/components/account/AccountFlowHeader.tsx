@@ -3,8 +3,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { glowShadow, layout, radii, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
-import { Octopus } from '@/components/brand/Octopus';
+import { Image } from 'expo-image';
 import { Txt } from '@/components/ui/Txt';
+
+const LOGO = require('../../../assets/images/logo.png') as number;
 
 interface AccountFlowHeaderProps {
   /** Display title for the step (e.g. "Add account"). */
@@ -39,7 +41,7 @@ export function AccountFlowHeader({ title, subtitle }: AccountFlowHeaderProps) {
           colors={[colors.depthTop, colors.depthBottom]}
           style={[StyleSheet.absoluteFill, styles.discFill]}
         />
-        <Octopus size={36} />
+        <Image source={LOGO} style={{ width: 36, height: 36 }} contentFit="contain" />
       </View>
       <Txt variant="title" weight="bold" center>
         {title}

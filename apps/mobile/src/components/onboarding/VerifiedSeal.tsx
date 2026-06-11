@@ -11,8 +11,10 @@ import Animated, {
 
 import { glowShadow, motion, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
-import { Octopus } from '@/components/brand/Octopus';
+import { Image } from 'expo-image';
 import { PulseHalo } from '@/components/ui/PulseHalo';
+
+const LOGO = require('../../../assets/images/logo.png') as number;
 import { Reveal } from '@/components/ui/Reveal';
 import { Txt } from '@/components/ui/Txt';
 
@@ -66,7 +68,7 @@ export function VerifiedSeal({ fingerprint, label = 'Verified' }: VerifiedSealPr
             discStyle,
           ]}
         >
-          <Octopus size={Math.round(SIZE * 0.6)} />
+          <Image source={LOGO} style={{ width: Math.round(SIZE * 0.6), height: Math.round(SIZE * 0.6) }} contentFit="contain" />
         </Animated.View>
       </PulseHalo>
       <Txt variant="caption" weight="semibold" mono uppercase tone="accent" style={styles.label}>

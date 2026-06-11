@@ -5,7 +5,9 @@ import QRCode from 'react-native-qrcode-svg';
 
 import { radii } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
-import { Octopus } from '@/components/brand/Octopus';
+import { Image } from 'expo-image';
+
+const LOGO = require('../../../assets/images/logo.png') as number;
 
 const N = 23;
 
@@ -81,7 +83,7 @@ export function QrCode({
       )}
       {hideMark ? null : (
         <View style={[styles.logo, { width: logo, height: logo, backgroundColor: colors.paper, borderRadius: radii.md }]}>
-          <Octopus size={logo * 0.74} />
+          <Image source={LOGO} style={{ width: logo * 0.74, height: logo * 0.74 }} contentFit="contain" />
         </View>
       )}
     </View>
