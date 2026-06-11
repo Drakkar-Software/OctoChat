@@ -9,7 +9,7 @@
 import { ConflictError, StarfishHttpError } from '@drakkar.software/starfish-client';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { CapMap, DmMap, MutePrefs, PubAccessMap, ReadPrefs, Room, Space } from '../domain/types';
+import type { ArchivedDms, CapMap, DmMap, MutePrefs, PubAccessMap, ReadPrefs, Room, Space } from '../domain/types';
 
 import type { SealedBlob } from './account-seal';
 
@@ -80,6 +80,10 @@ interface SpacesDoc {
    *  pull and an edit on one device propagates cross-device. Stored loosely (a string
    *  array); the strict 6-slot coercion happens at hydrate. */
   quickReactions: string[];
+  /** DM-space ids the user has archived (hidden from the DM list). Synced cross-device
+   *  so an archive on one device propagates. See `messaging/archived-dms.ts` and
+   *  {@link ArchivedDms}. */
+  archivedDms: ArchivedDms;
   hash: string | null;
 }
 
@@ -121,6 +125,16 @@ function coerceQuickReactions(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : [];
 }
 
+/** Coerce a doc's raw `archivedDms` field into a well-formed {@link ArchivedDms} (tolerant
+ *  of a missing/garbage value — a doc predating the feature reads back empty). Only
+ *  `=== true` values survive so a corrupt entry can't poison the set. */
+function coerceArchivedDms(raw: unknown): ArchivedDms {
+  const src = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const out: ArchivedDms = {};
+  for (const [k, v] of Object.entries(src)) if (v === true) out[k] = true;
+  return out;
+}
+
 /**
  * Pull the raw spaces doc, normalizing its keys. A 404 (no doc yet) returns an
  * empty doc with `hash: null` so a first write can create it. Any OTHER error
@@ -142,6 +156,7 @@ async function pullSpacesDoc(client: StarfishClient, userId: string): Promise<Sp
         pubAccess?: PubAccessMap;
         dms?: unknown;
         quickReactions?: unknown;
+        archivedDms?: unknown;
       }
     | undefined;
   return {
@@ -152,6 +167,7 @@ async function pullSpacesDoc(client: StarfishClient, userId: string): Promise<Sp
     pubAccess: data?.pubAccess && typeof data.pubAccess === 'object' ? data.pubAccess : {},
     dms: coerceDms(data?.dms),
     quickReactions: coerceQuickReactions(data?.quickReactions),
+    archivedDms: coerceArchivedDms(data?.archivedDms),
     hash: res?.hash ?? null,
   };
 }
@@ -167,7 +183,7 @@ export async function readSpaces(
     // reads as an empty account (e.g. a desktop build baked against an unreachable
     // server). Surface it; the caller still degrades to empty.
     console.error('[readSpaces] failed to pull spaces registry', err);
-    return { spaces: [], caps: {}, mutes: coerceMutes(undefined), reads: coerceReads(undefined), pubAccess: {}, dms: {}, quickReactions: [], hash: null };
+    return { spaces: [], caps: {}, mutes: coerceMutes(undefined), reads: coerceReads(undefined), pubAccess: {}, dms: {}, quickReactions: [], archivedDms: {}, hash: null };
   }
 }
 
@@ -189,17 +205,16 @@ export async function updateSpacesDoc(
 ): Promise<void> {
   const MAX_ATTEMPTS = 3;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, hash } = await pullSpacesDoc(client, userId);
+    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, archivedDms, hash } = await pullSpacesDoc(client, userId);
     const cur = { spaces, caps, pubAccess };
     const next = mutator(cur);
     if (next === cur) return; // no-op mutation (e.g. already joined) — skip the write
     try {
-      // `mutes`, `reads`, `dms` and `quickReactions` are read fresh and threaded through
-      // unchanged so a spaces/caps edit never drops a sibling key (the twin of how `caps`
-      // is preserved).
+      // `mutes`, `reads`, `dms`, `quickReactions` and `archivedDms` are read fresh and
+      // threaded through unchanged so a spaces/caps edit never drops a sibling key.
       await client.push(
         spacesPush(userId),
-        { v: 1, spaces: next.spaces, caps: next.caps, mutes, reads, pubAccess: next.pubAccess, dms, quickReactions },
+        { v: 1, spaces: next.spaces, caps: next.caps, mutes, reads, pubAccess: next.pubAccess, dms, quickReactions, archivedDms },
         hash,
       );
       return;
@@ -223,13 +238,12 @@ export async function updateMutesDoc(
 ): Promise<void> {
   const MAX_ATTEMPTS = 3;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, hash } = await pullSpacesDoc(client, userId);
+    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, archivedDms, hash } = await pullSpacesDoc(client, userId);
     const next = mutator(mutes);
     if (!next) return; // no-op
     try {
-      // Thread `spaces`/`caps`/`reads`/`pubAccess`/`dms`/`quickReactions` through unchanged — a
-      // mute edit must never drop a sibling key (the twin of how `mutes` is preserved by updateSpacesDoc).
-      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes: next, reads, pubAccess, dms, quickReactions }, hash);
+      // Thread all sibling keys through unchanged — a mute edit must never drop one.
+      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes: next, reads, pubAccess, dms, quickReactions, archivedDms }, hash);
       return;
     } catch (err) {
       if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
@@ -253,13 +267,12 @@ export async function updateReadsDoc(
 ): Promise<void> {
   const MAX_ATTEMPTS = 3;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, hash } = await pullSpacesDoc(client, userId);
+    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, archivedDms, hash } = await pullSpacesDoc(client, userId);
     const next = mutator(reads);
     if (!next) return; // no-op (nothing newer than the server already has)
     try {
-      // Thread `spaces`/`caps`/`mutes`/`pubAccess`/`dms`/`quickReactions` through unchanged — a
-      // reads edit must never drop a sibling key (the twin of how `mutes` is preserved by updateSpacesDoc).
-      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads: next, pubAccess, dms, quickReactions }, hash);
+      // Thread all sibling keys through unchanged — a reads edit must never drop one.
+      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads: next, pubAccess, dms, quickReactions, archivedDms }, hash);
       return;
     } catch (err) {
       if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
@@ -282,13 +295,12 @@ export async function updateDmsDoc(
 ): Promise<void> {
   const MAX_ATTEMPTS = 3;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, hash } = await pullSpacesDoc(client, userId);
+    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, archivedDms, hash } = await pullSpacesDoc(client, userId);
     const next = mutator(dms);
     if (!next) return; // no-op
     try {
-      // Thread `spaces`/`caps`/`mutes`/`reads`/`pubAccess`/`quickReactions` through unchanged — a
-      // dms edit must never drop a sibling key (the twin of how `mutes` is preserved by updateSpacesDoc).
-      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads, pubAccess, dms: next, quickReactions }, hash);
+      // Thread all sibling keys through unchanged — a dms edit must never drop one.
+      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads, pubAccess, dms: next, quickReactions, archivedDms }, hash);
       return;
     } catch (err) {
       if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
@@ -310,13 +322,40 @@ export async function updateQuickReactionsDoc(
 ): Promise<void> {
   const MAX_ATTEMPTS = 3;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, hash } = await pullSpacesDoc(client, userId);
+    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, archivedDms, hash } = await pullSpacesDoc(client, userId);
     const next = mutator(quickReactions);
     if (!next) return; // no-op
     try {
-      // Thread `spaces`/`caps`/`mutes`/`reads`/`pubAccess`/`dms` through unchanged — a palette edit
-      // must never drop a sibling key (the twin of how `mutes` is preserved by updateSpacesDoc).
-      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads, pubAccess, dms, quickReactions: next }, hash);
+      // Thread all sibling keys through unchanged — a palette edit must never drop one.
+      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads, pubAccess, dms, quickReactions: next, archivedDms }, hash);
+      return;
+    } catch (err) {
+      if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
+      throw err;
+    }
+  }
+}
+
+/**
+ * Read-modify-write the `archivedDms` key of the `_spaces` doc through the same
+ * conflict-retrying funnel as {@link updateMutesDoc}, preserving every sibling key. The
+ * mutator runs on FRESH server state and returns the next {@link ArchivedDms} set (or
+ * `null` for a no-op, e.g. archiving something already archived). Last-writer-wins,
+ * which only races across a user's own devices.
+ */
+export async function updateArchivedDmsDoc(
+  client: StarfishClient,
+  userId: string,
+  mutator: (cur: ArchivedDms) => ArchivedDms | null,
+): Promise<void> {
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, archivedDms, hash } = await pullSpacesDoc(client, userId);
+    const next = mutator(archivedDms);
+    if (!next) return; // no-op
+    try {
+      // Thread all sibling keys through unchanged — an archive edit must never drop one.
+      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads, pubAccess, dms, quickReactions, archivedDms: next }, hash);
       return;
     } catch (err) {
       if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;

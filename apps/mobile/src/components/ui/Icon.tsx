@@ -40,6 +40,7 @@ const ICONS = {
   check: { lib: Feather, n: 'check' },
   'check-circle': { lib: Feather, n: 'check-circle' },
   chev: { lib: Feather, n: 'chevron-right' },
+  'chevron-right': { lib: Feather, n: 'chevron-right' },
   'chevron-down': { lib: Feather, n: 'chevron-down' },
   'chevron-up': { lib: Feather, n: 'chevron-up' },
   gear: { lib: Feather, n: 'settings' },
@@ -73,6 +74,7 @@ const ICONS = {
   globe: { lib: Ionicons, n: 'globe-outline' },
   folder: { lib: Feather, n: 'folder' },
   share: { lib: Feather, n: 'share' },
+  archive: { lib: Feather, n: 'archive' },
   // Workspace mode switcher (Chat / Agents / Work) + Work-mode group glyphs.
   chat: { lib: Feather, n: 'message-circle' },
   agents: { lib: Ionicons, n: 'sparkles-outline' },

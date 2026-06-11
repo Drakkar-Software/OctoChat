@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { layout, shadows, spacing } from '@/theme';
 import type { RoomKind } from '@drakkar.software/octochat-sdk';
 import { useTheme } from '@/lib/use-theme';
+import { useArchivedDms } from '@/lib/use-archived-dms';
 import { useDms } from '@/lib/use-dms';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
@@ -18,6 +19,9 @@ interface DesktopChatTopbarProps {
   onDetails?: () => void;
   /** DM only: open the full thread list with this peer. Omit to hide the action. */
   onThreads?: () => void;
+  /** DM only: navigate back to the DM list after archiving (called after the
+   *  archive toggle fires). */
+  onArchived?: () => void;
 }
 
 /**
@@ -29,12 +33,24 @@ interface DesktopChatTopbarProps {
  *
  * A DM header shows the PEER's real avatar (image with monogram fallback) — the
  * same {@link Avatar} the chat messages use — instead of a generic people glyph,
- * resolved from the shared DM list (same profile cache, no extra request).
+ * resolved from the shared DM list (same profile cache, no extra request). It also
+ * carries an Archive toggle (archive icon when active, unarchived) so the user can
+ * archive/unarchive without leaving the conversation.
  */
-export function DesktopChatTopbar({ name, kind = 'channel', spaceId, onSearch, onDetails, onThreads }: DesktopChatTopbarProps) {
+export function DesktopChatTopbar({ name, kind = 'channel', spaceId, onSearch, onDetails, onThreads, onArchived }: DesktopChatTopbarProps) {
   const { colors } = useTheme();
   const dms = useDms();
+  const { isDmArchived, setDmArchived } = useArchivedDms();
   const dm = kind === 'dm' ? dms.find((d) => d.spaceId === spaceId) : undefined;
+  const isArchived = kind === 'dm' && spaceId ? isDmArchived(spaceId) : false;
+
+  const handleArchive = () => {
+    if (!spaceId) return;
+    const nowArchiving = !isArchived;
+    setDmArchived(spaceId, nowArchiving);
+    if (nowArchiving) onArchived?.();
+  };
+
   return (
     <View
       style={[
@@ -57,6 +73,14 @@ export function DesktopChatTopbar({ name, kind = 'channel', spaceId, onSearch, o
       </Txt>
       {onThreads ? (
         <IconButton name="thread" size={16} onPress={onThreads} accessibilityLabel="All threads with this person" />
+      ) : null}
+      {kind === 'dm' ? (
+        <IconButton
+          name="archive"
+          size={16}
+          onPress={handleArchive}
+          accessibilityLabel={isArchived ? 'Unarchive this conversation' : 'Archive this conversation'}
+        />
       ) : null}
       <IconButton name="search" size={16} onPress={onSearch} accessibilityLabel="Search in room" />
       <IconButton name="info" size={16} onPress={onDetails} accessibilityLabel="Space details" />

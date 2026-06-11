@@ -18,6 +18,7 @@ import { clearPubspaceCaps, hydratePubspaceCaps } from '@drakkar.software/octoch
 import { readSpaces } from '@drakkar.software/octochat-sdk';
 import { hydrateMutes, resetMutes } from '@drakkar.software/octochat-sdk';
 import { hydrateQuickReactions, resetQuickReactions } from '@drakkar.software/octochat-sdk';
+import { hydrateArchivedDms, resetArchivedDms } from '@drakkar.software/octochat-sdk';
 import { flushReadsNow, hydrateReads, resetReads } from '@drakkar.software/octochat-sdk';
 import { activeAccountOf, sessionFromPersisted } from '@drakkar.software/octochat-sdk';
 import { clearSpaceEncryptors } from '@drakkar.software/octochat-sdk';
@@ -138,6 +139,7 @@ function resetAccountScopedState(): void {
   resetMutes();
   resetReads();
   resetQuickReactions();
+  resetArchivedDms();
 }
 
 async function hydrateCapsFor(session: Session): Promise<void> {
@@ -147,7 +149,7 @@ async function hydrateCapsFor(session: Session): Promise<void> {
   // prime SpacesProvider with the list; neither then re-reads the identical doc. Pass
   // the seed-authenticated accountClient (readSpaces degrades to empty on failure,
   // which leaves the local cap cache intact).
-  const { spaces, caps, mutes, reads, pubAccess, quickReactions } = await readSpaces(session.accountClient, session.userId);
+  const { spaces, caps, mutes, reads, pubAccess, quickReactions, archivedDms } = await readSpaces(session.accountClient, session.userId);
   await hydrateMemberCaps(session.userId, caps);
   await hydratePubspaceCaps(session.userId);
   // Public-space credentials carry a bearer secret, so they ride the synced doc SEALED
@@ -167,6 +169,10 @@ async function hydrateCapsFor(session: Session): Promise<void> {
   // snapshot (server-authoritative; an offline read degrades to `[]` upstream, which
   // hydrates to the defaults and a later successful sync re-heals). No second pull.
   hydrateQuickReactions(quickReactions);
+  // Archived-DM set shares the same `_spaces` doc — feed it to the module-level
+  // snapshot (server-authoritative; an offline read degrades to {} upstream). No
+  // second pull.
+  hydrateArchivedDms(archivedDms);
   primeSpaces(session.userId, spaces);
   // Seed the shared public-profile cache with our own pseudo so `use-pseudos`
   // (message authors, sidebar) never fires a separate fetch for self — the editable

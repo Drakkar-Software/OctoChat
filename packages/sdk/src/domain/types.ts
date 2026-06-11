@@ -31,6 +31,12 @@ export type PubAccessMap = Record<string, SealedBlob>;
  *  `starfish/dm.ts`. */
 export type DmMap = Record<string, string>;
 
+/** The set of DM-space ids the user has archived (hidden from the DM list). Keyed by
+ *  DM-space id (`dm-…`) — a set-as-map like `mutes.spaces`. Synced via the `_spaces`
+ *  doc so an archive on one device propagates cross-device. A new incoming message
+ *  removes a space from this set (auto-resurface). See `messaging/archived-dms.ts`. */
+export type ArchivedDms = Record<string, true>;
+
 /** A mute entry. `true` = muted indefinitely; a number = muted UNTIL that epoch-ms
  *  instant (the forward-compatible shape for a future "mute for 15 min" — read-
  *  supported now, but the current UI only ever writes `true` or deletes the key). */

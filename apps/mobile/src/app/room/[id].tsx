@@ -1,11 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { motion, spacing } from '@/theme';
 import { useAutomationCommands } from '@/lib/automations/use-automation-commands';
 import { useAutomationDriver } from '@/lib/automations/use-automation-driver';
 import { useIsAutomationLeader } from '@/lib/automations/leader';
+import { useArchivedDms } from '@/lib/use-archived-dms';
 import { useSession } from '@/lib/session-context';
 import { useRoomsRegistry } from '@/lib/rooms-registry-context';
 import { roomDraftKey, threadDraftKey } from '@/lib/use-draft';
@@ -86,6 +87,16 @@ export default function RoomScreen() {
   const [showAutomationSheet, setShowAutomationSheet] = useState(false);
   const isOwner = !!owner && session?.userId === owner;
   const onPinMessage = (msgId: string, pin: boolean) => (pin ? pinMessage(msgId) : unpinMessage(msgId));
+
+  // DM archive toggle — only used when kind === 'dm'.
+  const { isDmArchived, setDmArchived } = useArchivedDms();
+  const dmArchived = kind === 'dm' ? isDmArchived(spaceId) : false;
+  const toggleDmArchive = () => {
+    const nowArchiving = !dmArchived;
+    setDmArchived(spaceId, nowArchiving);
+    // Return to the DM list when archiving (same as a channel being deleted from view).
+    if (nowArchiving) goBack();
+  };
   // Every room is now an append-only log, so any PUBLIC room can host a bot — offer the
   // owner the "Connect a bot" panel (it hides itself once the room has messages).
   const showBotPanel =
@@ -188,12 +199,19 @@ export default function RoomScreen() {
           title={title}
           onBack={goBack}
           right={
-            <>
+            <View style={styles.headerActions}>
               {kind === 'dm' ? (
                 <IconButton name="thread" accessibilityLabel="All threads with this person" onPress={openDmThreads} />
               ) : null}
+              {kind === 'dm' ? (
+                <IconButton
+                  name="archive"
+                  accessibilityLabel={dmArchived ? 'Unarchive this conversation' : 'Archive this conversation'}
+                  onPress={toggleDmArchive}
+                />
+              ) : null}
               <IconButton name="info" accessibilityLabel="Space details" onPress={openMembers} />
-            </>
+            </View>
           }
         />
       }
@@ -205,6 +223,7 @@ export default function RoomScreen() {
           onSearch={openSearch}
           onDetails={openMembers}
           onThreads={kind === 'dm' ? openDmThreads : undefined}
+          onArchived={kind === 'dm' ? goBack : undefined}
         />
       }
       footer={
@@ -330,4 +349,6 @@ const styles = StyleSheet.create({
   cta: { alignSelf: 'center' },
   // Keeps the conversation list filling the pane through the reveal wrapper.
   fill: { flex: 1 },
+  // Row that holds the DM-specific right-hand header buttons (thread + archive + info).
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
 });

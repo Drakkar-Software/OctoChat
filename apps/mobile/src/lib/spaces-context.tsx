@@ -30,6 +30,7 @@ import { createPublicSpace } from '@drakkar.software/octochat-sdk';
 import { consumePrimedSpaces } from './spaces-prime';
 import { hydrateMutes } from '@drakkar.software/octochat-sdk';
 import { flushReadsNow, hydrateReads } from '@drakkar.software/octochat-sdk';
+import { hydrateArchivedDms } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 
 interface SpacesContextValue {
@@ -65,7 +66,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (!session) return;
-    const { spaces: list, mutes, reads, dms: dmMap } = await readSpaces(session.accountClient, session.userId);
+    const { spaces: list, mutes, reads, archivedDms, dms: dmMap } = await readSpaces(session.accountClient, session.userId);
     const rail = railSpaces(list);
     setSpaces(rail);
     // Derive DMs from the durable `dm-` spaces, not just the lossy `dms` index, so a DM
@@ -84,6 +85,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     // authoritative in their own modules, so a stale read can't roll local state back.
     await hydrateReads(session.userId, reads);
     await hydrateMutes(session.userId, mutes);
+    hydrateArchivedDms(archivedDms);
     // Accept any inbound DM invites delivered through a shared space's carrier
     // (best-effort, fire-and-forget so a carrier hiccup never blocks the rails). If a
     // new DM was accepted, re-read so its peer→space mapping reaches the DM section.
