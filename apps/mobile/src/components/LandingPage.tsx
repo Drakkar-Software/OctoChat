@@ -6,7 +6,6 @@ import { router } from 'expo-router';
 import { fonts, radii, shadows, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
 import { DepthBackdrop } from '@/components/ui/DepthBackdrop';
-import { Wordmark } from '@/components/brand/Wordmark';
 import { Button } from '@/components/ui/Button';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
@@ -302,7 +301,15 @@ export function LandingPage() {
       <View style={[styles.footer, { backgroundColor: colors.canvas }]}>
         <View style={[styles.footerDivider, { backgroundColor: colors.lineFaint }]} />
         <View style={[styles.footerInner, desktop && styles.footerInnerDesktop]}>
-          <Wordmark size={15} color={colors.inkSoft} />
+          <View style={styles.footerBrand}>
+            <Image
+              source={require('../../assets/images/logo-512.png')}
+              style={styles.footerLogo}
+            />
+            <Txt variant="callout" weight="semibold" color={colors.inkSoft}>
+              Octo<Txt variant="callout" weight="semibold" color={colors.accent}>Chat</Txt>
+            </Txt>
+          </View>
           <View style={styles.footerLinks}>
             <Txt variant="caption" color={colors.inkMuted} onPress={() => router.push('/privacy')}>
               Privacy Policy
@@ -541,6 +548,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 80,
   },
 
+  footerBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  footerLogo: {
+    width: 26,
+    height: 26,
+    borderRadius: 6,
+    resizeMode: 'contain',
+  },
   footerLinks: {
     flexDirection: 'row',
     alignItems: 'center',
