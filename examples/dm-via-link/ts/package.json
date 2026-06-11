@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@drakkar.software/starfish-identities": "3.0.0-alpha.26"
+    "@drakkar.software/starfish-identities": "3.0.0-alpha.27"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
