@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import type { Space } from '@drakkar.software/octochat-sdk';
@@ -19,7 +19,7 @@ interface SpacePickerProps {
   /** Aggregate DM unread, badged on the DM-home row. */
   dmUnread?: number;
   onSelectSpace: (id: string) => void;
-  onSelectDms: () => void;
+  onSelectDms?: () => void;
   onAddSpace: () => void;
   onBrowseSpaces: () => void;
 }
@@ -69,9 +69,8 @@ export function SpacePicker({
           <Txt variant="micro" weight="semibold" mono uppercase tone="inkMuted" style={styles.heading}>
             Spaces
           </Txt>
-          {/* The DM home and join rows are navigation chrome, not search hits — keep
-              them only at rest so a query reduces the list to matching spaces. */}
-          {!filtering ? (
+          {/* The DM home row is web/desktop-only — native has a dedicated bottom tab. */}
+          {!filtering && Platform.OS === 'web' ? (
             <ListRow iconName="people" label={DM_HOME_NAME} active={isDmHome} unread={dmUnread} onPress={onSelectDms} />
           ) : null}
           {matches.map((s) => (

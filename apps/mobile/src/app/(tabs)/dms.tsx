@@ -29,14 +29,8 @@ export default function DmsScreen() {
       header={
         <AppBar
           title="Direct Messages"
-          right={
-            session ? (
-              <View style={styles.actions}>
-                <ShareDmButton />
-                <ScanDmButton />
-              </View>
-            ) : undefined
-          }
+          left={session ? <ShareDmButton /> : undefined}
+          right={session ? <ScanDmButton /> : undefined}
         />
       }
       contentStyle={styles.content}
@@ -55,5 +49,4 @@ export default function DmsScreen() {
 const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: 96 },
   dmHome: { minHeight: 320 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
 });
