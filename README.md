@@ -2,7 +2,7 @@
   <img src="logo.png" alt="OctoChat" width="240" />
 </div>
 
-# 🐙 OctoChat
+# OctoChat
 
 **Encrypted team chat that lives everywhere — web, native, desktop. Your messages stay yours.**
 
@@ -15,13 +15,6 @@ OctoChat is a Slack/Mattermost-style chat with a marine soul. One Expo codebase 
 > keyrings and live sync here. Treat it as a reference app and a demo, not a
 > production-ready product (yet).
 
-<p align="center">
-  <img src="apps/mobile/public/screenshots/welcome-wide.png" alt="OctoChat welcome screen — create a new identity, recover from a seed, or pair via QR. No email, no phone, no password." width="46%" />
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/app.png" alt="OctoChat workspace — spaces rail, channel list, and the 'Select a room' empty state." width="46%" />
-</p>
-
----
 
 ## ✨ Why OctoChat?
 
