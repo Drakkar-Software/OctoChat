@@ -75,12 +75,21 @@ export function AgentsPanel({
 
   return (
     <View style={styles.panel}>
-      {onOpenAutomations ? (
+      {onOpenAutomations && agents.length > 0 ? (
         <SidebarLinkRow iconName="zap" label="Manage automations" active={automationsActive} onPress={onOpenAutomations} />
       ) : null}
       {agents.length === 0 ? (
         <View style={styles.empty}>
-          <EmptyState iconName="zap" title="No agents yet" subtitle="Wire an integration to post as a bot and answer /commands." />
+          <EmptyState
+            iconName="zap"
+            title="No agents yet"
+            subtitle="Wire an integration to post as a bot and answer /commands."
+            action={
+              onOpenAutomations ? (
+                <Button label="Manage automations" iconName="zap" variant="primary" onPress={onOpenAutomations} />
+              ) : undefined
+            }
+          />
         </View>
       ) : (
         agents.map((r) => (
