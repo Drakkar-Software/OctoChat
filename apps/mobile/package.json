@@ -1,7 +1,7 @@
 {
   "name": "@octochat/mobile",
   "main": "expo-router/entry",
-  "version": "1.11.1",
+  "version": "1.11.2",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
@@ -17,11 +17,11 @@
   "dependencies": {
     "@drakkar.software/expo-conductor": "0.4.1",
     "@drakkar.software/octochat-sdk": "workspace:*",
-    "@drakkar.software/starfish-client": "3.0.0-alpha.23",
-    "@drakkar.software/starfish-identities": "3.0.0-alpha.23",
-    "@drakkar.software/starfish-keyring": "3.0.0-alpha.23",
-    "@drakkar.software/starfish-protocol": "3.0.0-alpha.23",
-    "@drakkar.software/starfish-sharing": "3.0.0-alpha.23",
+    "@drakkar.software/starfish-client": "3.0.0-alpha.27",
+    "@drakkar.software/starfish-identities": "3.0.0-alpha.27",
+    "@drakkar.software/starfish-keyring": "3.0.0-alpha.27",
+    "@drakkar.software/starfish-protocol": "3.0.0-alpha.27",
+    "@drakkar.software/starfish-sharing": "3.0.0-alpha.27",
     "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
     "@expo-google-fonts/hanken-grotesk": "^0.4.3",
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",
