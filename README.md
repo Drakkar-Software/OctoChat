@@ -1,11 +1,12 @@
+<div align="center">
+  <img src="logo.png" alt="OctoChat" width="240" />
+</div>
+
 # 🐙 OctoChat
 
-**End-to-end-encrypted team chat that runs everywhere — and trusts no one with your messages.**
+**Encrypted team chat that lives everywhere — web, native, desktop. Your messages stay yours.**
 
-OctoChat is a Slack/Mattermost-style chat with a marine, "paper-on-subaqua" soul.
-One codebase ships to **iOS, Android, web, and desktop** — and every message,
-attachment and room is sealed with real end-to-end encryption before it ever
-leaves your device. The server syncs ciphertext it can't read.
+OctoChat is a Slack/Mattermost-style chat with a marine soul. One Expo codebase ships to **iOS, Android, web, and desktop**. Every message and file is sealed with real, client-side end-to-end encryption *before* it leaves your device — the server only ever sees locked-up ciphertext.
 
 > [!NOTE]
 > **OctoChat is a proof of concept.** It exists to show what you can build on
@@ -22,48 +23,28 @@ leaves your device. The server syncs ciphertext it can't read.
 
 ---
 
-## ✨ Why OctoChat
+## ✨ Why OctoChat?
 
-- 🔒 **Real E2EE, not a checkbox.** Onboarding turns a BIP-39 seed phrase into
-  Ed25519 + Kyber keys (kept in your device's secure storage). Messages and
-  files are sealed per-room with space keyrings. The backend only ever sees
-  ciphertext.
-- 🌍 **Truly universal.** One Expo codebase → native iOS & Android, the web, and
-  an Electron desktop app. No "mobile vs. web" fork.
-- ⚡ **Live by default.** REST for sync, SSE for the firehose — new messages,
-  presence and activity stream in over a NATS-backed gateway.
-- 🎨 **A theme with a point of view.** Marine palette, octopus mark, Bricolage +
-  Hanken + JetBrains Mono. Light and dark, every constant from a single source.
-- 🔑 **Multi-device, multi-account, no passwords.** Hold several accounts and
-  switch live; pair a new device from your seed (passkeys gate sensitive
-  enrollment), or sign in with a **NIP-07** Nostr extension.
-- 📴 **Offline-first.** Rooms and profiles are served from a local pull cache, so
-  the app opens and reads instantly even with no connection — an offline banner
-  shows when you're disconnected.
+- 🔐 **Crypto that actually works.** Your seed phrase becomes Ed25519 + Kyber keys locked in your device's vault. Every message sealed per-room before it leaves your machine. The server? Sees only noise.
+- 🌐 **Write once, ship everywhere.** One Expo codebase, four platforms: iOS, Android, web, desktop. No rewrites. No "web version."
+- ⚡ **Live and responsive.** REST sync + SSE firehose over a NATS backbone — new messages, presence, activity all stream in real-time.
+- 🎨 **Design with intent.** Subaquatic marine theme, octopus mark, Bricolage + Hanken + JetBrains Mono. Light and dark modes, every pixel from one source.
+- 🔑 **Seed-first, passwords never.** One BIP-39 recovery phrase. Sign into any device. Pair new hardware with a QR. Even Nostr (NIP-07) login.
+- 📴 **Works offline.** Pull cache serves rooms and profiles instant-load with no network. Offline banner tells you the truth. Reconnect and it syncs.
 
 ## 💬 What you can do
 
-- **Spaces & channels** — public or private, with categories and per-room unread.
-- **Threads** — reply in-thread anywhere; a dedicated Threads tab gathers every
-  thread in the active space, decrypted across rooms.
-- **1:1 direct messages** — encrypted private conversations with another member.
-- **"DM me" links** — a shareable link/QR (your identity, made portable) anyone
-  can open to start an encrypted DM with you, even with no space in common (see
-  [`docs/dm-links.md`](docs/dm-links.md)).
-- **Explore** — a directory of public spaces you can discover and join.
-- **Automations & bots** — automated rooms driven by scheduled fetches or
-  slash-command bots, plus append-only "stream" rooms for easy bot push (see the
-  runnable [`examples/`](examples/README.md)).
-- **Rich notifications** — real-content push on Android (FCM), per-room grouping,
-  taps that route straight to the room; you never get pinged for your own posts.
-- **Files** — drag-and-drop attachments (web), native share & save; every blob
-  sealed client-side before upload.
+- 🏢 **Spaces & channels** — public or private, organized into collapsible categories, unread per-room.
+- 💭 **Threads** — reply in-thread anywhere; a Threads tab collects every conversation across the space.
+- 👥 **1:1 direct messages** — encrypted peer-to-peer chats; share a "DM me" link/QR to start one with anyone, no shared space needed (see [`docs/dm-links.md`](docs/dm-links.md)).
+- 🌍 **Public space discovery** — Explore tab lists public spaces to join.
+- 🤖 **Automations & bots** — scheduled tasks, slash commands, and append-only streams for bots to push events (runnable [`examples/`](examples/README.md)).
+- 📲 **Smart notifications** — real-content push on Android, grouped per-room, taps route straight to the room. You never see notifications for your own messages.
+- 📎 **File sharing** — drag-and-drop (web), native share & save. Every blob sealed client-side before it leaves.
 
-## 🔒 Security & encryption
+## 🔒 Security by design
 
-OctoChat is **end-to-end encrypted by design**: plaintext exists only on your
-devices. The server is treated as untrusted infrastructure — it stores and
-relays opaque ciphertext, and never holds a key that could open it.
+OctoChat is **end-to-end encrypted by default**: plaintext lives only on your devices. The server is treated as hostile — it stores and relays opaque ciphertext, no keys, no access.
 
 - **Your seed is the master key.** A 12-word BIP-39 recovery phrase
   (128 bits of entropy) is stretched with **Argon2id** into your root identity:
