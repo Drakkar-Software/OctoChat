@@ -131,10 +131,11 @@ export default function JoinScreen() {
     }
   };
 
-  // Opening an invitation link (`…/join#<token>`) auto-joins the public space.
-  // The fragment comes from the launch URL on web AND native (see
-  // `useInviteFragment`). Waits for a session (needed to register the join), and
-  // joins each credential once (web also clears it from the address bar).
+  // Opening an invitation link (`…/join#<token>`) previews the invite and shows a
+  // consent card — the actual join does NOT run until the user taps "Join".
+  // `consumed.current` guards against re-prompting for the same launch fragment (native
+  // re-delivers the same URL on remount; web's address bar gets cleared on confirm).
+  // Cancel leaves `consumed` set so the user isn't immediately re-prompted.
   useEffect(() => {
     if (!inviteFrag || inviteFrag === '#' || !session) return;
     if (consumed.current === inviteFrag) return;
@@ -142,18 +143,7 @@ export default function JoinScreen() {
     void (async () => {
       try {
         const inv = await previewInvite(inviteFrag);
-        let spaceId: string;
-        if (inv.kind === 'space-link') {
-          spaceId = (await joinSpaceByLink(session, inv.token)).id;
-        } else if (inv.kind === 'node-link') {
-          spaceId = await joinNodeByLink(session, inv.token);
-        } else {
-          spaceId = (await acceptSpaceInvite(session, inv.inviteJson)).id;
-        }
-        if (Platform.OS === 'web' && typeof window !== 'undefined') {
-          window.history.replaceState(null, '', window.location.pathname + window.location.search);
-        }
-        enterSpace(spaceId);
+        setPendingInvite({ inv, raw: inviteFrag, source: 'auto-link' });
       } catch (e) {
         setError(String((e as Error)?.message ?? e));
       }
@@ -163,6 +153,48 @@ export default function JoinScreen() {
 
   return (
     <StackScreen scroll contentStyle={styles.content} header={<AppBar title="Join or create" onBack={() => router.back()} />}>
+      {pendingInvite ? (
+        <Card title="JOIN SPACE?">
+          <Txt variant="body">
+            {pendingInvite.inv.spaceName}
+          </Txt>
+          <Txt variant="footnote" tone="inkSoft">
+            {pendingInvite.inv.kind === 'space-link'
+              ? pendingInvite.inv.write
+                ? 'Invitation link — read + write access'
+                : 'Invitation link — read-only access'
+              : pendingInvite.inv.kind === 'node-link'
+                ? pendingInvite.inv.nodeTitle
+                  ? `Node invite: ${pendingInvite.inv.nodeTitle}`
+                  : 'Node invite'
+                : pendingInvite.inv.issuerKey
+                  ? `Private invite from ${pendingInvite.inv.issuerKey.slice(0, 12)}…`
+                  : 'Private member invite'}
+          </Txt>
+          <View style={styles.actionRow}>
+            <Button
+              label="Cancel"
+              variant="secondary"
+              size="md"
+              style={styles.actionBtn}
+              onPress={() => { setPendingInvite(null); setError(null); }}
+            />
+            <Button
+              label={busy ? 'Joining…' : 'Join'}
+              variant="primary"
+              size="md"
+              style={styles.actionBtn}
+              disabled={busy}
+              onPress={() => void confirmJoin()}
+            />
+          </View>
+          {error ? (
+            <Callout tone="danger" iconName="alert">
+              {error}
+            </Callout>
+          ) : null}
+        </Card>
+      ) : null}
       <Txt variant="caption" mono uppercase tone="inkMuted">
         Start something new
       </Txt>

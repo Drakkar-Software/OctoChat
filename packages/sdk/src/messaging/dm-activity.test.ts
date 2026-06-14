@@ -10,7 +10,7 @@ import { configureKv } from '../config/adapters';
 
 // ── Mocks (must come before the module import) ──────────────────────────────────
 
-const mockLoadStreamLog = vi.fn(async (_roomId: string) => []);
+const mockLoadStreamLog = vi.fn(async (_userId: string, _roomId: string) => []);
 vi.mock('./stream-log', () => ({
   loadStreamLog: (...args: unknown[]) => mockLoadStreamLog(...args),
 }));
@@ -106,7 +106,7 @@ describe('refreshDmHeads — source 2: local streamlog cache', () => {
     await refreshDmHeads(SESSION, [DM_SPACE]);
 
     expect(getDmHeads()[DM_ROOM]).toBe(1_500);
-    expect(mockLoadStreamLog).toHaveBeenCalledWith(DM_ROOM);
+    expect(mockLoadStreamLog).toHaveBeenCalledWith(SESSION.userId, DM_ROOM);
   });
 
   it('ignores a streamlog item with no ts (0 / undefined)', async () => {
