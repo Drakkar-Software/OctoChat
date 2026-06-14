@@ -15,7 +15,7 @@ import { configureOctoChat, configureKv, configureLlm } from '@drakkar.software/
 import { kvGet, kvSet, kvRemove } from '@drakkar.software/octochat-sdk/platform';
 
 import { generateText } from '@/lib/ai/llm-adapter';
-import { SYNC_BASE, SYNC_NAMESPACE, EVENTS_URL, WEB_BASE } from '@/lib/octochat-config';
+import { SYNC_BASE, SYNC_NAMESPACE, EVENTS_URL, WEB_BASE, SHARED_SPACES_NAMESPACE } from '@/lib/octochat-config';
 import { reportReachability } from '@/lib/connectivity';
 
 let done = false;
@@ -31,6 +31,9 @@ export function initOctoChat(): void {
     // When a background Starfish revalidation succeeds after a 429/5xx cache-
     // fallback, flip the app back online so stale rooms re-pull and recover.
     onServerReachable: () => reportReachability(true),
+    // Shared namespace for cross-app space sharing with OctoVault. Both apps must
+    // agree on this value; set EXPO_PUBLIC_SHARED_SPACES_NAMESPACE in both .env files.
+    ...(SHARED_SPACES_NAMESPACE ? { sharedSpacesNamespace: SHARED_SPACES_NAMESPACE } : {}),
   });
   configureKv({ get: kvGet, set: kvSet, remove: kvRemove });
   // Wire the on-device LLM for AI automations — native only. `expo-ai-kit` is a

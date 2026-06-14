@@ -42,7 +42,10 @@ export async function createAutomationNode(
     }
     return addObject(
       next,
-      { type: 'room', id: roomId, subtype: roomKindToSubtype('automated'), parentId: catId, title: name, automation },
+      // access:'public' routes the room to streampub so the bot credential (which targets
+      // streamPubRoomPush) can append to the same collection the UI reads from. enc is
+      // implicitly false (public+enc is invalid per the ObjectNode contract).
+      { type: 'room', id: roomId, subtype: roomKindToSubtype('automated'), parentId: catId, title: name, automation, access: 'public' },
       now,
     ).nodes as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
   });

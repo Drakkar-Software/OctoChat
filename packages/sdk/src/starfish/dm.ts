@@ -55,7 +55,10 @@ export async function createDmSpaceCore(session: Session, peerPseudo: string): P
   // (inviteToSpace adds the peer to the roster). The single `kind:'dm'` room lives
   // in the plaintext object index — seed it now.
   await writeSpaceAccess(session.chatClient, spaceId, session.userId, [], null, { name: peerPseudo });
-  await pushIndexSeed(session.chatClient, spaceId, [{ id: roomId, name: peerPseudo, kind: 'dm', category: DEFAULT_CATEGORY }]);
+  // enc:true: DM messages are sealed with the space keyring (streamchat); the client
+  // must open the encryptor to decrypt them. access is 'space' (default — DM-space
+  // members only), so no explicit access field is needed.
+  await pushIndexSeed(session.chatClient, spaceId, [{ id: roomId, name: peerPseudo, kind: 'dm', category: DEFAULT_CATEGORY, enc: true }]);
   return { spaceId, roomId };
 }
 

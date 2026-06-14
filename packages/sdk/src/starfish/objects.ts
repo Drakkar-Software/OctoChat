@@ -15,6 +15,7 @@
  * is the single place those are repaired so every consumer renders a well-formed tree.
  */
 import type { AutomationMeta, ID, ObjectNode, ObjectType, Room, RoomSubtype } from '../domain/types';
+import type { NodeAccess } from '@drakkar.software/octospaces-sdk';
 import { randomId, roomSlug } from '../domain/ids';
 
 /** The bucket new/unfiled rooms land in, and the fallback a deleted category's
@@ -181,6 +182,10 @@ export interface NewObjectInput {
   automation?: AutomationMeta;
   /** Provide to reuse an id (e.g. a room id derived elsewhere); else minted. */
   id?: ID;
+  /** Per-node access tier. Absent ⇒ `'space'` (space-member default). */
+  access?: NodeAccess;
+  /** True when the node's content is E2EE under the space keyring. */
+  enc?: boolean;
 }
 
 /** Append a new node under `parentId` at the end of its sibling order. */
@@ -197,6 +202,8 @@ export function addObject(nodes: ObjectNode[], input: NewObjectInput, now: numbe
     ...(input.emoji ? { emoji: input.emoji } : {}),
     updatedAt: now,
     ...(input.automation ? { automation: input.automation } : {}),
+    ...(input.access ? { access: input.access } : {}),
+    ...(input.enc !== undefined ? { enc: input.enc } : {}),
   };
   return { nodes: [...nodes, node], node };
 }
@@ -294,6 +301,10 @@ export interface SeedRoom {
   name: string;
   kind: Room['kind'];
   category: string;
+  /** Per-node access tier. Absent ⇒ `'space'` (space-member E2EE default). */
+  access?: NodeAccess;
+  /** True when the room's messages are E2EE under the space keyring. */
+  enc?: boolean;
 }
 
 /**
@@ -319,7 +330,11 @@ export function seedIndexNodes(rooms: SeedRoom[], now: number): ObjectNode[] {
     const parentId = catId.get(r.category)!;
     const order = (orderInCat.get(parentId) ?? 0) + 1;
     orderInCat.set(parentId, order);
-    out.push({ id: r.id, type: 'room', subtype: roomKindToSubtype(r.kind), parentId, order, title: r.name, updatedAt: now });
+    out.push({
+      id: r.id, type: 'room', subtype: roomKindToSubtype(r.kind), parentId, order, title: r.name, updatedAt: now,
+      ...(r.access ? { access: r.access } : {}),
+      ...(r.enc !== undefined ? { enc: r.enc } : {}),
+    });
   }
   return out;
 }

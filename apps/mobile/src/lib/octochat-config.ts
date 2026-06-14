@@ -58,3 +58,12 @@ export const EVENTS_URL = process.env.EXPO_PUBLIC_EVENTS_URL ?? `${SYNC_BASE}${S
  * see `docs/deep-links.md`.
  */
 export const WEB_BASE = (process.env.EXPO_PUBLIC_WEB_URL ?? 'https://oc.drakkar.software').replace(/\/+$/, '');
+
+/**
+ * Shared namespace for the `user/{userId}/_spaces` joined-space list, enabling
+ * cross-app space sharing with OctoVault. Both apps must agree on the same value.
+ * Set EXPO_PUBLIC_SHARED_SPACES_NAMESPACE to the bare namespace name (e.g. `octospaces`).
+ * Absent → each app uses its own per-app namespace silo (no cross-app sharing).
+ */
+const _sns = process.env.EXPO_PUBLIC_SHARED_SPACES_NAMESPACE?.trim() ?? '';
+export const SHARED_SPACES_NAMESPACE = _sns || undefined;
