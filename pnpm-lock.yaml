@@ -57,8 +57,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/sdk
       '@drakkar.software/octospaces-ui':
-        specifier: ^0.3.0
-        version: 0.3.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)
+        specifier: ^0.4.0
+        version: 0.4.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)
       '@drakkar.software/starfish-client':
         specifier: 3.0.0-alpha.27
         version: 3.0.0-alpha.27(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
@@ -812,8 +812,8 @@ packages:
       '@drakkar.software/starfish-protocol': '>=3.0.0-alpha.27'
       '@drakkar.software/starfish-sharing': '>=3.0.0-alpha.27'
 
-  '@drakkar.software/octospaces-ui@0.3.0':
-    resolution: {integrity: sha512-C2kcZwMczkN9o9R16flaTVzsOeNLOfHEeQtVfr1t/CaExTeo0X0XYLpl2PFJ0Cg3uWVX6+kMgP41g2Wqiz5W9g==}
+  '@drakkar.software/octospaces-ui@0.4.0':
+    resolution: {integrity: sha512-sXd+JPElA0bDBt0Ttxs4H4TOjwGT2V40krtSQHFqK53VRWxOEQkz8mXWEcB7tRSg++EqOkuHfjx5DfghRb6+4A==}
     peerDependencies:
       react: '>=18'
       react-native: '>=0.75'
@@ -6433,7 +6433,7 @@ snapshots:
       '@scure/bip39': 2.2.0
       hash-wasm: 4.12.0
 
-  '@drakkar.software/octospaces-ui@0.3.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)':
+  '@drakkar.software/octospaces-ui@0.4.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)':
     dependencies:
       react: 19.2.3
       react-native: 0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)

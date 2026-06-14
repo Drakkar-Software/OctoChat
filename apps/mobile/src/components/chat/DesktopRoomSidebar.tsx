@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { Sidebar } from '@drakkar.software/octospaces-ui';
 import { layout, radii, spacing } from '@/theme';
 import type { Room, Space } from '@drakkar.software/octochat-sdk';
 import type { ThreadSummary } from '@drakkar.software/octochat-sdk';
@@ -132,73 +133,82 @@ export function DesktopRoomSidebar({
   // DM list — no jump-to, nav group or categories (none apply to DMs).
   if (isDmHome) {
     return (
-      <View style={[styles.sidebar, { width: layout.sidebarWidth, backgroundColor: colors.paperAlt, borderRightColor: colors.lineSoft }]}>
-        <View style={[styles.header, { borderBottomColor: colors.lineFaint }]}>
-          <View style={styles.headerText}>
-            <Txt variant="subhead" weight="semibold" numberOfLines={1}>
-              {DM_HOME_NAME}
-            </Txt>
-          </View>
-          <Icon name="people" size={15} color={colors.inkMuted} />
-        </View>
-        <ScrollView style={styles.list} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
-          {!online ? (
-            <View style={styles.banner}>
-              <OfflineBanner message="You’re offline — showing your last-synced DMs." />
+      <Sidebar
+        width={layout.sidebarWidth}
+        header={
+          <View style={[styles.header, { borderBottomColor: colors.lineFaint }]}>
+            <View style={styles.headerText}>
+              <Txt variant="subhead" weight="semibold" numberOfLines={1}>
+                {DM_HOME_NAME}
+              </Txt>
             </View>
-          ) : null}
-          <DmList
-            dms={dms}
-            activeRoomId={activeRoomId}
-            threads={threads}
-            onOpen={(dm) => onOpenRoom({ id: dm.roomId, spaceId: dm.spaceId, category: '', name: dm.name, kind: 'dm' })}
-            onOpenThread={onOpenThread}
-          />
-        </ScrollView>
-      </View>
+            <Icon name="people" size={15} color={colors.inkMuted} />
+          </View>
+        }
+        contentContainerStyle={styles.listContent}
+      >
+        {!online ? (
+          <View style={styles.banner}>
+            <OfflineBanner message="You're offline — showing your last-synced DMs." />
+          </View>
+        ) : null}
+        <DmList
+          dms={dms}
+          activeRoomId={activeRoomId}
+          threads={threads}
+          onOpen={(dm) => onOpenRoom({ id: dm.roomId, spaceId: dm.spaceId, category: '', name: dm.name, kind: 'dm' })}
+          onOpenThread={onOpenThread}
+        />
+      </Sidebar>
     );
   }
 
   return (
-    <View style={[styles.sidebar, { width: layout.sidebarWidth, backgroundColor: colors.paperAlt, borderRightColor: colors.lineSoft }]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Space menu"
-        onPress={onOpenSpaceMenu}
-        {...headerHover.hoverProps}
-        style={[styles.header, { borderBottomColor: colors.lineFaint, backgroundColor: headerHover.hovered ? colors.hover : 'transparent' }]}
-      >
-        <View style={styles.headerText}>
-          <Txt variant="subhead" weight="semibold" numberOfLines={1}>
-            {space?.name}
-          </Txt>
-          <SpaceMeta memberCount={memberCount} iconSize={9} numberOfLines={1} />
-        </View>
-        <Icon name="gear" size={15} color={colors.inkMuted} />
-      </Pressable>
+    <Sidebar
+      width={layout.sidebarWidth}
+      scrollable={false}
+      header={
+        <>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Space menu"
+            onPress={onOpenSpaceMenu}
+            {...headerHover.hoverProps}
+            style={[styles.header, { borderBottomColor: colors.lineFaint, backgroundColor: headerHover.hovered ? colors.hover : 'transparent' }]}
+          >
+            <View style={styles.headerText}>
+              <Txt variant="subhead" weight="semibold" numberOfLines={1}>
+                {space?.name}
+              </Txt>
+              <SpaceMeta memberCount={memberCount} iconSize={9} numberOfLines={1} />
+            </View>
+            <Icon name="gear" size={15} color={colors.inkMuted} />
+          </Pressable>
 
-      <View style={styles.switcher}>
-        <ModeSwitcher mode={mode} onChange={setMode} />
-      </View>
+          <View style={styles.switcher}>
+            <ModeSwitcher mode={mode} onChange={setMode} />
+          </View>
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Jump to a room"
-        onPress={onJumpTo}
-        {...jumpHover.hoverProps}
-        style={[styles.jump, { backgroundColor: colors.fill, borderColor: jumpHover.hovered ? colors.accentBorder : colors.lineFaint }]}
-      >
-        <Icon name="search" size={12} color={colors.inkMuted} />
-        <Txt variant="footnote" tone="inkMuted" style={styles.jumpLabel}>
-          Jump to…
-        </Txt>
-        {Platform.OS === 'web' ? (
-          <Txt variant="micro" mono tone="inkMuted">
-            ⌘K
-          </Txt>
-        ) : null}
-      </Pressable>
-
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Jump to a room"
+            onPress={onJumpTo}
+            {...jumpHover.hoverProps}
+            style={[styles.jump, { backgroundColor: colors.fill, borderColor: jumpHover.hovered ? colors.accentBorder : colors.lineFaint }]}
+          >
+            <Icon name="search" size={12} color={colors.inkMuted} />
+            <Txt variant="footnote" tone="inkMuted" style={styles.jumpLabel}>
+              Jump to…
+            </Txt>
+            {Platform.OS === 'web' ? (
+              <Txt variant="micro" mono tone="inkMuted">
+                ⌘K
+              </Txt>
+            ) : null}
+          </Pressable>
+        </>
+      }
+    >
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
         {/* The mode switcher swaps THIS list only — the open room in the main
             pane is untouched. Agents = this space's automations; Work = the
@@ -215,7 +225,7 @@ export function DesktopRoomSidebar({
           <>
             {!online ? (
               <View style={styles.banner}>
-                <OfflineBanner message="You’re offline — showing your last-synced rooms." />
+                <OfflineBanner message="You're offline — showing your last-synced rooms." />
               </View>
             ) : null}
             {/* Top-of-sidebar destinations (non-room): full-width labeled rows that
@@ -261,12 +271,11 @@ export function DesktopRoomSidebar({
           </>
         )}
       </ScrollView>
-    </View>
+    </Sidebar>
   );
 }
 
 const styles = StyleSheet.create({
-  sidebar: { borderRightWidth: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

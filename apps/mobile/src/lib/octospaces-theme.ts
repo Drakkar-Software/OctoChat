@@ -16,7 +16,8 @@ function toOctoSpacesPalette(p: Palette): Theme['colors'] {
     surfaceElevated: p.paper,
     surfaceModal: p.paper,
     surfaceInput: p.paperAlt,
-    sidebar: p.paperAlt,       // rail/sidebar background (canvas is app bg, paperAlt is rail bg)
+    sidebar: p.paperAlt,       // rail background (paperAlt in OctoChat — same hue as panel)
+    sidebarPanel: p.paperAlt,  // panel shell background (shared Sidebar component reads this)
     sidebarActive: p.accentSoft,
 
     border: p.lineSoft,
