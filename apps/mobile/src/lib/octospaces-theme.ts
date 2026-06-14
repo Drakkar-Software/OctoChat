@@ -16,7 +16,7 @@ function toOctoSpacesPalette(p: Palette): Theme['colors'] {
     surfaceElevated: p.paper,
     surfaceModal: p.paper,
     surfaceInput: p.paperAlt,
-    sidebar: p.canvas,
+    sidebar: p.paperAlt,       // rail/sidebar background (canvas is app bg, paperAlt is rail bg)
     sidebarActive: p.accentSoft,
 
     border: p.lineSoft,
@@ -146,7 +146,15 @@ export function toOctoSpacesTheme(palette: Palette, scheme: ColorScheme): Theme 
     shadows: SHADOWS,
     layout: LAYOUT,
     opacity: OPACITY,
-    swatches: {},
+    swatches: {
+      // Rail-specific color overrides — used by SpacesRail from @drakkar.software/octospaces-ui.
+      // Each key falls back to a core palette token in the package, but these values keep
+      // the extracted rail pixel-faithful to OctoChat's marine palette.
+      railTile: p.fill,                  // default tile bg (fill, not surfaceInput)
+      railTileHoverBorder: p.accentBorder,  // hover border (marine accent)
+      railGlow: p.glow,                  // active-tile glow color
+      railTileHoverInk: p.accentInk,     // hover monogram color (darker accent)
+    },
     layers: { modal: 100, overlay: 50, header: 10 },
     easing: {
       standard: [0.4, 0, 0.2, 1],
