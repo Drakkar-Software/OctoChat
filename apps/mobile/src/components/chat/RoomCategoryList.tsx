@@ -4,9 +4,11 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { radii, spacing } from '@/theme';
 import type { Room } from '@drakkar.software/octochat-sdk';
 import type { ThreadSummary } from '@drakkar.software/octochat-sdk';
+import { DEFAULT_CATEGORY } from '@drakkar.software/octochat-sdk';
 import type { RoomCategory } from '@/lib/use-rooms';
 import { useCategoryCollapse } from '@/lib/use-category-collapse';
 import { useTheme } from '@/lib/use-theme';
+import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
 import { StaggerList } from '@/components/ui/StaggerList';
@@ -62,6 +64,9 @@ export function RoomCategoryList({
   const [addingCat, setAddingCat] = useState(false);
   const [catName, setCatName] = useState('');
   const [catError, setCatError] = useState<string | null>(null);
+  const [addingRoom, setAddingRoom] = useState(false);
+  const [roomName, setRoomName] = useState('');
+  const [roomError, setRoomError] = useState<string | null>(null);
   const names = categories.map((c) => c.name);
 
   const submitCategory = async () => {
@@ -71,6 +76,16 @@ export function RoomCategoryList({
     if (!n) return;
     const message = await onCreateCategory?.(n);
     setCatError(typeof message === 'string' ? message : null);
+  };
+
+  const submitRoom = async () => {
+    const n = roomName.trim();
+    setRoomName('');
+    setAddingRoom(false);
+    if (!n) return;
+    // Passes DEFAULT_CATEGORY so createRoom auto-creates the bucket if it doesn't exist.
+    const message = await onCreateRoom?.(DEFAULT_CATEGORY, n);
+    setRoomError(typeof message === 'string' ? message : null);
   };
 
   // Cascade only the FIRST time this space's list is shown this session.
@@ -107,7 +122,50 @@ export function RoomCategoryList({
           collapse to instant under reduced motion. */}
       {firstDive ? <StaggerList cap={6}>{sections}</StaggerList> : sections}
 
-      {onCreateCategory ? (
+      {/* Empty-space "New channel" CTA — only when there are no categories yet. */}
+      {categories.length === 0 && onCreateRoom ? (
+        addingRoom ? (
+          <TextField
+            leadingIcon="hash"
+            value={roomName}
+            onChangeText={setRoomName}
+            onSubmitEditing={submitRoom}
+            onKeyPress={(e) => {
+              if (e.nativeEvent.key === 'Escape') setAddingRoom(false);
+            }}
+            placeholder="new-channel"
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="done"
+            containerStyle={[styles.addCatField, { backgroundColor: colors.paper }]}
+          />
+        ) : (
+          <View style={styles.emptyCta}>
+            <Button
+              label="New channel"
+              iconName="hash"
+              variant="primary"
+              onPress={() => {
+                setRoomError(null);
+                setAddingRoom(true);
+              }}
+            />
+          </View>
+        )
+      ) : null}
+
+      {roomError ? (
+        <View style={styles.notice}>
+          <Callout tone="warning" iconName="alert">
+            {roomError}
+          </Callout>
+        </View>
+      ) : null}
+
+      {/* "New category" only shown once rooms exist — in the empty state we offer
+          "New channel" above so the first action is always creating a room. */}
+      {onCreateCategory && categories.length > 0 ? (
         addingCat ? (
           <TextField
             leadingIcon="folder"
@@ -167,4 +225,5 @@ const styles = StyleSheet.create({
   addCat: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: spacing.md, marginTop: spacing.xs },
   addCatField: { marginHorizontal: spacing.xs, marginTop: spacing.xs },
   notice: { marginHorizontal: spacing.xs, marginTop: spacing.xs },
+  emptyCta: { alignItems: 'center', marginTop: spacing.md, paddingHorizontal: spacing.md },
 });

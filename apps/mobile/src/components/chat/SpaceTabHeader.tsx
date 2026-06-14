@@ -9,6 +9,7 @@ import { useSpaces } from '@/lib/use-spaces';
 import { useTotalDmUnread } from '@/lib/use-dms';
 import { Avatar } from '@/components/ui/Avatar';
 
+import { SpaceSettingsButton } from './SpaceSettingsButton';
 import { SpaceSwitcher } from './SpaceSwitcher';
 
 /**
@@ -45,6 +46,7 @@ export function SpaceTabHeader() {
         activeId={activeId ?? DM_HOME_ID}
         dmUnread={dmUnread}
       />
+      <SpaceSettingsButton />
       <Pressable accessibilityRole="button" accessibilityLabel="Your profile" onPress={() => router.push('/you')} hitSlop={6}>
         <Avatar label={meLabel} image={profile?.avatar} size={30} />
       </Pressable>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { spacing } from '@/theme';
 import { webOrigin } from '@/lib/links';
@@ -166,31 +167,39 @@ export default function SpaceScreen() {
   };
 
   return (
-    <StackScreen scroll contentStyle={styles.content} header={<AppBar title="Space" onBack={() => router.back()} />}>
+    <StackScreen scroll contentStyle={styles.content} header={<AppBar title={name} onBack={() => router.back()} />}>
       {!session ? (
         <SignInPrompt />
       ) : (
         <>
-          <Card title="INFORMATION">
-            <View style={styles.identity}>
-              <Avatar label={shortLabel} image={space?.image} size={48} />
-              <View style={styles.identityText}>
-                <Txt variant="title" weight="bold" numberOfLines={1}>
-                  {name}
-                </Txt>
-                <SpaceMeta memberCount={memberCount} iconSize={12} variant="footnote" />
-              </View>
+          {/* ── Hero ─────────────────────────────────────────────────────────── */}
+          {/* Negative margins let the hero bleed full-width past the contentStyle
+              horizontal padding. The gradient fades into canvas so there's no
+              visible seam with the scroll background. */}
+          <View style={[styles.hero, { borderBottomColor: colors.accentBorder }]}>
+            <LinearGradient
+              colors={[colors.accentBgStrong, colors.accentBg, colors.canvas]}
+              locations={[0, 0.55, 1]}
+              style={StyleSheet.absoluteFill}
+            />
+            {/* Subtle concentric ring — a "bioluminescent pulse" around the avatar */}
+            <View style={[styles.heroRing, { borderColor: colors.accentBorder }]} />
+            <View style={styles.heroAvatarWrap}>
+              <Avatar label={shortLabel} image={space?.image} size={80} ring />
             </View>
-            <View style={styles.idLine}>
-              <Txt variant="micro" weight="semibold" mono uppercase tone="inkMuted">
-                ID
+            <View style={styles.heroText}>
+              <Txt variant="title" weight="bold" center numberOfLines={2}>
+                {name}
               </Txt>
-              <Txt variant="micro" mono tone="inkFaint" numberOfLines={1} style={styles.idValue}>
-                {spaceId}
-              </Txt>
+              <SpaceMeta memberCount={memberCount} iconSize={13} variant="footnote" />
             </View>
-          </Card>
+            {/* Space ID — mono fingerprint beneath the name, intentionally subtle */}
+            <Txt variant="micro" mono tone="inkFaint" numberOfLines={1} style={styles.heroId}>
+              {spaceId}
+            </Txt>
+          </View>
 
+          {/* ── Notifications ─────────────────────────────────────────────────── */}
           <Card title="NOTIFICATIONS">
             <ToggleRow
               iconName="volume-off"
@@ -213,8 +222,10 @@ export default function SpaceScreen() {
             ) : null}
           </Card>
 
+          {/* ── Members ───────────────────────────────────────────────────────── */}
           <SpaceMembersCard ownerId={ownerId} members={humanMembers} currentUserId={session.userId} />
 
+          {/* ── Owner / member / visitor sections ─────────────────────────────── */}
           {loading ? null : isOwner ? (
             <>
               <Card title="SETTINGS">
@@ -397,11 +408,37 @@ export default function SpaceScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: spacing.screenX, gap: spacing.lg },
-  identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  identityText: { flex: 1, gap: spacing.xs },
-  idLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  idValue: { flex: 1 },
+  content: { paddingHorizontal: spacing.screenX, paddingTop: spacing.screenX, paddingBottom: 96, gap: spacing.lg },
+
+  // ── Hero ──────────────────────────────────────────────────────────────────
+  // Negative margins offset the contentStyle padding so the hero bleeds
+  // full-width; the gradient bottom fades to canvas so there's no hard seam.
+  hero: {
+    marginHorizontal: -spacing.screenX,
+    marginTop: -spacing.screenX,
+    paddingTop: spacing.xl + spacing.lg,
+    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.screenX,
+    alignItems: 'center',
+    gap: spacing.md,
+    overflow: 'hidden',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  // Concentric accent ring behind the avatar — decorative depth layer
+  heroRing: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 1,
+    opacity: 0.35,
+    top: spacing.xl + spacing.lg - 30,
+  },
+  heroAvatarWrap: { zIndex: 1 },
+  heroText: { alignItems: 'center', gap: spacing.xs },
+  heroId: { letterSpacing: 0.3, maxWidth: 280 },
+
+  // ── Cards ─────────────────────────────────────────────────────────────────
   meta: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   inviteBox: { gap: spacing.sm },
   typeRow: { flexDirection: 'row', gap: spacing.sm },

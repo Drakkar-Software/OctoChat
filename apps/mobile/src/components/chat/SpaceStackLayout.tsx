@@ -1,10 +1,12 @@
-import { Platform } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { Stack } from 'expo-router';
 
+import { spacing } from '@/theme';
 import { useResponsive } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
 
 import { ProfileButton } from './ProfileButton';
+import { SpaceSettingsButton } from './SpaceSettingsButton';
 import { SpaceSwitcherButton } from './SpaceSwitcherButton';
 
 /**
@@ -47,8 +49,17 @@ export default function SpaceStackLayout() {
         headerTransparent: true,
         headerBlurEffect: dark ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight',
         headerLeft: () => <SpaceSwitcherButton compact />,
-        headerRight: () => <ProfileButton ring />,
+        headerRight: () => (
+          <View style={styles.headerRight}>
+            <SpaceSettingsButton />
+            <ProfileButton ring />
+          </View>
+        ),
       }}
     />
   );
 }
+
+const styles = StyleSheet.create({
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+});
