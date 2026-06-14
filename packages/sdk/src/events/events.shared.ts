@@ -1,8 +1,8 @@
 /**
  * Live room-change SSE stream — shared types + a fetch-based reader used on both
  * web and native. The Starfish server's queuing plugin publishes one event per
- * successful push to the `chat` collection; the Whistlers NATS→SSE gateway
- * (`getEventsUrl()`) re-serves them as `text/event-stream`.
+ * successful push to the `streamchat`/`streampub`/`streaminv` collections; the
+ * Whistlers NATS→SSE gateway (`getEventsUrl()`) re-serves them as `text/event-stream`.
  *
  * We read the stream with `fetch` + a manual SSE parser rather than the browser
  * `EventSource`, because Whistlers emits NAMED events (`event: <topic>`) and
@@ -12,8 +12,8 @@
  *
  * Each event `data:` is JSON. Whistlers wraps the Starfish QueueMessage in an
  * envelope, so the payload is either the raw QueueMessage or `{ rawPayload: … }`:
- *     { collection: "chat", hash, timestamp, params: { spaceId, roomId } }   // raw
- *     { …, rawPayload: { …, params: { spaceId, roomId } } }                  // Whistlers
+ *     { collection: "streamchat", hash, timestamp, params: { spaceId, roomId } }   // raw
+ *     { …, rawPayload: { …, params: { spaceId, roomId } } }                        // Whistlers
  *
  * Because chat docs are E2E-encrypted, an event carries the roomId (+ doc hash +
  * timestamp) but never a message id or its plaintext. It MAY carry `identity` — the
@@ -22,10 +22,10 @@
  * the FCM bridge uses). That's metadata the server holds, not encrypted content, so
  * it's safe to forward; the client uses it to skip its own writes (see unread-context).
  *
- * Routing by collection: `chat`/`streamchat`/`pubstream` carry `params.roomId`.
- * Public channels (`pubspace`) instead carry `params.docId` (the room id, or
- * `_rooms` for the public room registry) — we route on that and SKIP `_rooms`,
- * which is a registry write, not a room.
+ * Routing by collection: `streamchat`/`streampub`/`streaminv` carry `params.roomId`.
+ * Object-content collections (`objdoc`/`objlog`) carry `params.objectId` — we route on
+ * that so per-doc live-sync fires. Index collections (`objindex`) carry only `spaceId`
+ * and are left to focus-pull.
  */
 import { getEventsUrl, getSyncBase } from '../config/config';
 
@@ -51,28 +51,26 @@ interface QueueMessageish {
 /** Unified-object content collections — their change events key the changed doc by
  *  `params.objectId` (a doc/project id), which we map onto `roomId` so the existing
  *  per-room live-sync bus (keyed on roomId) drives a pull. The index collections
- *  (`objindex`/`pubobjindex`) carry only `spaceId` (no objectId) — no per-doc
- *  subscriber, so they're left to focus-pull and routed as null here. */
-const OBJECT_CONTENT_COLLECTIONS = new Set(['objdoc', 'objlog', 'pubobjdoc', 'pubobjlog']);
+ *  (`objindex`) carry only `spaceId` (no objectId) — no per-doc subscriber, so they
+ *  are left to focus-pull and routed as null here. */
+const OBJECT_CONTENT_COLLECTIONS = new Set(['objdoc', 'objlog']);
 
 /** Parse one SSE `data:` payload into a RoomChange, or null if not a chat change.
- *  Accepts both a raw QueueMessage and the Whistlers `{ rawPayload }` envelope. */
+ *  Accepts both a raw QueueMessage and the Whistlers `{ rawPayload }` envelope.
+ *
+ *  All stream collections (`streamchat`, `streampub`, `streaminv`) publish `params.roomId`.
+ *  Object-content collections (`objdoc`, `objlog`) publish `params.objectId` and are
+ *  keyed on that so per-doc live-sync fires. Every other publisher uses `roomId`. */
 export function parseRoomChange(data: string): RoomChange | null {
   try {
     const d = JSON.parse(data) as QueueMessageish & { rawPayload?: QueueMessageish };
     const msg = d.params ? d : (d.rawPayload ?? d);
-    // Public channels (`pubspace`) key the changed doc as `docId`, not `roomId`;
-    // `docId === '_rooms'` is the room-registry write (not a room) and must NOT
-    // route a pull or bump a phantom unread. Every other publisher uses `roomId`.
     let roomId: string | undefined;
-    if (msg.collection === 'pubspace') {
-      const docId = msg.params?.docId;
-      if (!docId || docId === '_rooms') return null;
-      roomId = docId;
-    } else if (msg.collection && OBJECT_CONTENT_COLLECTIONS.has(msg.collection)) {
+    if (msg.collection && OBJECT_CONTENT_COLLECTIONS.has(msg.collection)) {
       // Doc/project content: key by objectId so the per-doc live-sync fires.
       roomId = msg.params?.objectId;
     } else {
+      // streamchat / streampub / streaminv / objindex / other — all use roomId or spaceId.
       roomId = msg.params?.roomId;
     }
     if (!roomId) return null;

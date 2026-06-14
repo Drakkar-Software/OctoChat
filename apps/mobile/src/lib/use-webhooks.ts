@@ -21,10 +21,8 @@ export interface WebhookReveal {
 /**
  * Owner-side state for a room's self-service webhooks: lists the room's webhooks,
  * creates one (surfacing the token ONCE via {@link WebhookReveal}), and revokes one.
- * All data access goes through the SDK provisioning helpers (`src/lib` owns the logic;
- * the panel only renders it).
  */
-export function useWebhooks(ownerId: string, spaceId: string, roomId: string) {
+export function useWebhooks(spaceId: string, roomId: string) {
   const { session } = useSession();
   const client = session?.accountClient ?? null;
 
@@ -37,12 +35,12 @@ export function useWebhooks(ownerId: string, spaceId: string, roomId: string) {
     if (!client) return;
     setError(null);
     try {
-      const all = await listWebhooks(client, ownerId, spaceId);
+      const all = await listWebhooks(client, spaceId);
       setItems(all.filter((w) => w.roomId === roomId));
     } catch (e) {
       setError(String((e as Error)?.message ?? e));
     }
-  }, [client, ownerId, spaceId, roomId]);
+  }, [client, spaceId, roomId]);
 
   useEffect(() => {
     void refresh();
@@ -54,8 +52,8 @@ export function useWebhooks(ownerId: string, spaceId: string, roomId: string) {
       setBusy(true);
       setError(null);
       try {
-        const created = await createWebhook(client, ownerId, spaceId, { roomId, label: label.trim() || 'Webhook' });
-        setReveal({ url: webhookUrl(SYNC_BASE, ownerId, spaceId, created.id), token: created.token, header: created.tokenHeader });
+        const created = await createWebhook(client, spaceId, { roomId, label: label.trim() || 'Webhook' });
+        setReveal({ url: webhookUrl(SYNC_BASE, spaceId, created.id), token: created.token, header: created.tokenHeader });
         await refresh();
       } catch (e) {
         setError(String((e as Error)?.message ?? e));
@@ -63,7 +61,7 @@ export function useWebhooks(ownerId: string, spaceId: string, roomId: string) {
         setBusy(false);
       }
     },
-    [client, ownerId, spaceId, roomId, refresh],
+    [client, spaceId, roomId, refresh],
   );
 
   const remove = useCallback(
@@ -72,7 +70,7 @@ export function useWebhooks(ownerId: string, spaceId: string, roomId: string) {
       setBusy(true);
       setError(null);
       try {
-        await removeWebhook(client, ownerId, spaceId, webhookId);
+        await removeWebhook(client, spaceId, webhookId);
         await refresh();
       } catch (e) {
         setError(String((e as Error)?.message ?? e));
@@ -80,7 +78,7 @@ export function useWebhooks(ownerId: string, spaceId: string, roomId: string) {
         setBusy(false);
       }
     },
-    [client, ownerId, spaceId, refresh],
+    [client, spaceId, refresh],
   );
 
   const dismissReveal = useCallback(() => setReveal(null), []);

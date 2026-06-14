@@ -1,22 +1,18 @@
 /**
- * Per-room automation mutators on the unified OBJECT INDEX. Since rooms moved out of the
- * legacy `_rooms` registry into `objects/_index` (the stream↔channel merge), an automated
- * room is a `room` NODE with `subtype: 'automation'` carrying its `automation` meta — the
- * shape {@link objectsToRoomCategories} projects back to a `kind: 'automated'` Room. These
- * helpers go through the {@link updatePublicObjectIndex} funnel (public-space-only; the
- * create UI blocks private). v1 only public spaces — this guard is here so a stray call
- * doesn't silently no-op against the wrong model.
+ * Per-room automation mutators on the unified OBJECT INDEX. An automated room is a `room`
+ * NODE with `subtype: 'automation'` carrying its `automation` meta — the shape
+ * {@link objectsToRoomCategories} projects back to a `kind: 'automated'` Room. These helpers
+ * go through the {@link updateObjectIndex} funnel (works for any space — the old public-only
+ * restriction is lifted now that access is per-node, not per-space).
  */
-import { isPublicSpaceId, updatePublicObjectIndex } from '../starfish/pubspace';
+import { updateObjectIndex } from '@drakkar.software/octospaces-sdk';
 import { addObject, archiveObject, categoryId, patchObject, roomKindToSubtype } from '../starfish/objects';
 import type { Session } from '../starfish/identity';
 import type { AutomationMeta, ObjectNode } from '../domain/types';
 
-export class AutomationsNotSupportedHere extends Error {
-  constructor() {
-    super('Automated rooms are available only in public spaces in this version.');
-  }
-}
+// updateObjectIndex provides octospaces-sdk's ObjectNode[]; cast to OctoChat's superset
+// which carries the `automation` field (still used for per-node automation config).
+const asLocal = (nodes: import('@drakkar.software/octospaces-sdk').ObjectNode[]) => nodes as unknown as ObjectNode[];
 
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 const findCategoryNode = (nodes: ObjectNode[], name: string) =>
@@ -36,9 +32,8 @@ export async function createAutomationNode(
   category: string,
   automation: AutomationMeta,
 ): Promise<void> {
-  if (!isPublicSpaceId(spaceId)) throw new AutomationsNotSupportedHere();
-  await updatePublicObjectIndex(session, spaceId, (nodes, now) => {
-    let next = nodes;
+  await updateObjectIndex(session, spaceId, (raw, now) => {
+    let next = asLocal(raw);
     let catId = findCategoryNode(next, category)?.id;
     if (!catId) {
       const r = addObject(next, { type: 'category', id: categoryId(category), title: category }, now);
@@ -49,7 +44,7 @@ export async function createAutomationNode(
       next,
       { type: 'room', id: roomId, subtype: roomKindToSubtype('automated'), parentId: catId, title: name, automation },
       now,
-    ).nodes;
+    ).nodes as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
   });
 }
 
@@ -63,11 +58,11 @@ export async function patchRoomAutomation(
   roomId: string,
   patch: Partial<AutomationMeta>,
 ): Promise<void> {
-  if (!isPublicSpaceId(spaceId)) throw new AutomationsNotSupportedHere();
-  await updatePublicObjectIndex(session, spaceId, (nodes, now) => {
+  await updateObjectIndex(session, spaceId, (raw, now) => {
+    const nodes = asLocal(raw);
     const node = nodes.find((n) => n.id === roomId);
     if (!node?.automation) return null;
-    return patchObject(nodes, roomId, { automation: { ...node.automation, ...patch } }, now);
+    return patchObject(nodes, roomId, { automation: { ...node.automation, ...patch } }, now) as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
   });
 }
 
@@ -78,13 +73,13 @@ export async function renameRoomInRegistry(
   roomId: string,
   name: string,
 ): Promise<void> {
-  if (!isPublicSpaceId(spaceId)) throw new AutomationsNotSupportedHere();
   const trimmed = name.trim();
   if (!trimmed) return;
-  await updatePublicObjectIndex(session, spaceId, (nodes, now) => {
+  await updateObjectIndex(session, spaceId, (raw, now) => {
+    const nodes = asLocal(raw);
     const node = nodes.find((n) => n.id === roomId);
     if (!node || node.title === trimmed) return null;
-    return patchObject(nodes, roomId, { title: trimmed }, now);
+    return patchObject(nodes, roomId, { title: trimmed }, now) as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
   });
 }
 
@@ -94,9 +89,9 @@ export async function deleteRoomFromRegistry(
   spaceId: string,
   roomId: string,
 ): Promise<void> {
-  if (!isPublicSpaceId(spaceId)) throw new AutomationsNotSupportedHere();
-  await updatePublicObjectIndex(session, spaceId, (nodes, now) => {
+  await updateObjectIndex(session, spaceId, (raw, now) => {
+    const nodes = asLocal(raw);
     if (!nodes.some((n) => n.id === roomId && !n.archived)) return null;
-    return archiveObject(nodes, roomId, now);
+    return archiveObject(nodes, roomId, now) as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
   });
 }

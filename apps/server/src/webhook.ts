@@ -1,32 +1,29 @@
 /**
- * Inbound webhook ingestion → public-space stream rooms (SELF-SERVICE).
+ * Inbound webhook ingestion → public room stream (`streampub`) (SELF-SERVICE).
  *
- * Lets an EXTERNAL system (CI, an alerting pipeline, a no-code automation, …) POST a
- * message that lands in a public space's room, with no OctoChat identity. Unlike an
- * operator-configured integration, webhooks are provisioned by the space OWNER from
- * the app: the SDK (`createWebhook`) writes a registry doc
- * `pubspaces/{ownerId}/{spaceId}/_webhooks` (gated `pubspace:owner`) mapping a
- * webhookId → `{ tokenHash, roomId, … }`, storing only the SHA-256 of a bearer token.
+ * Lets an EXTERNAL system (CI, alerting pipeline, no-code automation, …) POST a
+ * message that lands in a public room's stream, with no OctoChat identity. Webhooks
+ * are provisioned by the space OWNER from the app: the SDK (`createWebhook`) writes a
+ * registry doc `spaces/{spaceId}/_webhooks` (gated `space:owner`) mapping a webhookId
+ * → `{ tokenHash, roomId, … }`, storing only the SHA-256 of a bearer token.
+ *
  * This route reads that registry IN-PROCESS and authenticates a caller by hashing the
  * presented token and comparing — so no secret is shared with the operator, every
  * webhook has its own token, and the raw token lives only in the caller's system.
  *
- * The token is a BEARER credential (like a Slack incoming-webhook URL): treat it like
- * a password and only ever send it over TLS. There is one server-wide SIGNING key
- * (operator-provided, never shared) used to attach the append-author proof; the
- * per-webhook tokens authenticate callers and are NOT signing keys.
+ * The target room MUST be a public room (access:'public') — webhooks post into
+ * `streampub`. The room's `access` is taken from the owner-written registry entry
+ * (`roomId` and access tier), never from the caller.
  *
  * The append is written in-process against the same store the sync router uses (like
- * the projection plugin), then published on the usual `octochat.chat.changed.<spaceId>`
- * subject so the live SSE fan-out delivers it. Server-trusted ingress: the target room
- * is taken from the owner-written registry, never from the caller.
+ * the projection plugin), then published on `octochat.chat.changed.<spaceId>` so the
+ * live SSE fan-out delivers it.
  */
 
 import { Hono } from "hono";
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { appendItem, type ObjectStore } from "@drakkar.software/starfish-server";
 import { signAppendAuthor } from "@drakkar.software/starfish-protocol";
-import { seal } from "@drakkar.software/starfish-keyring";
 import type { Queue } from "@drakkar.software/starfish-queuing";
 
 /** Provider-neutral inbound payload. `text` is required; `author` is optional
@@ -44,7 +41,6 @@ interface WebhookEntry {
   label?: string;
   createdAt?: number;
   signEdPubHex?: string;
-  sealKemPubHex?: string;
 }
 
 const ENC = new TextEncoder();
@@ -55,7 +51,7 @@ const MAX_BODY_BYTES = 65_536;
 const SIGN_DOMAIN = "octochat-webhook-sign\n";
 // Reject path segments that aren't simple ids — blocks store-key traversal AND keeps
 // ids out of NATS subject tokens. NB: `.` is intentionally EXCLUDED (real OctoChat ids
-// are hex / `psp-…` / `wh-…` and never contain it), so a segment can't inject an extra
+// are hex / `sp-…` / `wh-…` and never contain it), so a segment can't inject an extra
 // NATS subject token via `publishChange` (queue derives `<subject>.<spaceId>`).
 const SAFE_SEGMENT = /^[A-Za-z0-9_-]+$/;
 
@@ -101,9 +97,11 @@ function sanitizeAuthorName(name: string): string {
   return name.replace(/[^\p{L}\p{N} ._-]/gu, "").trim().slice(0, 64);
 }
 
-/** Read the owner-written webhook registry for a space, in-process. */
-async function readRegistry(store: ObjectStore, ownerId: string, spaceId: string): Promise<Record<string, WebhookEntry>> {
-  const raw = await store.getString(`pubspaces/${ownerId}/${spaceId}/_webhooks`);
+/** Read the owner-written webhook registry for a space, in-process.
+ *  Registry now lives at `spaces/{spaceId}/_webhooks` (re-homed from the retired
+ *  pubspace namespace in octospaces-sdk@0.4.1+). */
+async function readRegistry(store: ObjectStore, spaceId: string): Promise<Record<string, WebhookEntry>> {
+  const raw = await store.getString(`spaces/${spaceId}/_webhooks`);
   if (!raw) return {};
   try {
     const doc = JSON.parse(raw) as { data?: { hooks?: Record<string, WebhookEntry> } };
@@ -123,13 +121,13 @@ export function buildStreamElement(payload: WebhookPayload, fallbackAuthorId: st
   return { t: "msg", e: { id: globalThis.crypto.randomUUID(), authorId, text: payload.text } };
 }
 
-/** Publish the change-event on the same subject a normal pubstream message uses. */
-function publishChange(queue: Queue, spaceId: string, ownerId: string, roomId: string, hash: string, timestamp: number): void {
+/** Publish the change-event on the same subject a normal streampub message uses. */
+function publishChange(queue: Queue, spaceId: string, roomId: string, hash: string, timestamp: number): void {
   const msg = {
-    collection: "pubstream",
+    collection: "streampub",
     hash,
     timestamp,
-    params: { ownerId, spaceId, roomId },
+    params: { spaceId, roomId },
     identity: `webhook:${spaceId}`,
   };
   void Promise.resolve(queue.publish("octochat.chat.changed", ENC.encode(JSON.stringify(msg)))).catch((e) => {
@@ -142,17 +140,16 @@ export interface WebhookRouteOptions {
   queue: Queue;
 }
 
-/** Build the `POST /webhook/:ownerId/:spaceId/:webhookId` route. Mount BEFORE the
+/** Build the `POST /webhook/:spaceId/:webhookId` route. Mount BEFORE the
  *  sync router's catch-all. */
 export function createWebhookRoute(opts: WebhookRouteOptions): Hono {
   const app = new Hono();
 
-  app.post("/webhook/:ownerId/:spaceId/:webhookId", async (c) => {
-    const ownerId = c.req.param("ownerId");
+  app.post("/webhook/:spaceId/:webhookId", async (c) => {
     const spaceId = c.req.param("spaceId");
     const webhookId = c.req.param("webhookId");
     // Reject anything that isn't a plain id BEFORE it reaches a store key.
-    if (![ownerId, spaceId, webhookId].every(safeSegment)) {
+    if (![spaceId, webhookId].every(safeSegment)) {
       return c.json({ error: "bad_request" }, 400);
     }
 
@@ -164,7 +161,7 @@ export function createWebhookRoute(opts: WebhookRouteOptions): Hono {
     const raw = await c.req.text();
     if (raw.length > MAX_BODY_BYTES) return c.json({ error: "payload_too_large" }, 413);
 
-    const entry = (await readRegistry(opts.store, ownerId, spaceId))[webhookId];
+    const entry = (await readRegistry(opts.store, spaceId))[webhookId];
     if (!entry) return c.json({ error: "unknown_webhook" }, 404);
 
     const token = c.req.header(TOKEN_HEADER);
@@ -188,23 +185,16 @@ export function createWebhookRoute(opts: WebhookRouteOptions): Hono {
     const signer = await deriveSigner(token);
 
     const element = buildStreamElement(payload, `webhook:${webhookId}`);
-    const documentKey = `pubspaces/${ownerId}/${spaceId}/streams/${entry.roomId}`;
+    // Public room stream (streampub): spaces/{spaceId}/streams/pub/{roomId}
+    const documentKey = `spaces/${spaceId}/streams/pub/${entry.roomId}`;
 
-    // Option B: seal the element to the space write key so the server stores only
-    // ciphertext. The author proof is signed over the STORED bytes either way.
-    let stored: Record<string, unknown> = element;
-    if (entry.sealKemPubHex) {
-      stored = (await seal(JSON.stringify(element), entry.sealKemPubHex, {
-        edPubHex: signer.edPubHex,
-        edPrivHex: signer.edPrivHex,
-      })) as unknown as Record<string, unknown>;
-    }
-
-    const author = signAppendAuthor(documentKey, stored, signer.edPubHex, signer.edPrivHex);
-    const outcome = await appendItem(opts.store, documentKey, stored, "items", undefined, { author });
+    // Webhooks post plaintext to streampub — E2EE is strictly client-side; the server
+    // must never seal message content.
+    const author = signAppendAuthor(documentKey, element, signer.edPubHex, signer.edPrivHex);
+    const outcome = await appendItem(opts.store, documentKey, element, "items", undefined, { author });
     if ("error" in outcome) return c.json(outcome, 409);
 
-    publishChange(opts.queue, spaceId, ownerId, entry.roomId, outcome.hash, outcome.timestamp);
+    publishChange(opts.queue, spaceId, entry.roomId, outcome.hash, outcome.timestamp);
     return c.json({ ok: true, timestamp: outcome.timestamp }, 200);
   });
 

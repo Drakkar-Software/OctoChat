@@ -187,7 +187,7 @@ export function DesktopSpacesRail({
             image={s.image}
             active={s.id === activeId}
             unread={s.unread}
-            isPublic={(s.type ?? 'private') === 'public'}
+            isPublic={false}
             muted={isSpaceMuted(s.id)}
             onPress={() => onSelect?.(s.id)}
             onDropSpace={onDropSpace}

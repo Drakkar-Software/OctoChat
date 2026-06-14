@@ -3,8 +3,8 @@ import { router } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { acceptSpaceInvite, makeJoinRequest } from '@drakkar.software/octochat-sdk';
-import { decodePublicInvite, joinPublicSpace } from '@drakkar.software/octochat-sdk';
+import { acceptSpaceInvite, joinNodeByLink, joinSpaceByLink, makeJoinRequest, previewInvite } from '@drakkar.software/octochat-sdk';
+import type { InvitePreview } from '@drakkar.software/octochat-sdk';
 import { useInviteFragment } from '@/lib/use-invite-link';
 import { useSession } from '@/lib/session-context';
 import { useSpaces } from '@/lib/use-spaces';
@@ -37,6 +37,16 @@ export default function JoinScreen() {
   // platform has no QrScanner (the shim returns null), so the button is hidden.
   const canScan = Platform.OS !== 'web';
   const [scanning, setScanning] = useState(false);
+  // Pending invite waiting for the user's consent. Set by BOTH the auto-link effect
+  // and the manual join() — neither runs the actual join until "Join" is pressed.
+  // `raw` is the original text/fragment (for the deep-link effect; manual join uses
+  // the InvitePreview directly). `source` distinguishes the auto-link path (so the
+  // web history entry is cleared on confirm) from the manual paste/scan path.
+  const [pendingInvite, setPendingInvite] = useState<{
+    inv: InvitePreview;
+    raw: string;
+    source: 'auto-link' | 'manual';
+  } | null>(null);
   const [spaceName, setSpaceName] = useState('');
   const [spaceType, setSpaceType] = useState<SpaceType>('private');
   const [creating, setCreating] = useState(false);
@@ -60,7 +70,11 @@ export default function JoinScreen() {
     }
   };
 
-  /** Accept either a PRIVATE invite cap (JSON) or a PUBLIC invitation link/token. */
+  /**
+   * Preview an invite — shows a consent card WITHOUT joining.
+   * The actual join runs only when the user confirms via the consent card's "Join" button.
+   * Handles link-based invites (`#…` fragment) and raw JSON cap bundles.
+   */
   const join = async (raw: string) => {
     if (!session || busy) return;
     const text = raw.trim();
@@ -68,15 +82,49 @@ export default function JoinScreen() {
     setBusy(true);
     setError(null);
     try {
-      // A public invite link carries its token in a `#…` fragment; a private invite
+      // A link-based invite carries its token in a `#…` fragment; a private invite
       // is a JSON cap bundle. Branch on the fragment.
-      if (text.includes('#')) {
-        const space = await joinPublicSpace(session, decodePublicInvite(text.slice(text.indexOf('#'))));
-        enterSpace(space.id);
+      const fragment = text.includes('#') ? text.slice(text.indexOf('#')) : null;
+      if (fragment) {
+        const inv = await previewInvite(fragment);
+        setPendingInvite({ inv, raw: fragment, source: 'manual' });
+        setBusy(false); // show the consent card; user decides next
       } else {
-        const space = await acceptSpaceInvite(session, text);
-        enterSpace(space.id);
+        // JSON cap bundle — preview it as a member-bundle first so the user sees
+        // which space they're about to join.
+        const inv = await previewInvite(text);
+        setPendingInvite({ inv, raw: text, source: 'manual' });
+        setBusy(false);
       }
+    } catch (e) {
+      setError(String((e as Error)?.message ?? e));
+      setBusy(false);
+    }
+  };
+
+  /** Execute the join after the user has confirmed the consent card. */
+  const confirmJoin = async () => {
+    if (!session || !pendingInvite || busy) return;
+    const { inv, source } = pendingInvite;
+    setBusy(true);
+    setError(null);
+    try {
+      let spaceId: string;
+      if (inv.kind === 'space-link') {
+        spaceId = (await joinSpaceByLink(session, inv.token)).id;
+      } else if (inv.kind === 'node-link') {
+        // joinNodeByLink returns the node id (which OctoChat uses as the space id —
+        // room ids derive from it e.g. `<nodeId>-general`). Navigating to that id is correct.
+        spaceId = await joinNodeByLink(session, inv.token);
+      } else {
+        // member-bundle
+        spaceId = (await acceptSpaceInvite(session, inv.inviteJson)).id;
+      }
+      if (source === 'auto-link' && Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+      setPendingInvite(null);
+      enterSpace(spaceId);
     } catch (e) {
       setError(String((e as Error)?.message ?? e));
       setBusy(false);
@@ -93,11 +141,19 @@ export default function JoinScreen() {
     consumed.current = inviteFrag;
     void (async () => {
       try {
-        const space = await joinPublicSpace(session, decodePublicInvite(inviteFrag));
+        const inv = await previewInvite(inviteFrag);
+        let spaceId: string;
+        if (inv.kind === 'space-link') {
+          spaceId = (await joinSpaceByLink(session, inv.token)).id;
+        } else if (inv.kind === 'node-link') {
+          spaceId = await joinNodeByLink(session, inv.token);
+        } else {
+          spaceId = (await acceptSpaceInvite(session, inv.inviteJson)).id;
+        }
         if (Platform.OS === 'web' && typeof window !== 'undefined') {
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
         }
-        enterSpace(space.id);
+        enterSpace(spaceId);
       } catch (e) {
         setError(String((e as Error)?.message ?? e));
       }

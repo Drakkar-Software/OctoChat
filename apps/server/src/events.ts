@@ -6,12 +6,14 @@
  * scope.paths (meta-endpoint, not a data collection; access is controlled by the
  * per-space membership check that follows).
  *
- * Filter: client declares candidate spaceIds via ?spaces=sp-a,sp-b. PRIVATE
- * (sp-) spaces are validated against `spaces/{id}/_rooms` membership
- * (makeSpaceRoleEnricher). PUBLIC (psp-) spaces are open-gated — authorized for
- * any authenticated caller (their content is link-readable and these events carry
- * no content), bounded by MAX_PUBLIC_TOPICS per connection. The authorized ids map
- * to sanitized Whistlers destinationTopics, and only those topics proxy upstream.
+ * Filter: client declares candidate spaceIds via ?spaces=sp-a,sp-b. Every
+ * candidate is validated against `spaces/{id}/_access` membership via the
+ * makeSpaceRoleEnricher — a caller must hold `space:member` to receive live
+ * updates for a space. Anonymous (unauthenticated) callers and authenticated
+ * non-members of public spaces fall back to pull-based reads; SSE is members-only
+ * (events carry no content but do reveal "something changed" metadata, so
+ * membership is the correct gate). The authorized ids map to sanitized Whistlers
+ * destinationTopics, and only those topics proxy upstream.
  *
  * ★ Firehose-prevention invariant: the upstream Whistlers URL ALWAYS carries at
  * least one ?topic= param. An empty authorized set substitutes the sentinel
@@ -49,13 +51,10 @@ const sanitizeTopic = (t: string) => t.replace(/[^a-zA-Z0-9\-_~%]/g, "-");
 /** Whistlers namespace — MUST match the namespace key in infra/whistlers.config.json. */
 const WHISTLERS_NAMESPACE = "octochat";
 
-/** Per-connection cap on PUBLIC (`psp-`) space topics. Public spaces are
- *  open-gated (no membership proof — their content is link-readable and these
- *  events carry no content), so this bounds the only abuse vector: a client
- *  amplifying upstream fan-out by declaring many public topics. Beyond the cap we
- *  silently truncate rather than 4xx — a noisy client isn't an error. Private
- *  (`sp-`) spaces stay fully membership-gated and uncapped. */
-const MAX_PUBLIC_TOPICS = 64;
+/** Maximum number of spaces a single SSE connection may subscribe to.
+ *  Each candidate costs one awaited enricher call + one upstream Whistlers topic param,
+ *  so an unbounded list is an attacker-controlled serial I/O loop per connection. */
+const MAX_SPACES_PER_CONNECTION = 64;
 
 function parseCapHeader(authHeader: string): CapCert | null {
   if (!authHeader.startsWith("Cap ")) return null;
@@ -158,43 +157,32 @@ export function createEventsRoute(opts: EventsRouteOptions): Hono {
     }
 
     // 2. Read candidate space ids from ?spaces=sp-a,sp-b (client-declared).
+    //    Cap to MAX_SPACES_PER_CONNECTION: each candidate drives one awaited enricher
+    //    membership read + one upstream topic param per connection — unbounded is a DoS.
     const spacesParam = c.req.query("spaces") ?? "";
-    const candidates = spacesParam
+    const allCandidates = spacesParam
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
+    if (allCandidates.length > MAX_SPACES_PER_CONNECTION) {
+      console.warn(
+        `[OctoChat] /events: ${identity} requested ${allCandidates.length} spaces; ` +
+          `capping to ${MAX_SPACES_PER_CONNECTION}`,
+      );
+    }
+    const candidates = allCandidates.slice(0, MAX_SPACES_PER_CONNECTION);
 
-    // 3. Authorize each candidate.
-    //    - PUBLIC (psp-): open-gated — authorized for any authenticated caller, no
-    //      membership proof (public content is link-readable; these events carry no
-    //      content). Bounded by MAX_PUBLIC_TOPICS to cap upstream fan-out; excess is
-    //      silently dropped. NB this is also the path that carries `pubstream` /
-    //      `pubspace` change-events, which the enricher would never have authorized.
-    //    - PRIVATE (sp-): validated against `spaces/{id}/_rooms` membership via the
-    //      enricher. TOFU note: an unseen private spaceId returns [OWNER, MEMBER] —
-    //      ownership is only stamped on the first registry write.
+    // 3. Authorize each candidate against `spaces/{id}/_access` membership.
+    //    All spaces (public, private, invite) are now under `spaces/{spaceId}/**`;
+    //    there is no open-gated prefix. A caller must hold `space:member` to receive
+    //    live change-events. Non-members of public spaces fall back to pull-based reads
+    //    for content (anonymous reads work fine; SSE is members-only).
+    //    TOFU note: an unseen spaceId (no _access doc yet) returns [OWNER, MEMBER] so
+    //    the first writer is allowed — same as the sync router enricher.
     const authorized: string[] = [];
-    let publicCount = 0;
-    let truncatedPublic = false;
     for (const spaceId of candidates) {
-      if (spaceId.startsWith("psp-")) {
-        if (publicCount >= MAX_PUBLIC_TOPICS) {
-          truncatedPublic = true;
-          continue;
-        }
-        publicCount += 1;
-        authorized.push(spaceId);
-        continue;
-      }
       const roles = await enricher({ identity, roles: [] }, { spaceId });
       if (roles.includes(SPACE_MEMBER_ROLE)) authorized.push(spaceId);
-    }
-    if (truncatedPublic) {
-      // Leave a trail for the "one public space is stale until I open it" report:
-      // beyond the cap, those psp- spaces won't background-update (focus still pulls).
-      console.warn(
-        `[OctoChat] /events: public-topic cap (${MAX_PUBLIC_TOPICS}) reached for ${identity}; extra psp- spaces won't live-update until reconnect.`,
-      );
     }
 
     // 4. Map to sanitized destinationTopics server-side (never trust the client).

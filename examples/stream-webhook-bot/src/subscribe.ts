@@ -39,21 +39,13 @@ interface QueueMessageish {
 
 /** Parse one SSE `data:` payload into a RoomChange, or null if it isn't a chat
  *  change. Accepts both the raw Starfish QueueMessage and the Whistlers
- *  `{ rawPayload }` envelope. Public channels (`pubspace`) key the changed doc as
- *  `docId` (and `_rooms` is a registry write, not a room); every other publisher —
- *  including `pubstream`, the collection a stream bot writes — uses `roomId`. */
+ *  `{ rawPayload }` envelope. Room changes carry `params.roomId` in all three
+ *  stream tiers (streamchat, streampub, streaminv). */
 export function parseRoomChange(data: string): RoomChange | null {
   try {
     const d = JSON.parse(data) as QueueMessageish & { rawPayload?: QueueMessageish };
     const msg = d.params ? d : (d.rawPayload ?? d);
-    let roomId: string | undefined;
-    if (msg.collection === 'pubspace') {
-      const docId = msg.params?.docId;
-      if (!docId || docId === '_rooms') return null;
-      roomId = docId;
-    } else {
-      roomId = msg.params?.roomId;
-    }
+    const roomId = msg.params?.roomId;
     if (!roomId) return null;
     return { roomId, spaceId: msg.params?.spaceId, hash: msg.hash, ts: msg.timestamp };
   } catch {

@@ -3,7 +3,6 @@ import { webcrypto } from "node:crypto";
 import { describe, it, expect, beforeAll } from "vitest";
 import { configurePlatform, ed25519Suite } from "@drakkar.software/starfish-protocol";
 import { MemoryObjectStore } from "@drakkar.software/starfish-server";
-import { unseal } from "@drakkar.software/starfish-keyring";
 import type { Queue } from "@drakkar.software/starfish-queuing";
 import { ed25519 } from "@noble/curves/ed25519.js";
 
@@ -34,12 +33,12 @@ async function deriveSignerPub(token: string): Promise<string> {
   return hex(ed25519.getPublicKey(seed));
 }
 
-const OWNER = "owner1";
+// Route is now POST /webhook/:spaceId/:webhookId (no ownerId segment).
 const SPACE = "space1";
 const ROOM = "room1";
 const WEBHOOK = "wh-abc";
-const DOC_KEY = `pubspaces/${OWNER}/${SPACE}/streams/${ROOM}`;
-const REGISTRY_KEY = `pubspaces/${OWNER}/${SPACE}/_webhooks`;
+const DOC_KEY = `spaces/${SPACE}/streams/pub/${ROOM}`;
+const REGISTRY_KEY = `spaces/${SPACE}/_webhooks`;
 
 /** Seed a webhook registry doc into the store, as the sync router would persist it. */
 async function seedRegistry(store: MemoryObjectStore, token: string, extra: Record<string, unknown> = {}) {
@@ -93,7 +92,7 @@ describe("createWebhookRoute (self-service, token-derived signing)", () => {
     const { app, store, published } = makeFixture();
     await seedRegistry(store, TOKEN);
 
-    const res = await post(app, `${OWNER}/${SPACE}/${WEBHOOK}`, TOKEN, { text: "build passed", author: "ci-bot" });
+    const res = await post(app, `${SPACE}/${WEBHOOK}`, TOKEN, { text: "build passed", author: "ci-bot" });
     expect(res.status).toBe(200);
 
     const el = await storedElement(store);
@@ -104,20 +103,22 @@ describe("createWebhookRoute (self-service, token-derived signing)", () => {
     expect(published).toHaveLength(1);
     expect(published[0]!.subject).toBe("octochat.chat.changed");
     const msg = JSON.parse(new TextDecoder().decode(published[0]!.payload));
-    expect(msg.params).toEqual({ ownerId: OWNER, spaceId: SPACE, roomId: ROOM });
+    // collection is streampub (public room stream); no ownerId in params.
+    expect(msg.collection).toBe("streampub");
+    expect(msg.params).toEqual({ spaceId: SPACE, roomId: ROOM });
   });
 
   it("falls back to the webhook id as author when payload omits author", async () => {
     const { app, store } = makeFixture();
     await seedRegistry(store, TOKEN);
-    await post(app, `${OWNER}/${SPACE}/${WEBHOOK}`, TOKEN, { text: "hi" });
+    await post(app, `${SPACE}/${WEBHOOK}`, TOKEN, { text: "hi" });
     expect((await storedElement(store)).data).toMatchObject({ e: { authorId: `webhook:${WEBHOOK}` } });
   });
 
   it("rejects a wrong token (401) and writes nothing", async () => {
     const { app, store, published } = makeFixture();
     await seedRegistry(store, TOKEN);
-    const res = await post(app, `${OWNER}/${SPACE}/${WEBHOOK}`, "wrong-token", { text: "x" });
+    const res = await post(app, `${SPACE}/${WEBHOOK}`, "wrong-token", { text: "x" });
     expect(res.status).toBe(401);
     expect(await store.getString(DOC_KEY)).toBeNull();
     expect(published).toHaveLength(0);
@@ -126,55 +127,54 @@ describe("createWebhookRoute (self-service, token-derived signing)", () => {
   it("rejects a missing token (401)", async () => {
     const { app, store } = makeFixture();
     await seedRegistry(store, TOKEN);
-    expect((await post(app, `${OWNER}/${SPACE}/${WEBHOOK}`, null, { text: "x" })).status).toBe(401);
+    expect((await post(app, `${SPACE}/${WEBHOOK}`, null, { text: "x" })).status).toBe(401);
   });
 
   it("returns 404 for a webhook id absent from the registry", async () => {
     const { app, store } = makeFixture();
     await seedRegistry(store, TOKEN);
-    expect((await post(app, `${OWNER}/${SPACE}/wh-nope`, TOKEN, { text: "x" })).status).toBe(404);
+    expect((await post(app, `${SPACE}/wh-nope`, TOKEN, { text: "x" })).status).toBe(404);
   });
 
   it("returns 404 when no registry exists for the space", async () => {
     const { app } = makeFixture();
-    expect((await post(app, `${OWNER}/${SPACE}/${WEBHOOK}`, TOKEN, { text: "x" })).status).toBe(404);
+    expect((await post(app, `${SPACE}/${WEBHOOK}`, TOKEN, { text: "x" })).status).toBe(404);
   });
 
   it("rejects path-traversal segments (400) before any store read", async () => {
     const { app, store } = makeFixture();
     await seedRegistry(store, TOKEN);
-    expect((await post(app, `..%2F..%2Fetc/${SPACE}/${WEBHOOK}`, TOKEN, { text: "x" })).status).toBe(400);
+    // First segment (spaceId) must match SAFE_SEGMENT — encoded slash/dot still fails.
+    expect((await post(app, `..%2F..%2Fetc/${WEBHOOK}`, TOKEN, { text: "x" })).status).toBe(400);
   });
 
   it("rejects a segment containing a dot (400) — keeps ids out of NATS subjects", async () => {
     const { app, store } = makeFixture();
     await seedRegistry(store, TOKEN);
-    expect((await post(app, `own.er/${SPACE}/${WEBHOOK}`, TOKEN, { text: "x" })).status).toBe(400);
+    expect((await post(app, `own.er/${WEBHOOK}`, TOKEN, { text: "x" })).status).toBe(400);
   });
 
   it("rejects missing text (400) and invalid JSON (400)", async () => {
     const { app, store } = makeFixture();
     await seedRegistry(store, TOKEN);
-    expect((await post(app, `${OWNER}/${SPACE}/${WEBHOOK}`, TOKEN, { notText: "x" })).status).toBe(400);
-    expect((await post(app, `${OWNER}/${SPACE}/${WEBHOOK}`, TOKEN, undefined, { rawOverride: "{bad" })).status).toBe(400);
+    expect((await post(app, `${SPACE}/${WEBHOOK}`, TOKEN, { notText: "x" })).status).toBe(400);
+    expect((await post(app, `${SPACE}/${WEBHOOK}`, TOKEN, undefined, { rawOverride: "{bad" })).status).toBe(400);
   });
 
-  it("Option B: a sealed webhook stores ciphertext a member re-opens, sealer == token-derived key", async () => {
-    const space = ed25519Suite.generateKemKeypair();
+  it("ignores a legacy sealKemPubHex in the registry — webhooks always post plaintext (E2EE is client-only)", async () => {
+    // Even if a registry entry carries a sealKemPubHex, the server MUST NOT seal — doing
+    // so would be server-side encryption, violating the E2EE invariant. The field is silently
+    // ignored; the stored element is plaintext.
     const { app, store } = makeFixture();
-    await seedRegistry(store, TOKEN, { sealKemPubHex: space.pubHex });
+    await seedRegistry(store, TOKEN, { sealKemPubHex: ed25519Suite.generateKemKeypair().pubHex });
 
-    const res = await post(app, `${OWNER}/${SPACE}/${WEBHOOK}`, TOKEN, { text: "top secret", author: "ci-bot" });
+    const res = await post(app, `${SPACE}/${WEBHOOK}`, TOKEN, { text: "top secret", author: "ci-bot" });
     expect(res.status).toBe(200);
 
     const el = await storedElement(store);
-    expect(el.data).toHaveProperty("entry");
-    expect(JSON.stringify(el.data)).not.toContain("top secret");
-    // The sealer the member pins is the webhook's token-derived public key.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const opened = JSON.parse(
-      new TextDecoder().decode(await unseal(el.data as any, space.privHex, { requireSealer: await deriveSignerPub(TOKEN) })),
-    );
-    expect(opened).toMatchObject({ t: "msg", e: { authorId: "webhook:ci-bot", text: "top secret" } });
+    // Stored as plaintext: must contain the text and NOT look like a sealed blob.
+    expect(JSON.stringify(el.data)).toContain("top secret");
+    expect(el.data).not.toHaveProperty("entry"); // sealed blobs have an "entry" field
+    expect(el.data).toMatchObject({ t: "msg", e: { authorId: "webhook:ci-bot", text: "top secret" } });
   });
 });

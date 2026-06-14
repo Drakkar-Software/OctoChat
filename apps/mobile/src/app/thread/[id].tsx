@@ -42,13 +42,15 @@ export default function ThreadScreen() {
   const { colors } = useTheme();
   const { session } = useSession();
   const { lastReadAt } = useUnread();
+  // Owner gates the per-message pin affordance and is the only author whose pin events
+  // count at fold time (resolvePinned) — read from the shared registry like room/[id].
+  // Also provides the room's access/enc tier so useRoom picks the right stream collection.
+  const { owner, rooms } = useRoomsRegistry(spaceIdFromRoomId(roomId));
+  const registryRoom = rooms.find((r) => r.id === roomId) ?? null;
   // Every room is an append-only log now — one hook for all kinds. Replies post the same
   // way for any kind: `send(text, parentId)`.
   const { store, opening, openError, offline, send, toggleReaction, editMessage, deleteMessage, pinMessage, unpinMessage, uploadAttachment, loadAttachment, canWrite } =
-    useRoom(roomId);
-  // Owner gates the per-message pin affordance and is the only author whose pin events
-  // count at fold time (resolvePinned) — read from the shared registry like room/[id].
-  const { owner } = useRoomsRegistry(spaceIdFromRoomId(roomId));
+    useRoom(roomId, { access: registryRoom?.access, enc: registryRoom?.enc });
   const isOwner = !!owner && session?.userId === owner;
   const onPinMessage = (msgId: string, pin: boolean) => (pin ? pinMessage(msgId) : unpinMessage(msgId));
   // Offline outbox for this thread surface (keyed to roomId + parentId).

@@ -1,29 +1,24 @@
 /**
- * Bot / integration write credentials for PUBLIC stream rooms, built on Starfish's
- * dedicated public-link primitive (`createPublicLink` → an `audience` cap), NOT a
- * hand-rolled token. The audience cap carries NO secret: the bot generates its own
- * keypair and signs each request with it (`redeemPublicLink` → `X-Starfish-Pub`),
- * so a leaked link is useless without the bot's key. Optional allow-list + TTL.
+ * Bot / integration write credentials for public stream rooms.
  *
- * Posting is then a single `client.append` (POST /push) — no pull/merge/hash — which
- * is the whole point of a stream room: a bot pushes events without implementing the
+ * In the per-node access model, public room writes go through `space:member` auth or
+ * the webhook API. Audience caps for writing to public rooms are no longer supported.
+ * `createStreamBotCredential` is kept for backward-compat but is deprecated — use
+ * `createWebhook()` for external integrations instead.
+ *
+ * Posting is a single `client.append` (POST /push) — no pull/merge/hash — which is
+ * the whole point of a stream room: a bot pushes events without implementing the
  * read-modify-write sync protocol.
- *
- * Scope: PUBLIC (plaintext) stream rooms only. A PRIVATE (E2EE) stream room's writer
- * must seal with the space keyring, so a bot there is enrolled as a keyring member via
- * the normal space invite (see members.ts `inviteToSpace`) rather than a public link —
- * an audience link grants authority, not decryption.
  */
-import { createPublicLink } from '@drakkar.software/starfish-sharing';
-
 import { unsealFromSelf, type SealedBlob } from './account-seal';
 import { getSyncBase } from '../config/config';
 import type { Session } from './identity';
-import { pubstreamRoomPush, pubstreamBotScope } from './paths';
+import { streamPubRoomPush } from './paths';
 
 export interface StreamBotCredential {
   /** The public-link fragment (an audience cap) — the bot's `parsePublicLink` input.
-   *  Carries no private key; the bot signs with its own generated key. */
+   *  Carries no private key; the bot signs with its own generated key.
+   *  @deprecated Always empty in the per-node access model. Use createWebhook() instead. */
   token: string;
   /** Full append endpoint the bot POSTs to (already namespace-prefixed). */
   endpoint: string;
@@ -47,33 +42,26 @@ export async function openStreamBotCredential(
 }
 
 /**
- * Owner: mint a bot write credential for ONE public stream room. The owner signs the
- * audience cap; the cap is scoped (least privilege) to just this room's append log.
- * `ttlSec` time-boxes it (recommended for bots); `allowedIdentities` optionally pins
- * which bot pubkeys may redeem (omit for "any holder of the link").
+ * @deprecated External writes to public rooms should use the webhook API (createWebhook).
+ *   For space-member automations, use the member cap directly with streamPubRoomPush.
+ *
+ * Returns path info for a public stream room's push endpoint. No audience cap is minted;
+ * `token` is always empty. The `ownerId` parameter is ignored (path is derived from
+ * `roomId` in the per-node model).
  */
-export async function createStreamBotCredential(
+export function createStreamBotCredential(
   session: Session,
-  ownerId: string,
   spaceId: string,
   roomId: string,
   opts: { ttlSec?: number; allowedIdentities?: string[] } = {},
-): Promise<StreamBotCredential> {
-  const nbf = Math.floor(Date.now() / 1000);
-  const { fragment } = await createPublicLink({
-    issEdPrivHex: session.keys.edPriv,
-    issEdPubHex: session.keys.edPub,
-    collection: 'pubstream',
-    scope: pubstreamBotScope(ownerId, spaceId, roomId),
-    nbf,
-    ...(opts.ttlSec ? { ttlSec: opts.ttlSec } : {}),
-    ...(opts.allowedIdentities ? { allowedIdentities: opts.allowedIdentities } : {}),
-  });
-  const signPath = pubstreamRoomPush(ownerId, spaceId, roomId);
+): StreamBotCredential {
+  void session; void spaceId; // unused in per-node model — kept for call-site compat
+  void opts.allowedIdentities; // audience allow-list not supported without audience cap
+  const signPath = streamPubRoomPush(roomId);
   return {
-    token: fragment,
+    token: '', // no audience cap — use createWebhook() for external bots
     endpoint: `${getSyncBase()}${signPath}`,
     signPath,
-    ...(opts.ttlSec ? { expiresAt: nbf + opts.ttlSec } : {}),
+    ...(opts.ttlSec ? { expiresAt: Math.floor(Date.now() / 1000) + opts.ttlSec } : {}),
   };
 }

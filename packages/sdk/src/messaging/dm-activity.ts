@@ -15,7 +15,7 @@
  * round-trips complete:
  *
  *  1. kv — prior persisted heads (instant, offline-safe warm start)
- *  2. local streamlog cache — `octochat.streamlog.v2.<roomId>` (no network, no decrypt;
+ *  2. local streamlog cache — `octochat.streamlog.v2.<userId>.<roomId>` (no network, no decrypt;
  *     covers DMs opened on this device, same authoritative server `ts`)
  *  3. server `last:1` pull — one small request per DM (no decrypt, pull-cache-backed);
  *     the ONLY source that makes a never-opened DM sort correctly and two devices agree
@@ -27,7 +27,7 @@ import type { AppendElement } from '@drakkar.software/starfish-client';
 
 import { kvGet, kvSet } from '../config/adapters';
 import { dmRoomId } from '../starfish/dm-ids';
-import { buildSpaceEncryptor } from '../starfish/space-encryptor';
+import { getSpaceClient } from '@drakkar.software/octospaces-sdk';
 import { streamRoomPull } from '../starfish/paths';
 import { loadStreamLog } from './stream-log';
 import type { Session } from '../starfish/identity';
@@ -158,7 +158,7 @@ async function _refresh(
   await Promise.allSettled(
     dmSpaceIds.map(async (spaceId) => {
       const roomId = dmRoomId(spaceId);
-      const items = await loadStreamLog(roomId);
+      const items = await loadStreamLog(session.userId, roomId);
       if (items.length > 0) {
         localHeads[roomId] = Math.max(...items.map((i: AppendElement) => i.ts ?? 0));
       }
@@ -183,11 +183,10 @@ async function _refresh(
   await Promise.allSettled(
     dmSpaceIds.map(async (spaceId) => {
       try {
-        // Reuse the space-encryptor cache to get the auth'd client (no keyring needed —
+        // Use the space client to get the auth'd client (no keyring needed —
         // we only read the outer `ts`, not the sealed body).
-        const space = await buildSpaceEncryptor(session, spaceId);
-        if (!space) return;
-        const items = (await space.client.pull(streamRoomPull(dmRoomId(spaceId)), {
+        const client = getSpaceClient(spaceId, session);
+        const items = (await client.pull(streamRoomPull(dmRoomId(spaceId)), {
           appendField: 'items',
           last: 1,
         })) as unknown as AppendElement[];

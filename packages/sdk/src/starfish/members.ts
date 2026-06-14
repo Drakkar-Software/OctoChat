@@ -13,9 +13,10 @@ import { mintMemberCap } from '@drakkar.software/starfish-sharing';
 
 import type { Space } from '../domain/types';
 
+import { getSpaceAccessEntry, saveSpaceAccessEntry } from '@drakkar.software/octospaces-sdk';
+
 import { buildEncryptor, makeClient } from './client';
 import type { Session } from './identity';
-import { getMemberCap, saveMemberCap } from './member-caps';
 import { keyringName, spaceMemberScope } from './paths';
 import { addJoinedSpaceWithCap, addSpaceMember, readSpaces } from './registry';
 
@@ -150,8 +151,7 @@ export async function acceptSpaceInvite(session: Session, inviteJson: string): P
   // no owner re-invite). Only mirror into the in-memory cache once that write succeeds,
   // so a failed push never leaves a "joined locally, not on the server" state.
   await addJoinedSpaceWithCap(session.accountClient, session.userId, space, capJson);
-  saveMemberCap(spaceId, capJson);
+  saveSpaceAccessEntry(spaceId, { kind: 'member', cap: capJson });
   return space;
 }
 
-export { getMemberCap };

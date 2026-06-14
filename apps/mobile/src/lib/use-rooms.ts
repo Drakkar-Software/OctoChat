@@ -12,7 +12,6 @@ import {
   reparentObject,
   roomKindToSubtype,
 } from '@drakkar.software/octochat-sdk';
-import { isPublicSpaceId } from '@drakkar.software/octochat-sdk';
 import { roomSlug } from '@drakkar.software/octochat-sdk';
 import { useObjects } from './use-objects';
 import { useRoomsRegistry, useRoomsRegistryActions } from './rooms-registry-context';
@@ -65,7 +64,6 @@ export function useRooms(spaceId: string | null) {
   const { refresh } = useRoomsRegistryActions();
   const objects = useObjects(sid, { enabled });
   const { nodes, ready, mutate, pull: pullObjects } = objects;
-  const publicSpace = !!spaceId && isPublicSpaceId(sid);
 
   // Room list, sourced from the unified OBJECT INDEX (the sole source now that `_rooms`
   // is just the access record). An empty/opening index yields an empty list — the
@@ -81,10 +79,9 @@ export function useRooms(spaceId: string | null) {
   const isOwner = !!session && reg.owner !== null && reg.owner === session.userId;
   // Exclude automation bots (real roster members in private spaces) from the human count.
   const memberCount = useMemo(() => {
-    if (publicSpace) return null;
     const bots = new Set(automationBotUserIds(rooms));
     return 1 + reg.members.filter((id) => !bots.has(id)).length;
-  }, [publicSpace, reg.members, rooms]);
+  }, [reg.members, rooms]);
 
   // Map a failed index write to a user-facing message; CategoryError carries a friendly
   // validation message (duplicate/empty name). No owner gate — members may write.
@@ -218,7 +215,6 @@ export function useRooms(spaceId: string | null) {
     rooms,
     loading: enabled && !ready && reg.loading && !reg.loaded,
     isOwner,
-    isPublic: publicSpace,
     memberCount,
     createRoom,
     createCategory,

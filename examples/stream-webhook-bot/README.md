@@ -2,17 +2,16 @@
 
 A standalone Node script that uses the Starfish **`/events` SSE stream as a
 webhook-style trigger** and, on each room change, **appends a line to a public
-stream room as a bot** — using only the published `@drakkar.software/starfish-*`
+room as a bot** — using only the published `@drakkar.software/starfish-*`
 SDK, no app code.
 
 ```
-  /events (SSE)  ──trigger──▶  handler  ──append──▶  pubstream room
+  /events (SSE)  ──trigger──▶  handler  ──append──▶  public room  (streampub)
    (member cap)                                (audience-cap bot token)
 ```
 
-A **stream room** is an append-only log, so a bot posts with a single signed
-`POST /push` — no pull / merge / hash, no sync protocol. That's the whole point of
-the room kind.
+All OctoChat rooms use an **append-only log**, so a bot posts with a single signed
+`POST /push` — no pull / merge / hash, no sync protocol.
 
 ## Why two credentials?
 
@@ -25,16 +24,17 @@ The listen and post sides need *different* caps, and that's deliberate:
 
 ## Where the two credentials come from
 
-Both are produced by a logged-in OctoChat app instance that **owns a public space**:
+Both are produced by a logged-in OctoChat app instance that **owns a space with a
+public room**:
 
-1. **`OCTOCHAT_INVITE_LINK`** — open a **public** space ▸ invite/share ▸ generate a
+1. **`OCTOCHAT_INVITE_LINK`** — open a space ▸ invite/share ▸ generate a
    **read-only** link (the `…/join#…` URL). Paste the whole URL.
-2. **`OCTOCHAT_BOT_TOKEN`** + **`OCTOCHAT_BOT_SIGN_PATH`** — open a **public stream
-   room** you own ▸ the owner-only **"Connect a bot"** panel ▸ *Generate bot link*.
+2. **`OCTOCHAT_BOT_TOKEN`** + **`OCTOCHAT_BOT_SIGN_PATH`** — open a **public room**
+   you own ▸ the owner-only **"Connect a bot"** panel ▸ *Generate bot link*.
    Copy the **"Bot link token"** and the **"Path to sign"** fields.
 
-(No public space yet? Create one in the app, add a **stream** room to it via the
-Channel/Stream toggle, then grab both credentials above.)
+(No public room yet? Create a space, add a room with `access: public`, then grab both
+credentials above.)
 
 ## Run
 
@@ -71,7 +71,7 @@ and the line shows up in the stream room in the app.
 
 Set `STARFISH_URL=https://dev-sync.drakkar.software/sync` and
 `STARFISH_NAMESPACE=octochat`. The deployed Whistler→SSE bridge **does** deliver live
-events (verified: a raw `/events` capture showed each post arriving as a `pubstream`
+events (verified: a raw `/events` capture showed each post arriving as a `streampub`
 change), so the trigger fires against the deploy. If a run looks silent, check that
 `WATCH_ROOM`/`LOOP_GUARD` actually let the changed room through (SSE is live-only and
 heartbeats are ignored), not that the bridge is down.
@@ -187,7 +187,7 @@ as it did before — behaviour is unchanged there.)
 
 ## Loop guard (two modes, set via `LOOP_GUARD`)
 
-A `pubstream` append re-emits the same `octochat.chat.changed.<spaceId>` topic, so a
+A `streampub` append re-emits the same `octochat.chat.changed.<spaceId>` topic, so a
 bot that reacts to its own posts loops forever. `/events` frames carry **no author**,
 so the bot can't tell its own append from anyone else's by the event alone. Two ways
 to handle it:

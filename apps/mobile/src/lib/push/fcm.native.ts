@@ -25,9 +25,8 @@ export interface PushData {
   type?: string;
   spaceId?: string;
   roomId?: string;
-  // Public-space rooms (`pubspace`) carry the room id as `docId`, not `roomId`
-  // (server `config.ts` storagePath `pubspaces/{ownerId}/{spaceId}/{docId}`). We
-  // accept both so a public-channel push can resolve once the bridge forwards it.
+  // Legacy field — old push payloads used `docId` instead of `roomId`.
+  // Kept for forward-compat; `notification-open-room.ts` falls back to it.
   docId?: string;
 }
 

@@ -34,7 +34,7 @@ export function DesktopNav() {
   const { spaces, activeId, setActiveId, loading: spacesLoading, reorderSpaces } = useSpaces();
   const isDmHome = isDmHomeId(activeId);
   const navId = isDmHome ? null : activeId; // the virtual DM space has no registry doc
-  const { categories, loading: roomsLoading, isPublic, memberCount, isOwner, createRoom, createCategory, moveRoom } =
+  const { categories, loading: roomsLoading, memberCount, isOwner, createRoom, createCategory, moveRoom } =
     useRooms(navId);
   const { digest } = useThreadDigest();
   const { hasThreads, hasPins } = useSpaceNav(navId);
@@ -120,7 +120,6 @@ export function DesktopNav() {
         ) : space ? (
           <DesktopRoomSidebar
             space={space}
-            isPublic={isPublic}
             memberCount={memberCount}
             categories={categories}
             userId={session?.userId ?? ''}

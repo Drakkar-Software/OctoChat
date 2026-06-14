@@ -1,5 +1,16 @@
 # Space Contributor Capabilities — Design
 
+> **⚠️ PRE-OCTOSPACES — primitives described here no longer exist.**  
+> This doc was written against the old per-space public/private model. The following
+> have since been **removed** by the octospaces migration:
+> `_rooms` access record → now `spaceregistry`/`_access`; collection `rooms` → `spaceregistry`;
+> `pubspace`/`pubstream`/`pubobjindex` collections → removed; `pubspace:*` role family →
+> removed; `readRooms`/`writeRooms` → `readSpaceAccess`/`writeSpaceAccess`;
+> `packages/sdk/src/starfish/member-caps.ts`, `pubspace-caps.ts`, `pubspace-role.ts` →
+> **deleted**. If this Contributor tier is re-specced, rebuild it against `spaceregistry`/
+> `_access`, `spacekeyring`, plaintext `objindex`, and the per-node access model
+> (`ObjectNode.access ∈ {public, space, invite}` + `enc`).
+
 > **Status: design doc — not yet implemented.**  
 > Covers both private and public spaces. Spans OctoChat + Infra repos; changes must ship in
 > lockstep.

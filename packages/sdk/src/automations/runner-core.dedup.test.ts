@@ -1,21 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// tickRoom's content-hash gate is the layer that actually prevents a duplicate
-// post (hash.test.ts only covers the pure `dedupeFetch` decision). Exercise the
-// real gate by stubbing its three side-effects: secret load, the bot post, and
-// the ephemeral keypair mint. The provider is a test double returning fixed text.
+// tickRoom's content-hash gate and push-path routing. Exercise the real gate by
+// stubbing the two side-effects: secret load and the space client append call.
+const mockAppend = vi.fn(async () => undefined);
 vi.mock('./secrets', () => ({ loadAutomationSecrets: vi.fn(async () => ({})) }));
-vi.mock('./append', () => ({ appendAsBot: vi.fn(async () => undefined) }));
-// Stub the credential opener so the test doesn't pull the seal/keyring graph — it just
-// hands back the (plaintext) stored credential, which is all the post path needs here.
-vi.mock('../starfish/stream-bots', () => ({
-  openStreamBotCredential: vi.fn(async (_session: unknown, stored: unknown) => stored),
-}));
-vi.mock('@drakkar.software/starfish-identities', () => ({
-  generateDeviceKeys: vi.fn(async () => ({ edPub: 'bot-pub', edPriv: 'bot-priv' })),
-}));
+vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...(actual as object), getSpaceClient: vi.fn(() => ({ append: mockAppend })) };
+});
 
-import { appendAsBot } from './append';
 import { hashContent } from './hash';
 import { tickRoom, type TickKind } from './runner-core';
 import type { AutomationProvider, RunResult } from './types';
@@ -43,62 +36,97 @@ const META: AutomationMeta = {
   params: {},
   intervalMin: 15,
   enabled: true,
-  // A legacy PLAINTEXT credential — the mocked opener returns it as-is (post path uses token).
-  credential: { token: 't', endpoint: 'e', signPath: '/push/x' } as unknown as AutomationMeta['credential'],
+  credential: {} as AutomationMeta['credential'],
   runOnDeviceId: 'device-A',
   lastRunAt: 1_000,
   lastError: null,
 };
 
-const room = (over: Partial<AutomationMeta> = {}): Room => ({
+const room = (over: Partial<AutomationMeta> = {}, roomOver: Partial<Room> = {}): Room => ({
   id: 'r1',
-  spaceId: 'psp-1',
+  spaceId: 'sp-1',
   category: 'AUTOMATIONS',
   name: 'a',
   kind: 'automated',
   automation: { ...META, ...over },
-});
+  ...roomOver,
+} as Room);
 
 const tick = (over: Partial<Parameters<typeof tickRoom>[0]> = {}) =>
   tickRoom({ session, room: room(), provider: provider(), trigger: 'scheduled', now: 5_000, ...over });
 
-beforeEach(() => vi.mocked(appendAsBot).mockClear());
+beforeEach(() => mockAppend.mockClear());
 
 describe('tickRoom content-hash gate', () => {
   it('skips the post when the fetched text matches lastFetchHash', async () => {
     const out = await tick({ room: room({ lastFetchHash: hashContent(TEXT) }) });
     expect(out).toEqual({ kind: 'skipped' });
-    expect(appendAsBot).not.toHaveBeenCalled();
+    expect(mockAppend).not.toHaveBeenCalled();
   });
 
   it('posts and records the new hash when content changed', async () => {
     const out = await tick({ room: room({ lastFetchHash: 'stale' }) });
     expect(out).toEqual({ kind: 'posted', text: TEXT, hash: hashContent(TEXT) });
-    expect(appendAsBot).toHaveBeenCalledOnce();
+    expect(mockAppend).toHaveBeenCalledOnce();
   });
 
   it('posts on first run (no prior hash) and records the hash', async () => {
     const out = await tick({ room: room({ lastFetchHash: undefined }) });
     expect(out).toEqual({ kind: 'posted', text: TEXT, hash: hashContent(TEXT) });
-    expect(appendAsBot).toHaveBeenCalledOnce();
+    expect(mockAppend).toHaveBeenCalledOnce();
   });
 
   it('force bypasses the gate on unchanged content but still records the hash', async () => {
     const out = await tick({ room: room({ lastFetchHash: hashContent(TEXT) }), force: true });
     expect(out).toEqual({ kind: 'posted', text: TEXT, hash: hashContent(TEXT) });
-    expect(appendAsBot).toHaveBeenCalledOnce();
+    expect(mockAppend).toHaveBeenCalledOnce();
   });
 
   it('command posts always fire and never carry a fetch hash', async () => {
     const cmd: TickKind = { kind: 'command', cmd: 'get', args: ['x'] };
     const out = await tick({ room: room({ lastFetchHash: hashContent(TEXT) }), trigger: cmd });
     expect(out).toEqual({ kind: 'posted', text: TEXT, hash: undefined });
-    expect(appendAsBot).toHaveBeenCalledOnce();
+    expect(mockAppend).toHaveBeenCalledOnce();
   });
 
   it('a provider skip never posts', async () => {
     const out = await tick({ provider: provider({ skip: true }) });
     expect(out).toEqual({ kind: 'skipped' });
-    expect(appendAsBot).not.toHaveBeenCalled();
+    expect(mockAppend).not.toHaveBeenCalled();
+  });
+});
+
+describe('tickRoom push-path routing', () => {
+  it('routes a public room to streampub (path contains pub/)', async () => {
+    await tick({ room: room({}, { access: 'public', enc: false }) });
+    const [pushPath] = mockAppend.mock.calls[0] as [string, unknown];
+    expect(pushPath).toContain('pub/');
+    expect(pushPath).not.toContain('/n/');
+  });
+
+  it('routes an invite-plaintext room to streaminv (path contains /n/)', async () => {
+    await tick({ room: room({}, { access: 'invite', enc: false }) });
+    const [pushPath] = mockAppend.mock.calls[0] as [string, unknown];
+    expect(pushPath).toContain('/n/');
+    expect(pushPath).not.toContain('pub/');
+  });
+
+  it('routes a private/space room to streamchat (neither pub/ nor /n/)', async () => {
+    await tick({ room: room({}, { access: 'space', enc: false }) });
+    const [pushPath] = mockAppend.mock.calls[0] as [string, unknown];
+    expect(pushPath).not.toContain('pub/');
+    expect(pushPath).not.toContain('/n/');
+    expect(pushPath).toContain('/streams/');
+  });
+
+  it('posts via the session member-cap client (not an audience-cap/bot-token path)', async () => {
+    // getSpaceClient is called once with the room's spaceId + session
+    await tick({ room: room({}, { access: 'public', enc: false }) });
+    expect(mockAppend).toHaveBeenCalledOnce();
+    // The element body has the bot authorId and the result text
+    const [, element] = mockAppend.mock.calls[0] as [string, { t: string; e: { authorId: string; text: string } }];
+    expect(element.t).toBe('msg');
+    expect(element.e.authorId).toMatch(/^bot-/);
+    expect(element.e.text).toBe(TEXT);
   });
 });

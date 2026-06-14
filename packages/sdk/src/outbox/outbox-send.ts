@@ -11,52 +11,58 @@
  * message carries the entry's own `id`/`ts`, so it lands in the room store under
  * the same id the pending bubble used (dedup-by-id ⇒ no duplicate).
  */
+import { buildNodeAccess, getSpaceClient } from '@drakkar.software/octospaces-sdk';
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
-import { makeClient } from '../starfish/client';
 import type { Session } from '../starfish/identity';
-import { getSpaceEncryptor } from '../starfish/space-encryptor';
-import { isPublicSpaceId, publicSpaceAuth } from '../starfish/pubspace';
-import { pubstreamRoomPush, streamRoomPush } from '../starfish/paths';
+import { readIndexRooms } from '../starfish/object-index';
+import { objIndexPull, streamInvRoomPush, streamPubRoomPush, streamRoomPush } from '../starfish/paths';
 import type { StoredMsg } from '../format/message-view';
 import type { OutboxMessage } from './outbox-types';
 
 type EncryptFn = { encrypt: (d: Record<string, unknown>) => Promise<Record<string, unknown>> };
 
-/** Resolve the sync client (+ encryptor for a private space) for an entry's space.
- *  Mirrors the open branches of `useRoom`: a public space authorizes
- *  with the invite/account cap and has no encryptor; a private space opens the cached
- *  space keyring encryptor. Rejects if the space key isn't available (→ retried). */
+/** Resolve the sync client, encryptor, and push path for an entry's room.
+ *  Reads the object index (always plaintext) to learn the room's access tier, then
+ *  opens the appropriate keyring. Rejects if the space key isn't available (→ retried). */
 async function resolveContext(
   session: Session,
   entry: OutboxMessage,
-): Promise<{ client: StarfishClient; encryptor: Encryptor | null }> {
-  if (isPublicSpaceId(entry.spaceId)) {
-    const auth = publicSpaceAuth(session, entry.spaceId);
-    return { client: makeClient(auth.cap, auth.signingKey), encryptor: null };
+): Promise<{ client: StarfishClient; encryptor: Encryptor | null; pushPath: string }> {
+  const spaceClient = getSpaceClient(entry.spaceId, session);
+  // Throw if the index is unreachable — message stays queued for retry. Falling
+  // through to a plaintext branch when the room might be enc:true would silently
+  // post unencrypted content.
+  const rooms = (await readIndexRooms(spaceClient, null, objIndexPull(entry.spaceId), entry.spaceId))?.rooms;
+  if (!rooms) throw new Error('Room index unavailable — will retry');
+  const room = rooms.find((r) => r.id === entry.roomId);
+  if (!room) throw new Error('Room not found in index — will retry');
+
+  if (room.enc) {
+    const access = await buildNodeAccess(session, entry.spaceId, entry.roomId, { enc: true });
+    if (!access) throw new Error('No keyring access for room');
+    return { client: access.client, encryptor: access.encryptor, pushPath: streamRoomPush(entry.roomId) };
   }
-  // `reg: null` — by the time a message was queued the room was open, so a joined
-  // space's member cap is hydrated (getSpaceEncryptor reads it) and an owned space
-  // resolves via the owner branch. The per-space cache usually makes this a hit.
-  const { encryptor, client } = await getSpaceEncryptor(entry.spaceId, session, null);
-  return { client, encryptor };
+
+  // Route plaintext rooms by access tier: public → streampub; invite → streaminv; else → streamchat.
+  const pushPath =
+    room.access === 'public'
+      ? streamPubRoomPush(entry.roomId)
+      : room.access === 'invite'
+        ? streamInvRoomPush(entry.roomId)
+        : streamRoomPush(entry.roomId);
+  return { client: spaceClient, encryptor: null, pushPath };
 }
 
 export async function sendQueued(session: Session, entry: OutboxMessage): Promise<void> {
-  const { client, encryptor } = await resolveContext(session, entry);
-  const isPublic = isPublicSpaceId(entry.spaceId);
+  const { client, encryptor, pushPath } = await resolveContext(session, entry);
 
   const msg: StoredMsg = { id: entry.id, authorId: entry.authorId, ts: entry.ts, text: entry.text };
   if (entry.parentId) msg.parentId = entry.parentId;
 
-  // Every room is now an append-only log (the merge-doc `chat`/`pubspace` message path
-  // was retired when `stream` and `channel` merged). Regardless of `entry.kind`, seal
-  // the `{t,e}` envelope for a private space and send it plaintext for a public one,
-  // then APPEND — no pull/merge/hash. Mirrors `useRoom`'s `append`.
+  // Every room is an append-only log. Seal the `{t,e}` envelope for E2EE rooms;
+  // send plaintext for public/plaintext rooms. Then APPEND — no pull/merge/hash.
   const env = { t: 'msg', e: msg } as unknown as Record<string, unknown>;
   const body = encryptor ? await (encryptor as unknown as EncryptFn).encrypt(env) : env;
-  const pushPath = isPublic
-    ? pubstreamRoomPush(publicSpaceAuth(session, entry.spaceId).ownerId, entry.spaceId, entry.roomId)
-    : streamRoomPush(entry.roomId);
   await client.append(pushPath, body);
 }

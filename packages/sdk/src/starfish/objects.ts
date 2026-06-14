@@ -258,6 +258,9 @@ export function objectsToRoomCategories(nodes: ObjectNode[], spaceId: string, fa
     category,
     name: n.title,
     kind: subtypeToRoomKind(n.subtype),
+    // Pass through per-node access flags so cross-room/stats can route stream paths.
+    ...(n.access ? { access: n.access } : {}),
+    ...(n.enc !== undefined ? { enc: n.enc } : {}),
     ...(n.automation ? { automation: n.automation } : {}),
   });
 

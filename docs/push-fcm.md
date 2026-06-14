@@ -60,7 +60,7 @@ These were chosen up front; the steps assume them.
 ## Why we don't gate FCM the way SSE does
 
 SSE has a server-side membership gate (`/v1/octochat/events` filters `?spaces=…`
-by `spaces/{spaceId}/_rooms` membership on every connect). FCM topic subscribe
+by `spaces/{spaceId}/_access` membership on every connect). FCM topic subscribe
 does NOT. A removed member who knows `<spaceId>` can subscribe to
 `octochat-octochat-chat-changed-<spaceId>` via Firebase directly and keep
 receiving wake-pings until they uninstall/unsubscribe.
@@ -534,7 +534,7 @@ getting their own pushes. Guard it with the verify step below.
   an absent/empty `condition` falls back to the normal topic send.
 - **Server (both impls)** — OctoChat `apps/server/src/index.ts` and Infra
   `drakkar_sync/server.py` set `includeIdentity: true` / `include_identity=True` on the
-  `chat` / `streamchat` / `pubstream` / `pubspace` QueueConfigs, so a write emits
+  `streamchat` / `streampub` / `streaminv` QueueConfigs, so a write emits
   `octochat.chat.changed.<spaceId>` with `identity` in the body.
 - **Infra bridge** (`bridge/src/apps/octochat/format.ts`) — builds the condition when
   `identity` is present, guarded to the userId charset so it can't inject:
@@ -638,17 +638,17 @@ it can show real content — otherwise it would double the placeholder:
 - gated on `enabled` + `preview` (default OFF) read via `await loadNotificationSettings(userId)`
   (the synchronous snapshot is never hydrated in a headless task);
 - rebuilds the session (`sessionFromPersisted`, cached-`derived` fast path, no Argon2id),
-  `await hydrateMemberCaps(userId, {})` (joined private-space caps from the kv cache, no
-  network) **and** `await hydratePubspaceCaps(userId)` (joined public-space link caps),
-  then `loadLatestMessagePreview` (the same read as the web toast);
-- **public spaces are covered too** — `loadLatestMessagePreview` routes `psp-` rooms to a
-  plaintext path (`pubspace` merge-doc → `pubstream` log, no decrypt, cap-authorized) and
-  reuses the same "Sender: text" formatting. So Android patches BOTH private (E2EE) and
-  public (plaintext) room pushes with real content;
+  `await hydrateSpaceAccessStore(userId, {}, {})` (member caps + link-join credentials
+  from the kv cache, no network), then `loadLatestMessagePreview` (the same read as the
+  web toast);
+- **public rooms are covered too** — `loadLatestMessagePreview` routes rooms whose
+  per-node `access === 'public'` to the plaintext `streampub` path (no decrypt,
+  cap-authorized) and reuses the same "Sender: text" formatting. So Android patches BOTH
+  private (E2EE) and public (plaintext) room pushes with real content;
 - on success: **cancel-then-replace** — `getDisplayedNotifications()` → cancel the entry
   whose `android.tag === roomId` (the FCM placeholder; FCM's int id isn't predictable, so
   match by tag), then `displayNotification({ title, id: roomId, groupId: spaceId, … })`;
-- **title shows the space + room** — `loadNotificationLabels` reads the plaintext `_rooms`
+- **title shows the space + room** — `loadNotificationLabels` reads the plaintext `_access`
   registry (private via the account cap, public via the link cap) and `notificationTitle`
   formats it as `"Space › #room"` (matching the in-app `#channel` convention; bare name for
   a DM). Best-effort and orthogonal to `preview` — names are plaintext metadata, not message

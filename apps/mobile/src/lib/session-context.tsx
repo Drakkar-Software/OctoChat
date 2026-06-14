@@ -12,9 +12,7 @@ import {
   type LinkedIdentity,
   type Session,
 } from '@drakkar.software/octochat-sdk';
-import { clearMemberCaps, hydrateMemberCaps } from '@drakkar.software/octochat-sdk';
-import { recoverPubspaceAccess } from '@drakkar.software/octochat-sdk';
-import { clearPubspaceCaps, hydratePubspaceCaps } from '@drakkar.software/octochat-sdk';
+import { hydrateSpaceAccessStore, clearSpaceAccessStore, recoverSpaceAccess } from '@drakkar.software/octochat-sdk';
 import { readSpaces } from '@drakkar.software/octochat-sdk';
 import { hydrateMutes, resetMutes } from '@drakkar.software/octochat-sdk';
 import { hydrateQuickReactions, resetQuickReactions } from '@drakkar.software/octochat-sdk';
@@ -22,7 +20,7 @@ import { hydrateArchivedDms, resetArchivedDms } from '@drakkar.software/octochat
 import { resetDmHeads } from '@drakkar.software/octochat-sdk';
 import { flushReadsNow, hydrateReads, resetReads } from '@drakkar.software/octochat-sdk';
 import { activeAccountOf, sessionFromPersisted } from '@drakkar.software/octochat-sdk';
-import { clearSpaceEncryptors } from '@drakkar.software/octochat-sdk';
+import { clearNodeAccessCache } from '@drakkar.software/octochat-sdk';
 import { enrollPasskey, passkeyEnrollable } from '@drakkar.software/octochat-sdk/platform';
 import {
   addPasskeyToVault,
@@ -127,11 +125,10 @@ const yieldToPaint = () => new Promise((r) => setTimeout(r, 0));
 // caps reload from disk on the next hydrate; SSE/push/unread/room stores key on the
 // session userId and self-reset via their own effect cleanups.
 function resetAccountScopedState(): void {
-  clearMemberCaps();
-  clearPubspaceCaps();
+  clearSpaceAccessStore();
   clearAttachmentCache();
   clearPseudoCache();
-  clearSpaceEncryptors();
+  clearNodeAccessCache();
   clearPrimedSpaces();
   clearRoomEventsBus();
   // Flush any pending read marks before dropping them so a just-read room on the
@@ -151,15 +148,14 @@ async function hydrateCapsFor(session: Session): Promise<void> {
   // prime SpacesProvider with the list; neither then re-reads the identical doc. Pass
   // the seed-authenticated accountClient (readSpaces degrades to empty on failure,
   // which leaves the local cap cache intact).
-  const { spaces, caps, mutes, reads, pubAccess, quickReactions, archivedDms } = await readSpaces(session.accountClient, session.userId);
-  await hydrateMemberCaps(session.userId, caps);
-  await hydratePubspaceCaps(session.userId);
-  // Public-space credentials carry a bearer secret, so they ride the synced doc SEALED
-  // to the account key. Recover them into the local cache (gives a device that never
-  // opened the link access) and backfill any local-only ones up to the doc. Best-effort
-  // and after hydratePubspaceCaps so the local cache + active user are set. See
-  // `pubspace.ts` recoverPubspaceAccess.
-  await recoverPubspaceAccess(session, pubAccess);
+  const { spaces, caps, mutes, reads, quickReactions, archivedDms, pubAccess } = await readSpaces(session.accountClient, session.userId);
+  // Recover any space-access entries that are local-only back to the server, and
+  // pull any server-only entries into the local cache (e.g. a join made on another
+  // device). Best-effort — a failed recovery leaves the local cache intact.
+  // Cast: pubAccess values are SealedBlobs written by octospaces-sdk's addJoinedSpaceWithLinkAccess.
+  // NOTE: recoverSpaceAccess internally calls hydrateSpaceAccessStore with the full link
+  // set, so a separate preliminary call with {} is redundant and has been removed.
+  await recoverSpaceAccess(session, { caps, pubAccess: pubAccess as Parameters<typeof recoverSpaceAccess>[1]['pubAccess'] });
   // Mute prefs share the same `_spaces` doc, so the single read above already carries
   // them — feed them to the mute cache (server-authoritative; an unreachable read
   // degrades to empty upstream, which a later successful sync re-heals). No second pull.
@@ -271,8 +267,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           try {
             const s = await sessionFromPersisted(acct);
             // Set the session BEFORE caps hydrate so a caps hiccup can't sign the
-            // user out — hydrateMemberCaps already loads the local kv first, so
-            // the user has the offline cap set even if the server merge fails.
+            // user out — hydrateSpaceAccessStore (called inside recoverSpaceAccess via
+            // hydrateCapsFor) loads the local kv first, so the user has the offline
+            // cap set even if the server merge fails.
             if (!cancelled) setSession(s);
             await hydrateCapsFor(s).catch((err) => {
               console.error('[session-context] caps hydrate failed (session kept)', err);

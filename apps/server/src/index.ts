@@ -19,7 +19,6 @@ import { projections } from "./projections.js";
 import { createNatsQueue } from "./queue.js";
 import { createFileRevocationStore } from "./revocation-store.js";
 import { makeSpaceRoleEnricher } from "./space-role.js";
-import { makePubspaceRoleEnricher } from "./pubspace-role.js";
 import { createWebhookRoute } from "./webhook.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -72,65 +71,46 @@ const roleResolver = createCapCertRoleResolver({
 });
 
 // Publish a change-event to NATS after each successful push/append to the chat
-// collections (params {spaceId,roomId} only — content stays E2E-encrypted).
-// Whistlers consumes NATS and re-serves these as SSE. See
-// `apps/server/docs/notifications-sse.md`. `streamchat`/`pubstream` (append-only
-// stream rooms) and `pubspace` (public channels) publish on the SAME
-// `octochat.chat.changed` topic so a write emits `octochat.chat.changed.<spaceId>`
-// — the per-space SSE subscription + /events proxy drive every room kind live.
-// (Appends fire the queue plugin's afterWrite just like a push — alpha.2 changelog.)
-// NOTE: `pubspace` events carry `params.docId` (the room id, or `_rooms` for the
-// public room registry) rather than `roomId` — the client routes on that.
+// and object collections (params {spaceId,roomId} only — content stays E2E-encrypted).
+// Whistlers consumes NATS and re-serves these as SSE.
+// All per-node stream collections (streamchat, streampub, streaminv) publish on the
+// SAME `octochat.chat.changed` topic so a write emits `octochat.chat.changed.<spaceId>`
+// — the per-space SSE subscription drives every room kind live.
 // `includeIdentity` forwards the writer's account userId so the FCM bridge can
-// exclude the author's own devices from the push (it never gets a notification
-// for its own message). Metadata-only — no content — and opt-in per collection.
+// exclude the author's own devices from the push. Metadata-only, no content.
+// (pubstream/pubspace retired — replaced by streampub/streaminv in 0.4.1.)
 const { queue, nc } = await createNatsQueue();
 const queuing = createQueuingServerPlugin({
   queue,
   collections: {
-    // (`chat` retired — every room's messages now flow through `streamchat`/`pubstream`.)
     streamchat: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
-    pubstream: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
-    pubspace: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
-    // Unified Object collections publish on a SEPARATE subject — NOT chat.changed,
-    // which the FCM bridge turns into a "new message" push per event (it would spam a
-    // notification on every doc edit / category rename / task status toggle). No push
-    // formatter for the object subject yet, so object changes generate no FCM; clients
-    // refresh on focus-pull. includeParams stays true so the per-space subject
-    // octochat.object.changed.<spaceId> is derived; includeIdentity off (no push).
+    streampub: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
+    streaminv: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
+    // Unified Object index publishes on a SEPARATE subject — NOT chat.changed (that
+    // drives FCM push per event; it would spam on every node rename / category reorder).
+    // No push formatter for the object subject yet; clients refresh on focus-pull.
     objindex: { topic: "octochat.object.changed", includeParams: true, includeIdentity: false },
-    pubobjindex: { topic: "octochat.object.changed", includeParams: true, includeIdentity: false },
-    // (objdoc/objlog + public mirrors moved to OctoVault; only the room-tree index remains.)
   },
 });
 
-// Pre-construct the space enricher so it's shared between the sync router
+// Space-membership enricher: synthesizes `space:owner` / `space:member` from
+// the access record at `spaces/{spaceId}/_access`. Shared between the sync router
 // (collection-level gating) and the /events proxy (membership validation).
+// (pubspaceEnricher retired — per-node access:'public' replaces the pubspace model.)
 const spaceEnricher = makeSpaceRoleEnricher(store);
 
-// Issuer-binding for PUBLIC spaces (plaintext, cap-only). Composed with the space
-// enricher below: each keys off a disjoint path param ({spaceId} vs {ownerId}) and
-// returns [] otherwise, so unioning their roles is safe. The /events proxy stays
-// space-only (public spaces don't use the encrypted-space SSE membership gate).
-const pubspaceEnricher = makePubspaceRoleEnricher();
-const roleEnricher: typeof spaceEnricher = async (auth, params) => [
-  ...(await spaceEnricher(auth, params)),
-  ...(await pubspaceEnricher(auth, params)),
-];
-
-// Maintains the public-space directory list at `_index/spaces/public`: its
-// `afterWrite` hook folds every `pubspace` `_rooms` write into one queryable list
-// document (see projections.ts). Writes in-process against the same `store`, so
-// the `spaceindex` collection is `pullOnly` (clients read it, only this writes it).
+// Maintains the public-space directory at `_index/spaces/public`: its `afterWrite`
+// hook fires on each `objindex` write and upserts spaces that contain public nodes
+// (see projections.ts). Writes in-process against the same `store`, so the
+// `spaceindex` collection is `pullOnly`.
 const projection = createProjectionServerPlugin({ store, projections });
 
 const syncRouter = createSyncRouter({
   store,
   config,
   roleResolver,
-  // Grants `space:owner` / `space:member` (space-role.ts) plus the issuer-bound
-  // `pubspace:owner` / `:reader` / `:writer` roles for public spaces (pubspace-role.ts).
-  roleEnricher,
+  // Grants `space:owner` / `space:member` from the access record (space-role.ts).
+  roleEnricher: spaceEnricher,
   plugins: [queuing, projection],
 });
 
@@ -161,18 +141,19 @@ app.use("*", async (c, next) => {
 });
 
 // Authenticated SSE proxy: gates the Whistlers stream per caller's space membership.
-// Must be mounted BEFORE the sync router so /events is not swallowed by its catch-all.
+// All rooms (private, public, invite) are now under spaces/{spaceId}/**; the strict
+// space-role enricher gates all SSE subscriptions. Anonymous users use pull-based
+// reads for public rooms. Must be mounted BEFORE the sync router catch-all.
 app.route(
   "/",
   createEventsRoute({ enricher: spaceEnricher, nonceCache, revocationStore }),
 );
 
-// Inbound webhook ingress: POST /webhook/:ownerId/:spaceId/:webhookId appends an
-// external message to a public-space room. Fully SELF-SERVICE with NO operator/platform
-// secret: space owners mint their own webhooks (token hashes stored in the owner-written
-// `_webhooks` registry); this route authenticates a caller by hashing the presented
-// token and DERIVES the append-author signing key from that token (no signing key is
-// configured or stored). Mounted BEFORE the sync router's catch-all. See webhook.ts.
+// Inbound webhook ingress: POST /webhook/:spaceId/:webhookId appends an external
+// message to a public room. Fully SELF-SERVICE: space owners mint their own webhooks
+// (token hashes stored in the owner-written `spaces/{spaceId}/_webhooks` registry);
+// this route authenticates by hashing the presented token. Mounted BEFORE the sync
+// router's catch-all. See webhook.ts.
 app.route("/", createWebhookRoute({ store, queue }));
 
 // starfish-server is typed against the satellite workspace's hono copy; it's

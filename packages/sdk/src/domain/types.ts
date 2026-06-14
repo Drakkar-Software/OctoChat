@@ -2,26 +2,27 @@
 
 import type { SealedBlob } from '../starfish/account-seal';
 import type { AttachmentRef } from '../starfish/attachments';
+import type { NodeAccess } from '@drakkar.software/octospaces-sdk';
 
 export type ID = string;
 
 /** A user's presence indicator. The theme maps each to a color (app-side). */
 export type PresenceStatus = 'online' | 'away' | 'dnd' | 'offline';
 
-/** A security item's verification state. The theme maps each to a color (app-side). */
-export type VerificationLevel = 'verified' | 'pending' | 'unverified';
+/** A security item's verification state. The theme maps each to a color (app-side).
+ *  `none` = unknown / not yet verified; maps to a neutral/muted color in the theme. */
+export type VerificationLevel = 'verified' | 'pending' | 'unverified' | 'none';
 
 /** Maps a joined private space's id → its owner-issued member cap-cert (serialized
  *  JSON). Persisted both in device-local kv (`member-caps.ts`) and, for durability,
  *  in the user's own synced `_spaces` doc so a fresh device re-hydrates it. */
 export type CapMap = Record<string, string>;
 
-/** Maps a joined PUBLIC space's id → its invitation credential (the owner-signed cap
- *  plus the link's ephemeral private key) SEALED to the account's own key. Unlike a
- *  member cap (safe in the clear — see {@link CapMap}), a public-join credential
- *  embeds a bearer secret, so it is sealed before riding in the plaintext `_spaces`
- *  doc. Recovered on any device with the same seed. See `account-seal.ts` and
- *  `pubspace-caps.ts`. */
+/** Maps a joined link-access key → its sealed invitation credential (cap + ephemeral
+ *  private key) SEALED to the account's own key. Keys are either `spaceId`
+ *  (space-level link) or `${spaceId}:${nodeId}` (per-node invite link). Sealed
+ *  because it embeds a bearer secret; recovered on any device with the same seed.
+ *  See `account-seal.ts` and `starfish/space-access-store` (via octospaces-sdk). */
 export type PubAccessMap = Record<string, SealedBlob>;
 
 /** Maps a DM peer's userId → the private DM-space id shared with them. Lets the
@@ -72,24 +73,18 @@ export interface User {
   avatar?: string;
 }
 
+/** A joined or listed space. Visibility and encryption are per-node (on each
+ *  {@link ObjectNode}), not per-space — a space is a neutral container. */
 export interface Space {
   id: ID;
   name: string;
   /** 2-letter monogram used in the space rail. */
   short: string;
   /** Uploaded space image as a data URI; absent → render the `short` monogram.
-   *  Owner-set + shared via the space's `_rooms` registry (plaintext, NOT E2EE). */
+   *  Owner-set + shared via the space's `_access` registry (plaintext, NOT E2EE). */
   image?: string;
   members: number;
   unread?: number;
-  /** 'private' (E2EE keyring space, the default) or 'public' (plaintext, joined via
-   *  a space-wide invitation link). Absent ⇒ treat as 'private' (back-compat). */
-  type?: 'private' | 'public';
-  /** Public spaces only: the owner's userId (the cap issuer + storage path owner). */
-  ownerId?: string;
-  /** Public spaces only (joiner side): whether this identity's invite link grants
-   *  write. Owner always has write. */
-  write?: boolean;
 }
 
 /** EVERY room is an APPEND-ONLY log: writers append `{t,e}` envelopes (no
@@ -97,10 +92,12 @@ export interface Space {
  *  old merge-doc `channel` and append-only `stream` kinds were MERGED — `channel`
  *  is now the single normal room kind, and a legacy persisted `stream` (or the
  *  retired `private`) subtype reads back as `channel` (see {@link subtypeToRoomKind}).
- *  Whether a room is end-to-end encrypted follows the SPACE (E2EE private space →
- *  `streamchat` / plaintext public space → `pubstream`), not the room kind. `dm` is a
- *  1:1 private room; `automated` is a room with a built-in integration attached: a bot
- *  posts scheduled fetches into it and the user drives it with `/<command>` msgs. */
+ *  Whether a room is end-to-end encrypted follows the NODE (`ObjectNode.enc`), not the
+ *  room kind: `enc:true` → `streamchat` (delegated), `access:'public'` → `streampub`
+ *  (plaintext, world-readable), `access:'invite'` → `streaminv` (plaintext, cap-gated).
+ *  `dm` is a 1:1 private room; `automated` is a room with a built-in integration
+ *  attached: a bot posts scheduled fetches into it and the user drives it with `/<command>`
+ *  msgs. */
 export type RoomKind = 'channel' | 'dm' | 'automated';
 
 /** A scheduled-fetch cadence. The additive successor to `intervalMin`/`onOpen`: when
@@ -184,6 +181,12 @@ export interface Room {
   mention?: boolean;
   /** DM avatar monogram. */
   avatar?: string;
+  /** Per-node access tier (projected from the unified object index).
+   *  `'public'` → `streampub` (world-readable); `'invite'` → `streaminv` (cap-gated);
+   *  absent/`'space'` → `streamchat` (space:member). */
+  access?: NodeAccess;
+  /** True when the room's log is E2EE (uses the space-wide keyring). */
+  enc?: boolean;
   /** Present only for `kind === 'automated'` — the runner config (synced via the
    *  `_rooms` registry doc; threaded through every writer for free since writers
    *  rewrite the whole `rooms[]`). */
@@ -216,8 +219,8 @@ export type ObjectContentKind = 'merge' | 'append' | 'none';
 export type RoomSubtype = 'channel' | 'dm' | 'automation';
 
 /** One entry in a space's object index (`spaces/{spaceId}/objects/_index`). This is
- *  IDENTITY + TREE POSITION + light metadata ONLY — the heavy content (messages, doc
- *  blocks, project event log) lives in a per-object content doc keyed by {@link id}.
+ *  IDENTITY + TREE POSITION + light metadata ONLY — the heavy content (messages,
+ *  streams, etc.) lives in per-object collections keyed by {@link id}.
  *  The tree is LOGICAL via {@link parentId} (category→room, doc→sub-doc), never path
  *  nesting, so a move is an O(1) reparent. Sibling order is `(order, id)` for a
  *  deterministic render across devices. The index is union-merged on `id` keyed by
@@ -225,7 +228,7 @@ export type RoomSubtype = 'channel' | 'dm' | 'automation';
 export interface ObjectNode {
   id: ID;
   type: ObjectType;
-  /** Present when `type === 'room'`. */
+  /** Present when `type === 'room'`. Stored in `meta.subtype` going forward. */
   subtype?: RoomSubtype;
   /** Parent in the tree; `null` = root. category→room, doc→sub-doc, etc. */
   parentId: ID | null;
@@ -237,14 +240,24 @@ export interface ObjectNode {
   updatedAt: number;
   /** Soft-delete; archiving a node cascade-archives its subtree. */
   archived?: boolean;
-  /** Present when `subtype === 'automation'` — same config as legacy automated rooms. */
+  /** Who may access this node's content. Absent ⇒ `'space'` (any space member).
+   *  - `'public'`  — world-readable via `streampub`/`objpub`; listed in the global dir.
+   *  - `'space'`   — any space member (default for new rooms/nodes).
+   *  - `'invite'`  — only explicitly invited identities (per-node cap). */
+  access?: NodeAccess;
+  /** True ⇒ this node's content is E2EE under the SPACE-WIDE keyring at
+   *  `spaces/{spaceId}/_keyring`. All `enc` nodes share one CEK. The combination
+   *  `public + enc` is invalid. Defaults `false` when absent. */
+  enc?: boolean;
+  /** Automation runner config when `type === 'automation'`. Stored in `meta.automation`
+   *  going forward; kept here for back-compat until the Phase-4 data sweep. */
   automation?: AutomationMeta;
   /** Optional override of how this object's content syncs. Builtins leave it absent
    *  (inferred from {@link type}); a CUSTOM type sets it so the generic hook layer can
    *  open the right collection without knowing the type. */
   contentKind?: ObjectContentKind;
-  /** Optional emoji/glyph already covers the icon; a custom type may also carry an
-   *  arbitrary `meta` bag for type-specific fields the generic renderers ignore. */
+  /** App-specific fields. OctoChat stores type-specific metadata here (e.g. automation
+   *  config, room subtype). Generic renderers ignore fields they don't recognise. */
   meta?: Record<string, unknown>;
 }
 

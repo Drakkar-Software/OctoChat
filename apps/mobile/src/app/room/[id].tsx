@@ -16,7 +16,6 @@ import { useRoom } from '@/lib/use-room';
 import { useRoomSend } from '@/lib/use-room-send';
 import { useUnread } from '@/lib/unread-context';
 import { spaceIdFromRoomId, kvSet } from '@drakkar.software/octochat-sdk';
-import { isPublicSpaceId, publicSpaceAuth } from '@drakkar.software/octochat-sdk';
 import type { RoomKind, StoredMsg } from '@drakkar.software/octochat-sdk';
 import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 import { buildSuggestionMessages } from '@drakkar.software/octochat-sdk';
@@ -41,7 +40,7 @@ import { DesktopChatTopbar } from '@/components/chat/DesktopChatTopbar';
 import { OfflineBanner } from '@/components/chat/OfflineBanner';
 import { ReadOnlyFooter } from '@/components/chat/ReadOnlyFooter';
 import { RoomConversation } from '@/components/chat/RoomConversation';
-import { StreamBotPanelWhenEmpty } from '@/components/chat/StreamBotPanel';
+import { WebhookPanelWhenEmpty } from '@/components/chat/WebhookPanel';
 import { ThreadDigestPublisher } from '@/components/chat/ThreadDigestPublisher';
 
 export default function RoomScreen() {
@@ -56,14 +55,14 @@ export default function RoomScreen() {
   // then defaults to 'channel'. The shared rooms registry (resolves for owned, joined AND
   // public spaces) is the source of truth; the route param is only an interim fallback
   // while the registry read settles.
-  const { owner, rooms } = useRoomsRegistry(spaceId);
+  const { owner, rooms, loading: registryLoading, loaded: registryLoaded } = useRoomsRegistry(spaceId);
   const registryRoom = rooms.find((r) => r.id === id) ?? null;
   const kind = (registryRoom?.kind ?? params.kind ?? 'channel') as RoomKind;
   // Every room is an append-only log now — one hook for all kinds. An automated room
   // additionally has a runner attached (driven below) + its own settings sheet.
   const isAutomated = kind === 'automated';
   const { store, opening, openError, offline, reload, syncError, send, toggleReaction, editMessage, deleteMessage, pinMessage, unpinMessage, uploadAttachment, loadAttachment, canWrite } =
-    useRoom(id);
+    useRoom(id, { access: registryRoom?.access, enc: registryRoom?.enc });
   const { editingId, setEditingId, editLast } = useMessageEditing(store, session?.userId ?? '');
   // Offline outbox: route text sends through the queue when offline / on failure,
   // and surface this room's pending bubbles + retry. Attachments still need a
@@ -97,10 +96,12 @@ export default function RoomScreen() {
     // Return to the DM list when archiving (same as a channel being deleted from view).
     if (nowArchiving) goBack();
   };
-  // Every room is now an append-only log, so any PUBLIC room can host a bot — offer the
-  // owner the "Connect a bot" panel (it hides itself once the room has messages).
+  // Offer the "Connect a bot" panel only to the owner of a PUBLIC room — webhook
+  // delivery is hardwired to `streampub`, so a webhook on a non-public room would
+  // post into `streampub` while the room reads from `streamchat` (silent black hole).
+  // Mirrors the same guard in space/[id].tsx (fromRoom?.access === 'public').
   const showBotPanel =
-    !!session && isPublicSpaceId(spaceId) && publicSpaceAuth(session, spaceId).ownerId === session.userId;
+    !!session && owner === session.userId && registryRoom?.access === 'public';
   const title = kind === 'dm' ? name : `#${name}`;
 
   // The room's last-read mark as it stood at the START of this visit — re-captured
@@ -149,10 +150,10 @@ export default function RoomScreen() {
   });
   const openThread = (msgId: string) =>
     router.push({ pathname: '/thread/[id]', params: { id: msgId, roomId: id, roomName: name, kind } });
-  // Pass the room context so a public-stream room's space screen can surface the
-  // owner-only "Connect a bot" panel for THIS room (the in-room panel hides once
-  // the room has messages — see {@link StreamBotPanelWhenEmpty}). Automated rooms
-  // route the info button to their dedicated settings sheet instead.
+  // Pass the room context so the space screen can surface the owner-only "Connect
+  // a bot" panel for public rooms (the in-room panel hides once the room has
+  // messages — see {@link WebhookPanelWhenEmpty}). Automated rooms route the info
+  // button to their dedicated settings sheet instead.
   const openMembers = () => {
     if (isAutomated) {
       setShowAutomationSheet(true);
@@ -252,7 +253,14 @@ export default function RoomScreen() {
     >
       {!session ? (
         <SignInPrompt subtitle="Create an identity to open encrypted rooms." />
-      ) : opening ? (
+      ) : opening || (registryLoading && !registryLoaded && !registryRoom) ? (
+        // Show the skeleton during useRoomOpen's async open AND during the initial
+        // registry read when the room's access type is still unknown. Without this,
+        // an E2EE room opened from a notification (no access/kind on the wire) defaults
+        // enc:false while the registry read is in-flight → cursor built without an
+        // encryptor → sealed envelopes fold to nothing → an empty conversation flashes
+        // until the registry resolves (one round-trip, then self-heals). The skeleton
+        // covers that gap: once `loaded` flips true, the room renders with real access.
         <ConversationSkeleton />
       ) : openError ? (
         // A DM open-error is an ACCESS problem, not connectivity: `use-room-open` only
@@ -297,7 +305,7 @@ export default function RoomScreen() {
             </Callout>
           ) : null}
           {showBotPanel ? (
-            <StreamBotPanelWhenEmpty store={store} ownerId={session.userId} spaceId={spaceId} roomId={id} />
+            <WebhookPanelWhenEmpty store={store} spaceId={spaceId} roomId={id} />
           ) : null}
           {automatedRoom ? <AutomationHints room={automatedRoom} /> : null}
           <RoomConversation

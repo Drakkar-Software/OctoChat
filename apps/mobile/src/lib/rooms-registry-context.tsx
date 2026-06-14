@@ -1,10 +1,10 @@
 /**
- * App-wide owner of every space's `_rooms` registry, mounted once near the root.
+ * App-wide owner of every space's `_access` registry, mounted once near the root.
  * Before this, each consumer of a space's registry — the desktop nav, the routed
  * rooms page, the Composer's #channel resolver, every ActivityFeed section, AND the
- * room screen's own owner-check — called `readRooms` independently, so the same doc
- * was pulled several times per load (a global request-dedupe hack used to paper over
- * it). This provider reads each space's registry ONCE and shares it: display
+ * room screen's own owner-check — called `readSpaceAccess` independently, so the same
+ * doc was pulled several times per load (a global request-dedupe hack used to paper
+ * over it). This provider reads each space's registry ONCE and shares it: display
  * consumers subscribe via {@link useRoomsRegistry}; the room opener awaits {@link
  * RoomsRegistryActions.ensure} imperatively. Both hit the same cache and the same
  * in-flight read.
@@ -34,15 +34,9 @@ import {
 import type { AutomationMeta, Room } from '@drakkar.software/octochat-sdk';
 
 import { kvGet, kvSet } from '@drakkar.software/octochat-sdk';
-import { readRooms, reconcileSpaceMeta } from '@drakkar.software/octochat-sdk';
-import { readIndexRooms, readPrivateIndexRooms } from '@drakkar.software/octochat-sdk';
-import { pubObjIndexPull } from '@drakkar.software/octochat-sdk';
-import {
-  isPublicSpaceId,
-  publicSpaceAuth,
-  publicSpaceClient,
-  readPublicRoomsDoc,
-} from '@drakkar.software/octochat-sdk';
+import { readSpaceAccess, reconcileSpaceMeta } from '@drakkar.software/octochat-sdk';
+import { readIndexRooms, objIndexPull } from '@drakkar.software/octochat-sdk';
+import { getSpaceClient } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useSpacesContext } from './spaces-context';
 
@@ -149,38 +143,16 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
 
   const get = useCallback((spaceId: string) => entries.current.get(spaceId) ?? PENDING, []);
 
-  // The actual read, branched by space type — mirrors the old `useRooms.refresh`,
-  // including the best-effort `reconcileSpaceMeta` that folds the shared name/image
-  // into this identity's `_spaces` cache (skipped fast when already in sync).
+  // Read a space's access record (owner/members/name/image) and its plaintext
+  // object index (rooms/categories). The objindex is always plaintext in the
+  // per-node model — no encryptor needed to get the room list.
   const fetchEntry = useCallback(async (spaceId: string): Promise<RoomsRegistryEntry> => {
     const s = sessionRef.current;
     if (!s) return IDLE;
-    if (isPublicSpaceId(spaceId)) {
-      const auth = publicSpaceAuth(s, spaceId);
-      const legacy = await readPublicRoomsDoc(publicSpaceClient(s, spaceId), auth.ownerId, spaceId);
-      void reconcileSpaceMeta(s.accountClient, s.userId, spaceId, { name: legacy.name, image: legacy.image }, spacesRef.current).catch(() => {});
-      // Prefer the unified index (public spaces store it plaintext — no encryptor);
-      // fall back to the legacy public `_rooms` list while unmigrated.
-      const idx = await readIndexRooms(publicSpaceClient(s, spaceId), null, pubObjIndexPull(auth.ownerId, spaceId), spaceId);
-      return {
-        rooms: idx?.rooms ?? legacy.rooms,
-        owner: auth.ownerId,
-        members: [],
-        name: legacy.name,
-        image: legacy.image,
-        categories: idx?.categories ?? legacy.categories,
-        hash: null,
-        loading: false,
-        loaded: true,
-      };
-    }
-    const { owner, members, name, image, hash } = await readRooms(s.accountClient, spaceId);
+    const spaceClient = getSpaceClient(spaceId, s);
+    const { owner, members, name, image, hash } = await readSpaceAccess(spaceClient, spaceId);
     void reconcileSpaceMeta(s.accountClient, s.userId, spaceId, { name, image }, spacesRef.current).catch(() => {});
-    // The encrypted object index is the SOLE source of the room/category list now that
-    // `_rooms` is just the access record. A failed/empty index read yields an empty list
-    // (the keyring not being open yet is the only transient case, and it resolves on the
-    // next read once the space is opened) rather than the old legacy `_rooms` fallback.
-    const idx = await readPrivateIndexRooms(s, spaceId, owner, members);
+    const idx = await readIndexRooms(spaceClient, null, objIndexPull(spaceId), spaceId);
     return { rooms: idx?.rooms ?? [], owner, members, name, image, categories: idx?.categories ?? [], hash, loading: false, loaded: true };
   }, []);
 

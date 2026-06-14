@@ -28,9 +28,11 @@ export interface AppendOptions {
   serverUrl: string;
   /** Bare namespace (e.g. `octochat`) or '' for the root-mounted local dev server. */
   namespace: string;
-  /** The stream-bot token (audience-cap fragment) from the app's "Connect a bot" panel. */
+  /** The stream-bot token (audience-cap fragment) from the app's "Connect a bot" panel.
+   *  @deprecated The audience-cap bot flow is no longer supported. Use webhooks instead
+   *  (owner creates a webhook URL in the room's settings; POST to it with the token header). */
   botToken: string;
-  /** The panel's "Path to sign" — `/push/pubspaces/<owner>/<space>/streams/<room>`,
+  /** The "Path to sign" — `/push/spaces/<spaceId>/streams/pub/<roomId>`,
    *  un-namespaced (the namespace prefix is applied here). */
   signPath: string;
   /** The keypair this bot signs with. */
@@ -97,7 +99,7 @@ export interface StreamElement {
 
 /**
  * Read the bot's OWN stream log (the same room it appends to), authorized by the
- * same audience token — `pubstreamBotScope` grants `read`+`list` on this one room,
+ * same audience token — the bot's invite cap grants `read`+`list` on this one room,
  * so no extra credential is needed. Used by the smart loop guard to inspect WHO
  * authored the new posts. `sinceTs` (the append-pull `?checkpoint=`) returns only
  * elements appended after that server timestamp; `last` caps to the newest K.

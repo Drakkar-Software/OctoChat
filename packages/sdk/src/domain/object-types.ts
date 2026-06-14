@@ -7,8 +7,21 @@
  *
  * Pure data/logic (no React) so any layer — hooks picking a collection, the tree
  * picking a glyph — reads the same descriptors.
+ *
+ * NOTE: `octospaces-sdk` ships no domain types — OctoChat owns these strings.
+ * {@link ROOM_TYPES} is the canonical set of OctoChat object-type string constants.
  */
 import type { ObjectContentKind, ObjectNode, ObjectType, RoomSubtype } from './types';
+
+/** OctoChat's own object-type string constants (octospaces-sdk ships no domain types). */
+export const ROOM_TYPES = {
+  room: 'room',
+  category: 'category',
+  dm: 'dm',
+  automation: 'automation',
+} as const;
+
+export type RoomObjectType = (typeof ROOM_TYPES)[keyof typeof ROOM_TYPES];
 
 /** An icon key — the UI maps it to a glyph. A plain string here keeps the SDK
  *  free of the app's `IconName` union; the app casts where it renders an `<Icon>`. */

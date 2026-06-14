@@ -5,32 +5,28 @@
  * `notify.ts`); native banners are OS-rendered from the generic FCM payload and can't
  * be rewritten.
  *
- * Every room is an append-only log of `{t,e}` envelopes (sealed for a PRIVATE/E2EE
- * space, plaintext for a PUBLIC one). We fold a bounded TAIL of the log via the shared
- * {@link pullAndFold} — the preview only needs the latest line, so pulling/decrypting
- * the whole history would be wasteful — then format the newest previewable message. Any
- * failure (no keyring yet, server unreachable, no recent text message) returns null so
- * the caller shows the generic "New message" banner instead.
+ * Every room is an append-only log: plaintext for public rooms (`streampub`), E2EE for
+ * encrypted rooms (`streamchat`), or plaintext cap-gated for invite rooms (`streaminv`).
+ * We fold a bounded TAIL of the log via the shared {@link pullAndFold} — the preview only
+ * needs the latest line — then format the newest previewable message. Any failure (no
+ * keyring yet, server unreachable, no recent text message) returns null so the caller
+ * shows the generic "New message" banner instead.
  */
-import { buildSpaceEncryptor } from '../starfish/space-encryptor';
+import { buildNodeAccess, getSpaceClient } from '@drakkar.software/octospaces-sdk';
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
 import { resolveEdit, type StoredMsg } from '../format/message-view';
-import { makeClient, readPseudo } from '../starfish/client';
+import { readPseudo } from '../starfish/client';
 import type { Session } from '../starfish/identity';
-import { pubstreamRoomPull, spaceIdFromRoomId, streamRoomPull } from '../starfish/paths';
-import { isPublicSpaceId, publicSpaceAuth } from '../starfish/pubspace';
+import { readIndexRooms } from '../starfish/object-index';
+import { objIndexPull, spaceIdFromRoomId, streamInvRoomPull, streamPubRoomPull, streamRoomPull } from '../starfish/paths';
 import { pullAndFold } from '../messaging/stream-log';
 import type { MessageEditEvent } from '../domain/types';
 
 /** Hard cap on preview length so a long message can't overflow the OS toast. */
 const PREVIEW_MAX_CHARS = 140;
 
-/** How many trailing log elements to fold for the preview. The preview needs only the
- *  latest previewable message (+ a trailing edit/delete of it, which append AFTER it), so
- *  a small tail beats decrypting the whole log on every push. If the latest non-own
- *  message happens to fall outside this window, the preview returns null and the caller
- *  shows the generic banner — an acceptable miss for a best-effort preview. */
+/** How many trailing log elements to fold for the preview. */
 const PREVIEW_TAIL = 24;
 
 function clip(text: string): string {
@@ -47,11 +43,7 @@ async function latestSenderLine(
   edits: MessageEditEvent[],
   selfId: string,
 ): Promise<string | null> {
-  // Newest first; fold each message's edit/delete log and take the first that still
-  // has text (an attachment-only or deleted latest message falls through to generic).
   for (const m of [...messages].sort((a, b) => b.ts - a.ts)) {
-    // Skip our own messages: a send from another device fires this room's SSE event
-    // here, and "You: …" is a confusing thing to be notified about.
     if (m.authorId === selfId) continue;
     const edit = resolveEdit(edits, m.id, m.authorId);
     if (edit?.kind === 'delete') continue;
@@ -67,25 +59,42 @@ async function latestSenderLine(
 export async function loadLatestMessagePreview(session: Session, roomId: string): Promise<string | null> {
   const spaceId = spaceIdFromRoomId(roomId);
 
-  // Resolve the read route by space type: a PUBLIC room is plaintext (no encryptor),
-  // authorized by the joiner/owner cap; a PRIVATE room opens the space keyring encryptor.
-  let client: StarfishClient;
-  let enc: Encryptor | null;
-  let pullPath: string;
-  if (isPublicSpaceId(spaceId)) {
-    const auth = publicSpaceAuth(session, spaceId);
-    client = makeClient(auth.cap, auth.signingKey);
-    enc = null;
-    pullPath = pubstreamRoomPull(auth.ownerId, spaceId, roomId);
-  } else {
-    const space = await buildSpaceEncryptor(session, spaceId);
-    if (!space) return null;
-    client = space.client;
-    enc = space.enc;
-    pullPath = streamRoomPull(roomId);
-  }
-
   try {
+    // Read the object index (always plaintext) to determine the room's access tier.
+    const spaceClient = getSpaceClient(spaceId, session);
+    const rooms = (await readIndexRooms(spaceClient, null, objIndexPull(spaceId), spaceId))?.rooms ?? [];
+    const room = rooms.find((r) => r.id === roomId);
+
+    // Route by access tier: public → streampub; invite+enc:false → streaminv; else → streamchat.
+    let client: StarfishClient = spaceClient;
+    let enc: Encryptor | null = null;
+    const pullPath =
+      room?.access === 'public'
+        ? streamPubRoomPull(roomId)
+        : room?.access === 'invite' && !room?.enc
+          ? streamInvRoomPull(roomId)
+          : streamRoomPull(roomId);
+
+    if (room === undefined) {
+      // Index miss (cold start / index lag — fresh device, first notification after install).
+      // We can't determine the room's access tier, so we fall back to streamchat. If the
+      // notified user holds a space keyring (the dominant case: they're a member who got a
+      // push), buildNodeAccess returns an encryptor and we get a real decrypted preview.
+      // If it returns null (public/invite room with no keyring — unlikely for a push target,
+      // but safe), we continue with enc=null and fanOut of sealed blobs → null preview →
+      // the generic "New message" banner. Mirrors cross-room.ts which always probes the keyring.
+      const access = await buildNodeAccess(session, spaceId, roomId, { enc: true }).catch(() => null);
+      if (access) {
+        client = access.client;
+        enc = access.encryptor;
+      }
+    } else if (room.enc) {
+      const access = await buildNodeAccess(session, spaceId, roomId, { enc: true }).catch(() => null);
+      if (!access) return null;
+      client = access.client;
+      enc = access.encryptor;
+    }
+
     const { data } = await pullAndFold(client, enc, pullPath, { appendField: 'items', last: PREVIEW_TAIL });
     return latestSenderLine(data.messages, data.edits, session.userId);
   } catch {

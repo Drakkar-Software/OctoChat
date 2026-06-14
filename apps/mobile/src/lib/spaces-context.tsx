@@ -26,7 +26,6 @@ import type { DmMap, Space } from '@drakkar.software/octochat-sdk';
 
 import { createSpace as createSpaceDoc, onSpaceMeta, readSpaces, reorderSpaces as reorderSpacesDoc } from '@drakkar.software/octochat-sdk';
 import { healDmMap, isDmSpaceId, reconcileDmInbox } from '@drakkar.software/octochat-sdk';
-import { createPublicSpace } from '@drakkar.software/octochat-sdk';
 import { consumePrimedSpaces } from './spaces-prime';
 import { hydrateMutes } from '@drakkar.software/octochat-sdk';
 import { flushReadsNow, hydrateReads } from '@drakkar.software/octochat-sdk';
@@ -193,12 +192,11 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   );
 
   const createSpace = useCallback(
-    async (name: string, type: 'private' | 'public' = 'private'): Promise<Space | null> => {
+    async (name: string, _type: 'private' | 'public' = 'private'): Promise<Space | null> => {
       if (!session) return null;
-      const space =
-        type === 'public'
-          ? await createPublicSpace(session, name)
-          : await createSpaceDoc(session, name);
+      // All spaces share the same creation path — access is now per-node (room),
+      // not per-space. A "public" room is a node with access:'public'.
+      const space = await createSpaceDoc(session, name);
       await refresh();
       setActiveId(space.id);
       return space;

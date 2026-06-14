@@ -12,8 +12,8 @@ function fragmentOf(url: string | null | undefined): string {
 /**
  * The public-space invite fragment from the URL that launched or resumed the app.
  *
- * Public invite links carry their credential in a `#…` fragment (see
- * `encodePublicInviteLink`) so it never reaches the server. The fragment is
+ * Space invite links carry their credential in a `#…` fragment (see
+ * `encodeSpaceInviteLink`) so it never reaches the server. The fragment is
  * dropped by every URL *parser* — Expo Router's path matcher and
  * `Linking.parse()` both discard it — so we read the raw launch URL ourselves:
  *

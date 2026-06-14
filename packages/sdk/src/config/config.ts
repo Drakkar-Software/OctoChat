@@ -1,71 +1,50 @@
 /**
- * Runtime configuration for the OctoChat SDK — the Starfish sync server URL,
- * optional namespace, events-stream URL and public web origin.
+ * Runtime configuration for the OctoChat SDK — delegates to the shared
+ * `@drakkar.software/octospaces-sdk` config so every shared-spaces API uses the
+ * same resolved base URL, namespace, and callbacks.
  *
  * The SDK is headless and platform-agnostic, so it does NOT read environment
  * variables itself. The host app reads its own env (e.g. Expo `EXPO_PUBLIC_*`) and
  * calls {@link configureOctoChat} once at boot, before any sync/identity API runs.
- * Getters throw a clear error if called before configuration so a misconfigured
- * host fails fast rather than silently signing the wrong path.
  */
-export interface OctoChatConfig {
-  /** Starfish sync server base URL (e.g. `http://localhost:8787`). */
-  syncBase: string;
-  /** Bare namespace name; the SDK prepends `/v1/<namespace>` to signed paths.
-   *  Unset for a root-mounted (local dev) server. */
-  syncNamespace?: string;
-  /** Override the live change-event SSE endpoint. Defaults to
-   *  `${syncBase}${syncPrefix}/events`. */
-  eventsUrl?: string;
-  /** Public origin of the web app, used to build shareable invite links on
-   *  platforms without `window.location` (native). Empty by default. */
-  webBase?: string;
-  /**
-   * Called when a background Starfish revalidation succeeds after a 429/5xx
-   * cache-fallback (stale-while-revalidate). Use it to signal that the server
-   * is reachable again so any stale views re-pull and recover.
-   */
-  onServerReachable?: () => void;
-}
+import {
+  type OctoSpacesConfig,
+  configureOctoSpaces,
+  getSyncBase as _getSyncBase,
+  getSyncNamespace as _getSyncNamespace,
+  getSyncPrefix as _getSyncPrefix,
+  getSharedSpacesNamespace,
+} from '@drakkar.software/octospaces-sdk';
 
-let cfg: OctoChatConfig | null = null;
+/** OctoChat's config extends the shared spaces config directly — all sync, namespace,
+ *  events-URL, and web-origin options are inherited from {@link OctoSpacesConfig}. */
+export interface OctoChatConfig extends OctoSpacesConfig {}
 
-/** Configure the SDK. Call once at app boot before any sync/identity API. */
+export { getSharedSpacesNamespace };
+
+// Locally-cached config for the OctoChat-specific getters below.
+let _eventsUrl: string | undefined;
+let _webBase = '';
+let _onServerReachable: (() => void) | undefined;
+
+/** Configure the SDK. Call once at app boot before any sync/identity API.
+ *  Delegates to `configureOctoSpaces` from `@drakkar.software/octospaces-sdk`. */
 export function configureOctoChat(config: OctoChatConfig): void {
-  // Guard against the common mistake of passing `namespace` (wrong key) instead of
-  // `syncNamespace`. TypeScript's excess-property check is bypassed when the config
-  // is assembled via a conditional spread (e.g. `...(ns ? { namespace: ns } : {})`),
-  // so the wrong key would be silently ignored — writes would go without the namespace
-  // prefix and hit nginx 404s. Fail fast instead.
-  if ('namespace' in config && !config.syncNamespace) {
-    throw new Error(
-      `octochat-sdk: configureOctoChat received "namespace" — did you mean "syncNamespace"?`,
-    );
-  }
-  const ns = (config.syncNamespace ?? '').trim();
-  if (ns !== '' && !/^[A-Za-z0-9_-]+$/.test(ns)) {
-    throw new Error(`octochat-sdk: syncNamespace must be a bare name ([A-Za-z0-9_-]+), got "${ns}"`);
-  }
-  cfg = { ...config, syncNamespace: ns || undefined };
-}
-
-function req(): OctoChatConfig {
-  if (!cfg) throw new Error('octochat-sdk: configureOctoChat() not called — wire it at app boot.');
-  return cfg;
+  _eventsUrl = config.eventsUrl;
+  _webBase = config.webBase ?? '';
+  _onServerReachable = config.onServerReachable;
+  configureOctoSpaces(config);
 }
 
 /** Starfish sync server base URL. */
-export const getSyncBase = (): string => req().syncBase;
+export const getSyncBase = _getSyncBase;
 /** Bare namespace name (or `undefined` for a root-mounted server). */
-export const getSyncNamespace = (): string | undefined => req().syncNamespace;
+export const getSyncNamespace = _getSyncNamespace;
 /** Namespaced path prefix (`/v1/<namespace>`, or `''` locally). */
-export const getSyncPrefix = (): string => {
-  const ns = req().syncNamespace;
-  return ns ? `/v1/${ns}` : '';
-};
-/** Live change-event SSE endpoint. */
-export const getEventsUrl = (): string => req().eventsUrl ?? `${getSyncBase()}${getSyncPrefix()}/events`;
+export const getSyncPrefix = _getSyncPrefix;
+/** Live change-event SSE endpoint (defaults to `${syncBase}${syncPrefix}/events`). */
+export const getEventsUrl = (): string => _eventsUrl ?? `${_getSyncBase()}${_getSyncPrefix()}/events`;
 /** Public web origin (right-trimmed of trailing slashes; `''` by default). */
-export const getWebBase = (): string => (req().webBase ?? '').replace(/\/+$/, '');
+export const getWebBase = (): string => _webBase;
 /** Callback to invoke when a background Starfish revalidation succeeds. */
-export const getOnServerReachable = (): (() => void) | undefined => cfg?.onServerReachable;
+export const getOnServerReachable = (): (() => void) | undefined => _onServerReachable;

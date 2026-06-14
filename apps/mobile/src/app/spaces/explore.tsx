@@ -21,7 +21,7 @@ import { SpaceExploreRow, SpaceExploreRowSkeleton } from '@/components/chat/Spac
  * Thin route — all data access lives in `useExploreSpaces`.
  */
 export default function ExploreScreen() {
-  const { spaces, ownerNames, loading, reload } = useExploreSpaces();
+  const { spaces, loading, reload } = useExploreSpaces();
   const hasSpaces = spaces.length > 0;
   // Tapping a directory row reveals the invite-only path forward (the directory
   // grants no access — joining still needs the owner's link), so the inert-looking
@@ -69,7 +69,6 @@ export default function ExploreScreen() {
             <View key={s.id} style={styles.rowGroup}>
               <SpaceExploreRow
                 space={s}
-                ownerName={s.ownerId ? ownerNames.get(s.ownerId) : undefined}
                 onPress={() => setHintFor((cur) => (cur === s.id ? null : s.id))}
               />
               {hintFor === s.id ? (

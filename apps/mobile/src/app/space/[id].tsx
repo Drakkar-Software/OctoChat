@@ -30,7 +30,6 @@ import { CategoryManager } from '@/components/chat/CategoryManager';
 import { SpaceMembersCard } from '@/components/chat/SpaceMembersCard';
 import { SpaceMeta } from '@/components/chat/SpaceMeta';
 import { SpaceStatsCard } from '@/components/chat/SpaceStatsCard';
-import { StreamBotPanel } from '@/components/chat/StreamBotPanel';
 import { WebhookPanel } from '@/components/chat/WebhookPanel';
 
 function copy(text: string) {
@@ -64,7 +63,6 @@ export default function SpaceScreen() {
     isMember,
     members,
     loading,
-    isPublic,
     nameDraft,
     setNameDraft,
     imageDraft,
@@ -85,6 +83,9 @@ export default function SpaceScreen() {
   // Category management (owner-only Card below). Shares the same registry the rooms
   // list reads — actions are owner-gated + refresh on success (see useRooms).
   const { rooms, categories, createCategory, renameCategory, deleteCategory, reorderCategories } = useRooms(spaceId);
+  // In the per-node model, spaces are always member-based (access distinction is per-room).
+  const fromRoom = fromRoomId ? rooms.find((r) => r.id === fromRoomId) : undefined;
+  const fromRoomIsPublic = fromRoom?.access === 'public';
   // Automation bots are real roster members (private spaces) — drop them from the human roster so
   // the count + members list don't show phantom, profile-less members.
   const botIds = useMemo(() => new Set(automationBotUserIds(rooms)), [rooms]);
@@ -177,7 +178,7 @@ export default function SpaceScreen() {
                 <Txt variant="title" weight="bold" numberOfLines={1}>
                   {name}
                 </Txt>
-                <SpaceMeta isPublic={isPublic} memberCount={memberCount} iconSize={12} variant="footnote" />
+                <SpaceMeta isPublic={false} memberCount={memberCount} iconSize={12} variant="footnote" />
               </View>
             </View>
             <View style={styles.idLine}>
@@ -212,9 +213,7 @@ export default function SpaceScreen() {
             ) : null}
           </Card>
 
-          {isPublic ? null : (
-            <SpaceMembersCard ownerId={ownerId} members={humanMembers} currentUserId={session.userId} />
-          )}
+          <SpaceMembersCard ownerId={ownerId} members={humanMembers} currentUserId={session.userId} />
 
           {loading ? null : isOwner ? (
             <>
@@ -280,15 +279,34 @@ export default function SpaceScreen() {
                 </Card>
               )}
 
-              {isDm ? null : isPublic ? (
-                <Card title="INVITATION LINK">
-                  <Callout tone="warning" iconName="unlock" title="Not end-to-end encrypted">
-                    Anyone with the link can open this space without an account. A read &amp; write link also lets them post.
-                  </Callout>
+              {isDm ? null : (
+                <Card title="INVITE SOMEONE">
+                  <Txt variant="footnote" tone="inkSoft">
+                    Paste their join request (from "Join or create" on their device). They'll get access to every channel.
+                  </Txt>
+                  <TextField
+                    value={request}
+                    onChangeText={setRequest}
+                    placeholder="Paste join request…"
+                    mono
+                    multiline
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <Button
+                    label={inviting ? 'Creating…' : 'Create invite'}
+                    variant="primary"
+                    size="md"
+                    disabled={inviting}
+                    onPress={createPrivateInvite}
+                  />
+                  <Txt variant="footnote" tone="inkSoft" style={styles.orDivider}>
+                    or share an invitation link:
+                  </Txt>
                   <View style={styles.typeRow}>
                     <Button
                       label={genWrite === false ? 'Generating…' : 'Read-only link'}
-                      variant="primary"
+                      variant="secondary"
                       size="sm"
                       iconName="eye"
                       loading={genWrite === false}
@@ -314,33 +332,6 @@ export default function SpaceScreen() {
                       <CopyField label="Invitation link" value={link.url} copyLabel="Copy link" lines={3} />
                     </View>
                   ) : null}
-                  {error ? (
-                    <Txt variant="footnote" tone="inkMuted">
-                      {error}
-                    </Txt>
-                  ) : null}
-                </Card>
-              ) : (
-                <Card title="INVITE SOMEONE">
-                  <Txt variant="footnote" tone="inkSoft">
-                    Paste their join request (from “Join or create” on their device). They’ll get access to every channel.
-                  </Txt>
-                  <TextField
-                    value={request}
-                    onChangeText={setRequest}
-                    placeholder="Paste join request…"
-                    mono
-                    multiline
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  <Button
-                    label={inviting ? 'Creating…' : 'Create invite'}
-                    variant="primary"
-                    size="md"
-                    disabled={inviting}
-                    onPress={createPrivateInvite}
-                  />
                   {error ? (
                     <Txt variant="footnote" tone="inkMuted">
                       {error}
@@ -372,27 +363,17 @@ export default function SpaceScreen() {
                 </Card>
               )}
 
-              {/* Owner-only "Connect a bot" panel for the room the user navigated
-                  from — surfaced here once the in-room panel hides itself (rooms
-                  with messages don't carry it, see {@link StreamBotPanelWhenEmpty}).
-                  PUBLIC rooms only: every room is an append-only log a bot can post to
-                  via a link cap; private rooms enroll bots as keyring members instead,
-                  so no link-cap minting applies. */}
-              {isPublic && fromRoomId ? (
-                <StreamBotPanel ownerId={session.userId} spaceId={spaceId} roomId={fromRoomId} />
-              ) : null}
-
               {/* Owner-only SELF-SERVICE inbound webhooks for the navigated-from room:
                   mint a paste-able URL + one-time token any external tool can POST to.
-                  PUBLIC rooms only (plaintext append-only log the server can write). */}
-              {isPublic && fromRoomId ? (
-                <WebhookPanel ownerId={session.userId} spaceId={spaceId} roomId={fromRoomId} />
+                  Public rooms only (plaintext append-only log the server can write). */}
+              {fromRoomIsPublic && fromRoomId ? (
+                <WebhookPanel spaceId={spaceId} roomId={fromRoomId} />
               ) : null}
             </>
           ) : isMember ? (
             <Card title="MEMBERSHIP">
               <Txt variant="footnote" tone="inkSoft">
-                {isPublic ? 'You joined this public space via an invitation link.' : 'You’re a member of this space.'}
+                You're a member of this space.
               </Txt>
               <Button
                 label={leaving ? 'Leaving…' : 'Leave space'}
@@ -405,9 +386,7 @@ export default function SpaceScreen() {
           ) : (
             <Card title="ACCESS">
               <Callout tone="info" iconName="key" title="You're not a member yet">
-                {isPublic
-                  ? 'You’re viewing this public space’s details. Open it with an invitation link from its owner.'
-                  : 'You’re viewing this space’s details. Join with an invitation link from its owner.'}
+                You're viewing this space's details. Join with an invitation link from its owner.
               </Callout>
             </Card>
           )}
@@ -427,4 +406,5 @@ const styles = StyleSheet.create({
   inviteBox: { gap: spacing.sm },
   typeRow: { flexDirection: 'row', gap: spacing.sm },
   linkBox: { gap: spacing.md },
+  orDivider: { marginTop: spacing.sm },
 });

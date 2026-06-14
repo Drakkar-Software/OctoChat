@@ -1,5 +1,8 @@
+import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
+
 import { useTheme } from '@/lib/use-theme';
 import { useWebhooks } from '@/lib/use-webhooks';
+import type { ConversationStore } from '@/lib/use-conversation-data';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { CopyField } from '@/components/ui/CopyField';
@@ -14,13 +17,11 @@ const shortDate = (ms: number) => new Date(ms).toISOString().slice(0, 10);
  * Owner-only panel for a PUBLIC room: SELF-SERVICE inbound webhooks. The owner mints
  * a webhook (a paste-able URL + a one-time token) that any external tool can POST to;
  * only the token's hash is stored (in the owner-written `_webhooks` registry), so the
- * server never holds the raw secret and the owner needs no operator. Complements
- * {@link StreamBotPanel} (the audience-cap bot link, for integrations that sign each
- * request) with the simpler "send a header" model dumb webhook senders expect.
+ * server never holds the raw secret and the owner needs no operator.
  */
-export function WebhookPanel({ ownerId, spaceId, roomId }: { ownerId: string; spaceId: string; roomId: string }) {
+export function WebhookPanel({ spaceId, roomId }: { spaceId: string; roomId: string }) {
   const { colors } = useTheme();
-  const { items, busy, error, reveal, create, remove, dismissReveal } = useWebhooks(ownerId, spaceId, roomId);
+  const { items, busy, error, reveal, create, remove, dismissReveal } = useWebhooks(spaceId, roomId);
 
   return (
     <OwnerConfigPanel
@@ -72,4 +73,26 @@ export function WebhookPanel({ ownerId, spaceId, roomId }: { ownerId: string; sp
       ) : null}
     </OwnerConfigPanel>
   );
+}
+
+/**
+ * Same panel, shown only while the room has no messages. Once the first message
+ * arrives the panel disappears from the room view — owners reach it from the room's
+ * info button instead. Mirrors the lifecycle of the old StreamBotPanelWhenEmpty.
+ */
+export function WebhookPanelWhenEmpty({
+  store,
+  spaceId,
+  roomId,
+}: {
+  store: ConversationStore;
+  spaceId: string;
+  roomId: string;
+}) {
+  const isEmpty = useStarfishData(store, (d) => {
+    const msgs = (d as { messages?: unknown[] } | undefined)?.messages;
+    return !msgs || msgs.length === 0;
+  });
+  if (!isEmpty) return null;
+  return <WebhookPanel spaceId={spaceId} roomId={roomId} />;
 }

@@ -48,20 +48,22 @@ export function concatDedupById<T extends { id: string }>(existing: T[], incomin
 }
 
 /** Cross-restart persistence key for a room's append log. Versioned so a persist-format
- *  change can bump the version rather than mis-read stale blobs. NOT user-scoped: the
- *  persisted blob is `cursor.getItems()` under `persistEncrypted` — the CIPHERTEXT
- *  envelopes for a private room (E2EE-safe at rest, decryptable only by a keyring holder)
- *  and already-public plaintext for a public room — so the roomId alone namespaces it.
+ *  change can bump the version rather than mis-read stale blobs. User-scoped: without the
+ *  userId prefix, switching A→B on a shared device would cold-start B's room view from A's
+ *  persisted ciphertext envelopes (privacy smell; B decrypts only if already a member of
+ *  the same space, but A's at-rest ciphertext must never linger under B's session). Keying
+ *  by `userId.roomId` makes B's lookup for the same roomId miss A's blob by construction.
  *  `v2`: bumped from v1, which (without `persistEncrypted`) stored DECRYPTED elements; a
  *  v1 blob is plaintext and must NOT be fed to the now-ciphertext-expecting cursor. */
-export const streamLogKey = (roomId: string): string => `octochat.streamlog.v2.${roomId}`;
+export const streamLogKey = (userId: string, roomId: string): string =>
+  `octochat.streamlog.v2.${userId}.${roomId}`;
 
 /** Tolerant load of a persisted append log — bad/absent/wrong-shaped JSON yields `[]`
  *  (a corrupt blob must never brick the room; the next `pull` just refetches the log).
  *  These envelopes warm-start the cursor as `initialItems` so history paints instantly
  *  on open before any network round-trip. */
-export async function loadStreamLog(roomId: string): Promise<AppendElement[]> {
-  const raw = await kvGet(streamLogKey(roomId));
+export async function loadStreamLog(userId: string, roomId: string): Promise<AppendElement[]> {
+  const raw = await kvGet(streamLogKey(userId, roomId));
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);

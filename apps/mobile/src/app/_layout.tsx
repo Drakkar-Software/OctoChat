@@ -34,7 +34,9 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 
+import { OctoSpacesThemeProvider } from '@drakkar.software/octospaces-ui';
 import { colors } from '@/theme';
+import { toOctoSpacesTheme } from '@/lib/octospaces-theme';
 import { useAppFonts } from '@/lib/use-app-fonts';
 import { AppFrame } from '@/components/ui/AppFrame';
 
@@ -70,6 +72,7 @@ export default function RootLayout() {
   const [fontsLoaded, fontError] = useAppFonts();
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const palette = colors[scheme];
+  const octoSpacesTheme = toOctoSpacesTheme(palette, scheme);
 
   useEffect(() => {
     if (fontsLoaded || fontError) void SplashScreen.hideAsync();
@@ -79,6 +82,7 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
+    <OctoSpacesThemeProvider theme={octoSpacesTheme}>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         {/* Drives react-native-keyboard-controller's keyboard-tracking on iOS/Android
@@ -139,5 +143,6 @@ export default function RootLayout() {
         </KeyboardProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+    </OctoSpacesThemeProvider>
   );
 }

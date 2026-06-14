@@ -14,17 +14,24 @@ or inject your own via `configureKv` and keep the core platform-neutral.
 ## What's inside
 
 - **Identity & crypto** — BIP-39 seed → Ed25519/Kyber device keys, sealed-credential
-  envelopes, per-space keyring encryptors, device pairing, session restore.
-- **Encrypted sync** — the Starfish client + auth signing, the spaces/rooms registry,
-  the object tree (`objects`/`object-index`), offline read-through caches.
-- **Spaces / rooms / members / DMs / public spaces** — membership, member caps,
-  invite links, DM channels, public-space join, attachments, stream bots.
+  envelopes, space keyrings (one CEK per space), device pairing, session restore.
+- **Encrypted sync** — the Starfish client + auth signing, the spaces/rooms registry
+  (`spaceregistry`/`_access`), the object tree (`objects`/`object-index`), offline
+  read-through caches.
+- **Spaces / rooms / members / DMs / per-node access** — membership, invite links
+  (space-wide and per-node), DM channels, space join via link, attachments, stream bots.
+  Room access is **per-node** (`access ∈ {public, space, invite}` + `enc` boolean);
+  re-exports `getNodeAccess`, `buildNodeAccess`, `createNode`, `joinSpaceByLink`,
+  `joinNodeByLink`, `createSpaceInviteLink`, and the full space-access store from
+  `@drakkar.software/octospaces-sdk`.
 - **Messages & domain** — message-body/markdown parsing, reactions, threads,
   read-marks & mutes (synced prefs), notification formatting, the live change-event
   SSE subscriber, automations core, and the chat-domain type model.
 
-It depends on the published `@drakkar.software/starfish-*` packages and is framework-
-and platform-agnostic.
+It depends on the published `@drakkar.software/starfish-*` packages and on
+`@drakkar.software/octospaces-sdk` (which it re-exports for per-node access,
+space invite links, node creation, and the space-access store). Framework- and
+platform-agnostic.
 
 ## Source layout
 
@@ -33,11 +40,11 @@ and platform-agnostic.
 - `config/` — host wiring (`configureOctoChat`/`configureKv`)
 - `domain/` — core model: types, ids, the object-type registry
 - `format/` — pure formatters & view models (message body, markdown, message view)
-- `starfish/` — encrypted sync / crypto / registry core (identity, client, keyrings, objects, DMs, public spaces)
+- `starfish/` — encrypted sync / crypto / registry core (identity, client, keyrings, objects, DMs, per-node access)
 - `messaging/` — reads, mutes, reactions, threads, links, cross-room, quick-reactions
 - `notifications/` — notification formatting, labels, previews
 - `outbox/` — offline write queue
-- `spaces/` — space stats + public-space exploration
+- `spaces/` — space stats + space directory exploration
 - `events/` — live room-change SSE stream
 - `nostr/` — NIP-07 browser-extension login
 - `automations/` — scheduled/triggered room automations (+ providers)

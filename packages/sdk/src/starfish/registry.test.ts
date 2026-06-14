@@ -19,21 +19,27 @@ vi.mock('@drakkar.software/starfish-client', () => {
 vi.mock('./paths', () => ({
   spacesPull: (u: string) => `/pull/${u}`,
   spacesPush: (u: string) => `/push/${u}`,
-  roomsRegistryPull: (s: string) => `/pull/rooms/${s}`,
-  roomsRegistryPush: (s: string) => `/push/rooms/${s}`,
+  spaceRegistryPull: (s: string) => `/pull/spaces/${s}`,
+  spaceRegistryPush: (s: string) => `/push/spaces/${s}`,
 }));
+
+// Needed by registry.ts imports transitively (paths.ts re-exports from octospaces-sdk).
+vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...(actual as object), getSpaceClient: vi.fn() };
+});
 
 import { ConflictError, StarfishHttpError } from '@drakkar.software/starfish-client';
 
 import {
-  addJoinedPublicSpaceWithAccess,
   addJoinedSpaceWithCap,
-  readRooms,
+  readSpaceAccess,
   readSpaces,
   setDmMapping,
   updateDmsDoc,
   updateReadsDoc,
   updateSpacesDoc,
+  writeSpaceAccess,
 } from './registry';
 
 /** A fake StarfishClient exposing just pull/push. */
@@ -43,9 +49,7 @@ function fakeClient(pull: ReturnType<typeof vi.fn>, push: ReturnType<typeof vi.f
 
 const SPACE = (id: string) => ({ id, name: id, short: id.slice(0, 2), members: 1 }) as never;
 
-// The funnel reads `mutes` + `pubAccess` fresh and threads them through every push,
-// so a spaces/caps edit never drops a sibling key. The pull mocks below carry neither,
-// so both default to empty on the pushed doc.
+// The funnel reads `mutes`/`reads`/`dms` fresh and threads them through every push.
 const EMPTY_MUTES = { rooms: {}, spaces: {} };
 const EMPTY_READS = { rooms: {} };
 
@@ -56,11 +60,10 @@ describe('updateSpacesDoc', () => {
     await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => ({
       spaces: [...cur.spaces, SPACE('b')],
       caps: cur.caps,
-      pubAccess: cur.pubAccess,
     }));
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: { x: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {}, quickReactions: [], archivedDms: {} },
+      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: { x: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, dms: {}, quickReactions: [], archivedDms: {}, pubAccess: {} },
       'h1',
     );
   });
@@ -71,30 +74,10 @@ describe('updateSpacesDoc', () => {
     await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => ({
       spaces: cur.spaces,
       caps: { ...cur.caps, y: '2' },
-      pubAccess: cur.pubAccess,
     }));
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'a' }], caps: { x: '1', y: '2' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {}, quickReactions: [], archivedDms: {} },
-      'h1',
-    );
-  });
-
-  it('preserves the pubAccess map when the mutator only changes spaces', async () => {
-    const sealed = { entry: { addedBy: 'me' }, ct: 'ab' };
-    const pull = vi.fn(async () => ({
-      data: { v: 1, spaces: [{ id: 'a' }], caps: {}, pubAccess: { a: sealed }, dms: {} },
-      hash: 'h1',
-    }));
-    const push = vi.fn(async () => undefined);
-    await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => ({
-      spaces: [...cur.spaces, SPACE('b')],
-      caps: cur.caps,
-      pubAccess: cur.pubAccess,
-    }));
-    expect(push).toHaveBeenCalledWith(
-      '/push/u',
-      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { a: sealed }, dms: {}, quickReactions: [], archivedDms: {} },
+      { v: 1, spaces: [{ id: 'a' }], caps: { x: '1', y: '2' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, dms: {}, quickReactions: [], archivedDms: {}, pubAccess: {} },
       'h1',
     );
   });
@@ -108,7 +91,6 @@ describe('updateSpacesDoc', () => {
     await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => ({
       spaces: cur.spaces,
       caps: { ...cur.caps, a: '1' },
-      pubAccess: cur.pubAccess,
     }));
     expect(pull).toHaveBeenCalledTimes(2);
     expect(push).toHaveBeenCalledTimes(2);
@@ -117,7 +99,7 @@ describe('updateSpacesDoc', () => {
   it('skips the write when the mutator returns the doc unchanged', async () => {
     const pull = vi.fn(async () => ({ data: { v: 1, spaces: [{ id: 'a' }], caps: {} }, hash: 'h' }));
     const push = vi.fn(async () => undefined);
-    await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => cur); // no-op (e.g. already joined)
+    await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => cur); // no-op
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -129,11 +111,10 @@ describe('updateSpacesDoc', () => {
     await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => ({
       spaces: cur.spaces,
       caps: { ...cur.caps, a: '1' },
-      pubAccess: cur.pubAccess,
     }));
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [], caps: { a: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {}, quickReactions: [], archivedDms: {} },
+      { v: 1, spaces: [], caps: { a: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, dms: {}, quickReactions: [], archivedDms: {}, pubAccess: {} },
       null,
     );
   });
@@ -155,7 +136,7 @@ describe('addJoinedSpaceWithCap', () => {
     await addJoinedSpaceWithCap(fakeClient(pull, push), 'u', SPACE('a'), 'CAP');
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'a' }], caps: { a: 'CAP' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {}, quickReactions: [], archivedDms: {} },
+      { v: 1, spaces: [{ id: 'a' }], caps: { a: 'CAP' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, dms: {}, quickReactions: [], archivedDms: {}, pubAccess: {} },
       'h',
     );
   });
@@ -166,36 +147,7 @@ describe('addJoinedSpaceWithCap', () => {
     await addJoinedSpaceWithCap(fakeClient(pull, push), 'u', SPACE('b'), 'CB');
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: { a: 'CA', b: 'CB' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: {}, quickReactions: [], archivedDms: {} },
-      'h',
-    );
-  });
-});
-
-describe('addJoinedPublicSpaceWithAccess', () => {
-  it('appends a new public space and sets its sealed access entry', async () => {
-    const sealed = { entry: { addedBy: 'me' }, ct: 'deadbeef' } as never;
-    const pull = vi.fn(async () => ({ data: { v: 1, spaces: [{ id: 'a' }], caps: {} }, hash: 'h' }));
-    const push = vi.fn(async () => undefined);
-    await addJoinedPublicSpaceWithAccess(fakeClient(pull, push), 'u', SPACE('p'), sealed);
-    expect(push).toHaveBeenCalledWith(
-      '/push/u',
-      { v: 1, spaces: [{ id: 'a' }, SPACE('p')], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { p: sealed }, dms: {}, quickReactions: [], archivedDms: {} },
-      'h',
-    );
-  });
-
-  it('does not duplicate an already-joined space but (re)writes its access', async () => {
-    const sealed = { entry: { addedBy: 'me' }, ct: 'new' } as never;
-    const pull = vi.fn(async () => ({
-      data: { v: 1, spaces: [{ id: 'p' }], caps: {}, pubAccess: { p: { ct: 'old' } } },
-      hash: 'h',
-    }));
-    const push = vi.fn(async () => undefined);
-    await addJoinedPublicSpaceWithAccess(fakeClient(pull, push), 'u', SPACE('p'), sealed);
-    expect(push).toHaveBeenCalledWith(
-      '/push/u',
-      { v: 1, spaces: [{ id: 'p' }], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: { p: sealed }, dms: {}, quickReactions: [], archivedDms: {} },
+      { v: 1, spaces: [{ id: 'a' }, SPACE('b')], caps: { a: 'CA', b: 'CB' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, dms: {}, quickReactions: [], archivedDms: {}, pubAccess: {} },
       'h',
     );
   });
@@ -205,7 +157,6 @@ describe('updateReadsDoc', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('writes the next read marks while threading every sibling key through', async () => {
-    const sealed = { entry: { addedBy: 'me' }, ct: 'ab' };
     const pull = vi.fn(async () => ({
       data: {
         v: 1,
@@ -213,7 +164,7 @@ describe('updateReadsDoc', () => {
         caps: { a: 'CAP' },
         mutes: { rooms: { r1: true }, spaces: {} },
         reads: { rooms: { r1: 100 } },
-        pubAccess: { a: sealed },
+        dms: {},
       },
       hash: 'h1',
     }));
@@ -227,10 +178,10 @@ describe('updateReadsDoc', () => {
         caps: { a: 'CAP' },
         mutes: { rooms: { r1: true }, spaces: {} },
         reads: { rooms: { r1: 100, r2: 200 } },
-        pubAccess: { a: sealed },
         dms: {},
         quickReactions: [],
         archivedDms: {},
+        pubAccess: {},
       },
       'h1',
     );
@@ -263,7 +214,6 @@ describe('updateDmsDoc / setDmMapping', () => {
         caps: { a: 'CAP' },
         mutes: { rooms: { r1: true }, spaces: {} },
         reads: { rooms: { r1: 100 } },
-        pubAccess: {},
         dms: { peerA: 'dm-1' },
       },
       hash: 'h1',
@@ -278,10 +228,10 @@ describe('updateDmsDoc / setDmMapping', () => {
         caps: { a: 'CAP' },
         mutes: { rooms: { r1: true }, spaces: {} },
         reads: { rooms: { r1: 100 } },
-        pubAccess: {},
         dms: { peerA: 'dm-1', peerB: 'dm-2' },
         quickReactions: [],
         archivedDms: {},
+        pubAccess: {},
       },
       'h1',
     );
@@ -293,11 +243,10 @@ describe('updateDmsDoc / setDmMapping', () => {
     await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => ({
       spaces: cur.spaces,
       caps: { ...cur.caps, a: '1' },
-      pubAccess: cur.pubAccess,
     }));
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [], caps: { a: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: { p: 'dm-x' }, quickReactions: [], archivedDms: {} },
+      { v: 1, spaces: [], caps: { a: '1' }, mutes: EMPTY_MUTES, reads: EMPTY_READS, dms: { p: 'dm-x' }, quickReactions: [], archivedDms: {}, pubAccess: {} },
       'h',
     );
   });
@@ -308,7 +257,7 @@ describe('updateDmsDoc / setDmMapping', () => {
     await setDmMapping(fakeClient(pull, push), 'u', 'peerA', 'dm-1');
     expect(push).toHaveBeenCalledWith(
       '/push/u',
-      { v: 1, spaces: [], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, pubAccess: {}, dms: { peerA: 'dm-1' }, quickReactions: [], archivedDms: {} },
+      { v: 1, spaces: [], caps: {}, mutes: EMPTY_MUTES, reads: EMPTY_READS, dms: { peerA: 'dm-1' }, quickReactions: [], archivedDms: {}, pubAccess: {} },
       'h',
     );
   });
@@ -324,11 +273,10 @@ describe('updateDmsDoc / setDmMapping', () => {
 describe('readSpaces', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('defaults caps + pubAccess + dms to {} for a legacy doc with none of the keys', async () => {
+  it('defaults caps + dms to {} for a legacy doc with none of the keys', async () => {
     const pull = vi.fn(async () => ({ data: { v: 1, spaces: [{ id: 'a' }] }, hash: 'h' }));
     const res = await readSpaces(fakeClient(pull, vi.fn()), 'u');
     expect(res.caps).toEqual({});
-    expect(res.pubAccess).toEqual({});
     expect(res.dms).toEqual({});
     expect(res.quickReactions).toEqual([]);
     expect(res.spaces).toEqual([{ id: 'a' }]);
@@ -344,23 +292,77 @@ describe('readSpaces', () => {
       caps: {},
       mutes: { rooms: {}, spaces: {} },
       reads: { rooms: {} },
-      pubAccess: {},
       dms: {},
       quickReactions: [],
       archivedDms: {},
+      pubAccess: {},
       hash: null,
     });
   });
 });
 
-describe('readRooms', () => {
+describe('pubAccess threading', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('readSpaces parses pubAccess from the raw doc instead of dropping it', async () => {
+    const blob = { entry: {}, ct: 'ABC' };
+    const pull = vi.fn(async () => ({
+      data: { v: 1, spaces: [], caps: {}, pubAccess: { 'sp-1': blob } },
+      hash: 'h',
+    }));
+    const res = await readSpaces(fakeClient(pull, vi.fn()), 'u');
+    expect(res.pubAccess).toEqual({ 'sp-1': blob });
+  });
+
+  it('readSpaces defaults pubAccess to {} for a legacy doc with no pubAccess key', async () => {
+    const pull = vi.fn(async () => ({ data: { v: 1, spaces: [] }, hash: 'h' }));
+    const res = await readSpaces(fakeClient(pull, vi.fn()), 'u');
+    expect(res.pubAccess).toEqual({});
+  });
+
+  it('updateSpacesDoc threads pubAccess through a caps-only mutation', async () => {
+    const blob = { entry: {}, ct: 'ABC' };
+    const pull = vi.fn(async () => ({
+      data: { v: 1, spaces: [], caps: {}, pubAccess: { 'sp-1': blob } },
+      hash: 'h',
+    }));
+    const push = vi.fn(async () => undefined);
+    await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => ({
+      spaces: cur.spaces,
+      caps: { ...cur.caps, a: '1' },
+    }));
+    const [, body] = push.mock.calls[0] as [string, Record<string, unknown>, string | null];
+    expect(body.pubAccess).toEqual({ 'sp-1': blob });
+  });
+
+  it('updateSpacesDoc mutator can delete a pubAccess entry (leave scenario)', async () => {
+    const blob = { entry: {}, ct: 'CRED' };
+    const pull = vi.fn(async () => ({
+      data: { v: 1, spaces: [{ id: 'sp-1' }], caps: { 'sp-1': 'cap' }, pubAccess: { 'sp-1': blob } },
+      hash: 'h',
+    }));
+    const push = vi.fn(async () => undefined);
+    await updateSpacesDoc(fakeClient(pull, push), 'u', (cur) => {
+      const caps = { ...cur.caps };
+      delete caps['sp-1'];
+      const pubAccess = { ...cur.pubAccess };
+      delete pubAccess['sp-1'];
+      return { spaces: cur.spaces.filter((s) => s.id !== 'sp-1'), caps, pubAccess };
+    });
+    const [, body] = push.mock.calls[0] as [string, Record<string, unknown>, string | null];
+    expect(body.pubAccess).toEqual({});
+    expect((body.caps as Record<string, unknown>)['sp-1']).toBeUndefined();
+  });
+});
+
+describe('readSpaceAccess', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('returns an empty registry on a 404 (no doc yet — a first write can create it)', async () => {
     const pull = vi.fn(async () => {
       throw new StarfishHttpError(404, '');
     });
-    const res = await readRooms(fakeClient(pull, vi.fn()), 'sp-1');
+    const res = await readSpaceAccess(fakeClient(pull, vi.fn()), 'sp-1');
     expect(res).toEqual({ owner: null, members: [], name: null, image: null, hash: null });
   });
 
@@ -371,13 +373,44 @@ describe('readRooms', () => {
     const pull = vi.fn(async () => {
       throw new StarfishHttpError(500, 'down');
     });
-    await expect(readRooms(fakeClient(pull, vi.fn()), 'sp-1')).rejects.toBeInstanceOf(StarfishHttpError);
+    await expect(readSpaceAccess(fakeClient(pull, vi.fn()), 'sp-1')).rejects.toBeInstanceOf(StarfishHttpError);
   });
 
   it('propagates a plain network rejection (offline) instead of degrading to empty', async () => {
     const pull = vi.fn(async () => {
       throw new TypeError('Failed to fetch');
     });
-    await expect(readRooms(fakeClient(pull, vi.fn()), 'sp-1')).rejects.toBeInstanceOf(TypeError);
+    await expect(readSpaceAccess(fakeClient(pull, vi.fn()), 'sp-1')).rejects.toBeInstanceOf(TypeError);
+  });
+});
+
+describe('writeSpaceAccess', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('writes owner + members + optional name/image to spaces/{spaceId}/_access', async () => {
+    const push = vi.fn(async () => undefined);
+    await writeSpaceAccess(fakeClient(vi.fn(), push), 'sp-1', 'alice', ['bob', 'carol'], 'h0', {
+      name: 'My Space',
+      image: 'data:img',
+    });
+    expect(push).toHaveBeenCalledWith(
+      '/push/spaces/sp-1',
+      { v: 1, owner: 'alice', members: ['bob', 'carol'], name: 'My Space', image: 'data:img' },
+      'h0',
+    );
+  });
+
+  it('omits name and image when absent / falsy', async () => {
+    const push = vi.fn(async () => undefined);
+    await writeSpaceAccess(fakeClient(vi.fn(), push), 'sp-1', 'alice', [], null);
+    const [, body] = push.mock.calls[0] as [string, Record<string, unknown>, string | null];
+    expect(body).not.toHaveProperty('name');
+    expect(body).not.toHaveProperty('image');
+  });
+
+  it('creates a new doc (null hash) when no previous hash exists', async () => {
+    const push = vi.fn(async () => undefined);
+    await writeSpaceAccess(fakeClient(vi.fn(), push), 'sp-2', 'owner', [], null);
+    expect(push.mock.calls[0]?.[2]).toBeNull();
   });
 });

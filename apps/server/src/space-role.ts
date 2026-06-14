@@ -1,27 +1,28 @@
 /**
- * Membership-binding for a space's per-space room registry
- * (`spaces/{spaceId}/_rooms`), which doubles as the space's access record:
- * `{ owner, members: [...userIds], rooms: [...] }`.
+ * Membership-binding for a space's access record at `spaces/{spaceId}/_access`,
+ * which holds: `{ owner, members: [...userIds], name, image }`.
  *
  * The collection is keyed by a free `{spaceId}` path param, so a plain cap role
  * would let any authenticated identity read — or overwrite — any space by id. We
  * gate it on two synthesized roles instead:
  *   - `space:owner`  — the creator (TOFU: first writer stamps `owner`). Gates
- *                      registry/roster WRITES (add channels, invite members).
+ *                      access-record WRITES and keyring WRITES.
  *   - `space:member` — the owner OR any userId listed in `members`. Gates READS
- *                      (see the channel list) and is the role a space invite
- *                      grants by adding the joinee to `members`.
+ *                      and is the role a space invite grants by adding the joinee
+ *                      to `members`.
  *
- * Decided purely from the requester's identity and the space id, as asked, by
- * reading the authoritative owner-written record (trust-on-first-use: the first
- * writer of a space's registry stamps itself as `owner`).
+ * Visibility and encryption are per-node (on ObjectNode), not per-space — a space
+ * is a neutral container. The public/private distinction (`pubspace:*` enricher)
+ * has been retired; use per-node `access:'public'` instead.
+ *
+ * Storage leaf renamed from `_rooms` → `_access` (octospaces-sdk@0.4.1+).
  */
 import type { ObjectStore, RoleEnricher } from "@drakkar.software/starfish-server";
 
 export const SPACE_OWNER_ROLE = "space:owner";
 export const SPACE_MEMBER_ROLE = "space:member";
 
-/** Owner + member roster recorded in a space's room-registry doc. */
+/** Owner + member roster recorded in a space's access record doc. */
 function spaceAccessFromRegistry(raw: string): { owner: string | null; members: string[] } {
   try {
     const doc = JSON.parse(raw) as Record<string, unknown>;
@@ -38,14 +39,15 @@ function spaceAccessFromRegistry(raw: string): { owner: string | null; members: 
   }
 }
 
-/** A RoleEnricher granting {@link SPACE_OWNER_ROLE} / {@link SPACE_MEMBER_ROLE}. */
+/** A RoleEnricher granting {@link SPACE_OWNER_ROLE} / {@link SPACE_MEMBER_ROLE}
+ *  from the access record at `spaces/{spaceId}/_access`. */
 export function makeSpaceRoleEnricher(store: ObjectStore): RoleEnricher {
   return async (auth, params) => {
     const spaceId = params.spaceId;
     if (!spaceId || !auth.identity) return [];
     let raw: string | null = null;
     try {
-      raw = await store.getString(`spaces/${spaceId}/_rooms`);
+      raw = await store.getString(`spaces/${spaceId}/_access`);
     } catch {
       raw = null; // store error ⇒ treat as "no registry yet"
     }

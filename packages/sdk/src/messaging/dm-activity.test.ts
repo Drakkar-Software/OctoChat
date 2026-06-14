@@ -1,9 +1,9 @@
 /**
  * Unit tests for dm-activity.ts — the authoritative DM head-timestamp store.
  *
- * We mock `buildSpaceEncryptor` (the network step) and `loadStreamLog` (the local
- * streamlog cache step) so the tests run without a real Starfish server or kv blobs.
- * kv is in-memory via `configureKv`. `streamRoomPull` is deterministic so no mock needed.
+ * We mock `getSpaceClient` (the network step — returns an auth'd client) and
+ * `loadStreamLog` (the local streamlog cache step) so the tests run without a real
+ * Starfish server or kv blobs. kv is in-memory via `configureKv`.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureKv } from '../config/adapters';
@@ -17,13 +17,13 @@ vi.mock('./stream-log', () => ({
 
 type FakePull = (path: string, opts: Record<string, unknown>) => Promise<unknown[]>;
 let fakePull: FakePull = async () => [];
-const mockBuildSpaceEncryptor = vi.fn(async () => ({
-  client: { pull: (...args: Parameters<FakePull>) => fakePull(...args) },
-  enc: null,
+const mockGetSpaceClient = vi.fn(() => ({
+  pull: (...args: Parameters<FakePull>) => fakePull(...args),
 }));
-vi.mock('../starfish/space-encryptor', () => ({
-  buildSpaceEncryptor: (...args: unknown[]) => mockBuildSpaceEncryptor(...args),
-}));
+vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...(actual as object), getSpaceClient: (...args: unknown[]) => mockGetSpaceClient(...args) };
+});
 
 import {
   getDmHeads,
@@ -57,11 +57,10 @@ beforeEach(() => {
   resetDmHeads();
   mockLoadStreamLog.mockReset();
   mockLoadStreamLog.mockResolvedValue([]);
-  mockBuildSpaceEncryptor.mockReset();
+  mockGetSpaceClient.mockReset();
   fakePull = async () => [];
-  mockBuildSpaceEncryptor.mockImplementation(async () => ({
-    client: { pull: (...args: Parameters<FakePull>) => fakePull(...args) },
-    enc: null,
+  mockGetSpaceClient.mockImplementation(() => ({
+    pull: (...args: Parameters<FakePull>) => fakePull(...args),
   }));
   vi.useRealTimers();
 });
@@ -86,19 +85,11 @@ describe('loadDmHeadsFromKv', () => {
   });
 
   it('max-merges: a higher existing value survives a lower kv value', async () => {
-    // Simulate a live SSE event that arrived before loadDmHeadsFromKv.
-    // We do this by seeding kv with a lower ts than the result of a refresh.
     mem.set(`octochat.dmhead.u1`, JSON.stringify({ [DM_ROOM]: 500 }));
     fakePull = async () => makeItems(2_000);
-    mockBuildSpaceEncryptor.mockImplementation(async () => ({
-      client: { pull: (...args: Parameters<FakePull>) => fakePull(...args) },
-      enc: null,
-    }));
-    // First: load a high ts from a network refresh.
     await refreshDmHeads(SESSION, [DM_SPACE]);
     const highTs = getDmHeads()[DM_ROOM];
     expect(highTs).toBe(2_000);
-    // Then load a stale kv blob — must not roll the head back.
     await loadDmHeadsFromKv('u1');
     expect(getDmHeads()[DM_ROOM]).toBe(2_000);
   });
@@ -108,8 +99,8 @@ describe('loadDmHeadsFromKv', () => {
 
 describe('refreshDmHeads — source 2: local streamlog cache', () => {
   it('takes the max ts from the opened-room cache (no network call)', async () => {
-    // Disable the network step by making buildSpaceEncryptor fail.
-    mockBuildSpaceEncryptor.mockRejectedValue(new Error('offline'));
+    // Make the network step fail so only source 2 fires.
+    fakePull = async () => { throw new Error('offline'); };
     mockLoadStreamLog.mockResolvedValue([{ ts: 1_500, data: {} }, { ts: 800, data: {} }]);
 
     await refreshDmHeads(SESSION, [DM_SPACE]);
@@ -119,12 +110,11 @@ describe('refreshDmHeads — source 2: local streamlog cache', () => {
   });
 
   it('ignores a streamlog item with no ts (0 / undefined)', async () => {
-    mockBuildSpaceEncryptor.mockRejectedValue(new Error('offline'));
+    fakePull = async () => { throw new Error('offline'); };
     mockLoadStreamLog.mockResolvedValue([{ ts: 0, data: {} }, { data: {} }]);
 
     await refreshDmHeads(SESSION, [DM_SPACE]);
 
-    // ts=0 means "no real timestamp" — the head must not be set.
     expect(getDmHeads()[DM_ROOM]).toBeUndefined();
   });
 });
@@ -136,7 +126,6 @@ describe('refreshDmHeads — source 3: authoritative server head pull', () => {
     fakePull = async (_path, opts) => {
       expect(opts['last']).toBe(1);
       expect(opts['appendField']).toBe('items');
-      // Simulate sealed data — should never be touched.
       return [{ ts: 3_000, data: 'SEALED_BLOB_NEVER_DECRYPTED' }];
     };
 
@@ -158,7 +147,6 @@ describe('refreshDmHeads — source 3: authoritative server head pull', () => {
 
     await refreshDmHeads(SESSION, [DM_SPACE, DM_SPACE_2]);
 
-    // The second DM must still land even though the first failed.
     const heads = getDmHeads();
     const succeeded = heads[DM_ROOM] === 9_000 || heads[DM_ROOM_2] === 9_000;
     expect(succeeded).toBe(true);
@@ -169,11 +157,10 @@ describe('refreshDmHeads — source 3: authoritative server head pull', () => {
     await refreshDmHeads(SESSION, [DM_SPACE]);
     expect(getDmHeads()[DM_ROOM]).toBe(5_000);
 
-    // Server returns a stale/lower value (shouldn't happen but be defensive).
     vi.useRealTimers();
     fakePull = async () => makeItems(1_000);
     await refreshDmHeads(SESSION, [DM_SPACE], { force: true });
-    expect(getDmHeads()[DM_ROOM]).toBe(5_000); // unchanged
+    expect(getDmHeads()[DM_ROOM]).toBe(5_000);
   });
 });
 
@@ -183,13 +170,12 @@ describe('refreshDmHeads throttle', () => {
   it('skips the network step on a too-soon second call', async () => {
     fakePull = async () => makeItems(1_000);
     await refreshDmHeads(SESSION, [DM_SPACE]);
-    expect(mockBuildSpaceEncryptor).toHaveBeenCalledTimes(1);
+    const callsAfterFirst = mockGetSpaceClient.mock.calls.length;
 
-    // Second call immediately — network step must be skipped.
     fakePull = async () => makeItems(2_000);
     await refreshDmHeads(SESSION, [DM_SPACE]);
-    expect(mockBuildSpaceEncryptor).toHaveBeenCalledTimes(1); // still 1
-    expect(getDmHeads()[DM_ROOM]).toBe(1_000); // unchanged from first call
+    expect(mockGetSpaceClient.mock.calls.length).toBe(callsAfterFirst); // no new calls
+    expect(getDmHeads()[DM_ROOM]).toBe(1_000);
   });
 
   it('force:true bypasses the throttle', async () => {
@@ -215,14 +201,12 @@ describe('refreshDmHeads concurrency', () => {
       return makeItems(4_000);
     };
 
-    // Fire two simultaneous refreshes.
     const p1 = refreshDmHeads(SESSION, [DM_SPACE]);
     const p2 = refreshDmHeads(SESSION, [DM_SPACE]);
 
     resolveFirst();
     await Promise.all([p1, p2]);
 
-    // The network pull must have been initiated only once despite two callers.
     expect(pullCalls).toBe(1);
     expect(getDmHeads()[DM_ROOM]).toBe(4_000);
   });

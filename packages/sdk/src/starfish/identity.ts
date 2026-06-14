@@ -21,6 +21,16 @@ export interface Session {
   accountCap: unknown;
   chatClient: StarfishClient;
   accountClient: StarfishClient;
+  /**
+   * Client for cross-app shared-spaces registry operations. OctoChat has no
+   * sharedSpacesNamespace, so this is the same as `accountClient`.
+   */
+  spacesRegistryClient: StarfishClient;
+  /**
+   * Client for cross-app shared-spaces keyring operations. OctoChat has no
+   * sharedSpacesNamespace, so this is the same as `chatClient`.
+   */
+  spacesKeyringClient: StarfishClient;
   fingerprint: string;
   /**
    * The Ed25519 pubkey that signs this identity's OWNED-space keyring entries —
@@ -90,6 +100,8 @@ export async function buildSession({ userId, keys }: DerivedIdentity, name?: str
     accountCap,
     chatClient,
     accountClient,
+    spacesRegistryClient: accountClient,
+    spacesKeyringClient: chatClient,
     fingerprint: fingerprintFromUserId(userId),
     // Seed/Nostr: the device key IS the root, so it's its own keyring-adder anchor.
     ownerEdPub: keys.edPub,
@@ -124,6 +136,8 @@ export async function buildLinkedSession({ userId, keys, capCert }: LinkedIdenti
     accountCap: capCert,
     chatClient,
     accountClient,
+    spacesRegistryClient: accountClient,
+    spacesKeyringClient: chatClient,
     fingerprint: fingerprintFromUserId(userId),
     // Paired device: owned-space keyring entries were signed by the ROOT, whose
     // edPub is the cap-cert issuer — NOT this device's fresh key.

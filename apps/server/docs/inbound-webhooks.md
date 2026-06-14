@@ -1,9 +1,9 @@
-# Inbound webhooks → public-space rooms (self-service)
+# Inbound webhooks → rooms (self-service)
 
 Let an external system (CI, an alerting pipeline, a no-code automation, …) POST a
-message that lands in a **public space's room** — no OctoChat account. Webhooks are
-**self-service**: a space **owner** mints their own from the app, with their own token.
-There is no shared secret and no per-webhook operator config.
+message that lands in a room — no OctoChat account. Webhooks are **self-service**: a
+space **owner** mints their own from the app, with their own token. There is no shared
+secret and no per-webhook operator config.
 
 Implemented in [`apps/server/src/webhook.ts`](../src/webhook.ts) (server),
 `packages/sdk/src/starfish/webhooks.ts` (provisioning), and the app's `WebhookPanel`.
@@ -12,9 +12,9 @@ Implemented in [`apps/server/src/webhook.ts`](../src/webhook.ts) (server),
 
 1. A space owner opens the room's **Incoming webhooks** panel and taps *Create
    webhook*. The app generates a high-entropy token and writes a registry doc
-   `pubspaces/{ownerId}/{spaceId}/_webhooks` (collection `webhooks`, gated
-   `pubspace:owner`) mapping `webhookId → { tokenHash, roomId, label, … }`. **Only the
-   SHA-256 of the token is stored** — the raw token is shown once and never persisted.
+   `spaces/{spaceId}/_webhooks` (collection `webhooks`, gated `space:owner`)
+   mapping `webhookId → { tokenHash, roomId, label, … }`. **Only the SHA-256 of the
+   token is stored** — the raw token is shown once and never persisted.
 2. The owner pastes the **URL + token** into their external tool.
 3. The tool POSTs; the server reads the registry in-process, hashes the presented
    token, compares it to the stored hash, and appends the message to the room.
@@ -22,7 +22,7 @@ Implemented in [`apps/server/src/webhook.ts`](../src/webhook.ts) (server),
 ## Request
 
 ```
-POST /webhook/{ownerId}/{spaceId}/{webhookId}
+POST /webhook/{spaceId}/{webhookId}
 Content-Type: application/json
 X-Webhook-Token: <the token shown once at creation>
 
@@ -59,10 +59,11 @@ and the signing *public* key live in the registry).
 - **Token is the single root secret.** Only the holder of the token (the legitimate
   caller) — or the server transiently, when handed it — can produce a valid author
   proof, because the signing key is derived from the token.
-- **Server-trusted ingress.** The target room comes from the owner-written registry,
-  never from the caller. Path segments are charset-validated before any store key is
-  built (no traversal). The append is written in-process (like the projection plugin),
-  then published on `octochat.chat.changed.<spaceId>` so SSE delivers it live.
+- **Server-trusted ingress.** The target room comes from the owner-written registry
+  (`spaces/{spaceId}/_webhooks`, gated `space:owner`), never from the caller. Path
+  segments are charset-validated before any store key is built (no traversal). The
+  append goes to `streampub` (`spaces/{spaceId}/streams/pub/{roomId}`) and is published
+  on `octochat.chat.changed` so SSE delivers it live.
 - **Replay.** A bearer token travels in each request, so a captured request can be
   replayed within the reach of whoever captured it — the same model as Slack/Discord
   incoming webhooks. TLS is required; impact is bounded (a public room, the append

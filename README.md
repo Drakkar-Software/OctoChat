@@ -27,11 +27,11 @@ OctoChat is a Slack/Mattermost-style chat with a marine soul. One Expo codebase 
 
 ## 💬 What you can do
 
-- 🏢 **Spaces & channels** — public or private, organized into collapsible categories, unread per-room.
+- 🏢 **Spaces & channels** — per-room access (`public` / `space` / `invite`), organized into collapsible categories, unread per-room.
 - 💭 **Threads** — reply in-thread anywhere; a Threads tab collects every conversation across the space.
 - 👥 **1:1 direct messages** — encrypted peer-to-peer chats; share a "DM me" link/QR to start one with anyone, no shared space needed (see [`docs/dm-links.md`](docs/dm-links.md)).
-- 🌍 **Public space discovery** — Explore tab lists public spaces to join.
-- 🤖 **Automations & bots** — scheduled tasks, slash commands, and append-only streams for bots to push events (runnable [`examples/`](examples/README.md)).
+- 🌍 **Public space discovery** — Explore tab lists spaces that contain at least one public room; join via invite link.
+- 🤖 **Automations & bots** — scheduled tasks, slash commands, and append-only rooms (public or private) for bots to push events (runnable [`examples/`](examples/README.md)).
 - 📲 **Smart notifications** — real-content push on Android, grouped per-room, taps route straight to the room. You never see notifications for your own messages.
 - 📎 **File sharing** — drag-and-drop (web), native share & save. Every blob sealed client-side before it leaves.
 
@@ -176,10 +176,11 @@ docker-compose.yml      — NATS service
 ## Architecture
 
 - **Crypto / sync** lives in the headless `@drakkar.software/octochat-sdk`
-  (`packages/sdk`) — seed → keys, device pairing, per-room keyrings, the Starfish
-  client. The app injects platform `kv`/config at boot
-  (`apps/mobile/src/lib/octochat-init.ts`) and keeps only platform adapters under
-  `apps/mobile/src/lib/starfish/*`.
+  (`packages/sdk`) — seed → keys, device pairing, per-space keyrings, the Starfish
+  client. It depends on `@drakkar.software/octospaces-sdk` for the per-node access
+  model (`getNodeAccess`, `createNode`, `joinSpaceByLink`, etc.) and re-exports those
+  primitives. The app adds `@drakkar.software/octospaces-ui` for shared UI tokens.
+  Platform `kv`/config is injected at boot (`apps/mobile/src/lib/octochat-init.ts`).
 - **SSE delivery** is documented in
   [`apps/server/docs/notifications-sse.md`](apps/server/docs/notifications-sse.md).
 - **Design rules & conventions** for the app: see
@@ -203,15 +204,17 @@ private keys.
 - The bootstrap Argon2id runs **once** at sign-in; restore paths reuse cached
   device keys and only do fast Ed25519 cap-minting thereafter.
 
-### Authorization: capability certificates (`paths.ts`, `member-caps.ts`)
+### Authorization: capability certificates (`paths.ts`)
 
 - No server-side passwords or sessions. Every `/pull` and `/push` is signed
   (`signRequest`) by the device Ed25519 key.
-- Access is gated by **scoped cap-certs**: a device cap for your own
-  owner/account scopes, and a **member cap** (`mintMemberCap`) per joined space.
-  The server authorizes a request only if a presented cap proves the scope.
+- Access is gated by **scoped cap-certs**: a device cap for owner/account scopes, a
+  **space-wide member cap** per joined space, and **per-node caps** for
+  invite-plaintext rooms (`streaminv`/`objinv`). The server authorizes a request only
+  if a presented cap proves the scope. Cap management is handled by
+  `@drakkar.software/octospaces-sdk` (re-exported from `@drakkar.software/octochat-sdk`).
 
-### Message & attachment sealing (`members.ts`, `attachments.ts`)
+### Message & attachment sealing (`attachments.ts`)
 
 - One **keyring per space** (`starfish-keyring`) covers every channel. Its CEK
   seals message bodies and attachment bytes with **AEAD (AES-GCM)** before they

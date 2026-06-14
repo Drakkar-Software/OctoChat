@@ -1,17 +1,15 @@
 /**
  * Space + room registries (plaintext metadata docs). A user's spaces live at
  * `user/<userId>/_spaces`; each space's ACCESS RECORD (owner/members + shared
- * name/image) at `spaces/<spaceId>/_rooms`. The room/category LIST no longer lives
- * here — it moved to the encrypted unified object index (`objects/_index`, see
- * `object-index.ts` / {@link useObjects}); `_rooms` is now just the owner-only access
- * record. A fresh identity starts with no spaces — the user creates or joins one.
+ * name/image) at `spaces/<spaceId>/_access`. The room/category LIST no longer lives
+ * here — it moved to the PLAINTEXT unified object index (`objects/_index`, enc:"none",
+ * see `object-index.ts` / {@link useObjects}); `_access` is now just the access record.
+ * A fresh identity starts with no spaces — the user creates or joins one.
  */
 import { ConflictError, StarfishHttpError } from '@drakkar.software/starfish-client';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { ArchivedDms, CapMap, DmMap, MutePrefs, PubAccessMap, ReadPrefs, Room, Space } from '../domain/types';
-
-import type { SealedBlob } from './account-seal';
+import type { ArchivedDms, CapMap, DmMap, MutePrefs, ReadPrefs, Room, Space } from '../domain/types';
 
 import { randomId } from '../domain/ids';
 
@@ -19,8 +17,8 @@ import type { Session } from './identity';
 import { DEFAULT_CATEGORY } from './objects';
 import { seedSpaceObjectIndex } from './object-index';
 import {
-  roomsRegistryPull,
-  roomsRegistryPush,
+  spaceRegistryPull,
+  spaceRegistryPush,
   spacesPull,
   spacesPush,
 } from './paths';
@@ -69,9 +67,6 @@ interface SpacesDoc {
   /** Per-room last-read marks (see {@link ReadPrefs}) — shares this doc like `mutes`
    *  so a fresh device hydrates them in the same pull and unread clears cross-device. */
   reads: ReadPrefs;
-  /** Sealed credentials for joined PUBLIC spaces (see {@link PubAccessMap}). Shares
-   *  this doc like `caps`, but each value is sealed to the account key first. */
-  pubAccess: PubAccessMap;
   /** Peer userId → shared DM-space id (see {@link DmMap}). Shares this doc like `caps`
    *  so DM dedup + the non-initiator's accepted-space pointer hydrate cross-device. */
   dms: DmMap;
@@ -84,6 +79,10 @@ interface SpacesDoc {
    *  so an archive on one device propagates. See `messaging/archived-dms.ts` and
    *  {@link ArchivedDms}. */
   archivedDms: ArchivedDms;
+  /** Sealed link-access credentials written by octospaces-sdk's `addJoinedSpaceWithLinkAccess`
+   *  when a user joins via an invite link. Keyed by spaceId; each value is a SealedBlob.
+   *  Threaded through all writes so sibling doc edits never clobber it. */
+  pubAccess: Record<string, unknown>;
   hash: string | null;
 }
 
@@ -153,10 +152,10 @@ async function pullSpacesDoc(client: StarfishClient, userId: string): Promise<Sp
         caps?: CapMap;
         mutes?: unknown;
         reads?: unknown;
-        pubAccess?: PubAccessMap;
         dms?: unknown;
         quickReactions?: unknown;
         archivedDms?: unknown;
+        pubAccess?: unknown;
       }
     | undefined;
   return {
@@ -164,10 +163,10 @@ async function pullSpacesDoc(client: StarfishClient, userId: string): Promise<Sp
     caps: data?.caps && typeof data.caps === 'object' ? data.caps : {},
     mutes: coerceMutes(data?.mutes),
     reads: coerceReads(data?.reads),
-    pubAccess: data?.pubAccess && typeof data.pubAccess === 'object' ? data.pubAccess : {},
     dms: coerceDms(data?.dms),
     quickReactions: coerceQuickReactions(data?.quickReactions),
     archivedDms: coerceArchivedDms(data?.archivedDms),
+    pubAccess: data?.pubAccess && typeof data.pubAccess === 'object' ? (data.pubAccess as Record<string, unknown>) : {},
     hash: res?.hash ?? null,
   };
 }
@@ -183,38 +182,37 @@ export async function readSpaces(
     // reads as an empty account (e.g. a desktop build baked against an unreachable
     // server). Surface it; the caller still degrades to empty.
     console.error('[readSpaces] failed to pull spaces registry', err);
-    return { spaces: [], caps: {}, mutes: coerceMutes(undefined), reads: coerceReads(undefined), pubAccess: {}, dms: {}, quickReactions: [], archivedDms: {}, hash: null };
+    return { spaces: [], caps: {}, mutes: coerceMutes(undefined), reads: coerceReads(undefined), dms: {}, quickReactions: [], archivedDms: {}, pubAccess: {}, hash: null };
   }
 }
 
 /**
  * Read-modify-write the whole `_spaces` doc through a single funnel. The mutator
  * runs on FRESH server state (re-read each attempt) and returns the next
- * `{ spaces, caps, pubAccess }`, so a caller can never accidentally drop a sibling key
+ * `{ spaces, caps }`, so a caller can never accidentally drop a sibling key
  * — it must actively change it. Pushes are retried on {@link ConflictError} (a
  * concurrent writer — e.g. another device, or a cap-save racing a space-list edit) by
- * re-reading and re-applying. This is why caps, pubAccess and the space list can
- * safely share one doc.
+ * re-reading and re-applying. This is why caps and the space list can safely share one doc.
  */
 export async function updateSpacesDoc(
   client: StarfishClient,
   userId: string,
   mutator: (
-    cur: { spaces: Space[]; caps: CapMap; pubAccess: PubAccessMap },
-  ) => { spaces: Space[]; caps: CapMap; pubAccess: PubAccessMap },
+    cur: { spaces: Space[]; caps: CapMap; pubAccess: Record<string, unknown> },
+  ) => { spaces: Space[]; caps: CapMap; pubAccess?: Record<string, unknown> },
 ): Promise<void> {
   const MAX_ATTEMPTS = 3;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, archivedDms, hash } = await pullSpacesDoc(client, userId);
+    const { spaces, caps, mutes, reads, dms, quickReactions, archivedDms, pubAccess, hash } = await pullSpacesDoc(client, userId);
     const cur = { spaces, caps, pubAccess };
     const next = mutator(cur);
     if (next === cur) return; // no-op mutation (e.g. already joined) — skip the write
     try {
-      // `mutes`, `reads`, `dms`, `quickReactions` and `archivedDms` are read fresh and
-      // threaded through unchanged so a spaces/caps edit never drops a sibling key.
+      // `mutes`, `reads`, `dms`, `quickReactions`, `archivedDms` are read fresh and threaded
+      // through unchanged. `pubAccess` uses the mutator's return if provided, else preserved.
       await client.push(
         spacesPush(userId),
-        { v: 1, spaces: next.spaces, caps: next.caps, mutes, reads, pubAccess: next.pubAccess, dms, quickReactions, archivedDms },
+        { v: 1, spaces: next.spaces, caps: next.caps, mutes, reads, dms, quickReactions, archivedDms, pubAccess: next.pubAccess ?? pubAccess },
         hash,
       );
       return;
@@ -238,12 +236,12 @@ export async function updateMutesDoc(
 ): Promise<void> {
   const MAX_ATTEMPTS = 3;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, archivedDms, hash } = await pullSpacesDoc(client, userId);
+    const { spaces, caps, mutes, reads, dms, quickReactions, archivedDms, pubAccess, hash } = await pullSpacesDoc(client, userId);
     const next = mutator(mutes);
     if (!next) return; // no-op
     try {
       // Thread all sibling keys through unchanged — a mute edit must never drop one.
-      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes: next, reads, pubAccess, dms, quickReactions, archivedDms }, hash);
+      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes: next, reads, dms, quickReactions, archivedDms, pubAccess }, hash);
       return;
     } catch (err) {
       if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
@@ -255,7 +253,7 @@ export async function updateMutesDoc(
 /**
  * Read-modify-write the `reads` key of the `_spaces` doc through the same
  * conflict-retrying funnel as {@link updateMutesDoc}, preserving the sibling
- * `spaces`/`caps`/`mutes`/`pubAccess` keys. The mutator runs on FRESH server state and
+ * `spaces`/`caps`/`mutes` keys. The mutator runs on FRESH server state and
  * returns the next {@link ReadPrefs} (or `null` for a no-op). Read marks are monotonic,
  * so a mutator MUST max-merge rather than overwrite — that is what makes a stale
  * device's flush unable to roll back a newer mark another device already pushed.
@@ -267,12 +265,12 @@ export async function updateReadsDoc(
 ): Promise<void> {
   const MAX_ATTEMPTS = 3;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, archivedDms, hash } = await pullSpacesDoc(client, userId);
+    const { spaces, caps, mutes, reads, dms, quickReactions, archivedDms, pubAccess, hash } = await pullSpacesDoc(client, userId);
     const next = mutator(reads);
     if (!next) return; // no-op (nothing newer than the server already has)
     try {
       // Thread all sibling keys through unchanged — a reads edit must never drop one.
-      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads: next, pubAccess, dms, quickReactions, archivedDms }, hash);
+      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads: next, dms, quickReactions, archivedDms, pubAccess }, hash);
       return;
     } catch (err) {
       if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
@@ -284,7 +282,7 @@ export async function updateReadsDoc(
 /**
  * Read-modify-write the `dms` key of the `_spaces` doc through the same
  * conflict-retrying funnel as {@link updateMutesDoc}, preserving the sibling
- * `spaces`/`caps`/`mutes`/`reads`/`pubAccess` keys. The mutator runs on FRESH server
+ * `spaces`/`caps`/`mutes`/`reads` keys. The mutator runs on FRESH server
  * state and returns the next {@link DmMap} (or `null` for a no-op, e.g. the mapping is
  * already what it would be set to).
  */
@@ -295,12 +293,12 @@ export async function updateDmsDoc(
 ): Promise<void> {
   const MAX_ATTEMPTS = 3;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, archivedDms, hash } = await pullSpacesDoc(client, userId);
+    const { spaces, caps, mutes, reads, dms, quickReactions, archivedDms, pubAccess, hash } = await pullSpacesDoc(client, userId);
     const next = mutator(dms);
     if (!next) return; // no-op
     try {
       // Thread all sibling keys through unchanged — a dms edit must never drop one.
-      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads, pubAccess, dms: next, quickReactions, archivedDms }, hash);
+      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads, dms: next, quickReactions, archivedDms, pubAccess }, hash);
       return;
     } catch (err) {
       if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
@@ -322,12 +320,12 @@ export async function updateQuickReactionsDoc(
 ): Promise<void> {
   const MAX_ATTEMPTS = 3;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, archivedDms, hash } = await pullSpacesDoc(client, userId);
+    const { spaces, caps, mutes, reads, dms, quickReactions, archivedDms, pubAccess, hash } = await pullSpacesDoc(client, userId);
     const next = mutator(quickReactions);
     if (!next) return; // no-op
     try {
       // Thread all sibling keys through unchanged — a palette edit must never drop one.
-      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads, pubAccess, dms, quickReactions: next, archivedDms }, hash);
+      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads, dms, quickReactions: next, archivedDms, pubAccess }, hash);
       return;
     } catch (err) {
       if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
@@ -350,12 +348,12 @@ export async function updateArchivedDmsDoc(
 ): Promise<void> {
   const MAX_ATTEMPTS = 3;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { spaces, caps, mutes, reads, pubAccess, dms, quickReactions, archivedDms, hash } = await pullSpacesDoc(client, userId);
+    const { spaces, caps, mutes, reads, dms, quickReactions, archivedDms, pubAccess, hash } = await pullSpacesDoc(client, userId);
     const next = mutator(archivedDms);
     if (!next) return; // no-op
     try {
       // Thread all sibling keys through unchanged — an archive edit must never drop one.
-      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads, pubAccess, dms, quickReactions, archivedDms: next }, hash);
+      await client.push(spacesPush(userId), { v: 1, spaces, caps, mutes, reads, dms, quickReactions, archivedDms: next, pubAccess }, hash);
       return;
     } catch (err) {
       if (err instanceof ConflictError && attempt < MAX_ATTEMPTS - 1) continue;
@@ -390,7 +388,7 @@ export async function writeSpaces(
   spaces: Space[],
   _hash: string | null,
 ): Promise<void> {
-  await updateSpacesDoc(client, userId, (cur) => ({ spaces, caps: cur.caps, pubAccess: cur.pubAccess }));
+  await updateSpacesDoc(client, userId, (cur) => ({ spaces, caps: cur.caps }));
 }
 
 /**
@@ -422,7 +420,7 @@ export async function reorderSpaces(
     for (const s of cur.spaces) if (byId.has(s.id)) next.push(s);
     const unchanged = next.length === cur.spaces.length && next.every((s, i) => s === cur.spaces[i]);
     if (unchanged) return cur; // no-op — updateSpacesDoc skips the push
-    return { spaces: next, caps: cur.caps, pubAccess: cur.pubAccess };
+    return { spaces: next, caps: cur.caps };
   });
 }
 
@@ -450,12 +448,12 @@ export function normalizeCategories(rooms: Room[], stored: unknown): string[] {
 }
 
 /**
- * Read a space's `_rooms` ACCESS RECORD: owner, member roster, and the shared
- * name/image. The room/category LIST is no longer here (it lives in the encrypted
- * object index — see {@link readIndexRooms}); this returns only what gates access +
- * the plaintext shared identity.
+ * Read a space's `_access` ACCESS RECORD: owner, member roster, and the shared
+ * name/image. The room/category LIST is no longer here (it lives in the plaintext
+ * object index, `objects/_index` — see {@link readIndexRooms}); this returns only
+ * what gates access + the plaintext shared identity.
  */
-export async function readRooms(
+export async function readSpaceAccess(
   client: StarfishClient,
   spaceId: string,
 ): Promise<{
@@ -469,7 +467,7 @@ export async function readRooms(
   // (offline / unreachable) PROPAGATES so a caller — the rooms provider, or a write
   // RMW — can tell "empty space" from "couldn't reach the server" instead of silently
   // collapsing to no-access. Mirrors pullSpacesDoc.
-  const res = await client.pull(roomsRegistryPull(spaceId)).catch((err: unknown) => {
+  const res = await client.pull(spaceRegistryPull(spaceId)).catch((err: unknown) => {
     if (err instanceof StarfishHttpError && err.status === 404) return null;
     throw err;
   });
@@ -487,7 +485,7 @@ export async function readRooms(
   };
 }
 
-export async function writeRooms(
+export async function writeSpaceAccess(
   client: StarfishClient,
   spaceId: string,
   owner: string,
@@ -495,8 +493,8 @@ export async function writeRooms(
   hash: string | null,
   meta?: SpaceMeta,
 ): Promise<void> {
-  // The `_rooms` doc is now just the ACCESS RECORD `{ v, owner, members, name, image }`
-  // (the room/category list moved to the encrypted object index). `owner` + `members`
+  // The `_access` doc is the ACCESS RECORD `{ v, owner, members, name, image }`
+  // (the room/category list moved to the plaintext object index, `objects/_index`). `owner` + `members`
   // are the authoritative access record the server's space:owner/space:member enricher
   // reads to gate this registry and the space keyring — stamp both on every write so
   // neither is ever dropped. `name`/`image` are the shared space identity; callers thread
@@ -505,7 +503,7 @@ export async function writeRooms(
   const name = meta?.name?.trim() || undefined;
   const image = meta?.image || undefined;
   await client.push(
-    roomsRegistryPush(spaceId),
+    spaceRegistryPush(spaceId),
     {
       v: 1,
       owner,
@@ -525,20 +523,19 @@ export async function addSpaceMember(
   ownerUserId: string,
   memberUserId: string,
 ): Promise<void> {
-  const { owner, members, name, image, hash } = await readRooms(client, spaceId);
+  const { owner, members, name, image, hash } = await readSpaceAccess(client, spaceId);
   if (memberUserId === (owner ?? ownerUserId) || members.includes(memberUserId)) return;
   // Push replaces the whole access-record doc; thread name/image through so adding a
-  // member never drops the shared space identity (see writeRooms).
-  await writeRooms(client, spaceId, owner ?? ownerUserId, [...members, memberUserId], hash, { name, image });
+  // member never drops the shared space identity (see writeSpaceAccess).
+  await writeSpaceAccess(client, spaceId, owner ?? ownerUserId, [...members, memberUserId], hash, { name, image });
 }
 
-/** Invitee-side: record a joined space in the identity's own space list. Caps are
- *  left untouched (used for public joins, which carry no member cap). Idempotent. */
+/** Invitee-side: record a joined space in the identity's own space list. Idempotent. */
 export async function addJoinedSpace(client: StarfishClient, userId: string, space: Space): Promise<void> {
   await updateSpacesDoc(client, userId, (cur) =>
     cur.spaces.some((s) => s.id === space.id)
       ? cur
-      : { spaces: [...cur.spaces, space], caps: cur.caps, pubAccess: cur.pubAccess },
+      : { spaces: [...cur.spaces, space], caps: cur.caps },
   );
 }
 
@@ -559,28 +556,6 @@ export async function addJoinedSpaceWithCap(
   await updateSpacesDoc(client, userId, (cur) => ({
     spaces: cur.spaces.some((s) => s.id === space.id) ? cur.spaces : [...cur.spaces, space],
     caps: { ...cur.caps, [space.id]: capJson },
-    pubAccess: cur.pubAccess,
-  }));
-}
-
-/**
- * Invitee-side: record a joined PUBLIC space AND persist its sealed access credential
- * in one atomic doc write — the public twin of {@link addJoinedSpaceWithCap}. Unlike a
- * private member cap, a public-join credential embeds a bearer secret (the link's
- * ephemeral key), so the caller seals it to the account key first (see
- * `account-seal.ts`); only the seed can re-open it. Idempotent on the space; the
- * sealed access is always (re)written so a re-join refreshes a rotated link.
- */
-export async function addJoinedPublicSpaceWithAccess(
-  client: StarfishClient,
-  userId: string,
-  space: Space,
-  sealed: SealedBlob,
-): Promise<void> {
-  await updateSpacesDoc(client, userId, (cur) => ({
-    spaces: cur.spaces.some((s) => s.id === space.id) ? cur.spaces : [...cur.spaces, space],
-    caps: cur.caps,
-    pubAccess: { ...cur.pubAccess, [space.id]: sealed },
   }));
 }
 
@@ -605,7 +580,7 @@ export async function createSpace(session: Session, name: string): Promise<Space
   // seed leaves an unreferenced (harmless, unguessable-id) `_rooms`/keyring orphan rather
   // than a space that shows up EMPTY in the rail (with the migration gone, nothing would
   // ever re-seed it).
-  await writeRooms(accountClient, id, userId, [], null, { name: trimmed });
+  await writeSpaceAccess(accountClient, id, userId, [], null, { name: trimmed });
   await seedSpaceObjectIndex(session, id, [{ id: `${id}-general`, name: 'general', kind: 'channel', category: DEFAULT_CATEGORY }]);
   await writeSpaces(accountClient, userId, [...spaces, space], hash);
   return space;

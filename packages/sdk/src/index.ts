@@ -52,10 +52,12 @@ export * from './starfish/profile-cache';
 export * from './starfish/pull-cache';
 export * from './starfish/registry';
 export * from './starfish/members';
-export * from './starfish/member-caps';
+// member-caps, space-encryptor, pubspace, pubspace-caps are REMOVED —
+// their functionality is now provided by @drakkar.software/octospaces-sdk
+// (getSpaceAccessEntry, saveSpaceAccessEntry, getNodeAccess, etc.) and
+// re-exported below in the octospaces-sdk section.
 export * from './starfish/objects';
 export * from './starfish/object-index';
-export * from './starfish/space-encryptor';
 export * from './starfish/attachments';
 export * from './starfish/stream-bots';
 export * from './starfish/dm';
@@ -64,8 +66,6 @@ export * from './starfish/dm-keys';
 export * from './starfish/dm-inbox';
 export * from './starfish/dm-link';
 export * from './starfish/base64url';
-export * from './starfish/pubspace';
-export * from './starfish/pubspace-caps';
 export * from './starfish/webhooks';
 
 // ── messaging/ — reads, mutes, reactions, threads, links, cross-room ───────────
@@ -125,3 +125,67 @@ export * from './automations/runner-core';
 export * from './automations/schedule';
 export * from './automations/orchestrator';
 export * from './automations/providers/index';
+
+// ── octospaces-sdk — new generic utilities (0.4.3) ─────────────────────────────
+// These were extracted into the shared SDK; re-exported here so OctoChat code
+// imports from '@drakkar.software/octochat-sdk' without knowing the origin.
+export {
+  // search-match — quick-find title ranker
+  matchTitle,
+  rankResults,
+  fold,
+  isWordStart,
+  type MatchRange,
+  type TitleMatch,
+  type RankedResult,
+  // live-sync-bus — doc-change → pull-hook bus
+  registerPull,
+  dispatchDocChange,
+  emitSseStatus,
+  onSseStatus,
+  clearLiveSyncBus,
+  // invite-preview — classify an invite string before joining
+  previewInvite,
+  type InvitePreview,
+  // per-node access model
+  type NodeAccess,
+  getNodeAccess,
+  buildNodeAccess,
+  getSpaceClient,
+  clearNodeAccessCache,
+  type NodeAccessHandle,
+  // space access store (replaces member-caps + pubspace-caps)
+  hydrateSpaceAccessStore,
+  getSpaceAccessEntry,
+  saveSpaceAccessEntry,
+  removeSpaceAccessEntry,
+  getNodeAccessEntry,
+  saveNodeAccessEntry,
+  removeNodeAccessEntry,
+  localSpaceAccessEntries,
+  memberCapsFromStore,
+  linkAccessFromStore,
+  clearSpaceAccessStore,
+  type SpaceAccessEntry,
+  type SpaceAccessMap,
+  // space access recovery (replaces recoverPubspaceAccess)
+  recoverSpaceAccess,
+  // space-wide invite links
+  createSpaceInviteLink,
+  // joining spaces via link
+  joinSpaceByLink,
+  // hard access-denial error (thrown by getNodeAccess / openEncryptor)
+  SpaceAccessError,
+  // node operations
+  createNode,
+  setNodeAccess,
+  inviteToNode,
+  acceptNodeInvite,
+  createNodeInviteLink,
+  decodeNodeInviteLink,
+  encodeNodeInviteLink,
+  joinNodeByLink,
+  type CreateNodeInput,
+  type NodeInviteBundle,
+  type NodeInviteLinkToken,
+} from '@drakkar.software/octospaces-sdk';

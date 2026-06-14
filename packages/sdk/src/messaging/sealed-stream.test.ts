@@ -44,6 +44,16 @@ describe('sealed-stream', () => {
     expect(opened).toEqual(msg('m1', 'hello'));
   });
 
+  it('on-wire body does not contain plaintext — E2EE is strictly client-side', async () => {
+    const space = ed25519Suite.generateKemKeypair();
+    const blob = await sealStreamElement(msg('m1', 'secret-payload'), space.pubHex, webhook);
+    // The blob handed to the transport must NOT expose the plaintext message.
+    // If it did, the server (which stores the raw blob) would hold readable content.
+    const wire = JSON.stringify(blob);
+    expect(wire).not.toContain('secret-payload');
+    expect(wire).not.toContain('msg');
+  });
+
   it('opens what the server produced (raw seal of the JSON envelope)', async () => {
     // Mirrors apps/server/webhook.ts: seal(JSON.stringify(element), pub, sealer).
     const space = ed25519Suite.generateKemKeypair();

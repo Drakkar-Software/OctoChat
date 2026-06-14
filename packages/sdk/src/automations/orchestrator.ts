@@ -6,13 +6,12 @@
  */
 import { sealToSelf } from '../starfish/account-seal';
 import { type SealedBlob } from '../starfish/account-seal';
-import { isPublicSpaceId, publicSpaceAuth } from '../starfish/pubspace';
 import { createStreamBotCredential } from '../starfish/stream-bots';
 import { roomSlug } from '../domain/ids';
 import type { Session } from '../starfish/identity';
 import type { AutomationMeta, AutomationSchedule, Room } from '../domain/types';
 
-import { AutomationsNotSupportedHere, createAutomationNode, deleteRoomFromRegistry, patchRoomAutomation, renameRoomInRegistry } from './registry-write';
+import { createAutomationNode, deleteRoomFromRegistry, patchRoomAutomation, renameRoomInRegistry } from './registry-write';
 import { tickRoom, type TickKind, type TickOutcome } from './runner-core';
 import { clearAutomationSecrets, saveAutomationSecrets } from './secrets';
 import { getProvider } from './providers';
@@ -20,26 +19,21 @@ import { getProvider } from './providers';
 const BOT_TTL_SEC = 365 * 24 * 3600;
 
 /** Mint a fresh bot credential for an automated room and SEAL it to the minting
- *  account key, so the bearer token never enters the synced registry in the clear
- *  (a space reader would otherwise lift it and forge bot posts). The caller persists
- *  the sealed blob into the registry; the runner / settings sheet open it with the seed
- *  (`openStreamBotCredential`). The seal binds to the seed-derived key — it opens on the
- *  minting device or a seed-restored device, NOT a QR-paired device (which has a fresh
- *  keypair), exactly like the `pubAccess` + DM-keyring seals. */
+ *  account key, so the bearer token never enters the synced registry in the clear.
+ *  The caller persists the sealed blob into the registry; the runner / settings sheet
+ *  open it with the seed (`openStreamBotCredential`). */
 async function mintSealedCredential(
   session: Session,
   spaceId: string,
   roomId: string,
 ): Promise<SealedBlob> {
-  if (!isPublicSpaceId(spaceId)) throw new AutomationsNotSupportedHere();
-  const { ownerId } = publicSpaceAuth(session, spaceId);
-  const cred = await createStreamBotCredential(session, ownerId, spaceId, roomId, { ttlSec: BOT_TTL_SEC });
+  const cred = createStreamBotCredential(session, spaceId, roomId, { ttlSec: BOT_TTL_SEC });
   return sealToSelf(session, JSON.stringify(cred));
 }
 
-/** Public-space-only: create a new automated room AND stamp its automation meta
- *  + bot credential + the device-local secrets. Returns the created Room. The
- *  category bucket defaults to 'AUTOMATIONS' so automated rooms group cleanly. */
+/** Create a new automated room AND stamp its automation meta + bot credential
+ *  + device-local secrets. Returns the created Room. The category bucket
+ *  defaults to 'AUTOMATIONS' so automated rooms group cleanly. */
 export async function createAutomatedRoom(opts: {
   session: Session;
   spaceId: string;
@@ -55,7 +49,6 @@ export async function createAutomatedRoom(opts: {
   schedule?: AutomationSchedule;
 }): Promise<Room> {
   const { session, spaceId } = opts;
-  if (!isPublicSpaceId(spaceId)) throw new AutomationsNotSupportedHere();
   if (!getProvider(opts.providerId)) throw new Error(`Unknown automation provider: ${opts.providerId}`);
   const category = opts.category ?? 'AUTOMATIONS';
   // Mint the room id up-front (same shape `createPublicRoom`/`useRooms.createRoom` use) so

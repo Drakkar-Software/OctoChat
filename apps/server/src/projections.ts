@@ -5,58 +5,92 @@ import type { Projection, ProjectionOp } from "@drakkar.software/starfish-projec
  * Public-space directory projection.
  *
  * The `starfish-projection` plugin folds every write of a watched `source`
- * collection into a single queryable *list document*. This one indexes PUBLIC
- * spaces: on each write to a public space's `_rooms` registry it upserts that
- * space's `{ name, ownerId, image, rooms }` into the list at `_index/spaces/public`.
- * Clients pull that one document to browse the directory (see the Explore screen +
- * `_index/spaces/public` collection in config.ts).
+ * collection into a single queryable *list document*. This one indexes spaces that
+ * contain at least one PUBLIC room: on each write to a space's `objindex` it
+ * upserts that space's `{ publicRooms, ts }` into the list at `_index/spaces/public`,
+ * or removes the entry when the space has no public rooms. Clients pull that one
+ * document to browse the directory (see the Explore screen + `spaceindex` collection
+ * in config.ts). Space names + images are fetched separately from `_access` by the
+ * client (same pattern as owner-profile resolution — the index is minimal, details
+ * on demand).
  *
- * Sharded by space TYPE via the `target` function (the "shard by type" design):
- * only the PUBLIC shard is materialized. Private spaces are deliberately NOT
- * indexed — their `_rooms` doc is read-gated per-space (`space:member`), and an
- * aggregate index doc has a single read-role, so a client-readable private shard
- * would leak every private space's name/owner/roster and break the invite-only
- * E2EE model. A future admin-only private shard would extend `spaceTarget` with a
- * `_index/spaces/private` branch gated behind an admin read-role; out of scope here.
+ * Source is `objindex` (always plaintext in the per-node access model): the
+ * `objects[]` array carries `access='public'` flags readable without decryption,
+ * so the projection can count public rooms from the write body alone.
  *
- * Space type is IMMUTABLE (a space never converts public↔private), so the
- * projection's "shard by an immutable key" rule holds — no stale-shard footgun.
+ * Keep in sync with drakkar_sync/apps/octochat/projections.py.
  */
 
-/** The list document a `pubspace` write routes into: always the public shard. */
-function spaceTarget(_event: WriteEvent): string | null {
-  // source is `pubspace` (inherently public) → the public shard. Extension point:
-  // a `rooms` source would branch to a `_index/spaces/private` admin-only shard.
-  return "_index/spaces/public";
+/** Count live public room nodes in an `objindex` write body's `objects` array. */
+export function countPublicRooms(body: unknown): number {
+  if (!body || typeof body !== "object") return 0;
+  const objects = (body as Record<string, unknown>).objects;
+  if (!Array.isArray(objects)) return 0;
+  return objects.filter(
+    (n: unknown) =>
+      n &&
+      typeof n === "object" &&
+      (n as Record<string, unknown>).type === "room" &&
+      (n as Record<string, unknown>).access === "public" &&
+      !(n as Record<string, unknown>).archived,
+  ).length;
 }
 
-/** Map a `pubspace` `_rooms` write to a directory entry (or ignore non-registry writes). */
-function projectPubspace(e: WriteEvent): ProjectionOp {
-  // The `pubspace` collection's `{docId}` is the room registry (`_rooms`) OR a
-  // per-room message doc. Index ONLY the `_rooms` registry — without this filter
-  // the entry `value` would be message bodies, not the space's metadata.
-  if (e.params.docId !== "_rooms") return null;
-  const body = e.body ?? {};
+/** Map an `objindex` write to a directory upsert (or remove / ignore). */
+export function projectObjIndex(e: WriteEvent): ProjectionOp {
+  const spaceId = e.params.spaceId;
+  if (!spaceId) return null;
+  const publicRooms = countPublicRooms(e.body);
+  if (publicRooms === 0) return { id: spaceId, remove: true };
   return {
-    id: e.params.spaceId,
-    value: {
-      name: typeof body.name === "string" ? body.name : null,
-      // `pubspace` path is `pubspaces/{ownerId}/{spaceId}/{docId}` — owner is a path param.
-      ownerId: e.params.ownerId ?? null,
-      image: typeof body.image === "string" ? body.image : null,
-      rooms: Array.isArray(body.rooms) ? body.rooms.length : 0,
-      ts: e.timestamp,
-    },
+    id: spaceId,
+    value: { publicRooms, ts: e.timestamp },
   };
-  // Note: upsert-only. Public-space deletion has no tombstone flow today; when one
-  // exists, recognise it here and return `{ id: e.params.spaceId, remove: true }`.
+}
+
+/**
+ * Space name/image — populated by `spaceregistry` (i.e. `_access`) writes.
+ *
+ * IMPORTANT: targets the same `_index/spaces/public` shard as {@link projectObjIndex},
+ * NOT a separate meta shard. The two projections union-merge into the same list doc:
+ *
+ *   `projectObjIndex`    → adds `{ publicRooms, ts }` for spaces with public rooms;
+ *                          emits `remove: true` when the count drops to zero.
+ *   `projectSpaceRegistry` → adds `{ name, image }` for any space name/image write.
+ *
+ * Because `loadPublicSpaceIndex` (explore-spaces.ts) filters entries by `publicRooms > 0`,
+ * name/image entries without a corresponding publicRooms value are silently dropped by the
+ * client — private spaces whose names land here (from a spaceregistry write with no
+ * subsequent objindex write removing them) will NOT appear in the Explore screen. This is
+ * preferable to a separate `_index/spaces/meta` shard, which would make ALL space names
+ * publicly enumerable.
+ *
+ * Residual: a name/image entry for a private space can transiently exist in the raw list
+ * doc until the next `objindex` write for that space fires `remove: true`. Acceptable for
+ * the POC — the Explore UI stays clean, and the raw doc exposure is bounded.
+ */
+export function projectSpaceRegistry(e: WriteEvent): ProjectionOp {
+  const spaceId = e.params.spaceId;
+  if (!spaceId) return null;
+  const body = e.body as Record<string, unknown> | undefined;
+  const name = typeof body?.name === "string" ? body.name : null;
+  const image = typeof body?.image === "string" ? body.image : null;
+  return { id: spaceId, value: { name, image } };
 }
 
 /** The projections this server maintains. Passed to `createProjectionServerPlugin`. */
 export const projections: Projection[] = [
   {
-    source: "pubspace",
-    target: spaceTarget,
-    project: projectPubspace,
+    source: "objindex",
+    target: "_index/spaces/public",
+    project: projectObjIndex,
+  },
+  {
+    // Same target as above: name/image folds into the public directory so private-space
+    // names are never published to a separate publicly-readable shard. Entries without
+    // publicRooms > 0 are filtered client-side by loadPublicSpaceIndex.
+    source: "spaceregistry",
+    target: "_index/spaces/public",
+    project: projectSpaceRegistry,
   },
 ];

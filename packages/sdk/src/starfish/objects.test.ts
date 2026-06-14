@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ancestors, breadcrumbs, objectsToRoomCategories, seedIndexNodes, type SeedRoom } from './objects';
+import { ancestors, addObject, breadcrumbs, objectsToRoomCategories, seedIndexNodes, type SeedRoom } from './objects';
 import type { ObjectNode } from '../domain/types';
 
 /**
@@ -76,5 +76,42 @@ describe('ancestors (breadcrumb trail = root→parent, EXCLUSIVE of self)', () =
 
   it('is empty for an unknown node', () => {
     expect(ancestors(nodes, 'nope')).toEqual([]);
+  });
+});
+
+describe('objectsToRoomCategories per-node access/enc passthrough', () => {
+  const catNode = (id: string, title: string): ObjectNode => ({
+    id, type: 'category', parentId: null, order: 0, title, updatedAt: 1,
+  });
+  const roomNode = (id: string, parentId: string, extra: Partial<ObjectNode> = {}): ObjectNode => ({
+    id, type: 'room', subtype: 'channel', parentId, order: 0, title: id, updatedAt: 1, ...extra,
+  });
+
+  it('passes through access:public to the projected Room', () => {
+    const nodes = [catNode('c1', 'CH'), roomNode('r1', 'c1', { access: 'public', enc: false })];
+    const cats = objectsToRoomCategories(nodes, 'sp-1', 'CH');
+    const room = cats?.[0]?.rooms[0];
+    expect(room?.access).toBe('public');
+    expect(room?.enc).toBe(false);
+  });
+
+  it('passes through access:invite to the projected Room', () => {
+    const nodes = [catNode('c1', 'CH'), roomNode('r1', 'c1', { access: 'invite', enc: true })];
+    const room = objectsToRoomCategories(nodes, 'sp-1', 'CH')?.[0]?.rooms[0];
+    expect(room?.access).toBe('invite');
+    expect(room?.enc).toBe(true);
+  });
+
+  it('omits access/enc when absent (space-member default — no extra keys)', () => {
+    const nodes = [catNode('c1', 'CH'), roomNode('r1', 'c1')];
+    const room = objectsToRoomCategories(nodes, 'sp-1', 'CH')?.[0]?.rooms[0];
+    expect(room?.access).toBeUndefined();
+    expect(room?.enc).toBeUndefined();
+  });
+
+  it('addObject creates a node without access/enc (set separately via setNodeAccess)', () => {
+    const { node } = addObject([], { type: 'room', title: 'room', id: 'sp-x-r' }, 1);
+    expect(node.access).toBeUndefined();
+    expect(node.enc).toBeUndefined();
   });
 });

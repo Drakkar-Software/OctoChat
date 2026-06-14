@@ -4,29 +4,46 @@ import type { SyncConfig } from "@drakkar.software/starfish-server";
  * Starfish collection layout for OctoChat.
  *
  * Encryption is "delegated" (opaque ciphertext, multi-recipient keyring) only
- * for room message documents. Keyrings, member directories, profiles and the
- * space/room registries are plaintext ("none") metadata, read-gated by caps.
+ * for private/E2EE room message logs (`streamchat`). All other collections
+ * are "none" — either plaintext metadata read-gated by caps and the space-role
+ * enricher, or content whose access tier is enforced by the collection's roles.
  *
- *   {identity}  - resolver enforces it equals the cap-bound user id
- *   {roomId} / {spaceId} / {rendezvousId} - free path params
+ * Per-node access model (octospaces-sdk@0.4.3):
+ *   - `objindex` — always PLAINTEXT (none). Room/category/DM titles, automation
+ *     metadata (providerId, params, botUserId, lastError, …) are stored in clear
+ *     and visible to the server — accepted trade-off for the POC (the projection
+ *     must read node `access` fields, which sealed content would hide). NOTE:
+ *     invite-node title stripping ("stripped client-side before storage") is NOT
+ *     yet implemented; titles land in the plaintext index — a gap to close before
+ *     invite rooms ship. Bot `credential` blobs remain sealToSelf-sealed.
+ *   - `objpub`   — PUBLIC node content (access:'public'); world-readable.
+ *   - `objinv`   — INVITE-ONLY node content (access:'invite'+enc:false); gated
+ *     entirely by per-node cap via the sharing-plugin path-match.
+ *   - `streamchat`  — private/E2EE room logs; space:member only.
+ *   - `streampub`   — public room logs (access:'public'); world-readable.
+ *   - `streaminv`   — invite-only plaintext room logs (access:'invite'+enc:false);
+ *     gated by per-node cap (read:[] write:[]).
+ *
+ * Files to keep in sync:
+ *   Infra/sync/server/drakkar_sync/apps/octochat/collections.py  (byte-for-byte Python mirror)
+ *   packages/sdk/src/starfish/paths.ts  (path helpers must match storagePaths)
+ *
+ *   {identity}   - resolver enforces it equals the cap-bound user id
+ *   {roomId} / {spaceId} / {nodeId} / {rendezvousId} - free path params
  */
 const JSON_ONLY = ["application/json"];
 
 export const config: SyncConfig = {
   version: 1,
   collections: [
-    // (The merge-doc `chat` collection was RETIRED when `stream` and `channel` merged:
-    // every room is now an append-only log in `streamchat` (private) / `pubstream`
-    // (public) below. Removing `chat` is safe — member caps authorize by PATH
-    // (`spaces/{spaceId}/**`), not by collection name; the `collections:['chat']` label
-    // some cap scopes still carry is only a shape placeholder, never matched here.)
     // SPACE-wide multi-recipient keyring: one keyring (and CEK) per space, shared
-    // by all its channels. READ is gated on `space:member` (so any space member
-    // can fetch it and decrypt), WRITE on `space:owner` (only the owner may add
-    // recipients on invite or rotate on revoke) — both synthesized by
-    // makeSpaceRoleEnricher from the space registry's owner/members record.
+    // by ALL enc rooms in the space. READ gated on `space:member` (any space member
+    // can fetch it and decrypt), WRITE on `space:owner` (only the owner adds
+    // recipients on invite or rotates on revoke) — both synthesized by
+    // makeSpaceRoleEnricher from the space access record (spaces/{spaceId}/_access).
+    // Renamed from `chatkeyring` (0.4.1): collection is `spacekeyring` everywhere.
     {
-      name: "chatkeyring",
+      name: "spacekeyring",
       storagePath: "spaces/{spaceId}/_keyring",
       readRoles: ["space:member"],
       writeRoles: ["space:owner"],
@@ -34,14 +51,24 @@ export const config: SyncConfig = {
       maxBodyBytes: 65_536,
       allowedMimeTypes: JSON_ONLY,
     },
+    // SPACE access record `{ owner, members:[…], name, image }`. READ gated on
+    // `space:member`, WRITE on `space:owner`. The space-role enricher reads THIS doc
+    // to synthesize space:member / space:owner for every other collection.
+    // Renamed from `rooms` (0.4.1): storage leaf `_rooms` → `_access`.
+    {
+      name: "spaceregistry",
+      storagePath: "spaces/{spaceId}/_access",
+      readRoles: ["space:member"],
+      writeRoles: ["space:owner"],
+      encryption: "none",
+      maxBodyBytes: 131_072,
+      allowedMimeTypes: JSON_ONLY,
+    },
     // Encrypted file attachments, in a per-space subtree keyed by room. Bytes are
     // sealed client-side with the space keyring CEK (sealBytes), so the collection
-    // itself is "none" — the server only ever holds opaque ciphertext
-    // (application/octet-stream). Covered by the same `spaces/{spaceId}/**` member
-    // cap as the room messages. NOT nested under `chat/rooms/{roomId}`: the
-    // FilesystemObjectStore maps a key to a nested directory, so a key can't be
-    // both the room's message-doc leaf file AND a directory prefix (mkdir →
-    // ENOTDIR → an opaque 500). Keep in sync with attachmentName in apps/mobile.
+    // itself is "none" — the server only ever holds opaque ciphertext. Covered by
+    // the `spaces/{spaceId}/**` member cap; not split by room access tier (attach
+    // button gated to non-public rooms in the UI; attpub/attinv to be added later).
     {
       name: "attachments",
       storagePath: "spaces/{spaceId}/attachments/{roomId}/{blobId}",
@@ -51,17 +78,12 @@ export const config: SyncConfig = {
       maxBodyBytes: 11_534_336, // ~11 MB: ~10 MB plaintext + IV/tag/epoch overhead.
       allowedMimeTypes: ["application/octet-stream"],
     },
-    // ROOM messages (private/E2EE): append-only message log, one document per room.
-    // Since `stream` and `channel` merged, this is THE collection backing every private
-    // room's messages. Backed by an append-only `by_timestamp` collection so a writer
-    // just appends (POST /push with `{data}`) — no pull/merge/hash/conflict — which is
-    // also what lets bots/integrations post without implementing the read-modify-write
-    // sync protocol. Encryption is "delegated": each appended element is sealed with the
-    // space keyring CEK, opaque to the server. Read/write gated on `space:member` via
-    // makeSpaceRoleEnricher (collection-agnostic, keyed on {spaceId}), so the same
-    // `spaces/{spaceId}/**` member cap covers it. Distinct `streams/` subtree (not under
-    // chat/rooms) avoids the file-vs-directory collision noted on `attachments`. Keep in
-    // sync with streamRoom* in apps/mobile.
+    // ROOM messages (private/E2EE, access:'space' or 'invite'+enc:true): append-only
+    // message log, one doc per room. Encryption "delegated": each appended element is
+    // sealed with the space keyring CEK, opaque to the server. Read/write gated on
+    // `space:member` — invite+enc rooms grant the invitee space membership (so they
+    // hold the keyring), reusing this same collection. Keep in sync with
+    // streamRoomName in packages/sdk + Infra collections.py.
     {
       name: "streamchat",
       storagePath: "spaces/{spaceId}/streams/{roomId}",
@@ -72,9 +94,42 @@ export const config: SyncConfig = {
       maxBodyBytes: 262_144,
       allowedMimeTypes: JSON_ONLY,
     },
+    // PUBLIC ROOM messages (access:'public', enc:false only): world-readable append-only
+    // plaintext log. Mirrors objpub — read 'public' (anonymous browse), write
+    // 'space:member' (owner/members post; bots post via a member/audience cap minted by
+    // the owner). 'none' encryption: public rooms are plaintext. Append-only by_timestamp
+    // so a bot/integration posts with no keyring — just a signed append.
+    // 'streams/pub/{roomId}' avoids file-vs-directory collision with the private
+    // 'streams/{roomId}' leaf. Keep in sync with streamPubRoomName in packages/sdk +
+    // Infra collections.py.
+    {
+      name: "streampub",
+      storagePath: "spaces/{spaceId}/streams/pub/{roomId}",
+      readRoles: ["public"],
+      writeRoles: ["space:member"],
+      encryption: "none",
+      appendOnly: { type: "by_timestamp" },
+      maxBodyBytes: 262_144,
+      allowedMimeTypes: JSON_ONLY,
+    },
+    // INVITE ROOM messages (access:'invite', enc:false only): cap-gated append-only
+    // plaintext log. Mirrors objinv — read/write '[]'; access is entirely by the
+    // per-node cap via the sharing-plugin path-match (nodeRoomScope covers
+    // spaces/{spaceId}/streams/n/{roomId}/**). '{roomId}' is a directory, 'log' the
+    // leaf (file-vs-directory rule; mirrors objinv's objects/n/{nodeId}/content).
+    // Invite+enc rooms do NOT use this collection — they are space members and use
+    // streamchat. Keep in sync with streamInvRoomName in packages/sdk + Infra.
+    {
+      name: "streaminv",
+      storagePath: "spaces/{spaceId}/streams/n/{roomId}/log",
+      readRoles: [],
+      writeRoles: [],
+      encryption: "none",
+      appendOnly: { type: "by_timestamp" },
+      maxBodyBytes: 262_144,
+      allowedMimeTypes: JSON_ONLY,
+    },
     // Public-readable profile; only the self-signed root device may write.
-    // 64 KB holds the pseudo plus a downscaled avatar inlined as a JPEG data URI
-    // (~160-192 px square); see uploadAvatar/avatar-image in apps/mobile.
     {
       name: "profile",
       storagePath: "user/{identity}/profile",
@@ -104,115 +159,70 @@ export const config: SyncConfig = {
       maxBodyBytes: 131_072,
       allowedMimeTypes: JSON_ONLY,
     },
-    // Per-space room registry — also the space's access record
-    // `{ owner, members:[…], rooms:[…] }`. READ gated on `space:member` (any
-    // member sees the channel list), WRITE on `space:owner` (only the owner adds
-    // channels / edits the roster), both via makeSpaceRoleEnricher. Gating on a
-    // synthesized role (not a plain cap role) is what stops any authenticated cap
-    // reading or overwriting ANY space by its free, guessable {spaceId}.
-    {
-      name: "rooms",
-      storagePath: "spaces/{spaceId}/_rooms",
-      readRoles: ["space:member"],
-      writeRoles: ["space:owner"],
-      encryption: "none",
-      maxBodyBytes: 131_072,
-      allowedMimeTypes: JSON_ONLY,
-    },
-    // UNIFIED OBJECT INDEX (private/E2EE): the union-merged list of every Object in
-    // a space — rooms, categories, automations, docs, projects. Replaces the old
-    // `rooms[]`/`categories[]` half of `_rooms` (which stays the owner-only ACCESS
-    // record). Encryption "delegated" so object titles/emoji are sealed (a privacy
-    // upgrade over `_rooms`, whose names were plaintext). WRITE is `space:member`
-    // (not owner) — any member creates docs/projects/channels. The access record in
-    // `_rooms` remains owner-only, so this can't be used to escalate membership.
+    // OBJECT TREE (plaintext, member-gated): union-merged list of every ObjectNode in
+    // a space — rooms, categories, automations, DMs. Titles/emoji of `invite` nodes
+    // are stripped client-side before storage. WRITE is space:member (any member
+    // creates rooms/categories). `none` encryption (0.4.1 change from `delegated`):
+    // the projection reads node `access` fields to build the public-space directory —
+    // sealed content would be unreadable. Keep in sync with objIndexName in
+    // packages/sdk + Infra collections.py.
     {
       name: "objindex",
       storagePath: "spaces/{spaceId}/objects/_index",
       readRoles: ["space:member"],
       writeRoles: ["space:member"],
-      encryption: "delegated",
-      maxBodyBytes: 262_144,
-      allowedMimeTypes: JSON_ONLY,
-    },
-    // NOTE: doc/project CONTENT collections (objdoc/objlog + their public mirrors)
-    // moved to the standalone OctoVault app, where they were rebuilt on WAL/CRDT
-    // (pagelog/boardlog). The object INDEX (objindex/pubobjindex above) stays — it
-    // backs OctoChat's room/category sidebar tree.
-    // PUBLIC spaces: plaintext, cap-only spaces joined via a space-wide invitation
-    // link. NOT end-to-end encrypted — the owner stores plaintext JSON here so a
-    // link-bearer can read (or, with a read/write link, write) WITHOUT a keyring, a
-    // seed, or an encrypted join. `{docId}` is the room registry (`_rooms`) or a room
-    // id (one plaintext message doc per room); both sit under the owner's space
-    // subtree. Keyed by a free `{ownerId}`, so access is gated on the synthesized
-    // pubspace:owner/reader/writer roles from makePubspaceRoleEnricher (issuer-bound),
-    // NOT a plain cap role — see pubspace-role.ts.
-    {
-      name: "pubspace",
-      storagePath: "pubspaces/{ownerId}/{spaceId}/{docId}",
-      readRoles: ["pubspace:reader"],
-      writeRoles: ["pubspace:owner", "pubspace:writer"],
       encryption: "none",
       maxBodyBytes: 262_144,
       allowedMimeTypes: JSON_ONLY,
     },
-    // STREAM rooms (public/plaintext): append-only message log in a public space's
-    // subtree. Same append-only model as `streamchat` but plaintext (`none`), so an
-    // external bot/integration can post with NO keyring and NO encryption — just a
-    // signed append. Read gated on `pubspace:reader`, write on `pubspace:owner`/
-    // `pubspace:writer` (issuer-bound) via makePubspaceRoleEnricher, which now covers
-    // this collection too. The bot credential is a `createPublicLink` audience cap
-    // scoped here (no embedded secret; the bot signs with its own key). Keep in sync
-    // with pubstreamRoom* in apps/mobile.
+    // PUBLIC NODE CONTENT (access:'public'): world-readable plaintext merge-doc.
+    // Any anonymous caller may GET it; WRITE is space:member. Mirrors OctoVault's
+    // objpub — room-level public metadata (description, topic, pinned-message
+    // metadata, etc.) for public rooms. Keep in sync with objPubName in packages/sdk.
     {
-      name: "pubstream",
-      storagePath: "pubspaces/{ownerId}/{spaceId}/streams/{roomId}",
-      readRoles: ["pubspace:reader"],
-      writeRoles: ["pubspace:owner", "pubspace:writer"],
+      name: "objpub",
+      storagePath: "spaces/{spaceId}/objects/pub/{nodeId}",
+      readRoles: ["public"],
+      writeRoles: ["space:member"],
       encryption: "none",
-      appendOnly: { type: "by_timestamp" },
       maxBodyBytes: 262_144,
       allowedMimeTypes: JSON_ONLY,
     },
-    // SELF-SERVICE WEBHOOK REGISTRY: one owner-written doc per public space mapping a
-    // webhookId → `{ tokenHash, roomId, label, … }`. Lets a space OWNER mint their own
-    // inbound webhooks (see packages/sdk webhooks.ts) without an operator: WRITE is
-    // gated on `pubspace:owner` (only the owner manages their webhooks), READ on
-    // `pubspace:owner` (the owner lists/manages them). The inbound `/webhook` route
+    // INVITE-ONLY NODE CONTENT (access:'invite'+enc:false): cap-gated plaintext doc.
+    // read/write '[]' — gated entirely by the per-node cap via the sharing plugin
+    // path-match. Mirrors OctoVault's objinv. Keep in sync with objInvName + Infra.
+    {
+      name: "objinv",
+      storagePath: "spaces/{spaceId}/objects/n/{nodeId}/content",
+      readRoles: [],
+      writeRoles: [],
+      encryption: "none",
+      maxBodyBytes: 262_144,
+      allowedMimeTypes: JSON_ONLY,
+    },
+    // SELF-SERVICE WEBHOOK REGISTRY: one owner-written doc per space mapping a
+    // webhookId → `{ tokenHash, roomId, label, … }`. Re-homed from the retired
+    // pubspace namespace onto the space subtree (0.4.1). Lets a space OWNER mint
+    // their own inbound webhooks: WRITE is gated on `space:owner` (only the owner
+    // manages their webhooks), READ on `space:owner`. The inbound `/webhook` route
     // reads this doc IN-PROCESS to authenticate a caller by hashed token — only the
-    // SHA-256 of each token is stored here, never the raw token. Keyed by `{ownerId}`
-    // (issuer-bound), like the other pubspace collections.
+    // SHA-256 of each token is stored here, never the raw token.
     {
       name: "webhooks",
-      storagePath: "pubspaces/{ownerId}/{spaceId}/_webhooks",
-      readRoles: ["pubspace:owner"],
-      writeRoles: ["pubspace:owner"],
+      storagePath: "spaces/{spaceId}/_webhooks",
+      readRoles: ["space:owner"],
+      writeRoles: ["space:owner"],
       encryption: "none",
       maxBodyBytes: 131_072,
       allowedMimeTypes: JSON_ONLY,
     },
-    // UNIFIED OBJECT INDEX (public/plaintext): mirror of `objindex` for public
-    // spaces. Keyed by `{ownerId}`, gated on pubspace:owner/reader/writer (issuer-
-    // bound). `none` encryption — public spaces are plaintext by definition.
-    {
-      name: "pubobjindex",
-      storagePath: "pubspaces/{ownerId}/{spaceId}/objects/_index",
-      readRoles: ["pubspace:reader"],
-      writeRoles: ["pubspace:owner", "pubspace:writer"],
-      encryption: "none",
-      maxBodyBytes: 262_144,
-      allowedMimeTypes: JSON_ONLY,
-    },
-    // (pubobjdoc/pubobjlog moved to OctoVault — see the note above.)
     // PUBLIC-SPACE DIRECTORY: a server-maintained list document indexing every
-    // public space, written ONLY by the `starfish-projection` plugin (see
-    // projections.ts) — every `pubspace` `_rooms` write folds the space's
-    // `{ name, ownerId, image, rooms }` into the `_index/spaces/public` list.
-    // `pullOnly` rejects all client writes (the projection writes in-process via
-    // the store, bypassing HTTP role checks); `readRoles: ["public"]` lets the
-    // Explore screen browse it anonymously, like `profile`. `{shard}` is the space
-    // type — only `public` is materialized (private spaces are never indexed; an
-    // aggregate index has one read-role and would leak invite-only spaces).
+    // discoverable space (i.e. spaces with at least one `access:'public'` ObjectNode),
+    // written ONLY by the `starfish-projection` plugin (see projections.ts) — every
+    // `objindex` write that contains a public node upserts into `_index/spaces/public`.
+    // `pullOnly` rejects all client writes; `readRoles: ["public"]` lets the Explore
+    // screen browse it anonymously. `{shard}` is the access tier — only `public` is
+    // materialized. Keep in sync with spaceIndexName in packages/sdk.
     {
       name: "spaceindex",
       storagePath: "_index/spaces/{shard}",
@@ -234,27 +244,13 @@ export const config: SyncConfig = {
       allowedMimeTypes: JSON_ONLY,
     },
     // DM INBOX: the per-recipient delivery channel behind the shareable "DM me"
-    // link — the cross-space alternative to the shared-space carrier in
-    // packages/sdk dm-inbox.ts. ANYONE may anonymously APPEND a DM invite sealed
-    // to the owner's published KEM key (an opaque SealedBlob — the server never
-    // reads invite contents), and the owner's reconciler pulls + trial-unseals it.
-    // READ is owner-only with no custom machinery: `{identity}` is
-    // resolver-enforced to equal the cap-bound user id (like `spaces`), and an
-    // anonymous reader only carries `public`, which isn't in readRoles. Writes are
-    // deliberately OPEN (`public`, like `pairing`): the link is identity-derived
-    // and permanent — there is nothing to revoke, and knowing a userId is enough
-    // to deliver (by design; see docs/dm-links.md). The default append author
-    // proof still applies (anonymous-but-verified: each element is signed by the
-    // sender's key).
-    //
-    // The inbox is TIME-SHARDED by UTC month (`{shard}` = `YYYY-MM`). This bounds
-    // abuse: `maxItems` caps a SINGLE month's shard, so a flood can only fill the
-    // current month and the shard self-heals at the next boundary — a spammer
-    // cannot PERMANENTLY brick delivery (an append-only log has no client trim,
-    // and the identity link has no rotation). Senders write the current shard; the
-    // client scans current + previous (see dmInboxShards in packages/sdk paths.ts —
-    // keep the path + shard convention in sync). Per-IP rate limit + small body
-    // cap throttle the fill rate.
+    // link — the cross-space alternative to the shared-space carrier.
+    // ANYONE may anonymously APPEND a DM invite sealed to the owner's published KEM
+    // key (an opaque SealedBlob — the server never reads invite contents). READ is
+    // owner-only: `{identity}` is resolver-enforced to equal the cap-bound user id.
+    // TIME-SHARDED by UTC month (`{shard}` = `YYYY-MM`): maxItems bounds a single
+    // shard, so a flood self-heals at the next boundary. Per-IP rate limit + small
+    // body cap throttle the fill rate. Keep in sync with dminboxName in packages/sdk.
     {
       name: "dminbox",
       storagePath: "dminbox/{identity}/{shard}",

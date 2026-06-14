@@ -8,7 +8,6 @@ import { useHover } from '@/lib/use-hover';
 import { useScalePress } from '@/lib/use-scale-press';
 import { useTheme } from '@/lib/use-theme';
 import { Avatar } from '@/components/ui/Avatar';
-import { Icon } from '@/components/ui/Icon';
 import { Pill } from '@/components/ui/Pill';
 import { Txt } from '@/components/ui/Txt';
 
@@ -17,34 +16,28 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 interface SpaceExploreRowProps {
   /** The public space to list. */
   space: PublicSpaceEntry;
-  /** The owner's resolved display pseudo, if known (falls back to a short id). */
-  ownerName?: string;
   /** Press handler — the directory is invite-only, so this typically surfaces the
    *  "joining needs an invite link" hint rather than navigating. When omitted the
    *  row is a static, non-interactive preview. */
   onPress?: () => void;
 }
 
-/** Two-letter monogram for a public space's avatar fallback (matches pubspace.ts). */
+/** Two-letter monogram for a public space's avatar fallback. */
 const monogram = (name: string | null) => (name ?? '').trim().slice(0, 2).toUpperCase() || 'PS';
-
-/** Short, human-ish owner label when no pseudo is set yet (account ids are 64-hex). */
-const shortOwner = (id: string | null) => (id ? `user-${id.slice(0, 6)}` : 'unknown');
 
 /**
  * One space in the public-space directory (Explore screen): a lit-edge card with
  * a faint accent "light rail" — the marine motif reused as a shaft of light from
- * the deep — carrying the space's image/monogram, name and an owner · channel-count
- * meta line, with an `INVITE-ONLY` tag. The directory grants no access (joining
+ * the deep — carrying the space's image/monogram, name and a channel-count meta
+ * line, with an `INVITE-ONLY` tag. The directory grants no access (joining
  * needs the owner's invite link), so when an `onPress` is wired the row gives
  * honest hover/press feedback and surfaces that invite-only path rather than
  * navigating; without one it stays a static preview.
  */
-export function SpaceExploreRow({ space, ownerName, onPress }: SpaceExploreRowProps) {
+export function SpaceExploreRow({ space, onPress }: SpaceExploreRowProps) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
   const { animStyle, onPressIn, onPressOut } = useScalePress({ scaleTo: 0.985 });
-  const owner = ownerName ?? shortOwner(space.ownerId);
   const surface = {
     backgroundColor: hovered ? colors.hover : colors.paperAlt,
     borderColor: hovered ? colors.accentBorder : colors.lineSoft,
@@ -60,18 +53,12 @@ export function SpaceExploreRow({ space, ownerName, onPress }: SpaceExploreRowPr
         <Txt variant="subhead" weight="semibold" numberOfLines={1}>
           {space.name ?? 'Untitled space'}
         </Txt>
-        <View style={styles.meta}>
-          <Icon name="people" size={12} color={colors.inkMuted} />
-          <Txt variant="caption" tone="inkMuted" numberOfLines={1} style={styles.owner}>
-            {owner}
-          </Txt>
-        </View>
       </View>
       <View style={styles.tags}>
         {/* The directory is preview-only — a clear "invite-only" tag makes the
             lack of a join affordance read as deliberate, not broken. */}
         <Pill label="INVITE-ONLY" iconName="key" mono style={styles.tagPill} />
-        <Pill label={plural(space.rooms, 'channel')} iconName="hash" mono style={styles.tagPill} />
+        <Pill label={plural(space.publicRooms, 'channel')} iconName="hash" mono style={styles.tagPill} />
       </View>
     </>
   );
@@ -140,8 +127,6 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: radii.xs,
   },
   body: { flex: 1, gap: 3 },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  owner: { flex: 1 },
   tags: { alignItems: 'flex-end', gap: 5 },
   tagPill: { alignSelf: 'flex-end' },
   // Skeleton primitives.

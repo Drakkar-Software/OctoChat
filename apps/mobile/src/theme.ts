@@ -110,6 +110,14 @@ export interface Palette {
   overlay: string;
   /** Foreground (icons/text) drawn on top of `scrim` — light in both themes. */
   onScrim: string;
+
+  // ── octospaces-ui extras ──────────────────────────────────────────────────
+  /** Background of the rich-text editor canvas (doc/work surfaces). */
+  editorCanvas: string;
+  /** Background of floating tooltips. */
+  tooltipBg: string;
+  /** Foreground (text/icons) drawn on `tooltipBg`. */
+  onTooltip: string;
 }
 
 const light: Palette = {
@@ -173,6 +181,10 @@ const light: Palette = {
   scrim: 'rgba(20,38,52,0.55)',
   overlay: 'rgba(20,38,52,0.35)',
   onScrim: '#f4f8fb',
+
+  editorCanvas: '#f6f8fa',
+  tooltipBg: '#142634',
+  onTooltip: '#f4f8fb',
 };
 
 const dark: Palette = {
@@ -236,6 +248,10 @@ const dark: Palette = {
   scrim: 'rgba(4,10,15,0.66)',
   overlay: 'rgba(4,10,15,0.45)',
   onScrim: '#f4f8fb',
+
+  editorCanvas: '#0f1e27',
+  tooltipBg: '#d8e6ee',
+  onTooltip: '#0b151c',
 };
 
 export const colors: Record<ColorScheme, Palette> = { light, dark };
@@ -495,6 +511,8 @@ export function verificationColor(p: Palette, level: VerificationLevel): string 
       return p.warning;
     case 'unverified':
       return p.danger;
+    default:
+      return p.inkSoft;
   }
 }
 

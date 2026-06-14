@@ -1,13 +1,13 @@
 /**
- * Self-service inbound-webhook provisioning for a PUBLIC space.
+ * Self-service inbound-webhook provisioning for a space (SPACE OWNER only).
  *
  * Lets a space OWNER mint their own inbound webhooks from the app — no operator and
  * no shared secret. Each webhook gets a unique high-entropy token; the app stores
  * only its SHA-256 hash in an owner-written registry doc
- * (`pubspaces/{ownerId}/{spaceId}/_webhooks`, gated `pubspace:owner`). The server's
- * inbound `/webhook` route reads that registry in-process and authenticates a caller
- * by hashing the presented token and comparing — so the raw token lives only in the
- * external system the owner pastes it into, never at rest here.
+ * (`spaces/{spaceId}/_webhooks`, gated `space:owner`). The server's inbound
+ * `POST /webhook/:spaceId/:webhookId` route reads that registry in-process and
+ * authenticates a caller by hashing the presented token and comparing — so the raw
+ * token lives only in the external system the owner pastes it into, never at rest here.
  *
  * The token is a BEARER credential (like a Slack incoming-webhook URL): it is shown
  * once at creation and cannot be recovered — only revoked (which removes its hash) or
@@ -19,7 +19,7 @@ import { StarfishHttpError } from '@drakkar.software/starfish-client';
 import { ed25519 } from '@noble/curves/ed25519.js';
 
 import { randomId } from '../domain/ids';
-import { pubspaceWebhooksPull, pubspaceWebhooksPush } from './paths';
+import { spaceWebhooksPull, spaceWebhooksPush } from './paths';
 
 /** Header the external caller sends the raw token in. */
 export const WEBHOOK_TOKEN_HEADER = 'X-Webhook-Token';
@@ -118,11 +118,10 @@ export async function deriveWebhookSignerPubHex(token: string): Promise<string> 
 
 async function readWebhooksDoc(
   client: StarfishClient,
-  ownerId: string,
   spaceId: string,
 ): Promise<{ hooks: Record<string, WebhookEntry>; hash: string | null }> {
   // 404 → empty registry; any other error propagates (offline must not look "empty").
-  const res = await client.pull(pubspaceWebhooksPull(ownerId, spaceId)).catch((err: unknown) => {
+  const res = await client.pull(spaceWebhooksPull(spaceId)).catch((err: unknown) => {
     if (err instanceof StarfishHttpError && err.status === 404) return null;
     throw err;
   });
@@ -137,10 +136,9 @@ async function readWebhooksDoc(
 /** List a space's webhooks (no tokens — only hashes are stored), newest first. */
 export async function listWebhooks(
   client: StarfishClient,
-  ownerId: string,
   spaceId: string,
 ): Promise<WebhookSummary[]> {
-  const { hooks } = await readWebhooksDoc(client, ownerId, spaceId);
+  const { hooks } = await readWebhooksDoc(client, spaceId);
   return Object.entries(hooks)
     .map(([id, e]) => ({
       id,
@@ -160,11 +158,10 @@ export async function listWebhooks(
  */
 export async function createWebhook(
   client: StarfishClient,
-  ownerId: string,
   spaceId: string,
   opts: { roomId: string; label: string; sealKemPubHex?: string },
 ): Promise<CreatedWebhook> {
-  const { hooks, hash } = await readWebhooksDoc(client, ownerId, spaceId);
+  const { hooks, hash } = await readWebhooksDoc(client, spaceId);
   if (Object.keys(hooks).length >= MAX_WEBHOOKS_PER_SPACE) {
     throw new Error(`Webhook limit reached (${MAX_WEBHOOKS_PER_SPACE} per space). Revoke one first.`);
   }
@@ -180,29 +177,28 @@ export async function createWebhook(
     ...(opts.sealKemPubHex ? { sealKemPubHex: opts.sealKemPubHex } : {}),
   };
   const next: WebhooksDoc = { v: 1, hooks: { ...hooks, [id]: entry } };
-  await client.push(pubspaceWebhooksPush(ownerId, spaceId), next as unknown as Record<string, unknown>, hash);
+  await client.push(spaceWebhooksPush(spaceId), next as unknown as Record<string, unknown>, hash);
   return { id, token, tokenHeader: WEBHOOK_TOKEN_HEADER, signerPubHex: signEdPubHex };
 }
 
 /** Revoke a webhook by id (removes its hash; the token can never be used again). */
 export async function removeWebhook(
   client: StarfishClient,
-  ownerId: string,
   spaceId: string,
   webhookId: string,
 ): Promise<void> {
-  const { hooks, hash } = await readWebhooksDoc(client, ownerId, spaceId);
+  const { hooks, hash } = await readWebhooksDoc(client, spaceId);
   if (!(webhookId in hooks)) return;
   const next: Record<string, WebhookEntry> = {};
   for (const [id, e] of Object.entries(hooks)) if (id !== webhookId) next[id] = e;
   await client.push(
-    pubspaceWebhooksPush(ownerId, spaceId),
+    spaceWebhooksPush(spaceId),
     { v: 1, hooks: next } as unknown as Record<string, unknown>,
     hash,
   );
 }
 
 /** The URL the owner pastes into the external system, for a given server base URL. */
-export function webhookUrl(baseUrl: string, ownerId: string, spaceId: string, webhookId: string): string {
-  return `${baseUrl.replace(/\/+$/, '')}/webhook/${ownerId}/${spaceId}/${webhookId}`;
+export function webhookUrl(baseUrl: string, spaceId: string, webhookId: string): string {
+  return `${baseUrl.replace(/\/+$/, '')}/webhook/${spaceId}/${webhookId}`;
 }

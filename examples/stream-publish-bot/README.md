@@ -1,17 +1,18 @@
 # OctoChat stream publish
 
-Publish **one message into a public stream room as a bot**, then exit — in both
+Publish **one message into a public room as a bot**, then exit — in both
 **TypeScript** (`ts/`) and **Python** (`python/`). No `/events`, no webhook, no
 waiting: just the **post** half of an integration.
 
 ```
-  publish  ──append──▶  pubstream room
+  publish  ──append──▶  public room  (streampub collection)
             (audience-cap bot token)
 ```
 
-A **stream room** is an append-only log, so a bot posts with a single signed
-`POST /push` — no pull / merge / hash, no sync protocol. That's the whole point of
-the room kind, and it makes "fire a message from a script/cron/CI step" a one-liner.
+All OctoChat rooms use an **append-only log**, so a bot posts with a single signed
+`POST /push` — no pull / merge / hash, no sync protocol. A **public** room (`access:
+'public'`, collection `streampub`) is the bot-friendliest target: the server stores
+plaintext and any key can redeem the bot link.
 
 > Need a *trigger* (react to room activity) instead of a one-shot publish? See the
 > sibling [`stream-webhook-bot`](../stream-webhook-bot) example, which adds the
@@ -23,13 +24,13 @@ the room kind, and it makes "fire a message from a script/cron/CI step" a one-li
 | --- | --- | --- |
 | **Post** (`append`) | the **stream-bot token** | An `audience` cap (`createPublicLink`) scoped to one stream room. It carries no secret: the bot signs with its **own** generated key (`redeemPublicLink` → `X-Starfish-Pub`), so a leaked token is useless and writes stay attributable. |
 
-Get it from a logged-in OctoChat app instance that **owns a public space**: open a
-**public stream room** you own ▸ the owner-only **"Connect a bot"** panel ▸
+Get it from a logged-in OctoChat app instance that **owns a space with a public room**:
+open a **public room** you own ▸ the owner-only **"Connect a bot"** panel ▸
 *Generate bot link* ▸ copy the **"Bot link token"** (`OCTOCHAT_BOT_TOKEN`) and the
 **"Path to sign"** (`OCTOCHAT_BOT_SIGN_PATH`) fields.
 
-(No public stream room yet? Create a **public** space in the app, add a **stream**
-room via the Channel/Stream toggle, then grab the two fields above.)
+(No public room yet? Create a space, add a room with `access: public`, then grab the
+two fields above.)
 
 ## Configure
 
@@ -110,7 +111,7 @@ Both print the server, the bot's `edPub`, and on success:
 [publish] appended → Hello from the OctoChat publish example 🐙
 ```
 
-and the line shows up in the stream room in the app.
+and the line shows up in the public room in the app.
 
 ## What's been checked
 

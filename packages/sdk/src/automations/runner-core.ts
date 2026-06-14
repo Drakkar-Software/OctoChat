@@ -4,16 +4,15 @@
  * via the stored credential. Caller is responsible for writing back `lastRunAt`
  * / `lastError` to the registry — this function only reports the outcome.
  */
-import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
+import { getSpaceClient } from '@drakkar.software/octospaces-sdk';
 
-import { openStreamBotCredential } from '../starfish/stream-bots';
 import type { Room } from '../domain/types';
 import type { Session } from '../starfish/identity';
 
 import { getLlm } from '../ai/engine-port';
 
-import { appendAsBot, type BotRedeemer } from './append';
 import { dedupeFetch } from './hash';
+import { streamInvRoomPush, streamPubRoomPush, streamRoomPush } from '../starfish/paths';
 import { effectiveSchedule, nextScheduledRunAt } from './schedule';
 import { loadAutomationSecrets } from './secrets';
 import type { AutomationProvider, RunResult } from './types';
@@ -33,14 +32,6 @@ export type TickOutcome =
   | { kind: 'posted'; text: string; hash?: string }
   | { kind: 'skipped' }
   | { kind: 'failed'; error: string };
-
-/** Build a fresh bot redeemer keypair. The bot's identity is intentionally
- *  ephemeral — `createPublicLink` audience caps don't pin a single identity by
- *  default, so each tick can sign with its own pair without re-onboarding. */
-async function newBotKeys(): Promise<BotRedeemer> {
-  const k = await generateDeviceKeys();
-  return { edPubHex: k.edPub, edPrivHex: k.edPriv };
-}
 
 /** Identify the bot author in chat. A short, stable label derived from the room id
  *  so all of this room's bot posts share an authorId in the chat view (which
@@ -103,23 +94,19 @@ export async function tickRoom(opts: {
   }
 
   try {
-    // The credential is sealed to the minting account key in the synced doc — open it
-    // with the seed (a reader can't). NOTE: a QR-paired runner device has a fresh key
-    // and can't open it → this throws → 'failed'; manage/run automations from the
-    // primary device (consistent with the DM-keyring paired-device limitation).
-    const cred = await openStreamBotCredential(session, auto.credential);
-    const redeemer = await newBotKeys();
+    const client = getSpaceClient(room.spaceId, session);
+    const pushPath =
+      room.access === 'public'
+        ? streamPubRoomPush(room.id)
+        : room.access === 'invite' && !room.enc
+          ? streamInvRoomPush(room.id)
+          : streamRoomPush(room.id);
     const author = botAuthorId(room.id);
     const element = {
       t: 'msg',
       e: { id: `${author}-${now}`, authorId: author, ts: now, text: result.text },
     };
-    await appendAsBot({
-      botToken: cred.token,
-      signPath: cred.signPath,
-      redeemer,
-      element,
-    });
+    await client.append(pushPath, element);
     return { kind: 'posted', text: result.text, hash: postHash };
   } catch (e) {
     return { kind: 'failed', error: String((e as Error)?.message ?? e) };

@@ -29,9 +29,7 @@ import { loadLatestMessagePreview } from '@drakkar.software/octochat-sdk';
 // are required for decryption to work in this headless task (no provider tree ran).
 import { configureStarfishPlatform, loadVault } from '@drakkar.software/octochat-sdk/platform';
 import { initOctoChat } from '../octochat-init';
-import { hydrateMemberCaps } from '@drakkar.software/octochat-sdk';
-import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
-import { hydratePubspaceCaps } from '@drakkar.software/octochat-sdk';
+import { hydrateSpaceAccessStore, spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 import { activeAccountOf, sessionFromPersisted } from '@drakkar.software/octochat-sdk';
 
 import { MESSAGES_CHANNEL_ID, MESSAGES_CHANNEL_VIBRATION_PATTERN } from './channel';
@@ -151,8 +149,7 @@ export async function handleBackgroundPush(data: PushData): Promise<void> {
     // its keyring. Owned spaces don't need it. Likewise hydrate the JOINED public-space
     // link caps so a public room can authorize its plaintext pull (owned public spaces
     // use the account cap, no entry needed).
-    await hydrateMemberCaps(userId, {});
-    await hydratePubspaceCaps(userId);
+    await hydrateSpaceAccessStore(userId, {}, {});
     const preview = await loadLatestMessagePreview(session, roomId).catch(() => null);
     if (!preview) return; // couldn't decrypt → leave the generic placeholder
 

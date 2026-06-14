@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AppendLogCursor } from '@drakkar.software/octochat-sdk';
-import { isPublicSpaceId, publicSpaceAuth } from '@drakkar.software/octochat-sdk';
+import type { NodeAccess } from '@drakkar.software/octochat-sdk';
+import { getSpaceAccessEntry, getNodeAccessEntry } from '@drakkar.software/octochat-sdk';
 import {
   concatDedupById,
   fanOut,
@@ -13,10 +14,12 @@ import {
 import { kvSet } from '@drakkar.software/octochat-sdk';
 import { reportReachability } from './connectivity';
 import {
-  pubstreamRoomPull,
-  pubstreamRoomPush,
   streamRoomPull,
   streamRoomPush,
+  streamPubRoomPull,
+  streamPubRoomPush,
+  streamInvRoomPull,
+  streamInvRoomPush,
   spaceIdFromRoomId,
 } from '@drakkar.software/octochat-sdk';
 import {
@@ -40,9 +43,9 @@ import type { StoredMsg } from '@drakkar.software/octochat-sdk';
  * `client.append` (no pull/merge/hash/conflict), which is what also lets bots/integrations
  * write without the sync protocol. Reads pull the `{ts,data}` envelopes of the log.
  *
- * Encryption follows the SPACE: a private (E2EE) space's log is the `streamchat`
- * collection (each element sealed with the space keyring encryptor); a public space's log
- * is the plaintext `pubstream` collection. Both render through the chat UI by feeding a
+ * Encryption follows the room node: an enc:true room's log is the `streamchat`
+ * collection (each element sealed with the space keyring encryptor); a public room uses
+ * `streampub`; an invite-plaintext room uses `streaminv`. All render through the chat UI by feeding a
  * synthetic store (data = {messages,reactions,edits,pins}) to `RoomConversation` —
  * `useStarfishData` only ever reads `store.data`, so a plain zustand store suffices.
  *
@@ -53,11 +56,16 @@ import type { StoredMsg } from '@drakkar.software/octochat-sdk';
  * holds no store. Attachments (private spaces only) seal a blob to the separate
  * `attachments` collection, exactly as the old merge-doc room did.
  */
-export function useRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomHook {
+export function useRoom(roomId: string, opts: { enabled?: boolean; access?: NodeAccess; enc?: boolean } = {}): RoomHook {
   const enabled = opts.enabled ?? true;
+  // Per-node access flags from the object index (passed by the room screen once the
+  // registry resolves). When access is not yet known (registry still loading), default
+  // enc to false — avoids a SpaceAccessError for public/invite rooms before the registry
+  // settles. Once the caller passes a known access value, enc defaults to true.
+  const access = opts.access;
+  const enc = opts.enc ?? (opts.access !== undefined ? true : false);
   const { session } = useSession();
   const spaceId = spaceIdFromRoomId(roomId);
-  const isPublic = isPublicSpaceId(spaceId);
 
   // Shared crypto/auth open (+ opening/error/offline flags & reconnect). An append-only
   // room has no doc to seed (it pulls as [] until its first append). The synthetic store
@@ -66,7 +74,7 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomH
   const { encryptor, client, opening, openError, offline, reload } = useRoomOpen({
     roomId,
     spaceId,
-    isPublic,
+    enc,
     enabled,
   });
 
@@ -90,20 +98,25 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomH
   // reads the latest without re-subscribing every callback.
   const cursorRef = useRef<{ id: string; cursor: AppendLogCursor } | null>(null);
 
-  // Auth + path for this room (owner/joiner cap on public; member/space cap on
-  // private). `signingKey` is the request-signing key the cap is bound to.
+  // Per-node path routing: public rooms → streampub (anonymous read / member write);
+  // invite-plaintext rooms → streaminv (cap-gated); everything else → streamchat.
   const route = useMemo(() => {
     if (!session) return null;
-    if (isPublic) {
-      const auth = publicSpaceAuth(session, spaceId);
-      return {
-        pull: pubstreamRoomPull(auth.ownerId, spaceId, roomId),
-        push: pubstreamRoomPush(auth.ownerId, spaceId, roomId),
-        canWrite: auth.write,
-      };
+    if (access === 'public') {
+      return { pull: streamPubRoomPull(roomId), push: streamPubRoomPush(roomId), canWrite: true };
+    }
+    if (access === 'invite' && !enc) {
+      // Derive write permission from the stored access entry. Prefer the per-node entry
+      // (set when invited to a specific node) over the space-wide entry, matching the
+      // SDK's own nodeEntry ?? spaceEntry precedence in getNodeAccess / buildNodeAccess.
+      // A link-kind entry carries an explicit `write` flag; a member-kind entry always has
+      // write access.
+      const entry = getNodeAccessEntry(spaceId, roomId) ?? getSpaceAccessEntry(spaceId);
+      const canWrite = !entry || entry.kind === 'member' || (entry.kind === 'link' && entry.write);
+      return { pull: streamInvRoomPull(roomId), push: streamInvRoomPush(roomId), canWrite };
     }
     return { pull: streamRoomPull(roomId), push: streamRoomPush(roomId), canWrite: true };
-  }, [session, isPublic, spaceId, roomId]);
+  }, [session, access, enc, roomId, spaceId]);
 
   // Merge a DECRYPTED batch into the store's {messages,reactions,edits}, appending onto
   // what the store already holds and de-duping by id. Skip the write entirely when nothing
@@ -149,7 +162,7 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomH
       const batch = await cur.cursor.pull();
       if (batch.length) {
         mergeIntoStore(roomState.store, fanOut(batch));
-        void kvSet(streamLogKey(roomId), JSON.stringify(cur.cursor.getItems()));
+        void kvSet(streamLogKey(session!.userId, roomId), JSON.stringify(cur.cursor.getItems()));
       }
       // A successful cursor pull is the real reachability signal (append-log pulls
       // aren't served from the offline cache — they own their warm-start persistence).
@@ -174,7 +187,7 @@ export function useRoom(roomId: string, opts: { enabled?: boolean } = {}): RoomH
     if (!enabled || !client || !route || !roomState) return;
     let cancelled = false;
     (async () => {
-      const initialItems = await loadStreamLog(roomId);
+      const initialItems = await loadStreamLog(session!.userId, roomId);
       if (cancelled) return;
       const cursor = new AppendLogCursor({
         client,

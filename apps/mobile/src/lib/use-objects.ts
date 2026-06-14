@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef } from 'react';
 
-import { objIndexPull, objIndexPush, pubObjIndexPull, pubObjIndexPush } from '@drakkar.software/octochat-sdk';
+import { objIndexPull, objIndexPush } from '@drakkar.software/octochat-sdk';
 import {
   addObject,
   ancestors as ancestorsOf,
@@ -58,8 +58,9 @@ export function useObjects(spaceId: string, opts: { enabled?: boolean; liveSync?
     openId: spaceId,
     enabled,
     storeKey: `objindex:${spaceId}`,
-    privatePaths: () => ({ pull: objIndexPull(spaceId), push: objIndexPush(spaceId) }),
-    publicPaths: (ownerId) => ({ pull: pubObjIndexPull(ownerId, spaceId), push: pubObjIndexPush(ownerId, spaceId) }),
+    // Object index is always plaintext (enc:false) in the 0.4.3 model.
+    enc: false,
+    paths: () => ({ pull: objIndexPull(spaceId), push: objIndexPush(spaceId) }),
   });
 
   // Refresh-on-focus parity with chat (see {@link useDoc} / {@link useRoom}): a screen

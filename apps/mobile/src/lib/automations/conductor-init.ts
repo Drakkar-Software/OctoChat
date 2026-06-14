@@ -22,13 +22,11 @@ import type { Recurrence, TaskDefinition, TaskExecutionContext, Trigger } from '
 import {
   activeAccountOf,
   effectiveSchedule,
-  hydratePubspaceCaps,
+  getSpaceClient,
+  hydrateSpaceAccessStore,
   isDueForScheduledTick,
-  isPublicSpaceId,
-  publicSpaceAuth,
-  publicSpaceClient,
-  readPrivateSpaceRooms,
-  readPublicIndexRooms,
+  objIndexPull,
+  readIndexRooms,
   readSpaces,
   runAutomationTick,
   sessionFromPersisted,
@@ -57,20 +55,13 @@ function parseTaskId(id: string): { spaceId: string; roomId: string } | null {
   return { spaceId: decodeURIComponent(parts[0]!), roomId: decodeURIComponent(parts[1]!) };
 }
 
-/** Read a space's automated rooms from its unified object index, headless-safe, branching on
- *  space type: a PUBLIC space reads the plaintext index with its owner/cap; a PRIVATE space
- *  uses the NON-MINTING soft reader (`readPrivateSpaceRooms` → `buildSpaceEncryptor`), which
- *  returns `[]` when this device holds no keyring for the space (so we never mint a keyring on
- *  a passive scan, and a joined/non-owner space simply schedules nothing). The owner-only
- *  `runOnDeviceId` election downstream is what actually restricts private automations to the
- *  owner's device. */
+/** Read a space's automated rooms from its plaintext object index, headless-safe.
+ *  The objindex is always plaintext in the per-node model, so no keyring is needed
+ *  to enumerate rooms. Returns [] when the space is unreachable. */
 async function readSpaceRooms(session: Session, spaceId: string): Promise<Room[]> {
-  if (isPublicSpaceId(spaceId)) {
-    const { ownerId } = publicSpaceAuth(session, spaceId);
-    const client = publicSpaceClient(session, spaceId);
-    return readPublicIndexRooms(client, ownerId, spaceId);
-  }
-  return readPrivateSpaceRooms(session, spaceId);
+  const client = getSpaceClient(spaceId, session);
+  const idx = await readIndexRooms(client, null, objIndexPull(spaceId), spaceId).catch(() => null);
+  return idx?.rooms ?? [];
 }
 
 /** Resolve one automated room from the synced object index (headless-safe). */
@@ -96,9 +87,8 @@ async function headlessSession(): Promise<Session | null> {
   const account = activeAccountOf(load.vault);
   if (!account?.derived?.userId) return null;
   const session = await sessionFromPersisted(account);
-  // Joined public-space link caps live only in kv on a cold launch — rehydrate so a JOINED
-  // public space can authorize its plaintext registry pull (owned spaces use the account cap).
-  await hydratePubspaceCaps(session.userId);
+  // Rehydrate space-access entries from kv so joined spaces are accessible headlessly.
+  await hydrateSpaceAccessStore(session.userId, {}, {});
   return session;
 }
 
