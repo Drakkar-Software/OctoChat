@@ -48,7 +48,7 @@ export default function SpaceStackLayout() {
         // strip that reads as a blank gap on iOS.
         headerTransparent: true,
         headerBlurEffect: dark ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight',
-        headerLeft: () => <SpaceSwitcherButton compact />,
+        headerLeft: () => <SpaceSwitcherButton />,
         headerRight: () => (
           <View style={styles.headerRight}>
             <SpaceSettingsButton />

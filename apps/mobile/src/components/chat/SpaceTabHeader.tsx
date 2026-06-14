@@ -2,31 +2,22 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { layout, shadows, spacing } from '@/theme';
-import { DM_HOME_ID, isDmHomeId } from '@/lib/dm-home';
 import { useProfile } from '@/lib/profile-context';
 import { useTheme } from '@/lib/use-theme';
-import { useSpaces } from '@/lib/use-spaces';
-import { useTotalDmUnread } from '@/lib/use-dms';
 import { Avatar } from '@/components/ui/Avatar';
 
 import { SpaceSettingsButton } from './SpaceSettingsButton';
 import { SpaceSwitcher } from './SpaceSwitcher';
 
 /**
- * The shared header for the three mobile mode tabs (Chat · Agents · Work): a
- * compact {@link SpaceSwitcher} on the left (tap to change space) and a profile
- * action on the right (global search now lives in the bottom Search tab).
- * Self-contained — it reads the spaces / profile / DM state and wires its own
- * navigation, so each tab page just drops it in. Mobile-only; the desktop shell
- * uses its persistent sidebar instead.
+ * The shared header for the three mobile mode tabs (Chat · Agents · Work): the
+ * self-contained {@link SpaceSwitcher} on the left (tap → bottom sheet to change
+ * space) and a profile action on the right. Self-contained — each tab page just
+ * drops it in. Mobile-only; the desktop shell uses the persistent sidebar instead.
  */
 export function SpaceTabHeader() {
   const { colors } = useTheme();
-  const { spaces, activeId } = useSpaces();
   const { profile } = useProfile();
-  const dmUnread = useTotalDmUnread();
-  const isDmHome = isDmHomeId(activeId);
-  const space = isDmHome ? undefined : spaces.find((s) => s.id === activeId) ?? spaces[0];
   const meLabel = (profile?.name ?? '··').slice(0, 2).toUpperCase();
 
   return (
@@ -39,13 +30,7 @@ export function SpaceTabHeader() {
         { backgroundColor: colors.paper, borderBottomColor: colors.lineSoft, borderTopColor: colors.hairlineHi },
       ]}
     >
-      <SpaceSwitcher
-        space={space}
-        isDmHome={isDmHome}
-        spaces={spaces}
-        activeId={activeId ?? DM_HOME_ID}
-        dmUnread={dmUnread}
-      />
+      <SpaceSwitcher />
       <SpaceSettingsButton />
       <Pressable accessibilityRole="button" accessibilityLabel="Your profile" onPress={() => router.push('/you')} hitSlop={6}>
         <Avatar label={meLabel} image={profile?.avatar} size={30} />

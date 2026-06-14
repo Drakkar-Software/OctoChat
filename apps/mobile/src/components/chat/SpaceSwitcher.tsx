@@ -1,89 +1,151 @@
+import { Platform, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
 
-import { radii, spacing } from '@/theme';
-import type { Space } from '@drakkar.software/octochat-sdk';
-import { DM_HOME_NAME } from '@/lib/dm-home';
-import { useHover } from '@/lib/use-hover';
+import { radii } from '@/theme';
+import { DM_HOME_ID, DM_HOME_NAME, isDmHomeId } from '@/lib/dm-home';
+import { tapFeedback } from '@/lib/haptics';
+import { useTotalDmUnread } from '@/lib/use-dms';
+import { useSpaces } from '@/lib/use-spaces';
 import { useTheme } from '@/lib/use-theme';
+import { SpaceSwitcher as PkgSpaceSwitcher } from '@drakkar.software/octospaces-ui';
+import type { SwitcherIconName, SwitcherSpace } from '@drakkar.software/octospaces-ui';
+import { AccountSwitcher } from '@/components/account/AccountSwitcher';
 import { Avatar } from '@/components/ui/Avatar';
+import { Badge } from '@/components/ui/Badge';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Icon } from '@/components/ui/Icon';
-import { Txt } from '@/components/ui/Txt';
+import type { IconName } from '@/components/ui/Icon';
 
-interface SpaceSwitcherProps {
-  /** The active space — `undefined` when the virtual DM space is selected. */
-  space?: Space;
-  isDmHome?: boolean;
-  spaces: Space[];
-  activeId: string;
-  /** Aggregate DM unread — feeds the attention dot when DMs are the unread source. */
-  dmUnread?: number;
-  /** Header-inline mode (native nav bar): the trigger sizes to its content
-   *  (icon + name, name capped so it truncates) and drops the chevron, so it
-   *  reads as a native title rather than a full-width pill. */
-  compact?: boolean;
-}
+// ── Icon mapping ──────────────────────────────────────────────────────────────
+
+const SWITCHER_ICON: Record<SwitcherIconName, IconName> = {
+  'chevron-down': 'chevron-down',
+  'chevron-right': 'chevron-right',
+  check: 'check',
+  plus: 'plus',
+  gear: 'gear',
+  globe: 'globe',
+};
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 /**
- * Compact workspace identity that opens the full-screen space switcher on tap —
- * the lighter replacement for the always-on {@link SpaceRail}. The trigger shows
- * just the active space (avatar + name + chevron) with an aggregate dot when
- * *other* spaces/DMs are unread; tapping pushes the `/spaces` screen (a native
- * slide-in list with a filter field) rather than floating a dropdown, which read
- * poorly on mobile. Mobile-only (the desktop shell keeps its persistent rail).
+ * Mobile workspace-identity trigger — the phone-only replacement for the always-on
+ * {@link DesktopSpacesRail}. Renders the active space avatar + name + chevron (same
+ * shape as OctoVault's appbar switcher); tapping opens a bottom sheet with:
+ *
+ * - Space rows (≤5 shown inline; "See all" → /spaces when there are more)
+ * - Per-row unread badges
+ * - "Join or create a space" and "Browse spaces" actions
+ * - "Space settings" for the active space
+ * - Account section (switch / add / profile / logout) in the footer
+ *
+ * Self-contained — reads its own data via hooks so call sites need no props.
+ * Mobile-only; the desktop shell uses the persistent {@link DesktopSpacesRail}.
  */
-export function SpaceSwitcher({ space, isDmHome = false, spaces, activeId, dmUnread = 0, compact = false }: SpaceSwitcherProps) {
-  const { colors } = useTheme();
-  const { hovered, hoverProps } = useHover();
+export function SpaceSwitcher() {
+  const { spaces, activeId, setActiveId } = useSpaces();
+  const dmUnread = useTotalDmUnread();
+  const isDmHome = isDmHomeId(activeId);
+  const active = isDmHome ? null : (spaces.find((s) => s.id === activeId) ?? spaces[0] ?? null);
 
-  // A dot on the trigger when attention is owed somewhere OTHER than the active
-  // space — the single pill can't show every space's badge like the rail did.
+  // Aggregate dot: other spaces (not the active one) have unread, or DMs do when
+  // not on DM-home — the single trigger can't show every badge like the rail did.
   const otherUnread =
-    spaces.some((s) => s.id !== activeId && (s.unread ?? 0) > 0) || (!isDmHome && dmUnread > 0);
+    spaces.some((s) => s.id !== activeId && (s.unread ?? 0) > 0) ||
+    (!isDmHome && dmUnread > 0);
+
+  // DM-home is a bottom-tab on native so only add the synthetic row on web.
+  const switcherSpaces: SwitcherSpace[] = [
+    ...(Platform.OS === 'web'
+      ? [{ id: DM_HOME_ID, name: DM_HOME_NAME, short: '', unread: dmUnread }]
+      : []),
+    ...spaces.map((s) => ({
+      id: s.id,
+      name: s.name,
+      short: s.short,
+      image: s.image,
+      unread: s.unread,
+    })),
+  ];
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Switch space"
-      onPress={() => router.push('/spaces')}
-      {...hoverProps}
-      style={[styles.trigger, compact && styles.triggerCompact, { backgroundColor: hovered ? colors.hover : 'transparent' }]}
-    >
-      <View>
-        {isDmHome ? (
-          <View style={[styles.dmIcon, { backgroundColor: colors.accentBg, borderColor: colors.accentBorder }]}>
-            <Icon name="people" size={16} color={colors.accent} />
-          </View>
-        ) : (
-          <Avatar label={space?.short ?? '··'} image={space?.image} size={30} />
-        )}
-        {otherUnread ? <View style={[styles.dot, { backgroundColor: colors.unread, borderColor: colors.paper }]} /> : null}
-      </View>
-      <Txt variant="heading" weight="bold" numberOfLines={1} style={[styles.name, compact && styles.nameCompact]}>
-        {isDmHome ? DM_HOME_NAME : space?.name ?? ' '}
-      </Txt>
-      {!compact ? <Icon name="chevron-down" size={16} color={colors.inkMuted} /> : null}
-    </Pressable>
+    <PkgSpaceSwitcher
+      spaces={switcherSpaces}
+      activeId={activeId}
+      onSelect={(id) => {
+        tapFeedback();
+        setActiveId(id);
+      }}
+      onAdd={() => router.push('/join')}
+      onBrowse={() => router.push('/spaces/explore')}
+      onSettings={
+        active
+          ? () =>
+              router.push({
+                pathname: '/space/[id]',
+                params: { id: active.id, name: active.name },
+              })
+          : undefined
+      }
+      maxVisible={5}
+      onSeeAll={() => router.push('/spaces')}
+      seeAllLabel="See all spaces"
+      variant="appbar"
+      renderTriggerAvatar={(space, size) => {
+        if (!space || space.id === DM_HOME_ID) {
+          // DM-home tile uses the same people icon as the old trigger.
+          return (
+            <Icon name="people" size={size - 8} color={undefined} />
+          );
+        }
+        return <Avatar label={space.short ?? space.name.slice(0, 2)} image={space.image} size={size} />;
+      }}
+      renderTriggerBadge={otherUnread ? () => <OtherUnreadDot /> : undefined}
+      renderSpaceAvatar={(space, size) => {
+        if (space.id === DM_HOME_ID) {
+          return <Icon name="people" size={size - 8} color={undefined} />;
+        }
+        return <Avatar label={space.short ?? space.name.slice(0, 2)} image={space.image} size={size} />;
+      }}
+      renderIcon={(name, sz, color) => <Icon name={SWITCHER_ICON[name]} size={sz} color={color} />}
+      renderBadge={(count) => <Badge count={count} size="sm" />}
+      renderContainer={({ isOpen, onClose, children }) => (
+        <BottomSheet visible={isOpen} onClose={onClose} title="Switch space">
+          {children}
+        </BottomSheet>
+      )}
+      footerSlot={(close) => (
+        <AccountSwitcher
+          onRequestClose={close}
+          onViewProfile={() => {
+            close();
+            router.push('/you');
+          }}
+        />
+      )}
+    />
+  );
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Small dot overlaid top-right of the trigger avatar when other spaces or DMs
+ * have unread activity — reproduces the old header-pill attention indicator.
+ */
+function OtherUnreadDot() {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[
+        styles.dot,
+        { backgroundColor: colors.unread, borderColor: colors.paper },
+      ]}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  trigger: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: 4,
-    paddingHorizontal: spacing.xs,
-    borderRadius: radii.md,
-  },
-  // Native header: hug content so the bar lays the icon + name out as a title,
-  // not a stretched pill.
-  triggerCompact: { flex: 0, alignSelf: 'center', paddingHorizontal: 0 },
-  dmIcon: { width: 30, height: 30, borderRadius: radii.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  dot: { position: 'absolute', top: -2, right: -2, width: 11, height: 11, borderRadius: 6, borderWidth: 2 },
-  name: { flex: 1, minWidth: 0 },
-  // Capped so a long name truncates instead of overrunning the profile control.
-  nameCompact: { flex: 0, maxWidth: 200 },
+  dot: { width: 10, height: 10, borderRadius: radii.pill, borderWidth: 2 },
 });
