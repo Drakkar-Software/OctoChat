@@ -147,13 +147,10 @@ export function toOctoSpacesTheme(palette: Palette, scheme: ColorScheme): Theme 
     layout: LAYOUT,
     opacity: OPACITY,
     swatches: {
-      // Rail-specific color overrides — used by SpacesRail from @drakkar.software/octospaces-ui.
-      // Each key falls back to a core palette token in the package, but these values keep
-      // the extracted rail pixel-faithful to OctoChat's marine palette.
-      railTile: p.fill,                  // default tile bg (fill, not surfaceInput)
-      railTileHoverBorder: p.accentBorder,  // hover border (marine accent)
-      railGlow: p.glow,                  // active-tile glow color
-      railTileHoverInk: p.accentInk,     // hover monogram color (darker accent)
+      railTile: palette.fill,
+      railTileHoverBorder: palette.accentBorder,
+      railGlow: palette.glow,
+      railTileHoverInk: palette.accentInk,
     },
     layers: { modal: 100, overlay: 50, header: 10 },
     easing: {
