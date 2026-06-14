@@ -10,6 +10,7 @@ import type { StarfishClient } from '@drakkar.software/starfish-client';
 import type { CapCert } from '@drakkar.software/starfish-protocol';
 
 import { makeClient, ensureProfileKeys, ensurePseudo, type DeviceKeys } from './client';
+import { getSharedSpacesNamespace } from '../config/config';
 import { accountScope, ownerScope } from './paths';
 import type { DerivedIdentity } from './storage-types';
 
@@ -22,13 +23,15 @@ export interface Session {
   chatClient: StarfishClient;
   accountClient: StarfishClient;
   /**
-   * Client for cross-app shared-spaces registry operations. OctoChat has no
-   * sharedSpacesNamespace, so this is the same as `accountClient`.
+   * Client for cross-app shared-spaces registry operations. When
+   * `EXPO_PUBLIC_SHARED_SPACES_NAMESPACE` is set, uses a dedicated namespace so
+   * the `_spaces` doc is shared across apps (OctoChat ↔ OctoVault). Otherwise
+   * falls back to `accountClient` (per-app silo — the default for local dev).
    */
   spacesRegistryClient: StarfishClient;
   /**
-   * Client for cross-app shared-spaces keyring operations. OctoChat has no
-   * sharedSpacesNamespace, so this is the same as `chatClient`.
+   * Client for cross-app shared-spaces keyring operations. Mirrors
+   * `spacesRegistryClient` but uses the chat (owner-scope) cap.
    */
   spacesKeyringClient: StarfishClient;
   fingerprint: string;
@@ -84,6 +87,9 @@ export async function buildSession({ userId, keys }: DerivedIdentity, name?: str
   const accountCap = await mintDeviceCap(keys.edPriv, keys.edPub, sub, accountScope(userId));
   const chatClient = makeClient(chatCap, keys.edPriv);
   const accountClient = makeClient(accountCap, keys.edPriv);
+  const sharedNs = getSharedSpacesNamespace();
+  const spacesRegistryClient = sharedNs ? makeClient(accountCap, keys.edPriv, sharedNs) : accountClient;
+  const spacesKeyringClient = sharedNs ? makeClient(chatCap, keys.edPriv, sharedNs) : chatClient;
   // Adopt the stored pseudo if the profile already exists; only seed `fallback`
   // for a brand-new identity. Never overwrite — a blind write here would revert
   // an edit made on another device back to the bootstrap default on every open.
@@ -100,8 +106,8 @@ export async function buildSession({ userId, keys }: DerivedIdentity, name?: str
     accountCap,
     chatClient,
     accountClient,
-    spacesRegistryClient: accountClient,
-    spacesKeyringClient: chatClient,
+    spacesRegistryClient,
+    spacesKeyringClient,
     fingerprint: fingerprintFromUserId(userId),
     // Seed/Nostr: the device key IS the root, so it's its own keyring-adder anchor.
     ownerEdPub: keys.edPub,
@@ -127,6 +133,9 @@ export async function buildLinkedSession({ userId, keys, capCert }: LinkedIdenti
   const fallback = name && name.trim() ? name.trim() : `octo-${userId.slice(0, 6)}`;
   const chatClient = makeClient(capCert, keys.edPriv);
   const accountClient = makeClient(capCert, keys.edPriv);
+  const sharedNs = getSharedSpacesNamespace();
+  const spacesRegistryClient = sharedNs ? makeClient(capCert, keys.edPriv, sharedNs) : accountClient;
+  const spacesKeyringClient = sharedNs ? makeClient(capCert, keys.edPriv, sharedNs) : chatClient;
   const displayName = await ensurePseudo(accountClient, userId, fallback).catch(() => fallback);
   return {
     userId,
@@ -136,8 +145,8 @@ export async function buildLinkedSession({ userId, keys, capCert }: LinkedIdenti
     accountCap: capCert,
     chatClient,
     accountClient,
-    spacesRegistryClient: accountClient,
-    spacesKeyringClient: chatClient,
+    spacesRegistryClient,
+    spacesKeyringClient,
     fingerprint: fingerprintFromUserId(userId),
     // Paired device: owned-space keyring entries were signed by the ROOT, whose
     // edPub is the cap-cert issuer — NOT this device's fresh key.

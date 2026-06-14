@@ -165,7 +165,7 @@ async function setMute(session: Session, field: 'rooms' | 'spaces', id: string, 
   // optimistic emit above before the server reflects it.
   pending++;
   try {
-    await updateMutesDoc(session.accountClient, session.userId, (cur) => applyMute(cur, field, id, muted));
+    await updateMutesDoc(session.spacesRegistryClient, session.userId, (cur) => applyMute(cur, field, id, muted));
   } catch (err) {
     console.error('[OctoChat] mutes: failed to sync mute change', err);
   } finally {

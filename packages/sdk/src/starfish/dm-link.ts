@@ -152,7 +152,7 @@ export async function createOrOpenDmViaInbox(session: Session, peer: DmPeer, own
   if (peer.userId === session.userId) throw new Error('This is your own DM link.');
   // Dedup against fresh server state (covers a DM created on another device or via
   // a shared-space carrier) — the twin of createOrOpenDm's short-circuit.
-  const { dms } = await readSpaces(session.accountClient, session.userId);
+  const { dms } = await readSpaces(session.spacesRegistryClient, session.userId);
   const existing = dms[peer.userId];
   if (existing) return { spaceId: existing, roomId: dmRoomId(existing) };
 
@@ -173,8 +173,8 @@ export async function createOrOpenDmViaInbox(session: Session, peer: DmPeer, own
     failurePrefix: 'DM invite delivery',
   });
   // Delivery succeeded — only now surface the space on this account.
-  await addJoinedSpace(session.accountClient, session.userId, dmSpaceRecord(ref.spaceId, ownerPseudo));
-  await setDmMapping(session.accountClient, session.userId, peer.userId, ref.spaceId);
+  await addJoinedSpace(session.spacesRegistryClient, session.userId, dmSpaceRecord(ref.spaceId, ownerPseudo));
+  await setDmMapping(session.spacesRegistryClient, session.userId, peer.userId, ref.spaceId);
   return ref;
 }
 

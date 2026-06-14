@@ -31,7 +31,7 @@ import { addJoinedSpace, readSpaces, setDmMapping } from './registry';
 async function sess(name = 'tester'): Promise<Session> {
   const keys = generateDeviceKeys();
   const userId = await userIdFromEdPub(keys.edPub);
-  return { userId, name, keys, ownerEdPub: keys.edPub, accountClient: {} } as unknown as Session;
+  return { userId, name, keys, ownerEdPub: keys.edPub, accountClient: {}, spacesRegistryClient: {} } as unknown as Session;
 }
 
 /** A WELL-FORMED token for a real identity (ownerId derived from edPub). */
@@ -160,7 +160,7 @@ describe('createDmViaLink', () => {
     expect(body.authorSignature).toBeTruthy();
     // Registered only after delivery succeeded.
     expect(vi.mocked(addJoinedSpace)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(setDmMapping)).toHaveBeenCalledWith(session.accountClient, session.userId, token.ownerId, 'dm-new');
+    expect(vi.mocked(setDmMapping)).toHaveBeenCalledWith(session.spacesRegistryClient, session.userId, token.ownerId, 'dm-new');
   });
 
   it('registers nothing when delivery fails (no ghost DM)', async () => {

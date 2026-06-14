@@ -74,7 +74,7 @@ export function dmSpaceRecord(spaceId: string, peerPseudo: string): Space {
  *  The peer is added separately via {@link inviteToSpace} (keyring + roster + cap). */
 async function createDmSpace(session: Session, peerPseudo: string): Promise<DmRef> {
   const ref = await createDmSpaceCore(session, peerPseudo);
-  await addJoinedSpace(session.accountClient, session.userId, dmSpaceRecord(ref.spaceId, peerPseudo));
+  await addJoinedSpace(session.spacesRegistryClient, session.userId, dmSpaceRecord(ref.spaceId, peerPseudo));
   return ref;
 }
 
@@ -118,7 +118,7 @@ export async function createOrOpenDm(
   sharedSpaceId: string,
 ): Promise<DmRef> {
   // Dedup against fresh server state (covers a DM created on another device).
-  const { dms } = await readSpaces(session.accountClient, session.userId);
+  const { dms } = await readSpaces(session.spacesRegistryClient, session.userId);
   const existing = dms[peerUserId];
   if (existing) return { spaceId: existing, roomId: dmRoomId(existing) };
 
@@ -128,7 +128,7 @@ export async function createOrOpenDm(
   // we just stored for the bundle.
   const requestJson = JSON.stringify({ edPub: peerKeys.edPub, kemPub: peerKeys.kemPub, userId: peerUserId });
   const inviteJson = await inviteToSpace(session, ref.spaceId, requestJson, true);
-  await setDmMapping(session.accountClient, session.userId, peerUserId, ref.spaceId);
+  await setDmMapping(session.spacesRegistryClient, session.userId, peerUserId, ref.spaceId);
   // Deliver: seal the invite to the peer and append it to the shared space's carrier.
   const client = getSpaceClient(sharedSpaceId, session);
   await appendDmInvite(session, client, sharedSpaceId, peerKeys.kemPub, inviteJson);
@@ -164,7 +164,7 @@ export async function healDmMap(session: Session, rawSpaces: Space[], dmMap: DmM
       const peer = [owner ?? '', ...members].find((u) => u && u !== session.userId);
       if (!peer || healed[peer]) continue; // unknown peer, or peer already mapped — skip
       healed[peer] = s.id;
-      void setDmMapping(session.accountClient, session.userId, peer, s.id).catch(() => {});
+      void setDmMapping(session.spacesRegistryClient, session.userId, peer, s.id).catch(() => {});
     } catch {
       /* unreadable dm space — skip, try again next refresh */
     }
@@ -206,7 +206,7 @@ async function acceptScannedInvites(
       continue; // not actually bound to us / keyring not shared — skip
     }
     if (dms[peerUserId] !== inv.spaceId) {
-      await setDmMapping(session.accountClient, session.userId, peerUserId, inv.spaceId);
+      await setDmMapping(session.spacesRegistryClient, session.userId, peerUserId, inv.spaceId);
       dms[peerUserId] = inv.spaceId; // reflect locally so a later invite in this run dedups
       accepted.add(inv.spaceId);
       changed = true;
@@ -227,7 +227,7 @@ async function acceptScannedInvites(
  * un-acceptable invite is skipped, never fatal.
  */
 export async function reconcileDmInbox(session: Session, knownSpaces: Space[]): Promise<boolean> {
-  const { dms, caps } = await readSpaces(session.accountClient, session.userId);
+  const { dms, caps } = await readSpaces(session.spacesRegistryClient, session.userId);
   // Skip invites for spaces we've already joined (mapped, or holding a member cap).
   const accepted = new Set<string>([...Object.values(dms), ...Object.keys(caps)]);
   let changed = false;

@@ -14,7 +14,7 @@ import {
   setDmArchived,
 } from './archived-dms';
 
-const SESSION = { userId: 'u', accountClient: {} } as never;
+const SESSION = { userId: 'u', accountClient: {}, spacesRegistryClient: {} } as never;
 
 beforeEach(() => {
   updateArchivedDmsDoc.mockReset();

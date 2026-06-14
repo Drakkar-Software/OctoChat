@@ -61,7 +61,7 @@ export async function startDevicePairing(session: Session, pin: string): Promise
   // decrypt those spaces immediately. A keyring write is `space:owner`-gated, so
   // we can only grant OWNED spaces — those absent from the member-cap map (joined
   // spaces). Joined spaces stay locked until their owner re-invites this device.
-  const { spaces, caps } = await readSpaces(session.accountClient, session.userId);
+  const { spaces, caps } = await readSpaces(session.spacesRegistryClient, session.userId);
   for (const space of spaces) {
     if (caps[space.id]) continue; // joined (has a member cap) — not ours to grant
     try {

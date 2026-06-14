@@ -92,7 +92,7 @@ export async function saveQuickReactions(session: Session, emojis: string[]): Pr
   setQuickReactions(next);
   pending++;
   try {
-    await updateQuickReactionsDoc(session.accountClient, session.userId, () => next);
+    await updateQuickReactionsDoc(session.spacesRegistryClient, session.userId, () => next);
   } catch (err) {
     console.error('[OctoChat] quick reactions: failed to sync palette change', err);
   } finally {

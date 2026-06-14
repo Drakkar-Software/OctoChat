@@ -116,7 +116,7 @@ export async function inviteToSpace(
   );
   let name = spaceName?.trim();
   if (!name) {
-    const { spaces } = await readSpaces(session.accountClient, session.userId);
+    const { spaces } = await readSpaces(session.spacesRegistryClient, session.userId);
     name = spaces.find((s) => s.id === spaceId)?.name ?? 'Space';
   }
   const invite: SpaceInvite = { spaceId, spaceName: name, cap };
@@ -150,7 +150,7 @@ export async function acceptSpaceInvite(session: Session, inviteJson: string): P
   // (the durable source of truth — re-hydrates on a fresh device, so it self-heals with
   // no owner re-invite). Only mirror into the in-memory cache once that write succeeds,
   // so a failed push never leaves a "joined locally, not on the server" state.
-  await addJoinedSpaceWithCap(session.accountClient, session.userId, space, capJson);
+  await addJoinedSpaceWithCap(session.spacesRegistryClient, session.userId, space, capJson);
   saveSpaceAccessEntry(spaceId, { kind: 'member', cap: capJson });
   return space;
 }

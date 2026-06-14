@@ -31,14 +31,14 @@ export function capProviderFor(cap: unknown, devEdPrivHex: string): StarfishCapP
   };
 }
 
-export function makeClient(cap: unknown, devEdPrivHex: string): StarfishClient {
+export function makeClient(cap: unknown, devEdPrivHex: string, namespaceOverride?: string): StarfishClient {
   // `namespace` makes the client prepend `/v1/<namespace>` to every request path —
   // both the URL and the signed canonical path, AND the paths SDK helpers build
   // internally (keyring `addCollectionRecipient`, blobs). That's why no path-prefix
   // wrapper is needed anymore. Undefined locally (root-mounted), so paths pass through.
   return new StarfishClient({
     baseUrl: getSyncBase(),
-    namespace: getSyncNamespace(),
+    namespace: namespaceOverride ?? getSyncNamespace(),
     capProvider: capProviderFor(cap, devEdPrivHex),
     // Bound the connect phase so a stalled socket rejects instead of hanging the
     // room-open path forever (Android network transitions) — see fetch-timeout.ts.

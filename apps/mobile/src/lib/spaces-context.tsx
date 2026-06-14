@@ -49,6 +49,9 @@ interface SpacesContextValue {
    *  list optimistically, then writes it to the synced doc so it follows the user across
    *  devices; re-reads to recover if the write fails. */
   reorderSpaces: (orderedRailIds: string[]) => Promise<void>;
+  /** Move one rail space up (-1) or down (+1) relative to its current neighbour.
+   *  No-op at the boundary or when `spaceId` isn't in the rail. */
+  moveSpace: (spaceId: string, dir: -1 | 1) => void;
 }
 
 /** Drop DM spaces — they never belong in the space rail / switcher. */
@@ -66,7 +69,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (!session) return;
-    const { spaces: list, mutes, reads, archivedDms, dms: dmMap } = await readSpaces(session.accountClient, session.userId);
+    const { spaces: list, mutes, reads, archivedDms, dms: dmMap } = await readSpaces(session.spacesRegistryClient, session.userId);
     const rail = railSpaces(list);
     setSpaces(rail);
     // Derive DMs from the durable `dm-` spaces, not just the lossy `dms` index, so a DM
@@ -96,7 +99,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     void reconcileDmInbox(session, rail)
       .then(async (changed) => {
         if (!changed) return;
-        const next = await readSpaces(session.accountClient, session.userId);
+        const next = await readSpaces(session.spacesRegistryClient, session.userId);
         setDms(await healDmMap(session, next.spaces, next.dms));
       })
       .catch(() => {});
@@ -215,7 +218,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
         [...list].sort((a, b) => (order.get(a.id) ?? Infinity) - (order.get(b.id) ?? Infinity));
       setSpaces((prev) => reordered(prev));
       try {
-        await reorderSpacesDoc(session.accountClient, session.userId, orderedRailIds);
+        await reorderSpacesDoc(session.spacesRegistryClient, session.userId, orderedRailIds);
       } catch {
         // Write failed — re-read the authoritative doc so the rail can't drift from the
         // server (e.g. a stuck optimistic order the next device never sees).
@@ -225,9 +228,21 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     [session, refresh],
   );
 
+  const moveSpace = useCallback(
+    (spaceId: string, dir: -1 | 1) => {
+      const ids = spaces.map((s) => s.id);
+      const i = ids.indexOf(spaceId);
+      const j = i + dir;
+      if (i === -1 || j < 0 || j >= ids.length) return;
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+      void reorderSpaces(ids);
+    },
+    [spaces, reorderSpaces],
+  );
+
   const value = useMemo<SpacesContextValue>(
-    () => ({ spaces, dms, activeId, setActiveId, loading, refresh, createSpace, reorderSpaces }),
-    [spaces, dms, activeId, loading, refresh, createSpace, reorderSpaces],
+    () => ({ spaces, dms, activeId, setActiveId, loading, refresh, createSpace, reorderSpaces, moveSpace }),
+    [spaces, dms, activeId, loading, refresh, createSpace, reorderSpaces, moveSpace],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

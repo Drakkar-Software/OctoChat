@@ -159,7 +159,7 @@ async function flush(): Promise<void> {
   // (post-await), and a concurrent `resetReads` (sign-out) could clear `cache` before
   // then, which would push an empty doc and drop the just-read room.
   const snapshot = cache;
-  await updateReadsDoc(session.accountClient, session.userId, (cur) => {
+  await updateReadsDoc(session.spacesRegistryClient, session.userId, (cur) => {
     const merged = maxMerge(cur, snapshot);
     return merged === cur ? null : merged;
   }).catch((err) => {

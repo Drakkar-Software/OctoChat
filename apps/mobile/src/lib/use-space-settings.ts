@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { pickAndProcessAvatar } from './avatar-image';
 import { inviteToSpace } from '@drakkar.software/octochat-sdk';
-import { broadcastSpaceMeta, readSpaces, updateSpacesDoc, writeSpaces } from '@drakkar.software/octochat-sdk';
+import { broadcastSpaceMeta, readSpaces, removeJoinedSpace, writeSpaces } from '@drakkar.software/octochat-sdk';
 import { readSpaceAccess, writeSpaceAccess } from '@drakkar.software/octochat-sdk';
 import { getSpaceClient } from '@drakkar.software/octochat-sdk';
 import { createSpaceInviteLink, removeSpaceAccessEntry } from '@drakkar.software/octochat-sdk';
@@ -33,7 +33,7 @@ export function useSpaceSettings(spaceId: string) {
     if (!session) return;
     const spaceClient = getSpaceClient(spaceId, session);
     const { owner, members: roster, name: sharedName, image: sharedImage } = await readSpaceAccess(spaceClient, spaceId);
-    const { spaces } = await readSpaces(session.accountClient, session.userId);
+    const { spaces } = await readSpaces(session.spacesRegistryClient, session.userId);
     const local = spaces.find((s) => s.id === spaceId);
     setOwnerId(owner);
     setMembers(roster);
@@ -114,11 +114,11 @@ export function useSpaceSettings(spaceId: string) {
         image: nextImage,
       });
       const short = nextName.slice(0, 2).toUpperCase();
-      const { spaces, hash: spacesHash } = await readSpaces(session.accountClient, session.userId);
+      const { spaces, hash: spacesHash } = await readSpaces(session.spacesRegistryClient, session.userId);
       const next = spaces.map((s) =>
         s.id === spaceId ? { ...s, name: nextName, short, image: nextImage ?? undefined } : s,
       );
-      await writeSpaces(session.accountClient, session.userId, next, spacesHash);
+      await writeSpaces(session.spacesRegistryClient, session.userId, next, spacesHash);
       broadcastSpaceMeta(spaceId, { name: nextName, short, image: nextImage ?? undefined });
       setName(nextName);
       setImage(nextImage);
@@ -153,13 +153,7 @@ export function useSpaceSettings(spaceId: string) {
   /** Drop the space from your own list + forget its durable credential. */
   const leave = useCallback(async () => {
     if (!session) return;
-    await updateSpacesDoc(session.accountClient, session.userId, (cur) => {
-      const caps = { ...cur.caps };
-      delete caps[spaceId];
-      const pubAccess = { ...cur.pubAccess };
-      delete pubAccess[spaceId];
-      return { spaces: cur.spaces.filter((s) => s.id !== spaceId), caps, pubAccess };
-    });
+    await removeJoinedSpace(session.spacesRegistryClient, session.userId, spaceId);
     removeSpaceAccessEntry(spaceId);
   }, [session, spaceId]);
 

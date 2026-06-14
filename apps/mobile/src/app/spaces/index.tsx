@@ -17,7 +17,7 @@ import { SpacePicker } from '@/components/chat/SpacePicker';
  * the tab the user came from — its content has already re-keyed to the new space.
  */
 export default function SpacesScreen() {
-  const { spaces, activeId, setActiveId } = useSpaces();
+  const { spaces, activeId, setActiveId, moveSpace } = useSpaces();
   const dmUnread = useTotalDmUnread();
   const isDmHome = isDmHomeId(activeId);
 
@@ -41,6 +41,7 @@ export default function SpacesScreen() {
         onSelectDms={() => choose(DM_HOME_ID)}
         onAddSpace={() => router.push('/join')}
         onBrowseSpaces={() => router.push('/spaces/explore')}
+        onMoveSpace={moveSpace}
       />
     </StackScreen>
   );

@@ -386,13 +386,6 @@ export default function SpaceScreen() {
               <Txt variant="footnote" tone="inkSoft">
                 You're a member of this space.
               </Txt>
-              <Button
-                label={leaving ? 'Leaving…' : 'Leave space'}
-                variant="danger"
-                size="md"
-                disabled={leaving}
-                onPress={doLeave}
-              />
             </Card>
           ) : (
             <Card title="ACCESS">
@@ -401,6 +394,23 @@ export default function SpaceScreen() {
               </Callout>
             </Card>
           )}
+
+          {!!space && !isDm ? (
+            <Card title="REMOVE FROM LIST">
+              <Txt variant="footnote" tone="inkSoft">
+                {isOwner
+                  ? 'Remove this space from your list. You stay the owner; it just leaves your rail.'
+                  : 'Remove this space from your list. You can rejoin with an invitation link.'}
+              </Txt>
+              <Button
+                label={leaving ? 'Removing…' : 'Remove from my spaces'}
+                variant="danger"
+                size="md"
+                disabled={leaving}
+                onPress={doLeave}
+              />
+            </Card>
+          ) : null}
         </>
       )}
     </StackScreen>

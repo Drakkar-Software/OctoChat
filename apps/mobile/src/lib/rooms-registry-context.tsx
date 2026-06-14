@@ -165,7 +165,7 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
         if (rr) { owner = rr.owner; members = rr.members; name = rr.name; image = rr.image; hash = rr.hash; }
       }
     }
-    void reconcileSpaceMeta(s.accountClient, s.userId, spaceId, { name, image }, spacesRef.current).catch(() => {});
+    void reconcileSpaceMeta(s.spacesRegistryClient, s.userId, spaceId, { name, image }, spacesRef.current).catch(() => {});
     const idx = await readIndexRooms(spaceClient, null, objIndexPull(spaceId), spaceId);
     return { rooms: idx?.rooms ?? [], owner, members, name, image, categories: idx?.categories ?? [], hash, loading: false, loaded: true };
   }, []);

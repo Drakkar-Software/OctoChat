@@ -15,7 +15,7 @@ vi.mock('../starfish/registry', () => ({
 
 import { hydrateMutes, isRoomMuted, resetMutes, setRoomMute } from './mutes';
 
-const SESSION = { userId: 'u', accountClient: {} } as never;
+const SESSION = { userId: 'u', accountClient: {}, spacesRegistryClient: {} } as never;
 
 beforeEach(() => {
   store.clear();

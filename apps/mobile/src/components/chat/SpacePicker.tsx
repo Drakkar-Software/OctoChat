@@ -6,6 +6,7 @@ import type { Space } from '@drakkar.software/octochat-sdk';
 import { DM_HOME_NAME } from '@/lib/dm-home';
 import { useTheme } from '@/lib/use-theme';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { IconButton } from '@/components/ui/IconButton';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
@@ -22,6 +23,9 @@ interface SpacePickerProps {
   onSelectDms?: () => void;
   onAddSpace: () => void;
   onBrowseSpaces: () => void;
+  /** When provided, an edit toggle appears in the heading that reveals up/down
+   *  reorder controls per row. Hidden while filtering. */
+  onMoveSpace?: (id: string, dir: -1 | 1) => void;
 }
 
 /**
@@ -40,11 +44,14 @@ export function SpacePicker({
   onSelectDms,
   onAddSpace,
   onBrowseSpaces,
+  onMoveSpace,
 }: SpacePickerProps) {
   const { colors } = useTheme();
   const [query, setQuery] = useState('');
+  const [editing, setEditing] = useState(false);
   const q = query.trim().toLowerCase();
   const filtering = q.length > 0;
+  const showMoveControls = editing && !filtering && !!onMoveSpace;
 
   const matches = useMemo(
     () => (filtering ? spaces.filter((s) => s.name.toLowerCase().includes(q)) : spaces),
@@ -63,26 +70,57 @@ export function SpacePicker({
       />
 
       {filtering && matches.length === 0 ? (
-        <EmptyState iconName="search" title="No spaces" subtitle={`Nothing matches “${query.trim()}”.`} />
+        <EmptyState iconName="search" title="No spaces" subtitle={`Nothing matches "${query.trim()}".`} />
       ) : (
         <View style={styles.list}>
-          <Txt variant="micro" weight="semibold" mono uppercase tone="inkMuted" style={styles.heading}>
-            Spaces
-          </Txt>
+          <View style={styles.headingRow}>
+            <Txt variant="micro" weight="semibold" mono uppercase tone="inkMuted" style={styles.heading}>
+              Spaces
+            </Txt>
+            {onMoveSpace && !filtering ? (
+              <IconButton
+                name={editing ? 'check' : 'edit'}
+                size={14}
+                onPress={() => setEditing((e) => !e)}
+                accessibilityLabel={editing ? 'Done editing order' : 'Edit space order'}
+              />
+            ) : null}
+          </View>
           {/* The DM home row is web/desktop-only — native has a dedicated bottom tab. */}
           {!filtering && Platform.OS === 'web' ? (
             <ListRow iconName="people" label={DM_HOME_NAME} active={isDmHome} unread={dmUnread} onPress={onSelectDms} />
           ) : null}
-          {matches.map((s) => (
-            <ListRow
-              key={s.id}
-              avatarLabel={s.short}
-              avatarImage={s.image}
-              label={s.name}
-              active={!isDmHome && s.id === activeId}
-              unread={s.unread}
-              onPress={() => onSelectSpace(s.id)}
-            />
+          {matches.map((s, idx) => (
+            <View key={s.id} style={showMoveControls ? styles.editRow : undefined}>
+              {showMoveControls ? (
+                <View style={styles.moveButtons}>
+                  <IconButton
+                    name="chevron-up"
+                    size={16}
+                    color={idx === 0 ? colors.inkFaint : colors.inkSoft}
+                    onPress={idx === 0 ? undefined : () => onMoveSpace(s.id, -1)}
+                    accessibilityLabel="Move space up"
+                  />
+                  <IconButton
+                    name="chevron-down"
+                    size={16}
+                    color={idx === matches.length - 1 ? colors.inkFaint : colors.inkSoft}
+                    onPress={idx === matches.length - 1 ? undefined : () => onMoveSpace(s.id, 1)}
+                    accessibilityLabel="Move space down"
+                  />
+                </View>
+              ) : null}
+              <View style={showMoveControls ? styles.editRowContent : undefined}>
+                <ListRow
+                  avatarLabel={s.short}
+                  avatarImage={s.image}
+                  label={s.name}
+                  active={!isDmHome && s.id === activeId}
+                  unread={s.unread}
+                  onPress={showMoveControls ? undefined : () => onSelectSpace(s.id)}
+                />
+              </View>
+            </View>
           ))}
           {!filtering ? (
             <>
@@ -100,6 +138,10 @@ export function SpacePicker({
 const styles = StyleSheet.create({
   root: { flex: 1, gap: spacing.md },
   list: { gap: 2 },
-  heading: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs, letterSpacing: 0.6 },
+  headingRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md, paddingBottom: spacing.xs },
+  heading: { flex: 1, letterSpacing: 0.6 },
   divider: { height: 1, marginVertical: spacing.xs, marginHorizontal: spacing.md },
+  editRow: { flexDirection: 'row', alignItems: 'center' },
+  moveButtons: { flexDirection: 'column', paddingLeft: spacing.xs, gap: 0 },
+  editRowContent: { flex: 1 },
 });

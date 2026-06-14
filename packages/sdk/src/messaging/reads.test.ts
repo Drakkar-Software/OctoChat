@@ -27,7 +27,7 @@ import {
   subscribeReads,
 } from './reads';
 
-const SESSION = { userId: 'u', accountClient: {} } as never;
+const SESSION = { userId: 'u', accountClient: {}, spacesRegistryClient: {} } as never;
 
 beforeEach(() => {
   store.clear();

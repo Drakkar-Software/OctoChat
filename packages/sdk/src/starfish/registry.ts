@@ -530,6 +530,31 @@ export async function addSpaceMember(
   await writeSpaceAccess(client, spaceId, owner ?? ownerUserId, [...members, memberUserId], hash, { name, image });
 }
 
+/** Invitee/owner-side: drop a space from the identity's own list + forget its cap
+ *  and link-access credential. Idempotent (no-op when absent). */
+export async function removeJoinedSpace(client: StarfishClient, userId: string, spaceId: string): Promise<void> {
+  await updateSpacesDoc(client, userId, (cur) => {
+    if (!cur.spaces.some((s) => s.id === spaceId)) return cur;
+    const caps = { ...cur.caps }; delete caps[spaceId];
+    const pubAccess = { ...cur.pubAccess }; delete pubAccess[spaceId];
+    return { spaces: cur.spaces.filter((s) => s.id !== spaceId), caps, pubAccess };
+  });
+}
+
+/** Move one space to an absolute index in the list (clamped). No-op if absent or
+ *  already there. For relative up/down, callers pass `currentIndex ± 1`. */
+export async function moveSpace(client: StarfishClient, userId: string, spaceId: string, toIndex: number): Promise<void> {
+  await updateSpacesDoc(client, userId, (cur) => {
+    const from = cur.spaces.findIndex((s) => s.id === spaceId);
+    if (from === -1) return cur;
+    const next = [...cur.spaces];
+    const [moved] = next.splice(from, 1);
+    next.splice(Math.max(0, Math.min(toIndex, next.length)), 0, moved);
+    if (next.every((s, i) => s === cur.spaces[i])) return cur;
+    return { spaces: next, caps: cur.caps };
+  });
+}
+
 /** Invitee-side: record a joined space in the identity's own space list. Idempotent. */
 export async function addJoinedSpace(client: StarfishClient, userId: string, space: Space): Promise<void> {
   await updateSpacesDoc(client, userId, (cur) =>
@@ -568,8 +593,8 @@ export async function addJoinedSpaceWithCap(
  * the only thing that seeds a freshly-created space's room list.
  */
 export async function createSpace(session: Session, name: string): Promise<Space> {
-  const { accountClient, userId } = session;
-  const { spaces, hash } = await readSpaces(accountClient, userId);
+  const { accountClient, spacesRegistryClient, userId } = session;
+  const { spaces, hash } = await readSpaces(spacesRegistryClient, userId);
   const trimmed = name.trim() || 'New Space';
   const id = newSpaceId();
   const space: Space = { id, name: trimmed, short: trimmed.slice(0, 2).toUpperCase(), members: 1 };
@@ -582,7 +607,7 @@ export async function createSpace(session: Session, name: string): Promise<Space
   // ever re-seed it).
   await writeSpaceAccess(accountClient, id, userId, [], null, { name: trimmed });
   await seedSpaceObjectIndex(session, id, [{ id: `${id}-general`, name: 'general', kind: 'channel', category: DEFAULT_CATEGORY }]);
-  await writeSpaces(accountClient, userId, [...spaces, space], hash);
+  await writeSpaces(spacesRegistryClient, userId, [...spaces, space], hash);
   return space;
 }
 
