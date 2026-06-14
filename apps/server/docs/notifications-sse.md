@@ -9,8 +9,8 @@ an authenticated proxy on the Starfish server gates the stream per-caller.
 
 ```
 client push ─▶ Starfish server (apps/server, Hono :8787)
-                   │  afterWrite — queuing plugin, "chat" collection only
-                   │  subject: octochat.chat.changed.<spaceId>
+                   │  afterWrite — queuing plugin (streamchat / streampub / streaminv)
+                   │  subject: octochat.chat.changed.<spaceId>  (all three collections)
                    ▼
                  NATS                                          :4222
                    │

@@ -12,7 +12,7 @@ OctoChat opens from links three ways:
 | **Universal / App Link** | `https://oc.drakkar.software/join#<token>` | Native, opens the app directly (web fallback if not installed) |
 
 Two link kinds ride this machinery, both with their credential in a `#fragment`:
-**space invitation links** (`…/join#<token>`, see `encodePublicInviteLink`) and
+**space invitation links** (`…/join#<token>`, see `createSpaceInviteLink`) and
 **"DM me" links** (`…/dm#<token>`, see `encodeDmLink` + [dm-links.md](dm-links.md)).
 
 Expo Router maps file routes to URLs automatically, so `octochat://rooms`,
@@ -45,7 +45,7 @@ opening the app needs the two hosted files below — plus a rebuild (the `app.js
 native keys only take effect in a fresh build).
 
 > Scope is deliberately **`/join` + `/dm` only** (the two links the app generates —
-> see `encodePublicInviteLink` / `encodeDmLink`). The Android per-path
+> see `createSpaceInviteLink` / `encodeDmLink`). The Android per-path
 > `pathPrefix` entries are essential: without them `autoVerify` would claim the
 > *entire* host and every `https://oc.drakkar.software/…` link — the web app
 > included — would open the native app on Android. Only widen the AASA `paths` /

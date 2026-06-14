@@ -108,7 +108,7 @@ and has no Python counterpart:
   delivery** into `dminbox/<ownerId>/<month>` (`dm.ts`, `members.ts`,
   `account-seal.ts`, `paths.ts`),
 - the **space keyring encryptor** that seals each message envelope and each
-  attachment blob (`space-encryptor.ts`, `attachments.ts`),
+  attachment blob (`attachments.ts`, keyring ops via octospaces-sdk),
 - the registry/`_spaces` doc shapes and `reconcileDmInbox`.
 
 Mirroring that in Python means re-implementing a dozen interdependent modules and

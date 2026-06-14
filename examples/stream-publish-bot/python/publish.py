@@ -3,7 +3,7 @@ into a PUBLIC stream room as a bot, then exits. No ``/events``, no webhook, no
 waiting: just the "post" half of an integration. Line-for-line mirror of the
 TypeScript sibling (``../ts/src/publish.ts``).
 
-    publish  ──append──▶  pubstream room
+    publish  ──append──▶  streampub room (access:'public')
               (audience-cap bot token)
 
 A stream room is an append-only log, so posting is a single signed ``POST /push``

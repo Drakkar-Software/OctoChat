@@ -13,8 +13,8 @@
  *      ephemeral subject key the link was minted against. We sign each connect with
  *      that key, exactly like the app's hand-rolled `buildAuthHeaders`.
  *
- *   2. `?spaces=` declares which spaces we want events for. A PUBLIC (`psp-`) space
- *      is open-gated for any authenticated caller, so the member cap is plenty.
+ *   2. `?spaces=` declares which spaces we want events for. A space whose invite link
+ *      was minted by the owner is open-gated for that member cap — no extra config.
  *
  * Each event carries only `{ roomId, spaceId?, hash?, ts? }` — never message
  * content (chat is E2E-encrypted and even public events omit the body). The trigger
@@ -80,7 +80,7 @@ export interface SubscribeOptions {
   serverUrl: string;
   /** Bare namespace (e.g. `octochat`) or '' for the root-mounted local dev server. */
   namespace: string;
-  /** Candidate space ids to request events for (the bot's `psp-` space). */
+  /** Candidate space ids to request events for (the space the invite link was minted for). */
   spaces: string[];
   /** The invite link's `member` cap-cert and the ephemeral key it was minted against. */
   cap: unknown;

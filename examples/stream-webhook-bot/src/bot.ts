@@ -4,7 +4,7 @@
  * a PUBLIC stream room as a bot. End-to-end it shows the two halves a real
  * integration needs:
  *
- *     /events (SSE)  ──trigger──▶  handler  ──append──▶  pubstream room
+ *     /events (SSE)  ──trigger──▶  handler  ──append──▶  streampub room (access:'public')
  *      (member cap)                              (audience-cap bot token)
  *
  * Why two credentials? `/events` rejects audience caps, so listening needs a member
@@ -106,27 +106,28 @@ function loadConfig(): BotConfig {
   };
 }
 
-// ── Invite-link decode (mirrors apps/mobile/src/lib/starfish/pubspace.ts) ───────
-interface PublicInviteToken {
-  ownerId: string;
+// ── Invite-link decode (mirrors createSpaceInviteLink / encodeSpaceInviteLink) ───
+interface SpaceInviteToken {
+  v?: number;
   spaceId: string;
   spaceName?: string;
   cap: unknown; // the owner-signed member cap-cert
   key: string; // the ephemeral subject's Ed25519 private key (hex)
+  write?: boolean;
 }
 
-function decodeInvite(link: string): PublicInviteToken {
-  const bad = 'OCTOCHAT_INVITE_LINK is malformed — paste a public-space invite link (the `…/join#…` URL).';
-  let tok: Partial<PublicInviteToken>;
+function decodeInvite(link: string): SpaceInviteToken {
+  const bad = 'OCTOCHAT_INVITE_LINK is malformed — paste a space invite link (the `…/join#…` URL).';
+  let tok: Partial<SpaceInviteToken>;
   try {
     const frag = link.includes('#') ? link.slice(link.indexOf('#') + 1) : link;
     const b64 = frag.replace(/-/g, '+').replace(/_/g, '/');
-    tok = JSON.parse(Buffer.from(b64, 'base64').toString('utf-8')) as Partial<PublicInviteToken>;
+    tok = JSON.parse(Buffer.from(b64, 'base64').toString('utf-8')) as Partial<SpaceInviteToken>;
   } catch {
     throw new Error(bad);
   }
-  if (!tok?.ownerId || !tok.spaceId || !tok.cap || !tok.key) throw new Error(bad);
-  return tok as PublicInviteToken;
+  if (!tok?.spaceId || !tok.cap || !tok.key) throw new Error(bad);
+  return tok as SpaceInviteToken;
 }
 
 // ── Identity helpers ────────────────────────────────────────────────────────────
