@@ -82,7 +82,7 @@ export async function openEncryptor(
   trustedAdders: string[],
 ): Promise<Encryptor> {
   // The room/thread `_keyring × 2` burst this used to dedupe is now collapsed one
-  // level up by the per-space encryptor cache (space-encryptor.ts), which opens each
+  // level up by the room-open flow (`use-room-open-flow.ts`), which opens each
   // space keyring once and shares it across the room screen and its threads.
   const res = await client.pull(keyringPull(spaceId)).catch(() => {
     throw new Error('Could not reach the server to fetch space keys.');

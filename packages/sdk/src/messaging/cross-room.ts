@@ -3,8 +3,7 @@
  * and flatten their messages. Rooms never accessed have no keyring cached and are simply
  * skipped (buildNodeAccess returns null).
  *
- * Every room is an APPEND-ONLY log now (the merge-doc `chat`/`pubspace` message path
- * was retired when `stream` and `channel` merged), so each reader pulls a room's whole
+ * Every room is an APPEND-ONLY log now, so each reader pulls a room's whole
  * log and folds it via {@link fanOut} — exactly like `useRoom` / `notification-preview`.
  *
  * Stream path routing by `room.access`/`room.enc` (projected from the index):

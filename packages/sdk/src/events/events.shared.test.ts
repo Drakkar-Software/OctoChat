@@ -23,19 +23,7 @@ describe('parseRoomChange', () => {
     ).toMatchObject({ roomId: 'sp-a-inv1', spaceId: 'sp-a' });
   });
 
-  it('routes objdoc (object content) via params.objectId', () => {
-    expect(
-      parseRoomChange(frame({ collection: 'objdoc', params: { spaceId: 'sp-a', objectId: 'doc-1' } })),
-    ).toMatchObject({ roomId: 'doc-1', spaceId: 'sp-a' });
-  });
-
-  it('routes objlog (object log) via params.objectId', () => {
-    expect(
-      parseRoomChange(frame({ collection: 'objlog', params: { spaceId: 'sp-a', objectId: 'log-1' } })),
-    ).toMatchObject({ roomId: 'log-1', spaceId: 'sp-a' });
-  });
-
-  it('drops objindex events (no objectId — index-wide, left to focus-pull)', () => {
+  it('drops objindex events (no roomId — index-wide, left to focus-pull)', () => {
     expect(parseRoomChange(frame({ collection: 'objindex', params: { spaceId: 'sp-a' } }))).toBeNull();
   });
 

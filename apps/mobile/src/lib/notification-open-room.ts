@@ -29,8 +29,7 @@ export async function openRoomFromNotification(
   data: { spaceId?: string; roomId?: string; docId?: string },
   deps: OpenRoomFromNotificationDeps,
 ): Promise<void> {
-  // Native public-space pushes carry the room id as `docId`; accept either (the SSE
-  // toast path already normalizes pubspace docId into roomId, so it passes roomId).
+  // Native pushes carry the room id as `docId`; accept either.
   const roomId = data.roomId || data.docId || undefined;
   const spaceId = data.spaceId || (roomId ? spaceIdFromRoomId(roomId) : undefined);
   if (!spaceId && !roomId) return;

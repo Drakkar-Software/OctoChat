@@ -6,10 +6,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 
 interface SpaceMetaProps {
-  /** Public spaces are plaintext (server-readable); private spaces are E2EE. */
-  isPublic: boolean;
-  /** Member count for private spaces (owner + roster). Omit/null for public
-   *  spaces, which have no roster (access is cap-based, not membership). */
+  /** Owner + roster member count. */
   memberCount?: number | null;
   iconSize?: number;
   variant?: 'footnote' | 'micro';
@@ -17,20 +14,19 @@ interface SpaceMetaProps {
 }
 
 /**
- * The encryption + membership line shown under a space's name. Single source of
- * truth so the space screen, the desktop sidebar and the mobile header never
- * disagree on a space's encryption status or member count.
+ * The encryption + membership line shown under a space's name. All spaces are
+ * E2EE in the per-node access model — access is per room, but the space keyring
+ * and access record are always encrypted. Single source of truth so the space
+ * screen, the desktop sidebar and the mobile header never disagree.
  */
-export function SpaceMeta({ isPublic, memberCount, iconSize = 10, variant = 'micro', numberOfLines }: SpaceMetaProps) {
+export function SpaceMeta({ memberCount, iconSize = 10, variant = 'micro', numberOfLines }: SpaceMetaProps) {
   const { colors } = useTheme();
-  const label = isPublic
-    ? 'public · not encrypted'
-    : memberCount != null
-      ? `end-to-end encrypted · ${plural(memberCount, 'member')}`
-      : 'end-to-end encrypted';
+  const label = memberCount != null
+    ? `end-to-end encrypted · ${plural(memberCount, 'member')}`
+    : 'end-to-end encrypted';
   return (
     <View style={styles.meta}>
-      <Icon name={isPublic ? 'globe' : 'lock'} size={iconSize} color={isPublic ? colors.inkMuted : colors.accent} />
+      <Icon name="lock" size={iconSize} color={colors.accent} />
       <Txt variant={variant} tone="inkMuted" numberOfLines={numberOfLines}>
         {label}
       </Txt>

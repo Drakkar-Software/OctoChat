@@ -51,35 +51,6 @@ export async function readIndexRooms(
 }
 
 /**
- * Read a PRIVATE space's index rooms + categories given a KNOWN owner/members access
- * record (from the `_rooms` doc) — the registry provider's primary read. Opens the
- * (cached) space client seeded with that access record, then projects the index.
- *
- * Skipped when the owner is unknown (unreadable/legacy registry). Returns null on a
- * null owner OR any failure (not a recipient yet / unreachable), so the caller falls
- * back to an empty list rather than rendering a blank room screen on a hiccup.
- *
- * Differs from {@link readPrivateSpaceRooms}: that one self-discovers the client via
- * `getSpaceClient` (no owner/members) and returns just `Room[]`; this one takes the
- * already-read access record and also returns the ordered `categories`.
- */
-export async function readPrivateIndexRooms(
-  session: Session,
-  spaceId: string,
-  owner: string | null,
-  members: string[],
-): Promise<{ rooms: Room[]; categories: string[] } | null> {
-  if (owner === null) return null;
-  void members; // access record consumed by server-side auth; not needed client-side
-  try {
-    const client = getSpaceClient(spaceId, session);
-    return await readIndexRooms(client, null, objIndexPull(spaceId), spaceId);
-  } catch {
-    return null; // not a recipient yet / unreachable → legacy fallback
-  }
-}
-
-/**
  * SOFT read a PRIVATE space's index rooms for a read-only consumer: open the (cached)
  * space client and project the index. Returns `[]` when the index is empty/unreadable —
  * the caller treats that as "no rooms to scan". Public spaces are handled by their

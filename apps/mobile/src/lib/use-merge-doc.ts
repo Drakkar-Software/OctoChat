@@ -30,12 +30,6 @@ export interface MergeDocOptions {
   paths: () => DocPaths;
   /** True when the doc is E2EE (sealed with the space-wide keyring). Defaults false. */
   enc?: boolean;
-  /** @deprecated Pass `paths` instead; `privatePaths` is accepted as an alias for
-   *  back-compat with callers that haven't migrated yet. */
-  privatePaths?: () => DocPaths;
-  /** @deprecated No-op — there are no longer separate public/private path sets.
-   *  Remove from call sites. */
-  publicPaths?: (ownerId: string) => DocPaths;
 }
 
 export interface MergeDocResult {
@@ -72,8 +66,7 @@ export interface MergeDocResult {
  */
 export function useMergeDoc(opts: MergeDocOptions): MergeDocResult {
   const { spaceId, openId, enabled, storeKey } = opts;
-  // `paths` is the new name; `privatePaths` is accepted as a back-compat alias.
-  const getPaths = opts.paths ?? opts.privatePaths;
+  const getPaths = opts.paths;
   const enc = opts.enc ?? false;
   const { session } = useSession();
 
@@ -112,8 +105,8 @@ export function useMergeDoc(opts: MergeDocOptions): MergeDocResult {
       ...(encryptor ? { encryptor } : {}),
       storeName: `md-${session.userId}-${storeKey}`,
     };
-    // getPaths/privatePaths are stable per render from the caller's closure; the path
-    // values they return are captured by spaceId/openId which ARE deps.
+    // getPaths is stable per render from the caller's closure; the path values it returns
+    // are captured by spaceId/openId which ARE deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, session, client, encryptor, spaceId, enc, storeKey]);
 

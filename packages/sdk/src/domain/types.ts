@@ -14,8 +14,8 @@ export type PresenceStatus = 'online' | 'away' | 'dnd' | 'offline';
 export type VerificationLevel = 'verified' | 'pending' | 'unverified' | 'none';
 
 /** Maps a joined private space's id → its owner-issued member cap-cert (serialized
- *  JSON). Persisted both in device-local kv (`member-caps.ts`) and, for durability,
- *  in the user's own synced `_spaces` doc so a fresh device re-hydrates it. */
+ *  JSON). Persisted in the user's own synced `_spaces` doc so a fresh device
+ *  re-hydrates it. */
 export type CapMap = Record<string, string>;
 
 /** Maps a joined link-access key → its sealed invitation credential (cap + ephemeral
@@ -137,16 +137,15 @@ export interface AutomationMeta {
   onOpen?: boolean;
   /** Off → ticker skips and `onCommand` ignores; the room itself still renders. */
   enabled: boolean;
-  /** Bot write credential (`createStreamBotCredential`: token + endpoint + signPath),
-   *  SEALED to the minting account key (see `account-seal.ts` `sealToSelf`) before it
-   *  enters this synced PLAINTEXT registry doc. The token is a bearer audience cap;
-   *  sealing keeps a space reader from lifting it to forge bot posts. Opened by the
-   *  runner before posting + the settings sheet to display it. Like the `pubAccess` and
-   *  DM-keyring seals, it binds to the SEED-derived key, so it opens on the minting
-   *  device or a seed-restored device — NOT a QR-paired device (fresh keypair). Manage
-   *  automations from the primary device; `rotateAutomatedRoomCredential` re-seals to
-   *  whichever device rotates. A LEGACY pre-seal room stored this in the clear — see
-   *  `openStreamBotCredential` for the back-compat read. */
+  /** Bot write credential (token + endpoint + signPath), SEALED to the minting account
+   *  key (see `account-seal.ts` `sealToSelf`) before it enters this synced PLAINTEXT
+   *  registry doc. Sealing keeps a space reader from lifting it to forge bot posts.
+   *  Opened by the runner before posting + the settings sheet to display it. Binds to
+   *  the SEED-derived key — opens on the minting device or a seed-restored device, NOT
+   *  a QR-paired device (fresh keypair). Manage automations from the primary device;
+   *  `rotateAutomatedRoomCredential` re-seals to whichever device rotates.
+   *  A LEGACY pre-seal room stored this in the clear — see `openStreamBotCredential`
+   *  for the back-compat read. */
   credential: SealedBlob;
   /** PRIVATE spaces only: the enrolled bot's userId. A private automation's bot is a real
    *  keyring + roster member (that's what authorizes its encrypted post — see

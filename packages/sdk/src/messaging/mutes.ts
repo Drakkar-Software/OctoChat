@@ -1,7 +1,7 @@
 /**
  * Per-identity MUTE preferences — which rooms and which whole spaces are silenced.
  *
- * Two tiers, mirroring `member-caps.ts`: the durable source of truth is the user's
+ * Two tiers: the durable source of truth is the user's
  * own synced `_spaces` doc (a `mutes` key alongside `spaces`/`caps`, see
  * `registry.ts`), which a fresh device re-hydrates from its seed; the platform kv
  * (web localStorage / native AsyncStorage) is a fast, offline cache that also feeds

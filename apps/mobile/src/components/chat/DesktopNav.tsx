@@ -54,10 +54,8 @@ export function DesktopNav() {
   const threadsActive = pathname === '/threads';
   const pinnedActive = pathname.startsWith('/pinned');
   const automationsActive = pathname.startsWith('/automations');
-  // Show the Automations destination on any space (public OR owned-private) the user could
-  // interact with: the owner (so they can create the first) and any member of a space that
-  // already has at least one automated room (so they can browse). No longer gated on
-  // `isPublic` — owned private spaces support automations now.
+  // Show the Automations destination to the owner (so they can create the first) and any
+  // member of a space that already has at least one automated room (so they can browse).
   const hasAutomations = categories.some((c) => c.rooms.some((r) => r.kind === 'automated'));
   const showAutomations = isOwner || hasAutomations;
   const meLabel = (profile?.name ?? '··').slice(0, 2).toUpperCase();

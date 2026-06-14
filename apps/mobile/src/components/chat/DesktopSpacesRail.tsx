@@ -42,7 +42,6 @@ function SpaceTile({
   image,
   active,
   unread,
-  isPublic,
   muted,
   onPress,
   onDropSpace,
@@ -52,7 +51,6 @@ function SpaceTile({
   image?: string;
   active: boolean;
   unread?: number;
-  isPublic?: boolean;
   muted?: boolean;
   onPress?: () => void;
   /** Fires when another tile is dropped onto this one (web drag-reorder). Omitted ⇒
@@ -100,7 +98,7 @@ function SpaceTile({
         )}
       </View>
       <View style={[styles.corner, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
-        <Icon name={isPublic ? 'globe' : 'lock'} size={9} color={colors.inkMuted} />
+        <Icon name="lock" size={9} color={colors.inkMuted} />
       </View>
       {muted ? (
         <View style={[styles.muteCorner, { backgroundColor: colors.paperAlt, borderColor: colors.lineSoft }]}>
@@ -187,7 +185,6 @@ export function DesktopSpacesRail({
             image={s.image}
             active={s.id === activeId}
             unread={s.unread}
-            isPublic={false}
             muted={isSpaceMuted(s.id)}
             onPress={() => onSelect?.(s.id)}
             onDropSpace={onDropSpace}

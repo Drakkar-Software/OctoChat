@@ -1,36 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveMemberCap, resolveMemberAuth } from './space-cap';
-
-describe('resolveMemberCap', () => {
-  const fallback = { fallbackCap: true };
-
-  it('parses and returns the cap object for a valid member-kind entry', () => {
-    const cap = { scope: { paths: ['spaces/sp1/**'] } };
-    const entry = { kind: 'member' as const, cap: JSON.stringify(cap) };
-    expect(resolveMemberCap(entry, fallback)).toEqual(cap);
-  });
-
-  it('returns fallback (no throw) for a member-kind entry with corrupt JSON', () => {
-    const entry = { kind: 'member' as const, cap: '{corrupt json' };
-    expect(resolveMemberCap(entry, fallback)).toBe(fallback);
-  });
-
-  it('returns entry.cap as-is for a link-kind entry (already parsed)', () => {
-    const cap = { scope: { paths: ['spaces/sp1/**'] } };
-    const entry = { kind: 'link' as const, cap, key: 'k', write: false };
-    expect(resolveMemberCap(entry, fallback)).toBe(cap);
-  });
-
-  it('returns fallback when entry is null', () => {
-    expect(resolveMemberCap(null, fallback)).toBe(fallback);
-  });
-
-  it('returns fallback when entry is undefined', () => {
-    expect(resolveMemberCap(undefined, fallback)).toBe(fallback);
-  });
-});
-
-// ── resolveMemberAuth ─────────────────────────────────────────────────────────
+import { resolveMemberAuth } from './space-cap';
 
 describe('resolveMemberAuth', () => {
   const fallbackCap = { fallbackCap: true };

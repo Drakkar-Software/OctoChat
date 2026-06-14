@@ -38,8 +38,7 @@ import type { RoomHook } from './use-room-types';
 import type { StoredMsg } from '@drakkar.software/octochat-sdk';
 
 /**
- * THE room hook — every room is an APPEND-ONLY log (the merge-doc `chat`/`pubspace`
- * message path was retired when `stream` and `channel` merged). Every post is a single
+ * THE room hook — every room is an APPEND-ONLY log. Every post is a single
  * `client.append` (no pull/merge/hash/conflict), which is what also lets bots/integrations
  * write without the sync protocol. Reads pull the `{ts,data}` envelopes of the log.
  *

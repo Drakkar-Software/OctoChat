@@ -6,7 +6,9 @@
  */
 import { sealToSelf } from '../starfish/account-seal';
 import { type SealedBlob } from '../starfish/account-seal';
-import { createStreamBotCredential } from '../starfish/stream-bots';
+import { type StreamBotCredential } from '../starfish/stream-bots';
+import { streamPubRoomPush } from '../starfish/paths';
+import { getSyncBase } from '../config/config';
 import { roomSlug } from '../domain/ids';
 import type { Session } from '../starfish/identity';
 import type { AutomationMeta, AutomationSchedule, Room } from '../domain/types';
@@ -27,7 +29,14 @@ async function mintSealedCredential(
   spaceId: string,
   roomId: string,
 ): Promise<SealedBlob> {
-  const cred = createStreamBotCredential(session, spaceId, roomId, { ttlSec: BOT_TTL_SEC });
+  void spaceId; // per-node model: credential is room-scoped, space param unused
+  const signPath = streamPubRoomPush(roomId);
+  const cred: StreamBotCredential = {
+    token: '',
+    endpoint: `${getSyncBase()}${signPath}`,
+    signPath,
+    expiresAt: Math.floor(Date.now() / 1000) + BOT_TTL_SEC,
+  };
   return sealToSelf(session, JSON.stringify(cred));
 }
 

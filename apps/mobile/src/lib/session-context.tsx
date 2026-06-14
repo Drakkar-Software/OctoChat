@@ -121,9 +121,8 @@ const Ctx = createContext<SessionContextValue | null>(null);
 const yieldToPaint = () => new Promise((r) => setTimeout(r, 0));
 
 // Wipe every module-level cache tied to the current identity. Called before swapping
-// the active session so no data bleeds across accounts. The per-user member/pubspace
-// caps reload from disk on the next hydrate; SSE/push/unread/room stores key on the
-// session userId and self-reset via their own effect cleanups.
+// the active session so no data bleeds across accounts. SSE/push/unread/room stores
+// key on the session userId and self-reset via their own effect cleanups.
 function resetAccountScopedState(): void {
   clearSpaceAccessStore();
   clearAttachmentCache();

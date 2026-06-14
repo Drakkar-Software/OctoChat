@@ -34,7 +34,7 @@ import {
 import type { AutomationMeta, Room } from '@drakkar.software/octochat-sdk';
 
 import { kvGet, kvSet } from '@drakkar.software/octochat-sdk';
-import { readSpaceAccess, reconcileSpaceMeta } from '@drakkar.software/octochat-sdk';
+import { readSpaceAccess, writeSpaceAccess, reconcileSpaceMeta } from '@drakkar.software/octochat-sdk';
 import { readIndexRooms, objIndexPull } from '@drakkar.software/octochat-sdk';
 import { getSpaceClient } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
@@ -150,14 +150,28 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
     const s = sessionRef.current;
     if (!s) return IDLE;
     const spaceClient = getSpaceClient(spaceId, s);
-    const { owner, members, name, image, hash } = await readSpaceAccess(spaceClient, spaceId);
+    let { owner, members, name, image, hash } = await readSpaceAccess(spaceClient, spaceId);
+    // TOFU auto-claim: when no _access doc exists (owner=null, hash=null), the server
+    // grants space:owner+member to any authenticated user (TOFU). Auto-claim ownership
+    // so the space is usable after a migration or data wipe — the server write is
+    // idempotent (first writer wins; if another device beats us, re-read settles it).
+    if (owner === null && hash === null) {
+      try {
+        await writeSpaceAccess(spaceClient, spaceId, s.userId, [], null, { name: name ?? undefined, image: image ?? undefined });
+        owner = s.userId;
+      } catch {
+        // Race or auth failure: re-read to get whoever won TOFU
+        const rr = await readSpaceAccess(spaceClient, spaceId).catch(() => null);
+        if (rr) { owner = rr.owner; members = rr.members; name = rr.name; image = rr.image; hash = rr.hash; }
+      }
+    }
     void reconcileSpaceMeta(s.accountClient, s.userId, spaceId, { name, image }, spacesRef.current).catch(() => {});
     const idx = await readIndexRooms(spaceClient, null, objIndexPull(spaceId), spaceId);
     return { rooms: idx?.rooms ?? [], owner, members, name, image, categories: idx?.categories ?? [], hash, loading: false, loaded: true };
   }, []);
 
   // Run one read for a space, sharing the in-flight promise and publishing the
-  // result. A FAILED read (offline / unreachable — readRooms now throws rather than
+  // result. A FAILED read (offline / unreachable — readSpaceAccess throws rather than
   // collapsing to empty) never wipes a known-good list: it keeps the in-memory entry,
   // else the persisted cache, else degrades to an empty-but-loaded shell.
   const runFetch = useCallback((spaceId: string): Promise<RoomsRegistryEntry> => {

@@ -23,9 +23,7 @@
  * it's safe to forward; the client uses it to skip its own writes (see unread-context).
  *
  * Routing by collection: `streamchat`/`streampub`/`streaminv` carry `params.roomId`.
- * Object-content collections (`objdoc`/`objlog`) carry `params.objectId` — we route on
- * that so per-doc live-sync fires. Index collections (`objindex`) carry only `spaceId`
- * and are left to focus-pull.
+ * Index collections (`objindex`) carry only `spaceId` and are left to focus-pull.
  */
 import { getEventsUrl, getSyncBase } from '../config/config';
 
@@ -42,37 +40,21 @@ export interface RoomChange {
 
 interface QueueMessageish {
   collection?: string;
-  params?: { roomId?: string; docId?: string; spaceId?: string; objectId?: string };
+  params?: { roomId?: string; spaceId?: string };
   hash?: string;
   timestamp?: number;
   identity?: string;
 }
 
-/** Unified-object content collections — their change events key the changed doc by
- *  `params.objectId` (a doc/project id), which we map onto `roomId` so the existing
- *  per-room live-sync bus (keyed on roomId) drives a pull. The index collections
- *  (`objindex`) carry only `spaceId` (no objectId) — no per-doc subscriber, so they
- *  are left to focus-pull and routed as null here. */
-const OBJECT_CONTENT_COLLECTIONS = new Set(['objdoc', 'objlog']);
-
 /** Parse one SSE `data:` payload into a RoomChange, or null if not a chat change.
  *  Accepts both a raw QueueMessage and the Whistlers `{ rawPayload }` envelope.
  *
- *  All stream collections (`streamchat`, `streampub`, `streaminv`) publish `params.roomId`.
- *  Object-content collections (`objdoc`, `objlog`) publish `params.objectId` and are
- *  keyed on that so per-doc live-sync fires. Every other publisher uses `roomId`. */
+ *  All stream collections (`streamchat`, `streampub`, `streaminv`) publish `params.roomId`. */
 export function parseRoomChange(data: string): RoomChange | null {
   try {
     const d = JSON.parse(data) as QueueMessageish & { rawPayload?: QueueMessageish };
     const msg = d.params ? d : (d.rawPayload ?? d);
-    let roomId: string | undefined;
-    if (msg.collection && OBJECT_CONTENT_COLLECTIONS.has(msg.collection)) {
-      // Doc/project content: key by objectId so the per-doc live-sync fires.
-      roomId = msg.params?.objectId;
-    } else {
-      // streamchat / streampub / streaminv / objindex / other — all use roomId or spaceId.
-      roomId = msg.params?.roomId;
-    }
+    const roomId = msg.params?.roomId;
     if (!roomId) return null;
     return {
       roomId,

@@ -178,7 +178,7 @@ export default function SpaceScreen() {
                 <Txt variant="title" weight="bold" numberOfLines={1}>
                   {name}
                 </Txt>
-                <SpaceMeta isPublic={false} memberCount={memberCount} iconSize={12} variant="footnote" />
+                <SpaceMeta memberCount={memberCount} iconSize={12} variant="footnote" />
               </View>
             </View>
             <View style={styles.idLine}>

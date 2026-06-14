@@ -24,8 +24,7 @@ export default function AgentsScreen() {
   const isDmHome = isDmHomeId(activeId);
   const { categories, isOwner } = useRooms(isDmHome ? null : activeId);
 
-  // Automations live in a PUBLIC space or an OWNED PRIVATE one; the owner manages them and any
-  // member browses an existing one. Not gated on `isPublic` anymore — owned private spaces qualify.
+  // Owner manages automations; any member can browse a space that already has them.
   const hasAutomations = categories.some((c) => c.rooms.some((r) => r.kind === 'automated'));
   const showAutomations = !!session && !!activeId && !isDmHome && (isOwner || hasAutomations);
 

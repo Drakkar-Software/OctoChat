@@ -1,31 +1,6 @@
 import type { SpaceAccessEntry } from '@drakkar.software/octospaces-sdk';
 
 /**
- * Resolve the cap object from a {@link SpaceAccessEntry}, falling back to
- * `fallback` when the entry is absent or the member-kind JSON fails to parse.
- * Pure function — no React, no side effects; testable in isolation.
- *
- * @deprecated Prefer {@link resolveMemberAuth} which also returns the correct
- * signing key for link-joined spaces. Using `resolveMemberCap` alone and pairing
- * it with the account ed key is wrong for link-kind entries.
- */
-export function resolveMemberCap(
-  entry: SpaceAccessEntry | null | undefined,
-  fallback: unknown,
-): unknown {
-  if (!entry) return fallback;
-  if (entry.kind === 'member') {
-    try {
-      return JSON.parse(entry.cap);
-    } catch {
-      return fallback;
-    }
-  }
-  // link-kind: cap is already a parsed object.
-  return entry.cap;
-}
-
-/**
  * Resolve BOTH the cap object AND the correct signing key from a
  * {@link SpaceAccessEntry}:
  *

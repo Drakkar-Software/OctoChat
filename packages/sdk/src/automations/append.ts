@@ -1,10 +1,10 @@
 /**
- * The "post as a bot" half: append one element to a PUBLIC stream room via the
- * bot's `createPublicLink` audience cap. Mirrors `examples/stream-webhook-bot/src/append.ts`
- * exactly so the wire format matches the server's expectation: same `{ data }`
- * body shape, same `signAppendAuthor` author-proof, same `redeemPublicLink`
- * headers, same `X-Starfish-Pub`-signed POST. The runner can't drive this through
- * `StarfishClient.append` (which only knows member-cap auth), so we POST by hand.
+ * The "post as a bot" half: append one element to a PUBLIC stream room. Mirrors
+ * `examples/stream-webhook-bot/src/append.ts` exactly so the wire format matches
+ * the server's expectation: same `{ data }` body shape, same `signAppendAuthor`
+ * author-proof, same `redeemPublicLink` headers, same `X-Starfish-Pub`-signed POST.
+ * The runner can't drive this through `StarfishClient.append` (which only knows
+ * member-cap auth), so we POST by hand.
  */
 import { parsePublicLink, redeemPublicLink } from '@drakkar.software/starfish-sharing';
 import { signAppendAuthor } from '@drakkar.software/starfish-protocol';

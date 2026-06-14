@@ -31,8 +31,6 @@ interface DesktopRoomSidebarProps {
   isDmHome?: boolean;
   /** Every DM (across all peers), for the DM-home view. */
   dms?: DmEntry[];
-  /** Whether the active space is public (plaintext) vs private (E2EE). */
-  isPublic?: boolean;
   /** Owner + roster for private spaces; null for public (no roster). */
   memberCount?: number | null;
   categories?: RoomCategory[];
@@ -89,7 +87,6 @@ export function DesktopRoomSidebar({
   space,
   isDmHome = false,
   dms = [],
-  isPublic,
   memberCount,
   categories = [],
   userId,
@@ -175,7 +172,7 @@ export function DesktopRoomSidebar({
           <Txt variant="subhead" weight="semibold" numberOfLines={1}>
             {space?.name}
           </Txt>
-          <SpaceMeta isPublic={!!isPublic} memberCount={memberCount} iconSize={9} numberOfLines={1} />
+          <SpaceMeta memberCount={memberCount} iconSize={9} numberOfLines={1} />
         </View>
         <Icon name="gear" size={15} color={colors.inkMuted} />
       </Pressable>
