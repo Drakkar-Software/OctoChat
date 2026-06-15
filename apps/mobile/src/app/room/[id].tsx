@@ -63,7 +63,7 @@ export default function RoomScreen() {
   // additionally has a runner attached (driven below) + its own settings sheet.
   const isAutomated = kind === 'automated';
   const { store, opening, openError, offline, reload, syncError, send, toggleReaction, editMessage, deleteMessage, pinMessage, unpinMessage, uploadAttachment, loadAttachment, canWrite } =
-    useRoom(id, { access: registryRoom?.access, enc: registryRoom?.enc });
+    useRoom(id, { access: registryRoom?.access, enc: registryRoom?.enc, owner: owner ?? null });
   const { editingId, setEditingId, editLast } = useMessageEditing(store, session?.userId ?? '');
   // Offline outbox: route text sends through the queue when offline / on failure,
   // and surface this room's pending bubbles + retry. Attachments still need a

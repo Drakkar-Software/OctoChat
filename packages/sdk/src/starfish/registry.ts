@@ -13,7 +13,8 @@ import type { ArchivedDms, CapMap, DmMap, MutePrefs, ReadPrefs, Room, Space } fr
 
 import { randomId } from '../domain/ids';
 
-import type { Session } from './identity';
+import { ownerTrustedAdders, type Session } from './identity';
+import { ownerEnsureKeyring } from './client';
 import { DEFAULT_CATEGORY } from './objects';
 import { seedSpaceObjectIndex } from './object-index';
 import {
@@ -600,12 +601,14 @@ export async function createSpace(session: Session, name: string): Promise<Space
   const space: Space = { id, name: trimmed, short: trimmed.slice(0, 2).toUpperCase(), members: 1 };
   // Order matters for crash-safety. Stamp ownership first (TOFU: this first write claims
   // the space + the shared name) so the keyring write below passes `space:owner`, then
-  // seed the encrypted object index with one `general` channel (mints the keyring). Only
-  // once the space is fully formed do we add it to the user's `_spaces` list — so a failed
-  // seed leaves an unreferenced (harmless, unguessable-id) `_rooms`/keyring orphan rather
-  // than a space that shows up EMPTY in the rail (with the migration gone, nothing would
-  // ever re-seed it).
+  // mint the space-wide keyring (required before any enc room can be opened or messages
+  // sent), then seed the encrypted object index with one `general` channel. Only once the
+  // space is fully formed do we add it to the user's `_spaces` list — so a failed seed
+  // leaves an unreferenced (harmless, unguessable-id) `_rooms`/keyring orphan rather than
+  // a space that shows up EMPTY in the rail (with the migration gone, nothing would ever
+  // re-seed it).
   await writeSpaceAccess(accountClient, id, userId, [], null, { name: trimmed });
+  await ownerEnsureKeyring(session.chatClient, session.keys, id, ownerTrustedAdders(session));
   await seedSpaceObjectIndex(session, id, [{ id: `${id}-general`, name: 'general', kind: 'channel', category: DEFAULT_CATEGORY, enc: true }]);
   await writeSpaces(spacesRegistryClient, userId, [...spaces, space], hash);
   return space;

@@ -20,7 +20,7 @@ import { makeClient } from '@drakkar.software/octochat-sdk';
 // Derive StarfishClient from the SDK's `makeClient` to keep the nominal type consistent
 // across symlinked packages (see original comment in the file this replaced).
 type StarfishClient = ReturnType<typeof makeClient>;
-import { getSpaceClient, buildNodeAccess, SpaceAccessError } from '@drakkar.software/octochat-sdk';
+import { getSpaceClient, buildNodeAccess, getNodeAccess, SpaceAccessError } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useRoomOpenState } from './use-room-open';
 
@@ -39,8 +39,15 @@ export function useRoomOpen(opts: {
   /** True when the room's content is E2EE (sealed with the space-wide keyring). */
   enc: boolean;
   enabled: boolean;
+  /**
+   * The space owner's userId if known. When provided and the caller IS the owner,
+   * the room-open flow uses the minting path (`getNodeAccess`) to self-heal spaces
+   * created before the eager-mint fix (Fix A) — backfilling a missing keyring on first
+   * open so the owner is never permanently stuck.
+   */
+  owner?: string | null;
 }): RoomOpenFlow {
-  const { roomId, spaceId, enc, enabled } = opts;
+  const { roomId, spaceId, enc, enabled, owner } = opts;
   const { session } = useSession();
   const [encryptor, setEncryptor] = useState<Encryptor | null>(null);
   const [client, setClient] = useState<StarfishClient | null>(null);
@@ -68,8 +75,21 @@ export function useRoomOpen(opts: {
           return;
         }
         // E2EE room: open the space-wide keyring (cached per space; offline from pull cache).
-        // buildNodeAccess is a soft resolve — returns null if no access is available.
-        const access = await buildNodeAccess(session, spaceId, roomId, { enc: true });
+        // When the caller is the known owner, use the minting path (getNodeAccess) so a space
+        // created before Fix A self-heals on first open — the owner's chatClient has space:owner
+        // permission and ownerEnsureKeyring is idempotent. For all other callers, use the soft
+        // path (buildNodeAccess) which returns null instead of throwing when access is unavailable.
+        const isOwner = owner !== undefined && owner !== null && owner === session.userId;
+        let access: { client: unknown; encryptor: unknown } | null;
+        if (isOwner) {
+          const handle = await getNodeAccess(spaceId, roomId, { enc: true }, session, {
+            owner,
+            members: [],
+          });
+          access = { client: handle.client, encryptor: handle.encryptor };
+        } else {
+          access = await buildNodeAccess(session, spaceId, roomId, { enc: true });
+        }
         if (!access) throw new SpaceAccessError(`No access to room ${roomId}.`);
         if (!cancelled) {
           setEncryptor(access.encryptor as unknown as Encryptor);
@@ -83,7 +103,7 @@ export function useRoomOpen(opts: {
     return () => {
       cancelled = true;
     };
-  }, [enabled, session, roomId, spaceId, enc, reloadNonce, beginOpen, finishOpening, failOpen]);
+  }, [enabled, session, roomId, spaceId, enc, owner, reloadNonce, beginOpen, finishOpening, failOpen]);
 
   return { encryptor, client, opening, openError, offline, reload };
 }

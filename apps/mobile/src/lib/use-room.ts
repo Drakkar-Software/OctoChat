@@ -55,7 +55,7 @@ import type { StoredMsg } from '@drakkar.software/octochat-sdk';
  * holds no store. Attachments (private spaces only) seal a blob to the separate
  * `attachments` collection, exactly as the old merge-doc room did.
  */
-export function useRoom(roomId: string, opts: { enabled?: boolean; access?: NodeAccess; enc?: boolean } = {}): RoomHook {
+export function useRoom(roomId: string, opts: { enabled?: boolean; access?: NodeAccess; enc?: boolean; owner?: string | null } = {}): RoomHook {
   const enabled = opts.enabled ?? true;
   // Per-node access flags from the object index (passed by the room screen once the
   // registry resolves). When access is not yet known (registry still loading), default
@@ -75,6 +75,7 @@ export function useRoom(roomId: string, opts: { enabled?: boolean; access?: Node
     spaceId,
     enc,
     enabled,
+    owner: opts.owner,
   });
 
   // The synthetic store lives for this room's lifetime, keyed by roomId so a room switch

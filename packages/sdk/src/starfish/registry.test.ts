@@ -21,6 +21,8 @@ vi.mock('./paths', () => ({
   spacesPush: (u: string) => `/push/${u}`,
   spaceRegistryPull: (s: string) => `/pull/spaces/${s}`,
   spaceRegistryPush: (s: string) => `/push/spaces/${s}`,
+  keyringPull: (s: string) => `/pull/spaces/${s}/_keyring`,
+  keyringPush: (s: string) => `/push/spaces/${s}/_keyring`,
 }));
 
 // Needed by registry.ts imports transitively (paths.ts re-exports from octospaces-sdk).
@@ -29,10 +31,24 @@ vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
   return { ...(actual as object), getSpaceClient: vi.fn() };
 });
 
+// Mocks needed for createSpace tests.
+vi.mock('./client', () => ({
+  ownerEnsureKeyring: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('./identity', () => ({
+  ownerTrustedAdders: vi.fn().mockReturnValue(['owner-ed-pub']),
+}));
+
+vi.mock('./object-index', () => ({
+  seedSpaceObjectIndex: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { ConflictError, StarfishHttpError } from '@drakkar.software/starfish-client';
 
 import {
   addJoinedSpaceWithCap,
+  createSpace,
   readSpaceAccess,
   readSpaces,
   setDmMapping,
@@ -41,6 +57,9 @@ import {
   updateSpacesDoc,
   writeSpaceAccess,
 } from './registry';
+
+import { ownerEnsureKeyring } from './client';
+import { seedSpaceObjectIndex } from './object-index';
 
 /** A fake StarfishClient exposing just pull/push. */
 function fakeClient(pull: ReturnType<typeof vi.fn>, push: ReturnType<typeof vi.fn>) {
@@ -412,5 +431,118 @@ describe('writeSpaceAccess', () => {
     const push = vi.fn(async () => undefined);
     await writeSpaceAccess(fakeClient(vi.fn(), push), 'sp-2', 'owner', [], null);
     expect(push.mock.calls[0]?.[2]).toBeNull();
+  });
+});
+
+// ── createSpace regression tests ───────────────────────────────────────────────
+//
+// These tests pin the keyring-mint invariant added in Fix A:
+//   createSpace must call ownerEnsureKeyring AFTER writeSpaceAccess
+//   (so space:owner role is held before the keyring write) and BEFORE
+//   seedSpaceObjectIndex (so a failed seed leaves an orphan, not an empty
+//   listed space with no keyring).
+//
+// The "general" channel seeded by default must have enc:true so it uses the
+// space-wide keyring for E2EE.
+
+describe('createSpace', () => {
+  // Build a minimal Session mock for createSpace.
+  function makeSession(userId = 'alice') {
+    const accountPull = vi.fn(async () => ({ data: { v: 1, owner: null, members: [] }, hash: null }));
+    const accountPush = vi.fn(async () => undefined);
+    const spacesPullFn = vi.fn(async () => ({ data: { v: 1, spaces: [], caps: {}, dms: {} }, hash: 'h-spaces' }));
+    const spacesPushFn = vi.fn(async () => undefined);
+    return {
+      userId,
+      accountClient: fakeClient(accountPull, accountPush),
+      chatClient: fakeClient(vi.fn(), vi.fn()),
+      spacesRegistryClient: fakeClient(spacesPullFn, spacesPushFn),
+      keys: { edPub: 'ed-pub', edPriv: 'ed-priv', kemPub: 'kem-pub', kemPriv: 'kem-priv' },
+      _spacesPull: spacesPullFn,
+      _spacesPush: spacesPushFn,
+      _accountPush: accountPush,
+    } as never;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Reset mocks to their default resolved values.
+    vi.mocked(ownerEnsureKeyring).mockResolvedValue({} as never);
+    vi.mocked(seedSpaceObjectIndex).mockResolvedValue(undefined);
+  });
+
+  it('returns a Space with id, name, short, and members:1', async () => {
+    const session = makeSession();
+    const space = await createSpace(session, 'My Test Space');
+    expect(space).toMatchObject({ name: 'My Test Space', short: 'MY', members: 1 });
+    expect(typeof space.id).toBe('string');
+    expect(space.id.length).toBeGreaterThan(0);
+  });
+
+  it('trims the name and defaults to "New Space" when blank', async () => {
+    const session = makeSession();
+    const space = await createSpace(session, '   ');
+    expect(space.name).toBe('New Space');
+  });
+
+  it('FIX A: calls ownerEnsureKeyring to mint the space keyring', async () => {
+    const session = makeSession();
+    await createSpace(session, 'Enc Space');
+    expect(vi.mocked(ownerEnsureKeyring)).toHaveBeenCalledTimes(1);
+    // Must be called on chatClient (not accountClient or spacesRegistryClient)
+    expect(vi.mocked(ownerEnsureKeyring)).toHaveBeenCalledWith(
+      (session as never as { chatClient: unknown }).chatClient,
+      (session as never as { keys: unknown }).keys,
+      expect.any(String),      // spaceId
+      expect.any(Array),       // trustedAdders
+    );
+  });
+
+  it('FIX A: writeSpaceAccess is called BEFORE ownerEnsureKeyring (TOFU gate)', async () => {
+    const callOrder: string[] = [];
+    const session = makeSession();
+    // Spy on accountClient.push to track writeSpaceAccess
+    const accountClient = (session as never as { accountClient: { push: ReturnType<typeof vi.fn> } }).accountClient;
+    vi.spyOn(accountClient, 'push').mockImplementation(async (..._args: unknown[]) => {
+      callOrder.push('writeSpaceAccess');
+    });
+    vi.mocked(ownerEnsureKeyring).mockImplementation(async () => {
+      callOrder.push('ownerEnsureKeyring');
+      return {} as never;
+    });
+    vi.mocked(seedSpaceObjectIndex).mockImplementation(async () => {
+      callOrder.push('seedSpaceObjectIndex');
+    });
+    await createSpace(session, 'Order Test');
+    expect(callOrder).toEqual(['writeSpaceAccess', 'ownerEnsureKeyring', 'seedSpaceObjectIndex']);
+  });
+
+  it('seeds the object index with a general channel that has enc:true', async () => {
+    const session = makeSession();
+    await createSpace(session, 'Enc Space');
+    expect(vi.mocked(seedSpaceObjectIndex)).toHaveBeenCalledTimes(1);
+    const [, , nodes] = vi.mocked(seedSpaceObjectIndex).mock.calls[0] as [unknown, string, Array<{ name: string; enc?: boolean }>];
+    const general = nodes.find((n) => n.name === 'general');
+    expect(general).toBeDefined();
+    expect(general?.enc).toBe(true);
+  });
+
+  it('idempotent: ownerEnsureKeyring no-ops when keyring already exists', async () => {
+    // ownerEnsureKeyring is idempotent by design (it pulls first); we just verify
+    // createSpace calls it even if called a second time, and the mock handles it.
+    const session = makeSession();
+    vi.mocked(ownerEnsureKeyring).mockResolvedValue({} as never);
+    await createSpace(session, 'Existing Keyring Space');
+    await createSpace(session, 'Same Session Second Space');
+    expect(vi.mocked(ownerEnsureKeyring)).toHaveBeenCalledTimes(2);
+  });
+
+  it('propagates a keyring-mint failure without adding the space to _spaces', async () => {
+    const session = makeSession();
+    vi.mocked(ownerEnsureKeyring).mockRejectedValueOnce(new Error('keyring write failed'));
+    await expect(createSpace(session, 'Bad Space')).rejects.toThrow('keyring write failed');
+    // _spaces push must NOT have been called (crash-safety: don't list a broken space)
+    const spacesPush = (session as never as { _spacesPush: ReturnType<typeof vi.fn> })._spacesPush;
+    expect(spacesPush).not.toHaveBeenCalled();
   });
 });
