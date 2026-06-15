@@ -27,8 +27,8 @@ import {
   streamPubRoomPush,
   streamInvRoomPull,
   streamInvRoomPush,
-  spaceRegistryPull,
-  spaceRegistryPush,
+  spaceAccessPull,
+  spaceAccessPush,
 } from './paths';
 
 // Room IDs always encode their space via `sp-<spaceId>-<local>` convention.
@@ -84,11 +84,11 @@ describe('per-node stream path routing', () => {
 
 describe('space access registry path', () => {
   it('uses spaces/{spaceId}/_access (not _rooms)', () => {
-    expect(spaceRegistryPull(SPACE)).toContain(`spaces/${SPACE}/_access`);
-    expect(spaceRegistryPush(SPACE)).toContain(`spaces/${SPACE}/_access`);
+    expect(spaceAccessPull(SPACE)).toContain(`spaces/${SPACE}/_access`);
+    expect(spaceAccessPush(SPACE)).toContain(`spaces/${SPACE}/_access`);
   });
 
   it('pull and push differ', () => {
-    expect(spaceRegistryPull(SPACE)).not.toBe(spaceRegistryPush(SPACE));
+    expect(spaceAccessPull(SPACE)).not.toBe(spaceAccessPush(SPACE));
   });
 });

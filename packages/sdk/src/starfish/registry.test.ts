@@ -23,10 +23,6 @@ vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
 
 // Stub path helpers so paths.ts doesn't pull in expo runtime config.
 vi.mock('./paths', () => ({
-  spacesPull: (u: string) => `/pull/${u}`,
-  spacesPush: (u: string) => `/push/${u}`,
-  spaceRegistryPull: (s: string) => `/pull/spaces/${s}`,
-  spaceRegistryPush: (s: string) => `/push/spaces/${s}`,
   keyringPull: (s: string) => `/pull/spaces/${s}/_keyring`,
   keyringPush: (s: string) => `/push/spaces/${s}/_keyring`,
 }));

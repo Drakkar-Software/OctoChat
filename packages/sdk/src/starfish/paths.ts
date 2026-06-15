@@ -44,7 +44,6 @@ import {
  * BOTH the URL and the signed canonical path.
  */
 const pull = (rest: string) => `/pull/${rest}`;
-const push = (rest: string) => `/push/${rest}`;
 
 /** A room id is `sp-<rand>-<name>`; the space is its first two `-` segments. */
 export { spaceIdFromRoomId };
@@ -76,15 +75,6 @@ export const streamInvRoomName = (roomId: string) =>
   objInvLogName(spaceIdFromRoomId(roomId), roomId);
 export const streamInvRoomPull = (roomId: string) => objInvLogPull(spaceIdFromRoomId(roomId), roomId);
 export const streamInvRoomPush = (roomId: string) => objInvLogPush(spaceIdFromRoomId(roomId), roomId);
-
-// ── Space access record (spaceregistry) ──────────────────────────────────────
-// Owner-written doc holding `{owner, members, name, image}`. The server's TOFU
-// enricher reads this to grant `space:owner`/`space:member`. Keep in sync with
-// the `spaceregistry` collection storagePath `spaces/{spaceId}/_access` in
-// apps/server/src/config.ts + Infra collections.py.
-export const spaceRegistryName = (spaceId: string) => `spaces/${spaceId}/_access`;
-export const spaceRegistryPull = (spaceId: string) => pull(spaceRegistryName(spaceId));
-export const spaceRegistryPush = (spaceId: string) => push(spaceRegistryName(spaceId));
 
 // ── Webhook registry (objowner at _webhooks node) ─────────────────────────────
 // Owner-written doc mapping webhookId → { tokenHash, roomId, … }. Only a SHA-256
