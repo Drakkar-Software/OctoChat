@@ -24,8 +24,13 @@
  *
  * Routing by collection: `streamchat`/`streampub`/`streaminv` carry `params.roomId`.
  * Index collections (`objindex`) carry only `spaceId` and are left to focus-pull.
+ *
+ * The generic transport (buildSignedEventsRequest / parseSseFrames / subscribeChanges)
+ * lives in `@drakkar.software/octospaces-sdk`. This module is the OctoChat-specific
+ * domain layer: `parseRoomChange` (the `parse` callback) + the `subscribeRoomChanges`
+ * wrapper whose public signature the app consumer relies on.
  */
-import { getEventsUrl, getSyncBase } from '../config/config';
+import { subscribeChanges } from '@drakkar.software/octospaces-sdk';
 
 export interface RoomChange {
   roomId: string;
@@ -68,6 +73,7 @@ export function parseRoomChange(data: string): RoomChange | null {
   }
 }
 
+// Fixed 3-second reconnect (both bounds equal → no exponential ramp-up).
 const RECONNECT_MS = 3000;
 
 /** Options for {@link subscribeRoomChanges}. */
@@ -91,77 +97,24 @@ export interface SubscribeOptions {
  * Sends the caller's authorized candidate spaces and cap-cert auth headers so
  * the server proxy can filter by membership. Returns an unsubscribe fn.
  * Works on web and (best effort) native — both have streaming `fetch`.
+ *
+ * Delegates to the generic `subscribeChanges` from octospaces-sdk (which owns
+ * the transport: mount-strip signing, %2C CDN encoding, SSE frame parsing, and
+ * the reconnect loop). `parseRoomChange` is injected as the domain-specific
+ * `parse` callback.
  */
 export function subscribeRoomChanges(
   onChange: (e: RoomChange) => void,
   opts: SubscribeOptions,
 ): () => void {
-  const controller = new AbortController();
-  let closed = false;
-
-  const emitFrame = (frame: string) => {
-    // One SSE event may carry multiple `data:` lines; concatenate them.
-    const data = frame
-      .split('\n')
-      .filter((l) => l.startsWith('data:'))
-      .map((l) => l.slice(5).replace(/^ /, ''))
-      .join('\n');
-    if (!data) return;
-    const change = parseRoomChange(data);
-    if (change) onChange(change);
-  };
-
-  void (async () => {
-    while (!closed) {
-      try {
-        // Build the URL with the candidate spaces param.
-        const eventsUrl = new URL(getEventsUrl());
-        eventsUrl.searchParams.set('spaces', opts.spaces.join(','));
-        // Sign the path the SERVER observes: strip getSyncBase()'s mount path (e.g.
-        // "/sync", which nginx rewrites away) so the signed pathAndQuery matches
-        // the server's post-rewrite request path. Mirrors how StarfishClient signs
-        // the endpoint path, not the baseUrl path. (Host is bound from getSyncBase() in
-        // buildAuthHeaders, so it already agrees with the server's Host header.)
-        const basePath = new URL(getSyncBase()).pathname.replace(/\/+$/, '');
-        const signedPath =
-          basePath && eventsUrl.pathname.startsWith(basePath)
-            ? eventsUrl.pathname.slice(basePath.length)
-            : eventsUrl.pathname;
-        const pathAndQuery = signedPath + eventsUrl.search;
-        // Auth headers are built fresh each attempt (new nonce + timestamp).
-        const extraHeaders = await opts.authHeaders('GET', pathAndQuery);
-        const res = await fetch(eventsUrl.toString(), {
-          headers: { Accept: 'text/event-stream', ...extraHeaders },
-          signal: controller.signal,
-        });
-        const body = res.body as ReadableStream<Uint8Array> | null;
-        if (!res.ok || !body) throw new Error(`SSE ${res.status}`);
-        if (!closed) opts.onStatus?.(true);
-        const reader = body.getReader();
-        const decoder = new TextDecoder();
-        let buf = '';
-        while (!closed) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buf += decoder.decode(value, { stream: true });
-          let idx: number;
-          while ((idx = buf.indexOf('\n\n')) !== -1) {
-            emitFrame(buf.slice(0, idx));
-            buf = buf.slice(idx + 2);
-          }
-        }
-      } catch {
-        if (closed) return;
-      }
-      if (!closed) {
-        opts.onStatus?.(false);
-        await new Promise((r) => setTimeout(r, RECONNECT_MS));
-      }
-    }
-  })();
-
-  return () => {
-    closed = true;
-    controller.abort();
-  };
+  return subscribeChanges<RoomChange>({
+    spaces: opts.spaces,
+    authHeaders: opts.authHeaders,
+    parse: parseRoomChange,
+    onChange,
+    onStatus: opts.onStatus,
+    // Preserve OctoChat's existing fixed 3-second reconnect interval.
+    minReconnectMs: RECONNECT_MS,
+    maxReconnectMs: RECONNECT_MS,
+  });
 }
