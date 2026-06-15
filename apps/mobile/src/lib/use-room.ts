@@ -328,21 +328,22 @@ export function useRoom(roomId: string, opts: { enabled?: boolean; access?: Node
     [session, append],
   );
 
-  // Attachments seal a blob to the separate `attachments` collection (orthogonal to the
-  // append-only message log), exactly as the old merge-doc room did. PRIVATE spaces only:
-  // a public space has no encryptor to seal a blob, so these stay no-ops there (matching
-  // the prior public-room behaviour). The message envelope just carries the AttachmentRef.
+  // Attachments live in the separate `attachments` collection (orthogonal to the
+  // append-only message log). For encrypted (E2EE) rooms the encryptor seals the blob
+  // client-side; for plaintext (public/unencrypted) rooms we pass null and the bytes
+  // are stored raw — the SDK's uploadAttachment/loadAttachment handle both paths.
+  // The only requirement is an open space client (`client`).
   const uploadAttachment = useCallback(
     async (bytes: Uint8Array, name: string, mime: string): Promise<AttachmentRef | null> => {
-      if (!client || !encryptor) return null;
-      return uploadAttachmentDoc(client, encryptor as unknown as ByteSealer, roomId, bytes, name, mime);
+      if (!client) return null;
+      return uploadAttachmentDoc(client, encryptor ? (encryptor as unknown as ByteSealer) : null, roomId, bytes, name, mime);
     },
     [client, encryptor, roomId],
   );
   const loadAttachment = useCallback(
     async (ref: AttachmentRef): Promise<Uint8Array | null> => {
-      if (!client || !encryptor) return null;
-      return loadAttachmentDoc(client, encryptor as unknown as ByteSealer, roomId, ref);
+      if (!client) return null;
+      return loadAttachmentDoc(client, encryptor ? (encryptor as unknown as ByteSealer) : null, roomId, ref);
     },
     [client, encryptor, roomId],
   );

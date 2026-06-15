@@ -76,6 +76,7 @@ export default function SpaceScreen() {
     invite,
     createInvite,
     leave,
+    removeMember,
   } = useSpaceSettings(spaceId);
   // Gate on `!loading` too: `isOwner` is optimistically true until useSpaceSettings
   // resolves real ownership (ownerId starts null), so without it a non-owner would
@@ -223,7 +224,13 @@ export default function SpaceScreen() {
           </Card>
 
           {/* ── Members ───────────────────────────────────────────────────────── */}
-          <SpaceMembersCard ownerId={ownerId} members={humanMembers} currentUserId={session.userId} />
+          <SpaceMembersCard
+            ownerId={ownerId}
+            members={humanMembers}
+            currentUserId={session.userId}
+            canRemove={isOwner && !loading}
+            onRemove={removeMember}
+          />
 
           {/* ── Owner / member / visitor sections ─────────────────────────────── */}
           {loading ? null : isOwner ? (

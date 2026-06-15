@@ -28,6 +28,7 @@ import { Callout } from '@/components/ui/Callout';
 import { Card } from '@/components/ui/Card';
 import { CopyField } from '@/components/ui/CopyField';
 import { Icon } from '@/components/ui/Icon';
+import { AutomationRunStatus } from '@/components/chat/AutomationRunStatus';
 import { IntervalPicker, type Cadence } from '@/components/chat/IntervalPicker';
 import { TextField } from '@/components/ui/TextField';
 import { Toggle } from '@/components/ui/Toggle';
@@ -193,6 +194,10 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
       const outcome = await runAutomationTick({ session, room, trigger: 'scheduled', now, force: true });
       // Reflect the run into the cache so the foreground driver doesn't immediately re-fire.
       patchRoomAutomationLocal(room.spaceId, room.id, tickStatusPatch(outcome, now));
+      // Surface the failure immediately via the action error Callout at the bottom of
+      // the sheet — the AutomationRunStatus card above shows the prior persisted state
+      // and only updates on re-open; this gives instant feedback for manual runs.
+      if (outcome.kind === 'failed') throw new Error(outcome.error);
     });
 
   const takeOver = () =>
@@ -242,6 +247,10 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
             <Txt variant="caption" tone="inkMuted">
               {provider.description}
             </Txt>
+
+            {/* Last-run timestamp + latest error so the owner can see at a glance
+                whether the automation has been firing and why it last failed. */}
+            <AutomationRunStatus auto={auto} />
 
             {/* Group the long stack into titled paper sections (General / Schedule /
                 Settings) so the consequential controls aren't on one flat plane —

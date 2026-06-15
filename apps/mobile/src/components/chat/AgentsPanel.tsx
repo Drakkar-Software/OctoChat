@@ -16,6 +16,7 @@ import { Txt } from '@/components/ui/Txt';
 import type { RoomCategory } from '@/lib/use-rooms';
 
 import { AgentRow } from './AgentRow';
+import { AutomationRunStatus } from './AutomationRunStatus';
 import { SidebarLinkRow } from './SidebarLinkRow';
 
 interface AgentsPanelProps {
@@ -182,6 +183,10 @@ export function AgentDetailSheet({
                   {provider.description}
                 </Txt>
               ) : null}
+
+              {/* Last-run timestamp + error text so members can see whether the
+                  automation has been firing and what broke it. */}
+              {auto ? <AutomationRunStatus auto={auto} /> : null}
 
               {note ? (
                 <Card title="Schedule">

@@ -48,3 +48,16 @@ export function automationStatusColor(a: Automation | undefined, p: Palette): st
       return p.success;
   }
 }
+
+/** Format the epoch-ms last-run timestamp for display.
+ *  Returns `'Never run'` for null, else a locale date+time string. */
+export function formatLastRun(lastRunAt: number | null): string {
+  if (lastRunAt === null) return 'Never run';
+  return new Date(lastRunAt).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}

@@ -64,9 +64,9 @@ interface DesktopRoomSidebarProps {
   onJumpTo?: () => void;
   /** Open the space switcher / join surface (the header acts as a menu). */
   onOpenSpaceMenu?: () => void;
-  /** Create a room in a category (every room is the same append-only kind now).
+  /** Create a room in a category. Pass `isPublic` to make it world-readable (plaintext).
    *  Resolves to an error message to show, or `null`/void on success. */
-  onCreateRoom?: (category: string, name: string) => Promise<string | null> | void;
+  onCreateRoom?: (category: string, name: string, isPublic?: boolean) => Promise<string | null> | void;
   /** OWNER-ONLY: re-home a room into a category (drag-drop). Omit for non-owners. */
   onMoveRoom?: (roomId: string, category: string) => Promise<string | null> | void;
   /** OWNER-ONLY: create a category (shows the "New category" control). */

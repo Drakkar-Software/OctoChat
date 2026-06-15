@@ -157,6 +157,23 @@ export function useSpaceSettings(spaceId: string) {
     removeSpaceAccessEntry(spaceId);
   }, [session, spaceId]);
 
+  /** Owner: remove a member from the space roster (server-enforced eviction). */
+  const removeMember = useCallback(
+    async (memberUserId: string) => {
+      if (!session) return;
+      const spaceClient = getSpaceClient(spaceId, session);
+      const { owner, members: roster, name: n, image: img, hash } = await readSpaceAccess(spaceClient, spaceId);
+      if (!roster.includes(memberUserId)) return; // idempotent
+      await writeSpaceAccess(
+        spaceClient, spaceId, owner ?? session.userId,
+        roster.filter((m) => m !== memberUserId), hash,
+        { name: n, image: img },
+      );
+      await refresh();
+    },
+    [session, spaceId, refresh],
+  );
+
   return {
     ownerId,
     isOwner,
@@ -177,5 +194,6 @@ export function useSpaceSettings(spaceId: string) {
     invite,
     createInvite,
     leave,
+    removeMember,
   };
 }

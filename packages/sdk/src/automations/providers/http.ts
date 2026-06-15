@@ -56,8 +56,10 @@ export const httpProvider: AutomationProvider<HttpParams> = {
         : undefined;
     const res = await ctx.httpFetch(resolveUrl(url, params.baseUrl), init);
     const body = await res.text();
-    // Always return the body; the runner hash-dedups so an unchanged response
-    // isn't reposted every interval.
+    // Non-2xx → treated as a failure so `lastError` records the status + body
+    // (matching RSS's behaviour). The error string rides into the room log line
+    // and the status UI instead of being silently posted as a success message.
+    if (!res.ok) throw new Error(`${method} ${url} → ${res.status}\n${cap(body)}`);
     return { text: `${method} ${url} → ${res.status}\n${cap(body)}` };
   },
   onCommand: async (cmd, args, params, ctx) => {

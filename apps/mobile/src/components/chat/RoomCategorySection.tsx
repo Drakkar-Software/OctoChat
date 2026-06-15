@@ -10,6 +10,7 @@ import { useTheme } from '@/lib/use-theme';
 import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
@@ -27,10 +28,11 @@ interface RoomCategorySectionProps {
   onOpenRoom: (room: Room) => void;
   /** Open one of the active room's threads (the reply target's message id). */
   onOpenThread?: (parentId: string) => void;
-  /** Create a room in this category. Every room is the same append-only kind now, so
-   *  there's no type to choose. Resolves to an error message to show (e.g. only the owner
-   *  may add rooms), or `null`/void on success. Omit to hide the add control. */
-  onCreateRoom?: (category: string, name: string) => Promise<string | null> | void;
+  /** Create a room in this category. Pass `isPublic` to make it world-readable (plaintext);
+   *  omit or pass false for a private E2EE room (default). Resolves to an error message to
+   *  show (e.g. only the owner may add rooms), or `null`/void on success. Omit to hide the
+   *  add control. */
+  onCreateRoom?: (category: string, name: string, isPublic?: boolean) => Promise<string | null> | void;
   /** Owner-only: a room was dropped onto this category (web drag) — re-home it here. */
   onMoveRoom?: (roomId: string) => void;
   /** Owner-only: request moving a room via the picker (native long-press). */
@@ -55,6 +57,7 @@ export function RoomCategorySection({
   const { colors } = useTheme();
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dropOver, setDropOver] = useState(false);
 
@@ -66,8 +69,9 @@ export function RoomCategorySection({
     const n = name.trim();
     setName('');
     setAdding(false);
+    setIsPublic(false);
     if (!n) return;
-    const message = await onCreateRoom?.(category.name, n);
+    const message = await onCreateRoom?.(category.name, n, isPublic);
     setError(typeof message === 'string' ? message : null);
   };
 
@@ -107,7 +111,10 @@ export function RoomCategorySection({
             onPress={() => {
               setError(null);
               if (collapsed) onToggleCollapse(); // expand so the add box is visible
-              setAdding((a) => !a);
+              setAdding((a) => {
+                if (a) setIsPublic(false); // reset on close
+                return !a;
+              });
             }}
           />
         ) : null}
@@ -133,7 +140,18 @@ export function RoomCategorySection({
 
       {!collapsed && adding ? (
         <View style={styles.addBox}>
-          {/* Every room is the same append-only kind now — just name it (no type to pick). */}
+          <SegmentedControl
+            segments={VISIBILITY_SEGMENTS}
+            selected={isPublic ? 'public' : 'private'}
+            onSelect={(k) => setIsPublic(k === 'public')}
+          />
+          {isPublic ? (
+            <View style={styles.visibilityWarning}>
+              <Callout tone="warning" iconName="globe">
+                Not end-to-end encrypted — messages are world-readable.
+              </Callout>
+            </View>
+          ) : null}
           <TextField
             leadingIcon="hash"
             value={name}
@@ -143,7 +161,7 @@ export function RoomCategorySection({
               // Escape cancels the add box (web). The header +/× toggle also closes it;
               // we deliberately DON'T close on blur — that fired on every internal click
               // (field icon, padding) and dismissed the box mid-interaction.
-              if (e.nativeEvent.key === 'Escape') setAdding(false);
+              if (e.nativeEvent.key === 'Escape') { setAdding(false); setIsPublic(false); }
             }}
             placeholder="new-channel"
             autoFocus
@@ -166,6 +184,11 @@ export function RoomCategorySection({
   );
 }
 
+const VISIBILITY_SEGMENTS = [
+  { key: 'private' as const, label: '🔒 Private' },
+  { key: 'public' as const, label: '🌐 Public' },
+];
+
 const styles = StyleSheet.create({
   // A shelf: a lit top hairline + a touch of breathing room above it groups each
   // category's rows. The 1px frame stays (transparent at rest) so the drag-over
@@ -180,7 +203,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingRight: spacing.xs },
   toggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingVertical: 6, paddingHorizontal: spacing.md },
   label: { flex: 1 },
-  addBox: { marginTop: spacing.xs },
-  addField: { marginHorizontal: spacing.xs, marginTop: spacing.xs },
+  addBox: { marginTop: spacing.xs, paddingHorizontal: spacing.xs, gap: spacing.xs },
+  visibilityWarning: { marginTop: spacing.xs },
+  addField: { marginTop: spacing.xs },
   notice: { marginHorizontal: spacing.xs, marginTop: spacing.xs },
 });

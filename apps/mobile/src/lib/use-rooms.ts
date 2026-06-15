@@ -6,6 +6,7 @@ import { CategoryError } from '@drakkar.software/octochat-sdk';
 import {
   addObject,
   categoryId,
+  channelNodeAccess,
   DEFAULT_CATEGORY,
   objectsToRoomCategories,
   patchObject,
@@ -103,7 +104,7 @@ export function useRooms(spaceId: string | null) {
   );
 
   const createRoom = useCallback(
-    (name: string, category: string = DEFAULT_CATEGORY, kind: RoomKind = 'channel'): Promise<string | null> => {
+    (name: string, category: string = DEFAULT_CATEGORY, opts: { isPublic?: boolean } = {}): Promise<string | null> => {
       const roomId = `${sid}-${roomSlug(name)}-${Date.now().toString(36)}`;
       return run(() =>
         mutate((cur, now) => {
@@ -114,7 +115,11 @@ export function useRooms(spaceId: string | null) {
             next = r.nodes;
             catId = r.node.id;
           }
-          return addObject(next, { type: 'room', id: roomId, subtype: roomKindToSubtype(kind), parentId: catId, title: name }, now).nodes;
+          return addObject(
+            next,
+            { type: 'room', id: roomId, subtype: roomKindToSubtype('channel'), parentId: catId, title: name, ...channelNodeAccess(!!opts.isPublic) },
+            now,
+          ).nodes;
         }),
       );
     },

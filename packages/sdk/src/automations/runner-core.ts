@@ -40,6 +40,30 @@ function botAuthorId(roomId: string): string {
   return `bot-${roomId}`;
 }
 
+/** Append a text message into an automated room as the bot author.
+ *  Throws on network / auth failure so callers can react (the tick runner
+ *  converts the throw into a failed outcome; the failure-log poster in the
+ *  orchestrator swallows it). */
+export async function appendBotMessage(
+  session: Session,
+  room: Room,
+  text: string,
+  ts: number,
+): Promise<void> {
+  const client = getSpaceClient(room.spaceId, session);
+  const pushPath =
+    room.access === 'public'
+      ? streamPubRoomPush(room.id)
+      : room.access === 'invite' && !room.enc
+        ? streamInvRoomPush(room.id)
+        : streamRoomPush(room.id);
+  const author = botAuthorId(room.id);
+  await client.append(pushPath, {
+    t: 'msg',
+    e: { id: `${author}-${ts}`, authorId: author, ts, text },
+  });
+}
+
 export async function tickRoom(opts: {
   session: Session;
   room: Room;
@@ -94,19 +118,7 @@ export async function tickRoom(opts: {
   }
 
   try {
-    const client = getSpaceClient(room.spaceId, session);
-    const pushPath =
-      room.access === 'public'
-        ? streamPubRoomPush(room.id)
-        : room.access === 'invite' && !room.enc
-          ? streamInvRoomPush(room.id)
-          : streamRoomPush(room.id);
-    const author = botAuthorId(room.id);
-    const element = {
-      t: 'msg',
-      e: { id: `${author}-${now}`, authorId: author, ts: now, text: result.text },
-    };
-    await client.append(pushPath, element);
+    await appendBotMessage(session, room, result.text, now);
     return { kind: 'posted', text: result.text, hash: postHash };
   } catch (e) {
     return { kind: 'failed', error: String((e as Error)?.message ?? e) };

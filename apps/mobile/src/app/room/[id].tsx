@@ -12,6 +12,7 @@ import { useRoomsRegistry } from '@/lib/rooms-registry-context';
 import { roomDraftKey, threadDraftKey } from '@/lib/use-draft';
 import { useMessageEditing } from '@/lib/use-message-editing';
 import { useHardwareBack } from '@/lib/use-hardware-back';
+import { composeSend } from '@/lib/compose-send';
 import { useRoom } from '@/lib/use-room';
 import { useRoomSend } from '@/lib/use-room-send';
 import { useUnread } from '@/lib/unread-context';
@@ -234,16 +235,15 @@ export default function RoomScreen() {
             draftKey={session ? roomDraftKey(session.userId, id) : undefined}
             offline={!online}
             suggestionContext={suggestionContext}
-            onSend={async (t, file) => {
-              // A file needs a live upload — the Composer blocks this path while
-              // offline (attachments aren't queued), so we only reach it online.
-              if (file) {
-                const ref = await uploadAttachment(file.bytes, file.name, file.mime);
-                send(t, undefined, ref ?? undefined);
-                return;
-              }
-              await sendText(t);
-            }}
+            onSend={(t, file) =>
+              void composeSend({
+                text: t,
+                file,
+                uploadAttachment,
+                send,
+                sendText,
+              })
+            }
             onEditLast={editLast}
           />
         ) : (

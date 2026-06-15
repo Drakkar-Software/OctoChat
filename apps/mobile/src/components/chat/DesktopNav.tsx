@@ -137,7 +137,7 @@ export function DesktopNav() {
             automationsActive={automationsActive}
             onJumpTo={() => router.push('/search')}
             onOpenSpaceMenu={() => router.push({ pathname: '/space/[id]', params: { id: space.id, name: space.name } })}
-            onCreateRoom={(category, name) => createRoom(name, category)}
+            onCreateRoom={(category: string, name: string, isPublic?: boolean) => createRoom(name, category, { isPublic })}
             onMoveRoom={isOwner ? moveRoom : undefined}
             onCreateCategory={isOwner ? createCategory : undefined}
             loading={roomsLoading}

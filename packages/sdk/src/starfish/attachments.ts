@@ -1,16 +1,20 @@
 /**
- * Encrypted attachment upload/download over a Starfish raw-blob collection.
+ * Attachment upload/download over a Starfish raw-blob collection.
  *
- * Bytes are sealed client-side with the room's keyring CEK (`sealBytes`), so the
- * server only ever stores opaque ciphertext (`application/octet-stream`). The
- * blob's storage path is bound into the seal's AAD, so a hostile server can't
- * relocate or swap one blob for another. The message document keeps only a small
- * {@link AttachmentRef}; the bytes live in the `attachments` collection.
+ * For encrypted (E2EE) rooms, bytes are sealed client-side with the room's keyring
+ * CEK (`sealBytes`), so the server only ever stores opaque ciphertext. The blob's
+ * storage path is bound into the seal's AAD, so a hostile server can't relocate or
+ * swap one blob for another.
  *
- * Cross-epoch caveat: a blob sealed at epoch N is readable only by recipients
- * who hold epoch N's CEK. A member added after a key rotation sees attachments
- * uploaded *after* they joined; re-sealing old blobs (re-download + re-upload)
- * is intentionally not done — same trade-off as message re-seal, costlier to fix.
+ * For unencrypted (public/plaintext) rooms, bytes are stored raw — the `enc` param
+ * to `uploadAttachment`/`loadAttachment` is null and no sealing is applied. The
+ * `attachments` collection is still `space:member` read/write, so non-member
+ * anonymous viewers of a public room cannot fetch blobs (accepted limitation; full
+ * public attachment support would need a new world-readable collection).
+ *
+ * The message document keeps only a small {@link AttachmentRef}; the bytes live in
+ * the `attachments` collection. Cross-epoch caveat (encrypted rooms): a blob sealed
+ * at epoch N is readable only by recipients who hold epoch N's CEK.
  */
 import { getBase64 } from '@drakkar.software/starfish-protocol';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
@@ -154,44 +158,55 @@ export function attachmentKind(mime: string): 'image' | 'file' {
   return mime.startsWith('image/') ? 'image' : 'file';
 }
 
-/** Seal bytes with the room key and store them as a blob; returns the message ref. */
+/**
+ * Upload an attachment blob; returns the message ref.
+ * Pass `enc` for an encrypted (E2EE) room — bytes are sealed with the room key.
+ * Pass `null` for a plaintext (public/unencrypted) room — bytes are stored raw.
+ */
 export async function uploadAttachment(
   client: StarfishClient,
-  enc: ByteSealer,
+  enc: ByteSealer | null,
   roomId: string,
   bytes: Uint8Array,
   name: string,
   mime: string,
 ): Promise<AttachmentRef> {
   const blobId = randomBlobId();
-  const sealed = await enc.sealBytes(bytes, attachmentName(roomId, blobId));
-  await client.pushBlob(attachmentPush(roomId, blobId), sealed, 'application/octet-stream');
+  const aad = attachmentName(roomId, blobId);
+  // Seal only when encrypted; store raw bytes for plaintext rooms.
+  const stored = enc ? await enc.sealBytes(bytes, aad) : bytes;
+  await client.pushBlob(attachmentPush(roomId, blobId), stored, 'application/octet-stream');
   // Seed both layers: the plaintext (in memory) so the sender's own attachment
-  // renders without a round-trip, and the ciphertext (persisted) so it survives
-  // a reload like any other blob.
+  // renders without a round-trip, and the stored form (persisted) so it survives
+  // a reload like any other blob (for encrypted rooms this is ciphertext; for
+  // plaintext rooms it's the raw bytes — E2EE-at-rest applies only when enc != null).
   cachePut(cacheKey(roomId, blobId), bytes);
-  await persistPut(roomId, blobId, sealed);
+  await persistPut(roomId, blobId, stored);
   return { blobId, name, mime, size: bytes.length, kind: attachmentKind(mime) };
 }
 
-/** Fetch + decrypt an attachment blob back to its original bytes. */
+/**
+ * Fetch an attachment blob back to its original bytes.
+ * Pass `enc` for an encrypted (E2EE) room — opens the sealed blob with the room key.
+ * Pass `null` for a plaintext (public/unencrypted) room — passes stored bytes through.
+ */
 export async function loadAttachment(
   client: StarfishClient,
-  enc: ByteSealer,
+  enc: ByteSealer | null,
   roomId: string,
   ref: AttachmentRef,
 ): Promise<Uint8Array> {
   const key = cacheKey(roomId, ref.blobId);
   const hit = decryptedCache.get(key);
   if (hit) return hit;
-  // Cold load: prefer persisted ciphertext (no network) over a server pull.
-  let sealed = await persistGet(roomId, ref.blobId);
-  if (!sealed) {
+  // Cold load: prefer persisted form (no network) over a server pull.
+  let stored = await persistGet(roomId, ref.blobId);
+  if (!stored) {
     const res = await client.pullBlob(attachmentPull(roomId, ref.blobId));
-    sealed = new Uint8Array(res.data);
-    await persistPut(roomId, ref.blobId, sealed);
+    stored = new Uint8Array(res.data);
+    await persistPut(roomId, ref.blobId, stored);
   }
-  const bytes = await enc.openBytes(sealed, attachmentName(roomId, ref.blobId));
+  const bytes = enc ? await enc.openBytes(stored, attachmentName(roomId, ref.blobId)) : stored;
   cachePut(key, bytes);
   return bytes;
 }

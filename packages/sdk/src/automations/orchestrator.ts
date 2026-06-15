@@ -14,7 +14,7 @@ import type { Session } from '../starfish/identity';
 import type { AutomationMeta, AutomationSchedule, Room } from '../domain/types';
 
 import { createAutomationNode, deleteRoomFromRegistry, patchRoomAutomation, renameRoomInRegistry } from './registry-write';
-import { tickRoom, type TickKind, type TickOutcome } from './runner-core';
+import { appendBotMessage, tickRoom, type TickKind, type TickOutcome } from './runner-core';
 import { clearAutomationSecrets, saveAutomationSecrets } from './secrets';
 import { getProvider } from './providers';
 
@@ -138,6 +138,18 @@ export function tickStatusPatch(outcome: TickOutcome, now: number): Partial<Auto
   return patch;
 }
 
+/** Returns the chat log text to post when a tick fails for a *new* reason,
+ *  or `null` when the outcome isn't a failure or the error is identical to the
+ *  last recorded one (dedup: same error every interval → don't spam). */
+export function failureLogText(
+  outcome: TickOutcome,
+  priorError: string | null,
+): string | null {
+  if (outcome.kind !== 'failed') return null;
+  if (outcome.error === priorError) return null;
+  return `⚠️ Automation failed: ${outcome.error}`;
+}
+
 /** Run one tick (scheduled or command) + write back lastRunAt / lastError. */
 export async function runAutomationTick(opts: {
   session: Session;
@@ -157,6 +169,17 @@ export async function runAutomationTick(opts: {
     now: opts.now,
     force: opts.force,
   });
+  // Post a failure log line into the room when the error changes — best-effort,
+  // swallowed when the room-post path itself is broken (same cause as the failed tick).
+  const log = failureLogText(outcome, opts.room.automation?.lastError ?? null);
+  if (log !== null) {
+    try {
+      await appendBotMessage(opts.session, opts.room, log, opts.now);
+    } catch {
+      // The append failed — probably the same network issue that caused the tick
+      // to fail. Nothing to do; the error is still recorded via the patch below.
+    }
+  }
   const patch = tickStatusPatch(outcome, opts.now);
   // Best-effort registry update — a failure here doesn't undo the post that
   // already happened, it just means status is stale on other devices.

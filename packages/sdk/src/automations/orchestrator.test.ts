@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { tickStatusPatch } from './orchestrator';
+import { failureLogText, tickStatusPatch } from './orchestrator';
 
 // tickStatusPatch is the load-bearing link: its output is written to BOTH the
 // server doc AND the optimistic local cache, so a posted scheduled tick must carry
@@ -30,5 +30,34 @@ describe('tickStatusPatch', () => {
 
   it('a failure records only the error — lastRunAt + cursor untouched', () => {
     expect(tickStatusPatch({ kind: 'failed', error: 'boom' }, now)).toEqual({ lastError: 'boom' });
+  });
+});
+
+// failureLogText decides whether and what to post into the room on a failed tick.
+// The dedup rule prevents identical errors from spamming the room every interval.
+describe('failureLogText', () => {
+  it('returns null for a posted outcome', () => {
+    expect(failureLogText({ kind: 'posted', text: 'hi' }, null)).toBeNull();
+  });
+  it('returns null for a skipped outcome', () => {
+    expect(failureLogText({ kind: 'skipped' }, null)).toBeNull();
+  });
+  it('returns a log string for a first-time failure (priorError null)', () => {
+    const text = failureLogText({ kind: 'failed', error: 'connection refused' }, null);
+    expect(text).toMatch(/Automation failed/);
+    expect(text).toMatch(/connection refused/);
+  });
+  it('returns a log string when the error changes', () => {
+    const text = failureLogText({ kind: 'failed', error: 'timeout' }, 'connection refused');
+    expect(text).toMatch(/timeout/);
+  });
+  it('returns null when the error is identical to priorError (dedup)', () => {
+    expect(failureLogText({ kind: 'failed', error: 'boom' }, 'boom')).toBeNull();
+  });
+  it('returns a log string after recovery-then-fail (priorError null → new error)', () => {
+    // A successful tick clears lastError to null; a subsequent failure is a "new" error
+    // even if the text was seen before.
+    const text = failureLogText({ kind: 'failed', error: 'boom' }, null);
+    expect(text).not.toBeNull();
   });
 });

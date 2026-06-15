@@ -267,7 +267,9 @@ export function objectsToRoomCategories(nodes: ObjectNode[], spaceId: string, fa
     kind: subtypeToRoomKind(n.subtype),
     // Pass through per-node access flags so cross-room/stats can route stream paths.
     ...(n.access ? { access: n.access } : {}),
-    ...(n.enc !== undefined ? { enc: n.enc } : {}),
+    // Default enc: space-member rooms (access absent or 'space') are E2EE (true);
+    // public/invite rooms are plaintext (false). A stored value always overrides the default.
+    enc: n.enc ?? (n.access === 'public' || n.access === 'invite' ? false : true),
     ...(n.automation ? { automation: n.automation } : {}),
   });
 
@@ -315,6 +317,18 @@ export interface SeedRoom {
  * migration builder now that every existing space has migrated and only NEW spaces
  * need seeding.
  */
+/**
+ * Node access/enc for a channel created via the Public / Private UI choice.
+ * - Private (default) ⇒ space-member E2EE (`enc:true`, access absent = 'space').
+ * - Public ⇒ world-readable plaintext (`access:'public'`, `enc:false`).
+ *
+ * Single source of truth — used by both the `createSpace` general-seed in
+ * `registry.ts` and the app-level `createRoom` in `use-rooms.ts`.
+ */
+export function channelNodeAccess(isPublic: boolean): { access?: NodeAccess; enc: boolean } {
+  return isPublic ? { access: 'public', enc: false } : { enc: true };
+}
+
 export function seedIndexNodes(rooms: SeedRoom[], now: number): ObjectNode[] {
   const out: ObjectNode[] = [];
   const catId = new Map<string, ID>();

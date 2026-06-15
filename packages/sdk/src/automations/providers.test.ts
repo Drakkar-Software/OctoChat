@@ -66,6 +66,18 @@ describe('http provider', () => {
     expect(seenInit?.body).toBe('{"a":1}');
     expect(r.text).toContain('POST https://x.test/s → 201');
   });
+  it('scheduled fetch throws on a non-2xx response so the runner records lastError', async () => {
+    const httpFetch = (async () => new Response('Internal Server Error', { status: 500 })) as typeof fetch;
+    await expect(
+      httpProvider.fetch!({ pollUrl: 'https://x.test/s' }, ctx({ httpFetch })),
+    ).rejects.toThrow('→ 500');
+  });
+  it('scheduled fetch throws with body included in the error message', async () => {
+    const httpFetch = (async () => new Response('Not Found', { status: 404 })) as typeof fetch;
+    await expect(
+      httpProvider.fetch!({ pollUrl: 'https://x.test/missing' }, ctx({ httpFetch })),
+    ).rejects.toThrow('Not Found');
+  });
 });
 
 describe('rss provider', () => {

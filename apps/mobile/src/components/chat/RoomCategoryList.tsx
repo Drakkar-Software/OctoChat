@@ -11,6 +11,7 @@ import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { StaggerList } from '@/components/ui/StaggerList';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
@@ -32,8 +33,9 @@ interface RoomCategoryListProps {
   spaceId: string;
   onOpenRoom: (room: Room) => void;
   onOpenThread?: (parentId: string) => void;
-  /** Add a room to a category. Omit to hide the per-category "+". */
-  onCreateRoom?: (category: string, name: string) => Promise<string | null> | void;
+  /** Add a room to a category. Pass `isPublic` to make it world-readable (plaintext).
+   *  Omit to hide the per-category "+". */
+  onCreateRoom?: (category: string, name: string, isPublic?: boolean) => Promise<string | null> | void;
   /** OWNER-ONLY (pass only when the viewer owns the space): re-home a room into a
    *  category. Present ⇒ rows are draggable (web) + long-pressable (native). */
   onMoveRoom?: (roomId: string, category: string) => Promise<string | null> | void;
@@ -66,6 +68,7 @@ export function RoomCategoryList({
   const [catError, setCatError] = useState<string | null>(null);
   const [addingRoom, setAddingRoom] = useState(false);
   const [roomName, setRoomName] = useState('');
+  const [roomIsPublic, setRoomIsPublic] = useState(false);
   const [roomError, setRoomError] = useState<string | null>(null);
   const names = categories.map((c) => c.name);
 
@@ -82,9 +85,11 @@ export function RoomCategoryList({
     const n = roomName.trim();
     setRoomName('');
     setAddingRoom(false);
+    const pub = roomIsPublic;
+    setRoomIsPublic(false);
     if (!n) return;
     // Passes DEFAULT_CATEGORY so createRoom auto-creates the bucket if it doesn't exist.
-    const message = await onCreateRoom?.(DEFAULT_CATEGORY, n);
+    const message = await onCreateRoom?.(DEFAULT_CATEGORY, n, pub);
     setRoomError(typeof message === 'string' ? message : null);
   };
 
@@ -125,21 +130,33 @@ export function RoomCategoryList({
       {/* Empty-space "New channel" CTA — only when there are no categories yet. */}
       {categories.length === 0 && onCreateRoom ? (
         addingRoom ? (
-          <TextField
-            leadingIcon="hash"
-            value={roomName}
-            onChangeText={setRoomName}
-            onSubmitEditing={submitRoom}
-            onKeyPress={(e) => {
-              if (e.nativeEvent.key === 'Escape') setAddingRoom(false);
-            }}
-            placeholder="new-channel"
-            autoFocus
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="done"
-            containerStyle={[styles.addCatField, { backgroundColor: colors.paper }]}
-          />
+          <View style={styles.emptyAddBox}>
+            <SegmentedControl
+              segments={VISIBILITY_SEGMENTS}
+              selected={roomIsPublic ? 'public' : 'private'}
+              onSelect={(k) => setRoomIsPublic(k === 'public')}
+            />
+            {roomIsPublic ? (
+              <Callout tone="warning" iconName="globe">
+                Not end-to-end encrypted — messages are world-readable.
+              </Callout>
+            ) : null}
+            <TextField
+              leadingIcon="hash"
+              value={roomName}
+              onChangeText={setRoomName}
+              onSubmitEditing={submitRoom}
+              onKeyPress={(e) => {
+                if (e.nativeEvent.key === 'Escape') { setAddingRoom(false); setRoomIsPublic(false); }
+              }}
+              placeholder="new-channel"
+              autoFocus
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="done"
+              containerStyle={[styles.addCatField, { backgroundColor: colors.paper }]}
+            />
+          </View>
         ) : (
           <View style={styles.emptyCta}>
             <Button
@@ -221,9 +238,15 @@ export function RoomCategoryList({
   );
 }
 
+const VISIBILITY_SEGMENTS = [
+  { key: 'private' as const, label: '🔒 Private' },
+  { key: 'public' as const, label: '🌐 Public' },
+];
+
 const styles = StyleSheet.create({
   addCat: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: spacing.md, marginTop: spacing.xs },
   addCatField: { marginHorizontal: spacing.xs, marginTop: spacing.xs },
   notice: { marginHorizontal: spacing.xs, marginTop: spacing.xs },
   emptyCta: { alignItems: 'center', marginTop: spacing.md, paddingHorizontal: spacing.md },
+  emptyAddBox: { marginTop: spacing.md, paddingHorizontal: spacing.xs, gap: spacing.xs },
 });

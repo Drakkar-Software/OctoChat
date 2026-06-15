@@ -606,7 +606,7 @@ export async function createSpace(session: Session, name: string): Promise<Space
   // than a space that shows up EMPTY in the rail (with the migration gone, nothing would
   // ever re-seed it).
   await writeSpaceAccess(accountClient, id, userId, [], null, { name: trimmed });
-  await seedSpaceObjectIndex(session, id, [{ id: `${id}-general`, name: 'general', kind: 'channel', category: DEFAULT_CATEGORY }]);
+  await seedSpaceObjectIndex(session, id, [{ id: `${id}-general`, name: 'general', kind: 'channel', category: DEFAULT_CATEGORY, enc: true }]);
   await writeSpaces(spacesRegistryClient, userId, [...spaces, space], hash);
   return space;
 }

@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { radii } from '@/theme';
 import { DM_HOME_ID, DM_HOME_NAME, isDmHomeId } from '@/lib/dm-home';
 import { tapFeedback } from '@/lib/haptics';
+import { Button } from '@/components/ui/Button';
 import { useTotalDmUnread } from '@/lib/use-dms';
 import { useSpaces } from '@/lib/use-spaces';
 import { useTheme } from '@/lib/use-theme';
@@ -44,7 +45,7 @@ const SWITCHER_ICON: Record<SwitcherIconName, IconName> = {
  * Mobile-only; the desktop shell uses the persistent {@link DesktopSpacesRail}.
  */
 export function SpaceSwitcher() {
-  const { spaces, activeId, setActiveId } = useSpaces();
+  const { spaces, activeId, setActiveId, loading } = useSpaces();
   const dmUnread = useTotalDmUnread();
   const isDmHome = isDmHomeId(activeId);
   const active = isDmHome ? null : (spaces.find((s) => s.id === activeId) ?? spaces[0] ?? null);
@@ -68,6 +69,26 @@ export function SpaceSwitcher() {
       unread: s.unread,
     })),
   ];
+
+  // On native, the synthetic DM-home row is omitted, so `switcherSpaces` is
+  // genuinely empty when the user hasn't joined any space. Avoid delegating to
+  // the package in that case — it would show the meaningless "Spaces" fallback
+  // label. Instead render a direct "Create a space" CTA that routes to /join.
+  // (On web `switcherSpaces` always contains the DM-home row so this never fires.)
+  if (switcherSpaces.length === 0) {
+    // While the registry is still loading don't flash anything (avoids a brief CTA
+    // pop-in before the spaces finish hydrating).
+    if (loading) return null;
+    return (
+      <Button
+        variant="accent"
+        size="sm"
+        iconName="plus"
+        label="Create a space"
+        onPress={() => { tapFeedback(); router.push('/join'); }}
+      />
+    );
+  }
 
   return (
     <PkgSpaceSwitcher

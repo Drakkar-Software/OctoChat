@@ -8,6 +8,7 @@ import { useTheme } from '@/lib/use-theme';
 import { useRoomsRegistry } from '@/lib/rooms-registry-context';
 import { threadDraftKey } from '@/lib/use-draft';
 import { useHardwareBack } from '@/lib/use-hardware-back';
+import { composeSend } from '@/lib/compose-send';
 import { useRoom } from '@/lib/use-room';
 import { useRoomSend } from '@/lib/use-room-send';
 import { useUnread } from '@/lib/unread-context';
@@ -116,15 +117,16 @@ export default function ThreadScreen() {
             draftKey={session ? threadDraftKey(session.userId, roomId, parentId) : undefined}
             offline={!online}
             suggestionContext={suggestionContext}
-            onSend={async (t, file) => {
-              // Attachments need a live upload — the Composer blocks this path offline.
-              if (file) {
-                const ref = await uploadAttachment(file.bytes, file.name, file.mime);
-                send(t, parentId, ref ?? undefined);
-                return;
-              }
-              await sendText(t);
-            }}
+            onSend={(t, file) =>
+              void composeSend({
+                text: t,
+                file,
+                parentId,
+                uploadAttachment,
+                send,
+                sendText,
+              })
+            }
           />
         ) : (
           <ReadOnlyFooter message="Read-only — this invitation link can’t reply here." />
