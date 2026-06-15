@@ -15,8 +15,8 @@ export const SYNC_BASE = process.env.EXPO_PUBLIC_STARFISH_URL ?? 'http://localho
 /**
  * Starfish namespace name. UNSET for the local dev server (apps/server mounts the
  * sync router at root, so paths are /pull, /push, /events). For the deployed
- * multi-tenant drakkar-sync, OctoChat is the `octochat` namespace, so set
- * EXPO_PUBLIC_STARFISH_NAMESPACE=octochat and EXPO_PUBLIC_STARFISH_URL=https://<host>/sync.
+ * multi-tenant drakkar-sync, OctoChat uses the `octospaces` namespace (unified backend
+ * since 2026-06-15), so set EXPO_PUBLIC_STARFISH_NAMESPACE=octospaces.
  *
  * The StarfishClient applies this via its `namespace` option, prepending
  * `/v1/<namespace>` to every request path — signed AND sent, including the paths
