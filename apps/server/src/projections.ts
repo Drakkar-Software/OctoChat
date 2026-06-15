@@ -18,7 +18,7 @@ import type { Projection, ProjectionOp } from "@drakkar.software/starfish-projec
  * `objects[]` array carries `access='public'` flags readable without decryption,
  * so the projection can count public rooms from the write body alone.
  *
- * Keep in sync with drakkar_sync/apps/octochat/projections.py.
+ * Keep in sync with drakkar_sync/apps/octospaces/projections.py.
  */
 
 /** Count live public room nodes in an `objindex` write body's `objects` array. */

@@ -25,7 +25,7 @@ import type { StarfishClient } from '@drakkar.software/starfish-client';
 import type { SealedBlob } from './account-seal';
 import { sealToRecipient, unsealFromRecipient } from './account-seal';
 import type { Session } from './identity';
-import { dmInboxShards, dminboxPull, streamRoomPull, streamRoomPush } from './paths';
+import { dmInboxShards, inboxPull, streamRoomPull, streamRoomPush } from './paths';
 
 /** Reserved carrier room-id suffix. `spaceIdFromRoomId` still resolves the host space
  *  (`sp-x-_dminbox` → `sp-x`), and the room is never in any `_rooms` registry so it
@@ -144,7 +144,7 @@ export async function scanDmLinkInbox(
   const out: ScannedInvite[] = [];
   for (const shard of dmInboxShards()) {
     const items = (await session.accountClient
-      .pull<{ ts: number; data: Record<string, unknown> }>(dminboxPull(session.userId, shard), {
+      .pull<{ ts: number; data: Record<string, unknown> }>(inboxPull(session.userId, shard), {
         appendField: 'items',
         full: true, // bounded by the collection's per-shard maxItems
       })

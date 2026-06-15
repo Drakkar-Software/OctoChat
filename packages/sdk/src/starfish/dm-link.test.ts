@@ -149,7 +149,7 @@ describe('createDmViaLink', () => {
 
     const [url, init] = vi.mocked(fetch).mock.calls[0]! as unknown as [string, RequestInit];
     // Delivered to the owner's CURRENT month shard.
-    expect(url).toBe(`https://sync.test/push/dminbox/${token.ownerId}/${dmInboxShard()}`);
+    expect(url).toBe(`https://sync.test/push/inbox/${token.ownerId}/${dmInboxShard()}`);
     // ANONYMOUS: the request carries no Authorization / redeem headers.
     expect(Object.keys(init.headers as Record<string, string>).map((h) => h.toLowerCase())).not.toContain('authorization');
     const body = JSON.parse(init.body as string) as { data: { sealed?: { ct?: string } }; authorPubkey?: string; authorSignature?: string };

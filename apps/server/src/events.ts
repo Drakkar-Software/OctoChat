@@ -21,9 +21,9 @@
  * stream the global firehose to an unauthorized client.
  *
  * Whistlers topic derivation: queue.ts onPublish emits
- * `octochat.chat.changed.<spaceId>`; Whistlers applies the `octochat` namespace
+ * `octospaces.log.changed.<spaceId>`; Whistlers applies the `octospaces` namespace
  * prefix then sanitizeTopic — every char outside [a-zA-Z0-9-_~%] → "-", giving
- * `octochat-octochat-chat-changed-<spaceId>`. This proxy reconstructs that exact
+ * `octospaces-octospaces-log-changed-<spaceId>`. This proxy reconstructs that exact
  * transform server-side so Whistlers' ?topic= filter matches.
  */
 import { Hono, type Context } from "hono";
@@ -49,7 +49,7 @@ const WHISTLERS_INTERNAL_URL =
 const sanitizeTopic = (t: string) => t.replace(/[^a-zA-Z0-9\-_~%]/g, "-");
 
 /** Whistlers namespace — MUST match the namespace key in infra/whistlers.config.json. */
-const WHISTLERS_NAMESPACE = "octochat";
+const WHISTLERS_NAMESPACE = "octospaces";
 
 /** Maximum number of spaces a single SSE connection may subscribe to.
  *  Each candidate costs one awaited enricher call + one upstream Whistlers topic param,
@@ -186,9 +186,9 @@ export function createEventsRoute(opts: EventsRouteOptions): Hono {
     }
 
     // 4. Map to sanitized destinationTopics server-side (never trust the client).
-    //    Mirrors Whistlers' per-message derivation for `octochat.chat.changed.<spaceId>`.
+    //    Mirrors Whistlers' per-message derivation for `octospaces.log.changed.<spaceId>`.
     const topics = authorized.map(
-      (s) => `${WHISTLERS_NAMESPACE}-${sanitizeTopic(`octochat.chat.changed.${s}`)}`,
+      (s) => `${WHISTLERS_NAMESPACE}-${sanitizeTopic(`octospaces.log.changed.${s}`)}`,
     );
 
     // 5. ★ Firehose-prevention invariant.

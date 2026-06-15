@@ -2,7 +2,7 @@
  * Push notifications — native (iOS/Android) Firebase Cloud Messaging.
  *
  * The device subscribes to a per-space FCM topic; the Whistler bridge publishes
- * `octochat.chat.changed.<spaceId>` events to it (see `octochat-fcm` in the Infra
+ * `octospaces.log.changed.<spaceId>` events to it (see `octospaces-fcm` in the Infra
  * bridge). The bridge sends a VISIBLE notification with GENERIC text ("New message
  * in another room") plus `{ spaceId, roomId }` data — chat is E2E-encrypted, so no
  * message content crosses the wire. A visible (alert) push is shown by the OS

@@ -47,9 +47,11 @@ import {
   createDmViaLink,
   decodeDmLink,
   ensureProfileKeys,
-  getSpaceEncryptor,
+  getSpaceClient,
   loadAttachment,
   myDmLink,
+  openEncryptor,
+  ownerTrustedAdders,
   pullAndFold,
   randomId,
   readPeerKeys,
@@ -174,11 +176,13 @@ async function main(): Promise<void> {
   // 3) Open (or dedup into) the DM from the link. Verifies the offline identity
   //    binding + the live profile-key cross-check, mints the keyring + member cap,
   //    and delivers the sealed invite to the owner's inbox.
+  console.log('[dm] step 3: createDmViaLink…');
   const { spaceId, roomId } = await createDmViaLink(sender, token, peerName);
   console.log(`[dm] opened DM with ${peerName} → space ${spaceId}`);
 
   // 4) The space keyring encryptor + sync client (sender opens as the DM owner).
-  const { encryptor, client } = await getSpaceEncryptor(spaceId, sender, null);
+  const client = getSpaceClient(spaceId, sender);
+  const encryptor = await openEncryptor(client, sender.keys, spaceId, ownerTrustedAdders(sender));
 
   // Append one typed envelope, sealed with the space keyring. No client `ts` — the
   // server stamps an authoritative monotonic one (the point of an append-log room).
@@ -221,6 +225,12 @@ async function main(): Promise<void> {
 }
 
 main().catch((e) => {
-  console.error('[dm] fatal:', (e as Error).message);
+  const err = e as Error & { status?: number };
+  console.error('[dm] fatal:', err.message);
+  if (err.stack) {
+    // Strip the first line (already printed above) and show the call chain.
+    const frames = err.stack.split('\n').slice(1).join('\n');
+    console.error(frames);
+  }
   process.exit(1);
 });

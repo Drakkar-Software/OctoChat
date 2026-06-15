@@ -37,8 +37,8 @@ async function deriveSignerPub(token: string): Promise<string> {
 const SPACE = "space1";
 const ROOM = "room1";
 const WEBHOOK = "wh-abc";
-const DOC_KEY = `spaces/${SPACE}/streams/pub/${ROOM}`;
-const REGISTRY_KEY = `spaces/${SPACE}/_webhooks`;
+const DOC_KEY = `spaces/${SPACE}/objects/pub/${ROOM}/log`;
+const REGISTRY_KEY = `spaces/${SPACE}/objects/owner/_webhooks`;
 
 /** Seed a webhook registry doc into the store, as the sync router would persist it. */
 async function seedRegistry(store: MemoryObjectStore, token: string, extra: Record<string, unknown> = {}) {
@@ -101,10 +101,10 @@ describe("createWebhookRoute (self-service, token-derived signing)", () => {
     expect(el.authorPubkey).toBe(await deriveSignerPub(TOKEN));
 
     expect(published).toHaveLength(1);
-    expect(published[0]!.subject).toBe("octochat.chat.changed");
+    expect(published[0]!.subject).toBe("octospaces.log.changed");
     const msg = JSON.parse(new TextDecoder().decode(published[0]!.payload));
-    // collection is streampub (public room stream); no ownerId in params.
-    expect(msg.collection).toBe("streampub");
+    // collection is objpublog (public room log); no ownerId in params.
+    expect(msg.collection).toBe("objpublog");
     expect(msg.params).toEqual({ spaceId: SPACE, roomId: ROOM });
   });
 

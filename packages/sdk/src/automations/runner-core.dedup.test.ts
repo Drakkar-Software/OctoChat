@@ -97,26 +97,27 @@ describe('tickRoom content-hash gate', () => {
 });
 
 describe('tickRoom push-path routing', () => {
-  it('routes a public room to streampub (path contains pub/)', async () => {
+  it('routes a public room to objpublog (path contains /pub/ and ends in /log)', async () => {
     await tick({ room: room({}, { access: 'public', enc: false }) });
     const [pushPath] = mockAppend.mock.calls[0] as [string, unknown];
-    expect(pushPath).toContain('pub/');
+    expect(pushPath).toContain('/pub/');
+    expect(pushPath).toContain('/log');
     expect(pushPath).not.toContain('/n/');
   });
 
-  it('routes an invite-plaintext room to streaminv (path contains /n/)', async () => {
+  it('routes an invite-plaintext room to objinvlog (path contains /n/)', async () => {
     await tick({ room: room({}, { access: 'invite', enc: false }) });
     const [pushPath] = mockAppend.mock.calls[0] as [string, unknown];
     expect(pushPath).toContain('/n/');
     expect(pushPath).not.toContain('pub/');
   });
 
-  it('routes a private/space room to streamchat (neither pub/ nor /n/)', async () => {
+  it('routes a private/space room to objlog (path contains /objects/logs/, no pub/ or /n/)', async () => {
     await tick({ room: room({}, { access: 'space', enc: false }) });
     const [pushPath] = mockAppend.mock.calls[0] as [string, unknown];
     expect(pushPath).not.toContain('pub/');
     expect(pushPath).not.toContain('/n/');
-    expect(pushPath).toContain('/streams/');
+    expect(pushPath).toContain('/objects/logs/');
   });
 
   it('posts via the session member-cap client (not an audience-cap/bot-token path)', async () => {

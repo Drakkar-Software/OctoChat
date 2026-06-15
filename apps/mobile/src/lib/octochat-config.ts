@@ -35,7 +35,7 @@ export const SYNC_NAMESPACE = _ns || undefined;
  * endpoint, which is signed by a hand-rolled signer OUTSIDE the StarfishClient (see
  * EVENTS_URL + `buildAuthHeaders`) and so needs the literal prefix the client would
  * otherwise add itself. Derived from {@link SYNC_NAMESPACE}. nginx strips the /sync
- * mount, so the deployed server observes exactly /v1/octochat/events = the signed path.
+ * mount, so the deployed server observes exactly /v1/octospaces/events = the signed path.
  */
 const SYNC_PREFIX = SYNC_NAMESPACE ? `/v1/${SYNC_NAMESPACE}` : '';
 

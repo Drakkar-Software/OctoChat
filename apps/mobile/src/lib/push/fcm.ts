@@ -19,13 +19,13 @@ export interface PushData {
 
 /**
  * Per-space FCM topic. MUST match the Whistler bridge's namespace transform
- * (`octochat` namespace + dot→hyphen-sanitized `octochat.chat.changed.<spaceId>`).
+ * (`octospaces` namespace + dot→hyphen-sanitized `octospaces.log.changed.<spaceId>`).
  */
 export const pushTopicForSpace = (spaceId: string): string =>
-  `octochat-octochat-chat-changed-${spaceId}`;
+  `octospaces-octospaces-log-changed-${spaceId}`;
 
 /** Per-user FCM topic for push self-exclusion. See `fcm.native.ts`. */
-export const pushTopicForUser = (userId: string): string => `octochat-user-${userId}`;
+export const pushTopicForUser = (userId: string): string => `octospaces-user-${userId}`;
 
 export async function ensurePushPermission(): Promise<boolean> {
   return false;

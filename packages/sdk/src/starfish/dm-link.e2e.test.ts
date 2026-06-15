@@ -21,7 +21,7 @@ import { reconcileDmInbox } from './dm';
 import { readPeerKeys } from './dm-keys';
 import { createDmViaLink, decodeDmLink, myDmLink } from './dm-link';
 import { buildSession, type Session } from './identity';
-import { dmInboxShard, dminboxPull, userIdFromEdPub } from './paths';
+import { dmInboxShard, inboxPull, userIdFromEdPub } from './paths';
 import { readSpaces } from './registry';
 
 const BASE = process.env.STARFISH_E2E;
@@ -77,9 +77,9 @@ describe.skipIf(!BASE)('dm-link end-to-end (STARFISH_E2E)', () => {
     // ACCESS POSTURE — the inbox shard is owner-read only: Bob's authenticated pull
     // is rejected (his cap's path scope doesn't cover Alice's inbox)…
     const shard = dmInboxShard();
-    await expect(bob.accountClient.pull(dminboxPull(alice.userId, shard))).rejects.toThrow();
+    await expect(bob.accountClient.pull(inboxPull(alice.userId, shard))).rejects.toThrow();
     // …and so is an anonymous read (`public` is not in readRoles).
-    const anon = await fetch(`${BASE}${dminboxPull(alice.userId, shard)}`);
+    const anon = await fetch(`${BASE}${inboxPull(alice.userId, shard)}`);
     expect(anon.status).toBeGreaterThanOrEqual(400);
 
     // KEY BINDING — a tampered link (kem key swapped) fails against the profile.

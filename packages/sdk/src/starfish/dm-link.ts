@@ -37,7 +37,7 @@ import { dmRoomId } from './dm-ids';
 import { readPeerKeys, type PeerKeys } from './dm-keys';
 import type { Session } from './identity';
 import { inviteToSpace } from './members';
-import { dmInboxShard, dminboxPush, userIdFromEdPub } from './paths';
+import { dmInboxShard, inboxPush, userIdFromEdPub } from './paths';
 import { addJoinedSpace, readSpaces, setDmMapping } from './registry';
 
 /** What a `/dm#…` fragment decodes to: the owner's portable identity. `pseudo` is
@@ -167,7 +167,7 @@ export async function createOrOpenDmViaInbox(session: Session, peer: DmPeer, own
   // is public-write; an authenticated request would fail its cap's path scope).
   const sealed = await sealToRecipient(session, peer.kemPub, inviteJson);
   await postSignedAppend({
-    signPath: dminboxPush(peer.userId, dmInboxShard()),
+    signPath: inboxPush(peer.userId, dmInboxShard()),
     element: { sealed, ts: Date.now() },
     author: { edPubHex: session.keys.edPub, edPrivHex: session.keys.edPriv },
     failurePrefix: 'DM invite delivery',

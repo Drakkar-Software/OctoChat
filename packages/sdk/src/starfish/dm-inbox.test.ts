@@ -54,7 +54,7 @@ describe('dm-inbox', () => {
     const notForMe = { sealed: await sealToRecipient(visitor, sess().keys.kemPub, invite('dm-link-2')), ts: 2 };
     // The invite lives in the current shard; the previous shard is empty.
     const pull = vi.fn(async (path: string) =>
-      path === `/pull/dminbox/u-me/${curShard}` ? [forMe, notForMe].map((data, i) => ({ ts: i, data })) : [],
+      path === `/pull/inbox/u-me/${curShard}` ? [forMe, notForMe].map((data, i) => ({ ts: i, data })) : [],
     );
     (me as { accountClient?: unknown }).accountClient = { pull };
     const res = await scanDmLinkInbox(me);
@@ -62,8 +62,8 @@ describe('dm-inbox', () => {
     expect(res[0]!.senderEdPub).toBe(visitor.keys.edPub);
     // Pulled BOTH shard paths for THIS user.
     const paths = pull.mock.calls.map((c) => c[0]);
-    expect(paths).toContain(`/pull/dminbox/u-me/${curShard}`);
-    expect(paths).toContain(`/pull/dminbox/u-me/${prevShard}`);
+    expect(paths).toContain(`/pull/inbox/u-me/${curShard}`);
+    expect(paths).toContain(`/pull/inbox/u-me/${prevShard}`);
   });
 
   it('scanDmLinkInbox returns [] when a shard pull rejects (e.g. a stale paired-device cap 403s)', async () => {

@@ -42,9 +42,9 @@ function fakeClient(spaceId: string) {
       return { hash };
     },
   } as unknown as StarfishClient;
-  // Registry lives at spaces/{spaceId}/_webhooks (no ownerId).
+  // Registry lives at spaces/{spaceId}/objects/owner/_webhooks (objowner collection).
   const peek = (): WebhooksDoc | undefined =>
-    store.get(`spaces/${spaceId}/_webhooks`)?.data as WebhooksDoc | undefined;
+    store.get(`spaces/${spaceId}/objects/owner/_webhooks`)?.data as WebhooksDoc | undefined;
   return { client, peek };
 }
 

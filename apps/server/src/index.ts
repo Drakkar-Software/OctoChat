@@ -73,23 +73,22 @@ const roleResolver = createCapCertRoleResolver({
 // Publish a change-event to NATS after each successful push/append to the chat
 // and object collections (params {spaceId,roomId} only — content stays E2E-encrypted).
 // Whistlers consumes NATS and re-serves these as SSE.
-// All per-node stream collections (streamchat, streampub, streaminv) publish on the
-// SAME `octochat.chat.changed` topic so a write emits `octochat.chat.changed.<spaceId>`
+// All per-node room log collections (objlog, objpublog, objinvlog) publish on the
+// SAME `octospaces.log.changed` topic so a write emits `octospaces.log.changed.<spaceId>`
 // — the per-space SSE subscription drives every room kind live.
 // `includeIdentity` forwards the writer's account userId so the FCM bridge can
 // exclude the author's own devices from the push. Metadata-only, no content.
-// (pubstream/pubspace retired — replaced by streampub/streaminv in 0.4.1.)
 const { queue, nc } = await createNatsQueue();
 const queuing = createQueuingServerPlugin({
   queue,
   collections: {
-    streamchat: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
-    streampub: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
-    streaminv: { topic: "octochat.chat.changed", includeParams: true, includeIdentity: true },
-    // Unified Object index publishes on a SEPARATE subject — NOT chat.changed (that
+    objlog:    { topic: "octospaces.log.changed",    includeParams: true, includeIdentity: true },
+    objpublog: { topic: "octospaces.log.changed",    includeParams: true, includeIdentity: true },
+    objinvlog: { topic: "octospaces.log.changed",    includeParams: true, includeIdentity: true },
+    // Unified Object index publishes on a SEPARATE subject — NOT log.changed (that
     // drives FCM push per event; it would spam on every node rename / category reorder).
     // No push formatter for the object subject yet; clients refresh on focus-pull.
-    objindex: { topic: "octochat.object.changed", includeParams: true, includeIdentity: false },
+    objindex:  { topic: "octospaces.object.changed", includeParams: true, includeIdentity: false },
   },
 });
 

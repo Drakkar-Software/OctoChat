@@ -1,22 +1,23 @@
 /**
- * Inbound webhook ingestion → public room stream (`streampub`) (SELF-SERVICE).
+ * Inbound webhook ingestion → public room log (`objpublog`) (SELF-SERVICE).
  *
  * Lets an EXTERNAL system (CI, alerting pipeline, no-code automation, …) POST a
- * message that lands in a public room's stream, with no OctoChat identity. Webhooks
+ * message that lands in a public room's log, with no OctoChat identity. Webhooks
  * are provisioned by the space OWNER from the app: the SDK (`createWebhook`) writes a
- * registry doc `spaces/{spaceId}/_webhooks` (gated `space:owner`) mapping a webhookId
- * → `{ tokenHash, roomId, … }`, storing only the SHA-256 of a bearer token.
+ * registry doc `spaces/{spaceId}/objects/owner/_webhooks` (gated `space:owner` via
+ * `objowner` collection) mapping a webhookId → `{ tokenHash, roomId, … }`, storing
+ * only the SHA-256 of a bearer token.
  *
  * This route reads that registry IN-PROCESS and authenticates a caller by hashing the
  * presented token and comparing — so no secret is shared with the operator, every
  * webhook has its own token, and the raw token lives only in the caller's system.
  *
  * The target room MUST be a public room (access:'public') — webhooks post into
- * `streampub`. The room's `access` is taken from the owner-written registry entry
+ * `objpublog`. The room's `access` is taken from the owner-written registry entry
  * (`roomId` and access tier), never from the caller.
  *
  * The append is written in-process against the same store the sync router uses (like
- * the projection plugin), then published on `octochat.chat.changed.<spaceId>` so the
+ * the projection plugin), then published on `octospaces.log.changed.<spaceId>` so the
  * live SSE fan-out delivers it.
  */
 
@@ -98,10 +99,9 @@ function sanitizeAuthorName(name: string): string {
 }
 
 /** Read the owner-written webhook registry for a space, in-process.
- *  Registry now lives at `spaces/{spaceId}/_webhooks` (re-homed from the retired
- *  pubspace namespace in octospaces-sdk@0.4.1+). */
+ *  Registry lives at `spaces/{spaceId}/objects/owner/_webhooks` (objowner collection). */
 async function readRegistry(store: ObjectStore, spaceId: string): Promise<Record<string, WebhookEntry>> {
-  const raw = await store.getString(`spaces/${spaceId}/_webhooks`);
+  const raw = await store.getString(`spaces/${spaceId}/objects/owner/_webhooks`);
   if (!raw) return {};
   try {
     const doc = JSON.parse(raw) as { data?: { hooks?: Record<string, WebhookEntry> } };
@@ -121,16 +121,16 @@ export function buildStreamElement(payload: WebhookPayload, fallbackAuthorId: st
   return { t: "msg", e: { id: globalThis.crypto.randomUUID(), authorId, text: payload.text } };
 }
 
-/** Publish the change-event on the same subject a normal streampub message uses. */
+/** Publish the change-event on the same subject a normal objpublog message uses. */
 function publishChange(queue: Queue, spaceId: string, roomId: string, hash: string, timestamp: number): void {
   const msg = {
-    collection: "streampub",
+    collection: "objpublog",
     hash,
     timestamp,
     params: { spaceId, roomId },
     identity: `webhook:${spaceId}`,
   };
-  void Promise.resolve(queue.publish("octochat.chat.changed", ENC.encode(JSON.stringify(msg)))).catch((e) => {
+  void Promise.resolve(queue.publish("octospaces.log.changed", ENC.encode(JSON.stringify(msg)))).catch((e) => {
     console.warn(`[OctoChat] webhook change-event publish failed for ${spaceId}/${roomId}:`, e);
   });
 }
@@ -185,8 +185,8 @@ export function createWebhookRoute(opts: WebhookRouteOptions): Hono {
     const signer = await deriveSigner(token);
 
     const element = buildStreamElement(payload, `webhook:${webhookId}`);
-    // Public room stream (streampub): spaces/{spaceId}/streams/pub/{roomId}
-    const documentKey = `spaces/${spaceId}/streams/pub/${entry.roomId}`;
+    // Public room log (objpublog): spaces/{spaceId}/objects/pub/{roomId}/log
+    const documentKey = `spaces/${spaceId}/objects/pub/${entry.roomId}/log`;
 
     // Webhooks post plaintext to streampub — E2EE is strictly client-side; the server
     // must never seal message content.

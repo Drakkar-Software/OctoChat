@@ -36,28 +36,28 @@ const ROOM = 'sp-abc-general';
 const SPACE = 'sp-abc';
 
 describe('per-node stream path routing', () => {
-  it('streamchat (space/E2EE) uses spaces/{spaceId}/streams/{roomId}', () => {
+  it('objlog (space/E2EE) uses spaces/{spaceId}/objects/logs/{roomId}', () => {
     const pull = streamRoomPull(ROOM);
     const push = streamRoomPush(ROOM);
-    expect(pull).toContain(`spaces/${SPACE}/streams/${ROOM}`);
-    expect(push).toContain(`spaces/${SPACE}/streams/${ROOM}`);
+    expect(pull).toContain(`spaces/${SPACE}/objects/logs/${ROOM}`);
+    expect(push).toContain(`spaces/${SPACE}/objects/logs/${ROOM}`);
     // pull and push must differ (different verbs / path prefixes)
     expect(pull).not.toBe(push);
   });
 
-  it('streampub (public) uses spaces/{spaceId}/streams/pub/{roomId}', () => {
+  it('objpublog (public) uses spaces/{spaceId}/objects/pub/{roomId}/log', () => {
     const pull = streamPubRoomPull(ROOM);
     const push = streamPubRoomPush(ROOM);
-    expect(pull).toContain(`spaces/${SPACE}/streams/pub/${ROOM}`);
-    expect(push).toContain(`spaces/${SPACE}/streams/pub/${ROOM}`);
+    expect(pull).toContain(`spaces/${SPACE}/objects/pub/${ROOM}/log`);
+    expect(push).toContain(`spaces/${SPACE}/objects/pub/${ROOM}/log`);
     expect(pull).not.toBe(push);
   });
 
-  it('streaminv (invite-plaintext) uses spaces/{spaceId}/streams/n/{roomId}/log', () => {
+  it('objinvlog (invite-plaintext) uses spaces/{spaceId}/objects/n/{roomId}/log', () => {
     const pull = streamInvRoomPull(ROOM);
     const push = streamInvRoomPush(ROOM);
-    expect(pull).toContain(`spaces/${SPACE}/streams/n/${ROOM}/log`);
-    expect(push).toContain(`spaces/${SPACE}/streams/n/${ROOM}/log`);
+    expect(pull).toContain(`spaces/${SPACE}/objects/n/${ROOM}/log`);
+    expect(push).toContain(`spaces/${SPACE}/objects/n/${ROOM}/log`);
     expect(pull).not.toBe(push);
   });
 
@@ -71,10 +71,12 @@ describe('per-node stream path routing', () => {
     expect(unique.size).toBe(3);
   });
 
-  it('pub and inv segments are reserved — never collide with a normal roomId', () => {
-    // Room ids are `sp-…` prefixed; `pub` and `n` are bare bare path segments.
+  it('pub and n segments are reserved — never collide with a normal roomId', () => {
+    // objpublog path contains /pub/ and ends in /log
     expect(streamPubRoomPull(ROOM)).toContain('/pub/');
+    // objinvlog path contains /n/
     expect(streamInvRoomPull(ROOM)).toContain('/n/');
+    // objlog path has neither
     expect(streamRoomPull(ROOM)).not.toContain('/pub/');
     expect(streamRoomPull(ROOM)).not.toContain('/n/');
   });

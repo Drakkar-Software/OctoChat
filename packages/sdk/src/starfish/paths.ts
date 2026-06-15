@@ -10,22 +10,33 @@
  * **Generic object collections** are provided by `@drakkar.software/octospaces-sdk`
  * (re-exported through OctoChat's index). This module adds OctoChat-specific helpers:
  *
- * - Stream collections (`streamchat`, `streampub`, `streaminv`) — three tiers:
- *     streamchat:  private or invite+enc rooms (E2EE, space:member)
- *     streampub:   public rooms (plaintext, world-readable writes by space:member)
- *     streaminv:   invite+plaintext rooms (cap-gated `[]`/`[]`, per-node cap only)
- * - DM inbox (`dminbox`) — time-sharded delivery channel for cross-space DMs
- * - Webhook registry (`webhooks`) — owner-written per-space hook registry
+ * - Room log collections — three tiers, implemented via octospaces-sdk generic paths:
+ *     objlog:     private or invite+enc rooms (E2EE, space:member)
+ *                 → `spaces/{spaceId}/objects/logs/{roomId}`
+ *     objpublog:  public rooms (plaintext, world-readable writes by space:member)
+ *                 → `spaces/{spaceId}/objects/pub/{roomId}/log`
+ *     objinvlog:  invite+plaintext rooms (cap-gated per-node cap only)
+ *                 → `spaces/{spaceId}/objects/n/{roomId}/log`
+ * - Owner config (`objowner`) — webhooks registry at `spaces/{spaceId}/objects/owner/_webhooks`
+ * - Inbox (`inbox`) — time-sharded DM delivery channel at `inbox/{identity}/{shard}`
  * - Space directory (`spaceindex`) — server-maintained public-space projection
  *
  * `OBJECT_COLLECTIONS` and all object/keyring/registry path helpers are consumed
  * from `@drakkar.software/octospaces-sdk`'s paths export.
  *
- * **`streaminv` is intentionally EXCLUDED from `CHAT_COLLECTIONS` / `spaceMemberScope`** —
+ * **`objinvlog` is intentionally EXCLUDED from `CHAT_COLLECTIONS` / `spaceMemberScope`** —
  * only a per-node `nodeRoomScope` cap can reach it (like `objinv` / `nodeMemberScope`).
  */
 import type { ScopePreset } from '@drakkar.software/starfish-identities';
-import { OBJECT_COLLECTIONS } from '@drakkar.software/octospaces-sdk';
+import {
+  OBJECT_COLLECTIONS,
+  objLogName, objLogPull, objLogPush,
+  objPubLogName, objPubLogPull, objPubLogPush,
+  objInvLogName, objInvLogPull, objInvLogPush,
+  objOwnerName, objOwnerPull, objOwnerPush,
+  inboxName, inboxPull, inboxPush,
+  spaceIdFromRoomId,
+} from '@drakkar.software/octospaces-sdk';
 
 /**
  * Request-path helpers. These emit the bare action path (`/pull/…`, `/push/…`);
@@ -36,38 +47,35 @@ const pull = (rest: string) => `/pull/${rest}`;
 const push = (rest: string) => `/push/${rest}`;
 
 /** A room id is `sp-<rand>-<name>`; the space is its first two `-` segments. */
-export const spaceIdFromRoomId = (roomId: string) => roomId.split('-').slice(0, 2).join('-');
+export { spaceIdFromRoomId };
 
-// ── Private / E2EE room messages (streamchat) ─────────────────────────────────
+// ── Private / E2EE room messages (objlog) ─────────────────────────────────────
 // Covers `access:'space'` rooms (encrypted or not) and `access:'invite'+enc:true`
 // rooms (enc invites grant space membership, so the bearer is a `space:member`).
-// Storage: `spaces/{spaceId}/streams/{roomId}`. Keep in sync with `streamchat`
+// Storage: `spaces/{spaceId}/objects/logs/{roomId}`. Keep in sync with `objlog`
 // in apps/server/src/config.ts + Infra collections.py.
 export const streamRoomName = (roomId: string) =>
-  `spaces/${spaceIdFromRoomId(roomId)}/streams/${roomId}`;
-export const streamRoomPull = (roomId: string) => pull(streamRoomName(roomId));
-export const streamRoomPush = (roomId: string) => push(streamRoomName(roomId));
+  objLogName(spaceIdFromRoomId(roomId), roomId);
+export const streamRoomPull = (roomId: string) => objLogPull(spaceIdFromRoomId(roomId), roomId);
+export const streamRoomPush = (roomId: string) => objLogPush(spaceIdFromRoomId(roomId), roomId);
 
-// ── Public room messages (streampub) ─────────────────────────────────────────
+// ── Public room messages (objpublog) ─────────────────────────────────────────
 // `access:'public' + enc:false` rooms. World-readable; writes are `space:member`.
-// Storage: `spaces/{spaceId}/streams/pub/{roomId}`. The `pub` segment is reserved
-// (room ids are `sp-…` and never bare `pub`). Keep in sync with `streampub` in
-// apps/server/src/config.ts + Infra collections.py.
+// Storage: `spaces/{spaceId}/objects/pub/{roomId}/log`. Keep in sync with `objpublog`
+// in apps/server/src/config.ts + Infra collections.py.
 export const streamPubRoomName = (roomId: string) =>
-  `spaces/${spaceIdFromRoomId(roomId)}/streams/pub/${roomId}`;
-export const streamPubRoomPull = (roomId: string) => pull(streamPubRoomName(roomId));
-export const streamPubRoomPush = (roomId: string) => push(streamPubRoomName(roomId));
+  objPubLogName(spaceIdFromRoomId(roomId), roomId);
+export const streamPubRoomPull = (roomId: string) => objPubLogPull(spaceIdFromRoomId(roomId), roomId);
+export const streamPubRoomPush = (roomId: string) => objPubLogPush(spaceIdFromRoomId(roomId), roomId);
 
-// ── Invite-plaintext room messages (streaminv) ────────────────────────────────
-// `access:'invite' + enc:false` rooms. Cap-gated (`read:[] write:[]` server-side);
-// only a `nodeRoomScope` per-node cap reaches this path. The `n` segment is reserved;
-// `log` is the leaf (mirrors `objinv`'s `n/{nodeId}/content` pattern).
-// Storage: `spaces/{spaceId}/streams/n/{roomId}/log`. Keep in sync with `streaminv`
+// ── Invite-plaintext room messages (objinvlog) ────────────────────────────────
+// `access:'invite' + enc:false` rooms. Cap-gated per-node cap only.
+// Storage: `spaces/{spaceId}/objects/n/{roomId}/log`. Keep in sync with `objinvlog`
 // in apps/server/src/config.ts + Infra collections.py.
 export const streamInvRoomName = (roomId: string) =>
-  `spaces/${spaceIdFromRoomId(roomId)}/streams/n/${roomId}/log`;
-export const streamInvRoomPull = (roomId: string) => pull(streamInvRoomName(roomId));
-export const streamInvRoomPush = (roomId: string) => push(streamInvRoomName(roomId));
+  objInvLogName(spaceIdFromRoomId(roomId), roomId);
+export const streamInvRoomPull = (roomId: string) => objInvLogPull(spaceIdFromRoomId(roomId), roomId);
+export const streamInvRoomPush = (roomId: string) => objInvLogPush(spaceIdFromRoomId(roomId), roomId);
 
 // ── Space access record (spaceregistry) ──────────────────────────────────────
 // Owner-written doc holding `{owner, members, name, image}`. The server's TOFU
@@ -78,14 +86,14 @@ export const spaceRegistryName = (spaceId: string) => `spaces/${spaceId}/_access
 export const spaceRegistryPull = (spaceId: string) => pull(spaceRegistryName(spaceId));
 export const spaceRegistryPush = (spaceId: string) => push(spaceRegistryName(spaceId));
 
-// ── Webhook registry (webhooks) ───────────────────────────────────────────────
+// ── Webhook registry (objowner at _webhooks node) ─────────────────────────────
 // Owner-written doc mapping webhookId → { tokenHash, roomId, … }. Only a SHA-256
 // of the bearer token is stored. The server reads this in-process for the
-// `POST /webhook/:spaceId/:webhookId` route. Keep in sync with `webhooks` in
+// `POST /webhook/:spaceId/:webhookId` route. Keep in sync with `objowner` in
 // apps/server/src/config.ts + Infra collections.py.
-export const spaceWebhooksName = (spaceId: string) => `spaces/${spaceId}/_webhooks`;
-export const spaceWebhooksPull = (spaceId: string) => pull(spaceWebhooksName(spaceId));
-export const spaceWebhooksPush = (spaceId: string) => push(spaceWebhooksName(spaceId));
+export const spaceWebhooksName = (spaceId: string) => objOwnerName(spaceId, '_webhooks');
+export const spaceWebhooksPull = (spaceId: string) => objOwnerPull(spaceId, '_webhooks');
+export const spaceWebhooksPush = (spaceId: string) => objOwnerPush(spaceId, '_webhooks');
 
 // ── Space-wide keyring (spacekeyring) ─────────────────────────────────────────
 // Re-exported from octospaces-sdk; kept here for convenience imports within the SDK.
@@ -109,19 +117,23 @@ export { profilePull, profilePush, spacesPull, spacesPush } from '@drakkar.softw
 // re-export them so call sites import from this one module.
 export { spaceAccessPull, spaceAccessPush } from '@drakkar.software/octospaces-sdk';
 
-// ── DM inbox (dminbox) ────────────────────────────────────────────────────────
+// ── DM inbox (inbox) ──────────────────────────────────────────────────────────
 // The cross-space DELIVERY channel behind the shareable "DM me" link: anyone may
 // anonymously APPEND a DM invite (sealed to the owner's published KEM key) to the
 // owner's inbox, and the owner's reconciler pulls + trial-unseals it (see
-// dm-link.ts / dm-inbox.ts). Reads are owner-only; writes are open by design.
+// dm-link.ts / dm-inbox.ts). Reads are owner-only (cap:read:inbox); writes are
+// open by design.
 //
-// The inbox is sharded by UTC MONTH (`dminbox/{ownerId}/{shard}`): a sender always
+// The inbox is sharded by UTC MONTH (`inbox/{ownerId}/{shard}`): a sender always
 // writes the CURRENT month's shard, and the owner scans the current + previous
-// shard. Keep the path + shard convention in sync with `dminbox` in apps/server +
+// shard. Keep the path + shard convention in sync with `inbox` in apps/server +
 // Infra collections.py.
-export const dminboxName = (ownerId: string, shard: string) => `dminbox/${ownerId}/${shard}`;
-export const dminboxPull = (ownerId: string, shard: string) => pull(dminboxName(ownerId, shard));
-export const dminboxPush = (ownerId: string, shard: string) => push(dminboxName(ownerId, shard));
+export { inboxName, inboxPull, inboxPush } from '@drakkar.software/octospaces-sdk';
+
+// Legacy aliases kept for call sites that import the old `dminbox*` names.
+export const dminboxName = inboxName;
+export const dminboxPull = inboxPull;
+export const dminboxPush = inboxPush;
 
 /** The inbox shard id for a moment in time: UTC `YYYY-MM`. UTC (not local) so a
  *  sender and the owner on different devices/timezones always agree on the shard. */
@@ -147,9 +159,15 @@ export const spaceIndexName = (shard: 'public' | 'meta') => `_index/spaces/${sha
 export const spaceIndexPull = (shard: 'public' | 'meta') => pull(spaceIndexName(shard));
 
 // ── OctoChat collection lists for cap scopes ─────────────────────────────────
-/** All OctoChat chat-stream collections eligible for a `space:member` cap.
- *  `streaminv` is intentionally excluded (requires a per-node `nodeRoomScope` cap). */
-const CHAT_COLLECTIONS = [...OBJECT_COLLECTIONS, 'streamchat', 'streampub', 'attachments'];
+// OBJECT_COLLECTIONS (from octospaces-sdk 0.8.0) already includes:
+//   spacekeyring, objindex, objlog, objsnap, objdoc, objblob, typeindex, objpub, objpublog
+// OctoChat adds its own `attachments` collection (per-room sealed blob storage).
+// `objinvlog` and `objowner` are intentionally excluded from the broad member scope.
+/** All collections eligible for a `space:member` cap in OctoChat. */
+const CHAT_COLLECTIONS = [...OBJECT_COLLECTIONS, 'attachments'];
+
+// OWNER_COLLECTIONS extends member collections with `objowner` (webhook registry etc.).
+const OWNER_CHAT_COLLECTIONS = [...CHAT_COLLECTIONS, 'objowner'];
 
 // ── Cap scopes ────────────────────────────────────────────────────────────────
 
@@ -157,17 +175,16 @@ const CHAT_COLLECTIONS = [...OBJECT_COLLECTIONS, 'streamchat', 'streampub', 'att
 export function ownerScope(): ScopePreset {
   return {
     ops: ['read', 'list', 'write'],
-    collections: CHAT_COLLECTIONS,
+    collections: OWNER_CHAT_COLLECTIONS,
     paths: ['spaces/**'],
   };
 }
 
 /**
  * Member access to one SPACE — its keyring, every node's content docs, all room
- * streams, and attachments under `spaces/{spaceId}/**`. Does NOT cover `streaminv`
- * (invite-plaintext streams) — use `nodeRoomScope` for that. One cap covers current
- * AND future rooms. The keyring/access-record WRITE is still `space:owner`-gated
- * server-side; the path reach does not grant write.
+ * logs, and attachments under `spaces/{spaceId}/**`. Does NOT cover `objinvlog`
+ * (invite-plaintext streams) or `objowner` — use `nodeRoomScope` / `ownerScope`
+ * for those. One cap covers current AND future rooms.
  */
 export function spaceMemberScope(spaceId: string, canWrite: boolean): ScopePreset {
   const ops: ('read' | 'write' | 'list')[] = canWrite ? ['read', 'list', 'write'] : ['read', 'list'];
@@ -180,7 +197,7 @@ export function spaceMemberScope(spaceId: string, canWrite: boolean): ScopePrese
 
 /**
  * Narrow per-node cap for `invite+plaintext` rooms. Covers ONLY the room's
- * `streaminv` path at `spaces/{spaceId}/streams/n/{roomId}/**`. Pair with
+ * `objinvlog` path at `spaces/{spaceId}/objects/n/{roomId}/**`. Pair with
  * `nodeMemberScope` (for `objinv` content) when the invite also includes object
  * content. The two scopes are unioned into the single invite cap bundle.
  */
@@ -188,28 +205,28 @@ export function nodeRoomScope(spaceId: string, roomId: string, canWrite: boolean
   const ops: ('read' | 'write' | 'list')[] = canWrite ? ['read', 'list', 'write'] : ['read', 'list'];
   return {
     ops,
-    collections: ['streaminv'],
-    paths: [`spaces/${spaceId}/streams/n/${roomId}/**`],
+    collections: ['objinvlog'],
+    paths: [`spaces/${spaceId}/objects/n/${roomId}/**`],
   };
 }
 
 /**
  * Personal cap for OctoChat: profile + space registry + device directory + all spaces
- * + DM inbox + webhook management. Extends the octospaces-sdk base with OctoChat-only
- * collections (`dminbox`, `webhooks`).
+ * + DM inbox. Extends the octospaces-sdk base with the `inbox` collection for the
+ * DM delivery channel.
  */
 export function accountScope(userId: string): ScopePreset {
   return {
     ops: ['read', 'list', 'write'],
-    collections: ['profile', 'devices', 'spaces', 'spaceregistry', 'dminbox', 'webhooks'],
+    collections: ['profile', 'devices', 'spaces', 'spaceregistry', 'inbox'],
     paths: [
       `user/${userId}/profile`,
       `users/${userId}/_devices`,
       `user/${userId}/_spaces`,
       'spaces/**',
-      // The owner's own DM inbox (every month shard) — read is `cap:read:dminbox`
+      // The owner's own DM inbox (every month shard) — read is `cap:read:inbox`
       // with the collection's `{identity}` binding (own-doc gate).
-      `dminbox/${userId}/**`,
+      `inbox/${userId}/**`,
     ],
   };
 }
@@ -222,13 +239,13 @@ export function accountScope(userId: string): ScopePreset {
 export function linkedDeviceScope(userId: string): ScopePreset {
   return {
     ops: ['read', 'list', 'write'],
-    collections: [...CHAT_COLLECTIONS, 'profile', 'devices', 'spaces', 'spaceregistry', 'dminbox', 'webhooks'],
+    collections: [...OWNER_CHAT_COLLECTIONS, 'profile', 'devices', 'spaces', 'spaceregistry', 'inbox'],
     paths: [
       'spaces/**',
       `user/${userId}/profile`,
       `users/${userId}/_devices`,
       `user/${userId}/_spaces`,
-      `dminbox/${userId}/**`,
+      `inbox/${userId}/**`,
     ],
   };
 }
