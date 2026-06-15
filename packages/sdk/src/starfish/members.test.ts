@@ -205,11 +205,15 @@ describe('acceptSpaceInvite', () => {
   });
 
   it('accepts a valid invite: persists the space + cap and saves the access entry', async () => {
+    const callOrder: string[] = [];
+    vi.mocked(addJoinedSpaceWithCap).mockImplementationOnce(async () => { callOrder.push('addJoinedSpaceWithCap'); });
+    vi.mocked(saveSpaceAccessEntry).mockImplementationOnce(() => { callOrder.push('saveSpaceAccessEntry'); });
     const session = makeInviteeSession();
     const space = await acceptSpaceInvite(session, makeInviteJson());
     expect(space.id).toBe('sp-abc');
     expect(space.name).toBe('Test Space');
-    expect(addJoinedSpaceWithCap).toHaveBeenCalledOnce();
     expect(saveSpaceAccessEntry).toHaveBeenCalledWith('sp-abc', expect.objectContaining({ kind: 'member' }));
+    // addJoinedSpaceWithCap must be called BEFORE saveSpaceAccessEntry (crash-safety: server-side persist first)
+    expect(callOrder).toEqual(['addJoinedSpaceWithCap', 'saveSpaceAccessEntry']);
   });
 });
