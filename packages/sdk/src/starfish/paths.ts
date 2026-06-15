@@ -30,9 +30,6 @@
 import type { ScopePreset } from '@drakkar.software/starfish-identities';
 import {
   OBJECT_COLLECTIONS,
-  objLogName, objLogPull, objLogPush,
-  objPubLogName, objPubLogPull, objPubLogPush,
-  objInvLogName, objInvLogPull, objInvLogPush,
   objOwnerName, objOwnerPull, objOwnerPush,
   inboxName, inboxPull, inboxPush,
   spaceIdFromRoomId,
@@ -48,33 +45,12 @@ const pull = (rest: string) => `/pull/${rest}`;
 /** A room id is `sp-<rand>-<name>`; the space is its first two `-` segments. */
 export { spaceIdFromRoomId };
 
-// ── Private / E2EE room messages (objlog) ─────────────────────────────────────
-// Covers `access:'space'` rooms (encrypted or not) and `access:'invite'+enc:true`
-// rooms (enc invites grant space membership, so the bearer is a `space:member`).
-// Storage: `spaces/{spaceId}/objects/logs/{roomId}`. Keep in sync with `objlog`
-// in apps/server/src/config.ts + Infra collections.py.
-export const streamRoomName = (roomId: string) =>
-  objLogName(spaceIdFromRoomId(roomId), roomId);
-export const streamRoomPull = (roomId: string) => objLogPull(spaceIdFromRoomId(roomId), roomId);
-export const streamRoomPush = (roomId: string) => objLogPush(spaceIdFromRoomId(roomId), roomId);
-
-// ── Public room messages (objpublog) ─────────────────────────────────────────
-// `access:'public' + enc:false` rooms. World-readable; writes are `space:member`.
-// Storage: `spaces/{spaceId}/objects/pub/{roomId}/log`. Keep in sync with `objpublog`
-// in apps/server/src/config.ts + Infra collections.py.
-export const streamPubRoomName = (roomId: string) =>
-  objPubLogName(spaceIdFromRoomId(roomId), roomId);
-export const streamPubRoomPull = (roomId: string) => objPubLogPull(spaceIdFromRoomId(roomId), roomId);
-export const streamPubRoomPush = (roomId: string) => objPubLogPush(spaceIdFromRoomId(roomId), roomId);
-
-// ── Invite-plaintext room messages (objinvlog) ────────────────────────────────
-// `access:'invite' + enc:false` rooms. Cap-gated per-node cap only.
-// Storage: `spaces/{spaceId}/objects/n/{roomId}/log`. Keep in sync with `objinvlog`
-// in apps/server/src/config.ts + Infra collections.py.
-export const streamInvRoomName = (roomId: string) =>
-  objInvLogName(spaceIdFromRoomId(roomId), roomId);
-export const streamInvRoomPull = (roomId: string) => objInvLogPull(spaceIdFromRoomId(roomId), roomId);
-export const streamInvRoomPush = (roomId: string) => objInvLogPush(spaceIdFromRoomId(roomId), roomId);
+// ── Room-scoped stream path shortcuts (re-exported from octospaces-sdk) ──────
+export {
+  streamRoomName, streamRoomPull, streamRoomPush,
+  streamPubRoomName, streamPubRoomPull, streamPubRoomPush,
+  streamInvRoomName, streamInvRoomPull, streamInvRoomPush,
+} from '@drakkar.software/octospaces-sdk';
 
 // ── Webhook registry (objowner at _webhooks node) ─────────────────────────────
 // Owner-written doc mapping webhookId → { tokenHash, roomId, … }. Only a SHA-256
