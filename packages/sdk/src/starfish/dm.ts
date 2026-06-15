@@ -17,9 +17,8 @@ import type { StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { DmMap, Space } from '../domain/types';
 
-import { getSpaceClient } from '@drakkar.software/octospaces-sdk';
-
-import { ownerEnsureKeyring } from './client';
+import { getSpaceClient, ownerEnsureKeyring } from '@drakkar.software/octospaces-sdk';
+import { keyringPull, keyringPush } from './paths';
 import { acceptSpaceInvite, inviteToSpace } from './members';
 import { dmRoomId, dmWinner, isDmSpaceId, newDmSpaceId } from './dm-ids';
 import { appendDmInvite, scanDmInbox, scanDmLinkInbox } from './dm-inbox';
@@ -50,7 +49,7 @@ export async function createDmSpaceCore(session: Session, peerPseudo: string): P
   const roomId = dmRoomId(spaceId);
   // Seed the space keyring (owner = this session) — required so E2EE DM messages can
   // be encrypted. The DM room itself is an append-only log (the `streamchat` collection).
-  await ownerEnsureKeyring(session.chatClient, session.keys, spaceId, ownerTrustedAdders(session));
+  await ownerEnsureKeyring(session.chatClient, session.keys, keyringPull(spaceId), keyringPush(spaceId), ownerTrustedAdders(session));
   // Claim ownership (TOFU first write) in the access record; members start empty
   // (inviteToSpace adds the peer to the roster). The single `kind:'dm'` room lives
   // in the plaintext object index — seed it now.

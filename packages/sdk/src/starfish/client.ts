@@ -4,7 +4,7 @@
  */
 import { StarfishClient } from '@drakkar.software/starfish-client';
 import type { BatchPullEntry, Encryptor, StarfishCapProvider } from '@drakkar.software/starfish-client';
-import { createKeyring, createKeyringEncryptor } from '@drakkar.software/starfish-keyring';
+import { createKeyringEncryptor } from '@drakkar.software/starfish-keyring';
 import type { Keyring } from '@drakkar.software/starfish-keyring';
 import { signRequest, stableStringify } from '@drakkar.software/starfish-protocol';
 import type { SignableMethod } from '@drakkar.software/starfish-protocol';
@@ -13,7 +13,7 @@ import { getSyncBase, getSyncNamespace, getSyncPrefix, getOnServerReachable } fr
 import { fetchWithTimeout } from './fetch-timeout';
 import { pullCache, PULL_CACHE_MAX_AGE_MS } from './pull-cache';
 import { cacheProfile, loadCachedProfile } from './profile-cache';
-import { keyringPull, keyringPush, profilePull, profilePush } from './paths';
+import { keyringPull, profilePull, profilePush } from './paths';
 import { SpaceAccessError } from './space-access-error';
 
 export interface DeviceKeys {
@@ -122,37 +122,10 @@ export async function buildEncryptor(
   }
 }
 
-/**
- * Owner-side: create the SPACE keyring if missing, return an encryptor.
- *
- * `trustedAdders` is the provenance allow-list for opening the keyring; it
- * defaults to the caller's own key but must be widened for a PAIRED device, whose
- * keyring entries were signed by the ROOT (not its device key) — see
- * `ownerTrustedAdders`. The CEK is still unwrapped with `keys` (this device's KEM
- * keypair, which the root added as a recipient).
- */
-export async function ownerEnsureKeyring(
-  client: StarfishClient,
-  keys: DeviceKeys,
-  spaceId: string,
-  trustedAdders: string[] = [keys.edPub],
-): Promise<Encryptor> {
-  const krRes = await client.pull(keyringPull(spaceId)).catch(() => null);
-  let keyring = krRes?.data as unknown as Keyring | undefined;
-  if (!keyring || !keyring.epochs) {
-    const created = await createKeyring({ edPrivHex: keys.edPriv, edPubHex: keys.edPub }, [
-      { subKemHex: keys.kemPub },
-    ]);
-    keyring = created.keyring;
-    await client.push(keyringPush(spaceId), keyring as unknown as Record<string, unknown>, krRes?.hash ?? null);
-  }
-  const enc = await createKeyringEncryptor(
-    keyring,
-    { kemPubHex: keys.kemPub, kemPrivHex: keys.kemPriv },
-    { trustedAdders },
-  );
-  return enc as unknown as Encryptor;
-}
+// ownerEnsureKeyring has been removed from this file.
+// Use ownerEnsureKeyring from '@drakkar.software/octospaces-sdk' directly.
+// Its signature takes (client, keys, pullPath, pushPath, trustedAdders) — use
+// keyringPull(spaceId)/keyringPush(spaceId) from './paths' to build the paths.
 
 /** A user's public profile: display pseudo + optional inline avatar (data URI) +
  *  their PUBLIC identity keys. The keys are published so a peer can start an E2EE DM

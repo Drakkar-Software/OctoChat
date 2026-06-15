@@ -14,10 +14,12 @@ import type { ArchivedDms, CapMap, DmMap, MutePrefs, ReadPrefs, Room, Space } fr
 import { randomId } from '../domain/ids';
 
 import { ownerTrustedAdders, type Session } from './identity';
-import { ownerEnsureKeyring } from './client';
+import { ownerEnsureKeyring } from '@drakkar.software/octospaces-sdk';
 import { DEFAULT_CATEGORY } from './objects';
 import { seedSpaceObjectIndex } from './object-index';
 import {
+  keyringPull,
+  keyringPush,
   spaceRegistryPull,
   spaceRegistryPush,
   spacesPull,
@@ -608,7 +610,7 @@ export async function createSpace(session: Session, name: string): Promise<Space
   // a space that shows up EMPTY in the rail (with the migration gone, nothing would ever
   // re-seed it).
   await writeSpaceAccess(accountClient, id, userId, [], null, { name: trimmed });
-  await ownerEnsureKeyring(session.chatClient, session.keys, id, ownerTrustedAdders(session));
+  await ownerEnsureKeyring(session.chatClient, session.keys, keyringPull(id), keyringPush(id), ownerTrustedAdders(session));
   await seedSpaceObjectIndex(session, id, [{ id: `${id}-general`, name: 'general', kind: 'channel', category: DEFAULT_CATEGORY, enc: true }]);
   await writeSpaces(spacesRegistryClient, userId, [...spaces, space], hash);
   return space;

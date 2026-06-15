@@ -26,15 +26,11 @@ vi.mock('./paths', () => ({
 }));
 
 // Needed by registry.ts imports transitively (paths.ts re-exports from octospaces-sdk).
+// Also stubs ownerEnsureKeyring which registry.ts now imports from here directly.
 vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
   const actual = await importOriginal();
-  return { ...(actual as object), getSpaceClient: vi.fn() };
+  return { ...(actual as object), getSpaceClient: vi.fn(), ownerEnsureKeyring: vi.fn().mockResolvedValue({}) };
 });
-
-// Mocks needed for createSpace tests.
-vi.mock('./client', () => ({
-  ownerEnsureKeyring: vi.fn().mockResolvedValue({}),
-}));
 
 vi.mock('./identity', () => ({
   ownerTrustedAdders: vi.fn().mockReturnValue(['owner-ed-pub']),
@@ -58,7 +54,7 @@ import {
   writeSpaceAccess,
 } from './registry';
 
-import { ownerEnsureKeyring } from './client';
+import { ownerEnsureKeyring } from '@drakkar.software/octospaces-sdk';
 import { seedSpaceObjectIndex } from './object-index';
 
 /** A fake StarfishClient exposing just pull/push. */
@@ -489,12 +485,14 @@ describe('createSpace', () => {
     const session = makeSession();
     await createSpace(session, 'Enc Space');
     expect(vi.mocked(ownerEnsureKeyring)).toHaveBeenCalledTimes(1);
-    // Must be called on chatClient (not accountClient or spacesRegistryClient)
+    // Must be called on chatClient (not accountClient or spacesRegistryClient).
+    // Signature: (client, keys, pullPath, pushPath, trustedAdders)
     expect(vi.mocked(ownerEnsureKeyring)).toHaveBeenCalledWith(
       (session as never as { chatClient: unknown }).chatClient,
       (session as never as { keys: unknown }).keys,
-      expect.any(String),      // spaceId
-      expect.any(Array),       // trustedAdders
+      expect.stringContaining('_keyring'),   // keyringPull(spaceId)
+      expect.stringContaining('_keyring'),   // keyringPush(spaceId)
+      expect.any(Array),                     // trustedAdders
     );
   });
 
