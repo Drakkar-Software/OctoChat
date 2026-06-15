@@ -130,11 +130,6 @@ export { spaceAccessPull, spaceAccessPush } from '@drakkar.software/octospaces-s
 // Infra collections.py.
 export { inboxName, inboxPull, inboxPush } from '@drakkar.software/octospaces-sdk';
 
-// Legacy aliases kept for call sites that import the old `dminbox*` names.
-export const dminboxName = inboxName;
-export const dminboxPull = inboxPull;
-export const dminboxPush = inboxPush;
-
 /** The inbox shard id for a moment in time: UTC `YYYY-MM`. UTC (not local) so a
  *  sender and the owner on different devices/timezones always agree on the shard. */
 export const dmInboxShard = (d: Date = new Date()): string =>

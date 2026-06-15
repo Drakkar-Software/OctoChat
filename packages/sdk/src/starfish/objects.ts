@@ -191,14 +191,6 @@ export interface SeedRoom {
 }
 
 /**
- * Build the initial `ObjectNode[]` for a brand-new space's index: a `category` node
- * per distinct category and a `room` node per seed room parented under it. Pure +
- * deterministic (category ids via {@link categoryId}); the headless seed in
- * `object-index.ts` encrypts + pushes the result. Replaces the old `roomsToObjects`
- * migration builder now that every existing space has migrated and only NEW spaces
- * need seeding.
- */
-/**
  * Node access/enc for a channel created via the Public / Private UI choice.
  * - Private (default) ⇒ space-member E2EE (`enc:true`, access absent = 'space').
  * - Public ⇒ world-readable plaintext (`access:'public'`, `enc:false`).
@@ -210,6 +202,12 @@ export function channelNodeAccess(isPublic: boolean): { access?: NodeAccess; enc
   return isPublic ? { access: 'public', enc: false } : { enc: true };
 }
 
+/**
+ * Build the initial `ObjectNode[]` for a brand-new space's index: a `category` node
+ * per distinct category and a `room` node per seed room parented under it. Pure +
+ * deterministic (category ids via {@link categoryId}); the headless seed in
+ * `object-index.ts` encrypts + pushes the result.
+ */
 export function seedIndexNodes(rooms: SeedRoom[], now: number): ObjectNode[] {
   const out: ObjectNode[] = [];
   const catId = new Map<string, ID>();
