@@ -45,7 +45,10 @@ export interface RoomChange {
 
 interface QueueMessageish {
   collection?: string;
-  params?: { roomId?: string; spaceId?: string };
+  /** roomId: OctoChat-local server (storagePath uses {roomId}).
+   *  objectId: unified octospaces objlog (storagePath uses {objectId}).
+   *  nodeId:   unified octospaces objpublog/objinvlog (storagePath uses {nodeId}). */
+  params?: { roomId?: string; objectId?: string; nodeId?: string; spaceId?: string };
   hash?: string;
   timestamp?: number;
   identity?: string;
@@ -59,7 +62,9 @@ export function parseRoomChange(data: string): RoomChange | null {
   try {
     const d = JSON.parse(data) as QueueMessageish & { rawPayload?: QueueMessageish };
     const msg = d.params ? d : (d.rawPayload ?? d);
-    const roomId = msg.params?.roomId;
+    // Accept the OctoChat-local param name (roomId) AND the unified octospaces
+    // server param names (objectId for objlog, nodeId for objpublog/objinvlog).
+    const roomId = msg.params?.roomId ?? msg.params?.objectId ?? msg.params?.nodeId;
     if (!roomId) return null;
     return {
       roomId,

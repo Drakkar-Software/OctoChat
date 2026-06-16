@@ -51,4 +51,22 @@ describe('parseRoomChange', () => {
     expect(parseRoomChange(frame({ collection: 'streamchat', params: { spaceId: 'sp-a' } }))).toBeNull();
     expect(parseRoomChange('not json')).toBeNull();
   });
+
+  // Unified octospaces server uses {objectId}/{nodeId} instead of {roomId}
+  it('routes objlog (unified server, params.objectId) as roomId', () => {
+    expect(
+      parseRoomChange(frame({ collection: 'objlog', hash: 'h', timestamp: 1, params: { spaceId: 'sp-a', objectId: 'sp-a-r1' } })),
+    ).toEqual({ roomId: 'sp-a-r1', spaceId: 'sp-a', hash: 'h', ts: 1 });
+  });
+
+  it('routes objpublog (unified server, params.nodeId) as roomId', () => {
+    expect(
+      parseRoomChange(frame({ collection: 'objpublog', params: { spaceId: 'sp-a', nodeId: 'sp-a-pub1' } })),
+    ).toMatchObject({ roomId: 'sp-a-pub1', spaceId: 'sp-a' });
+  });
+
+  it('routes objinvlog (unified server, params.nodeId) as roomId', () => {
+    const env = { rawPayload: { collection: 'objinvlog', params: { spaceId: 'sp-a', nodeId: 'sp-a-inv1' }, hash: 'h3', timestamp: 3 } };
+    expect(parseRoomChange(frame(env))).toEqual({ roomId: 'sp-a-inv1', spaceId: 'sp-a', hash: 'h3', ts: 3 });
+  });
 });
