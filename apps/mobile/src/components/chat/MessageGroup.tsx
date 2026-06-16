@@ -326,10 +326,10 @@ const styles = StyleSheet.create({
     // AND below. A follow-up row (same author, <5 min) zeroes its top so stacked
     // messages remain tight while still honouring the group's bottom padding.
     paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.xs,
   },
-  // Drop the top gap entirely so a follow-up hugs the message above it; the
-  // bottom padding of the previous row already provides the inter-message gap.
+  // Drop the top gap entirely so a follow-up hugs the message above it; only the
+  // row's tight bottom padding remains between it and the previous message.
   continuation: { paddingTop: spacing.none },
   // Empty stand-in for the avatar so a continuation's body stays aligned; the
   // time surfaces here on hover (web) / always (native) as a quiet timestamp.
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
   // Width + color set inline per row (3px accent normally; 6px accentStrong for
   // an unread @-mention of you).
   mentionBar: { position: 'absolute', left: 0, top: 0, bottom: 0 },
-  body: { flex: 1, gap: spacing.sm },
+  body: { flex: 1, gap: 4 },
   // Dim a queued/sending message so it reads as not-yet-on-the-server.
   pendingDim: { opacity: 0.6 },
   // Clock/alert + status text under an unsent message.
