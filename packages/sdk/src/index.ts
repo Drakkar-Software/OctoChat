@@ -187,6 +187,8 @@ export {
   recoverSpaceAccess,
   // space-wide invite links
   createSpaceInviteLink,
+  decodeSpaceInviteLink,
+  type SpaceInviteLinkToken,
   // joining spaces via link
   joinSpaceByLink,
   // hard access-denial error (thrown by getNodeAccess / openEncryptor)
