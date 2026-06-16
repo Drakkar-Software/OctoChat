@@ -11,20 +11,18 @@ import { DM_HOME_NAME } from '@/lib/dm-home';
 import type { DmEntry } from '@/lib/use-dms';
 import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
-import { useViewMode } from '@/lib/view-mode';
+import { VIEW_MODES, useViewMode } from '@/lib/view-mode';
 import { Divider } from '@/components/ui/Divider';
-import { Icon } from '@/components/ui/Icon';
+import { IconButton } from '@/components/ui/IconButton';
 import { Txt } from '@/components/ui/Txt';
 
 import { TicketList } from '@/components/desk/TicketList';
 import { AgentsPanel } from './AgentsPanel';
 import { ChannelListSkeleton } from './ChannelListSkeleton';
 import { DmList } from './DmList';
-import { ModeSwitcher } from './ModeSwitcher';
 import { OfflineBanner } from './OfflineBanner';
 import { RoomCategoryList } from './RoomCategoryList';
 import { SidebarLinkRow } from './SidebarLinkRow';
-import { SpaceMeta } from './SpaceMeta';
 
 interface DesktopRoomSidebarProps {
   /** The active space — undefined when the virtual DM space is selected. */
@@ -115,7 +113,6 @@ export function DesktopRoomSidebar({
   const online = useOnline();
   const { mode, setMode } = useViewMode();
   const headerHover = useHover();
-  const jumpHover = useHover();
 
   // Make the advertised ⌘K / Ctrl+K shortcut real (web): focus the jump-to action.
   useEffect(() => {
@@ -138,12 +135,10 @@ export function DesktopRoomSidebar({
         width={layout.sidebarWidth}
         header={
           <View style={[styles.header, { borderBottomColor: colors.lineFaint }]}>
-            <View style={styles.headerText}>
-              <Txt variant="subhead" weight="semibold" numberOfLines={1}>
-                {DM_HOME_NAME}
-              </Txt>
-            </View>
-            <Icon name="people" size={15} color={colors.inkMuted} />
+            <Txt variant="subhead" weight="semibold" numberOfLines={1} style={styles.headerName}>
+              {DM_HOME_NAME}
+            </Txt>
+            <IconButton name="people" size={15} accessibilityLabel="Direct messages" />
           </View>
         }
         contentContainerStyle={styles.listContent}
@@ -169,45 +164,40 @@ export function DesktopRoomSidebar({
       width={layout.sidebarWidth}
       scrollable={false}
       header={
-        <>
+        <View style={[styles.header, { borderBottomColor: colors.lineFaint }]}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Space menu"
+            accessibilityLabel="Space settings"
             onPress={onOpenSpaceMenu}
             {...headerHover.hoverProps}
-            style={[styles.header, { borderBottomColor: colors.lineFaint, backgroundColor: headerHover.hovered ? colors.hover : 'transparent' }]}
+            style={[styles.headerName, { backgroundColor: headerHover.hovered ? colors.hover : 'transparent' }]}
           >
-            <View style={styles.headerText}>
-              <Txt variant="subhead" weight="semibold" numberOfLines={1}>
-                {space?.name}
-              </Txt>
-              <SpaceMeta memberCount={memberCount} iconSize={9} numberOfLines={1} />
-            </View>
-            <Icon name="gear" size={15} color={colors.inkMuted} />
-          </Pressable>
-
-          <View style={styles.switcher}>
-            <ModeSwitcher mode={mode} onChange={setMode} />
-          </View>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Jump to a room"
-            onPress={onJumpTo}
-            {...jumpHover.hoverProps}
-            style={[styles.jump, { backgroundColor: colors.fill, borderColor: jumpHover.hovered ? colors.accentBorder : colors.lineFaint }]}
-          >
-            <Icon name="search" size={12} color={colors.inkMuted} />
-            <Txt variant="footnote" tone="inkMuted" style={styles.jumpLabel}>
-              Jump to…
+            <Txt variant="subhead" weight="semibold" numberOfLines={1}>
+              {space?.name}
             </Txt>
-            {Platform.OS === 'web' ? (
-              <Txt variant="micro" mono tone="inkMuted">
-                ⌘K
-              </Txt>
-            ) : null}
           </Pressable>
-        </>
+          <View style={styles.headerActions}>
+            {VIEW_MODES.map((m) => (
+              <IconButton
+                key={m.key}
+                name={m.iconName}
+                size={15}
+                color={mode === m.key ? colors.accent : undefined}
+                accessibilityLabel={m.label}
+                onPress={() => setMode(m.key)}
+              />
+            ))}
+            {onJumpTo ? (
+              <IconButton
+                name="search"
+                size={15}
+                onPress={onJumpTo}
+                accessibilityLabel={Platform.OS === 'web' ? 'Jump to room ⌘K' : 'Jump to room'}
+              />
+            ) : null}
+            <IconButton name="gear" size={15} onPress={onOpenSpaceMenu} accessibilityLabel="Space settings" />
+          </View>
+        </View>
       }
     >
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
@@ -285,26 +275,20 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
+    gap: spacing.xs,
+    height: layout.desktopTopbarHeight,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.xs,
     borderBottomWidth: 1,
   },
-  headerText: { flex: 1, minWidth: 0, gap: 2 },
-  switcher: { paddingHorizontal: spacing.md, paddingTop: spacing.sm },
-  jump: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    height: 30,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
-    paddingHorizontal: spacing.md,
+  headerName: {
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
     borderRadius: radii.sm,
-    borderWidth: 1,
   },
-  jumpLabel: { flex: 1 },
+  headerActions: { flexDirection: 'row', alignItems: 'center' },
   list: { flex: 1 },
   listContent: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.lg },
   navGroup: { paddingBottom: spacing.sm },
