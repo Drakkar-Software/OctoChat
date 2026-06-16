@@ -52,7 +52,37 @@ roster write is denied with HTTP 403. In that mode the example falls back to
 generated. The space owner would need to call `createNodeInviteLink` separately to
 grant the requester access.
 
-## How this differs from the DM example
+## Client-side ticket submission without a REST API
+
+`createNodeInviteLink` (and therefore `createTicket`) requires the space owner's
+cap to write to the member roster. A client app that only has a member cap — or
+no space cap at all — can't call it directly.
+
+The alternative that needs **no REST API and no server credentials in the client**
+is the **DM-inbox path**: use the existing `createDmViaLink` machinery to deliver
+the ticket request to the desk bot's inbox.
+
+```
+client app (any identity)                  desk bot (space owner, always running)
+──────────────────────────                 ──────────────────────────────────────
+createDmViaLink(bot DM link)            ← publishes myDmLink()
+  │ sealed ticket-request message
+  └─▶ bot dminbox/<botId>/<month>
+                                           reconcileDmInbox()
+                                             └─ sees sealed message
+                                             └─ createTicket() on the desk space
+                                             └─ replies with requesterInviteLink
+                                                  via the DM room
+```
+
+The client only needs the **bot's DM link** (a public URL, safe to embed in a
+client app — it's just the bot's identity). The bot's space credentials and the
+member roster never touch the client. The entire exchange is E2EE.
+
+See [`dm-via-link`](../dm-via-link) for the DM mechanics. This ticket-request
+pattern is the recommended approach for client-side ticket submission.
+
+## How this example differs from the DM example
 
 [`dm-via-link`](../dm-via-link) sends a sealed invite to a pre-existing user via
 their `…/dm#…` profile link — both parties must be valid identities.

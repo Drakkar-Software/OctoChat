@@ -34,6 +34,7 @@ import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 // (`dist/index.js`). Rebuild if stale:
 //   pnpm --filter @drakkar.software/octochat-sdk build
 import {
+  SpaceAccessError,
   assignTicket,
   buildSession,
   configureKv,
@@ -201,8 +202,24 @@ async function main(): Promise<void> {
   }
 
   // 4) Open the space keyring + sync client.
+  //    For member-joined sessions (SPACE_INVITE_LINK path), the member may not
+  //    be a keyring recipient — joinSpaceByLink grants a cap but the owner must
+  //    separately add them to the keyring. For enc: false (plaintext) tickets,
+  //    no keyring is needed at all, so we fall back to a passthrough encryptor
+  //    on SpaceAccessError and skip attachment upload (which always seals bytes).
   const client = getSpaceClient(spaceId, agent);
-  const encryptor = await openEncryptor(client, agent.keys, spaceId, ownerTrustedAdders(agent));
+  type RawEncryptor = Awaited<ReturnType<typeof openEncryptor>>;
+  const encryptorOrNull = await openEncryptor(
+    client, agent.keys, spaceId, ownerTrustedAdders(agent),
+  ).catch((e: unknown) => {
+    if (!(e instanceof SpaceAccessError)) throw e;
+    return null;
+  });
+  const hasCrypto = encryptorOrNull !== null;
+  const encryptor: RawEncryptor = encryptorOrNull ?? ({
+    encrypt: async <T>(d: T) => d as unknown as Record<string, unknown>,
+    decrypt: async <T>(d: T) => d,
+  } as unknown as RawEncryptor);
   const sealer = encryptor as unknown as ByteSealer;
   const seal = encryptor as unknown as {
     encrypt: (d: Record<string, unknown>) => Promise<Record<string, unknown>>;
@@ -228,8 +245,14 @@ async function main(): Promise<void> {
 
   // 5) Send a screenshot attachment (uploaded + sealed before it leaves the client),
   //    then an initial text reply.
-  const screenshot = await sendAttachment(screenshotBytes(), 'safari-error.png', 'image/png');
-  console.log(`[ticket] sent     attachment ${screenshot.name} (${screenshot.size} B, kind=${screenshot.kind})`);
+  //    Skip the attachment in member mode — uploadAttachment always seals with the
+  //    space keyring regardless of enc setting, so it would fail without keyring access.
+  if (hasCrypto) {
+    const screenshot = await sendAttachment(screenshotBytes(), 'safari-error.png', 'image/png');
+    console.log(`[ticket] sent     attachment ${screenshot.name} (${screenshot.size} B, kind=${screenshot.kind})`);
+  } else {
+    console.log('[ticket] note     attachment skipped (no keyring — member mode, enc: false ticket)');
+  }
 
   await sendText(
     'Hi Alice! I can reproduce this — looking into it now. Could you share your Safari version?',
@@ -251,7 +274,7 @@ async function main(): Promise<void> {
   console.log(`\n[ticket] ── conversation (${initialMsgs.length} message(s)) ──`);
   for (const m of initialMsgs) {
     seen.add(m.id);
-    if (m.attachment) {
+    if (m.attachment && hasCrypto) {
       const bytes = await loadAttachment(client, sealer, ticketId, m.attachment);
       console.log(`[ticket]   ${formatMsg(m, agent.userId, AGENT_NAME)}  (${bytes.length} B decrypted)`);
     } else {
