@@ -1,28 +1,25 @@
-import { router } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { layout, shadows, spacing } from '@/theme';
-import { useProfile } from '@/lib/profile-context';
 import { useTheme } from '@/lib/use-theme';
-import { Avatar } from '@/components/ui/Avatar';
 
-import { SpaceSettingsButton } from './SpaceSettingsButton';
+import { CreateRoomButton } from './CreateRoomButton';
 import { SpaceSwitcher } from './SpaceSwitcher';
 
 /**
- * The shared header for the three mobile mode tabs (Chat · Agents · Work): the
- * self-contained {@link SpaceSwitcher} on the left (tap → bottom sheet to change
- * space) and a profile action on the right. Self-contained — each tab page just
- * drops it in. Mobile-only; the desktop shell uses the persistent sidebar instead.
+ * The shared web header for the three mobile-mode tabs (Chat · Agents · Work):
+ * the {@link SpaceSwitcher} centered as the title and an owner-gated
+ * {@link CreateRoomButton} on the right. Self-contained — each tab page just
+ * drops it in. Mobile/web-only; the desktop shell uses the persistent sidebar.
+ *
+ * Mirrors the native nav-stack header from {@link SpaceStackLayout}: centered
+ * switcher + "+" on the right. The avatar (profile) is reachable from the
+ * switcher's account-section footer.
  */
 export function SpaceTabHeader() {
   const { colors } = useTheme();
-  const { profile } = useProfile();
-  const meLabel = (profile?.name ?? '··').slice(0, 2).toUpperCase();
 
   return (
-    // Lit-from-above top edge (hairlineHi) + a soft drop shadow give the header
-    // marine depth so it reads as a raised surface, not a flat paper strip.
     <View
       style={[
         styles.bar,
@@ -30,11 +27,12 @@ export function SpaceTabHeader() {
         { backgroundColor: colors.paper, borderBottomColor: colors.lineSoft, borderTopColor: colors.hairlineHi },
       ]}
     >
+      {/* Left spacer — symmetrical with the right side so the switcher centers. */}
+      <View style={styles.side} />
       <SpaceSwitcher />
-      <SpaceSettingsButton />
-      <Pressable accessibilityRole="button" accessibilityLabel="Your profile" onPress={() => router.push('/you')} hitSlop={6}>
-        <Avatar label={meLabel} image={profile?.avatar} size={30} />
-      </Pressable>
+      <View style={[styles.side, styles.right]}>
+        <CreateRoomButton />
+      </View>
     </View>
   );
 }
@@ -50,4 +48,6 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: 1,
   },
+  side: { flex: 1, flexDirection: 'row', alignItems: 'center', minWidth: 32 },
+  right: { justifyContent: 'flex-end' },
 });

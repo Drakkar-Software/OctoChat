@@ -11,10 +11,13 @@ import { useTheme } from '@/lib/use-theme';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
-import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { StaggerList } from '@/components/ui/StaggerList';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
+
+
+
+import { CreateRoomSheet } from './CreateRoomSheet';
 
 import { MoveToCategorySheet } from './MoveToCategorySheet';
 import { RoomCategorySection } from './RoomCategorySection';
@@ -67,9 +70,6 @@ export function RoomCategoryList({
   const [catName, setCatName] = useState('');
   const [catError, setCatError] = useState<string | null>(null);
   const [addingRoom, setAddingRoom] = useState(false);
-  const [roomName, setRoomName] = useState('');
-  const [roomIsPublic, setRoomIsPublic] = useState(false);
-  const [roomError, setRoomError] = useState<string | null>(null);
   const names = categories.map((c) => c.name);
 
   const submitCategory = async () => {
@@ -79,18 +79,6 @@ export function RoomCategoryList({
     if (!n) return;
     const message = await onCreateCategory?.(n);
     setCatError(typeof message === 'string' ? message : null);
-  };
-
-  const submitRoom = async () => {
-    const n = roomName.trim();
-    setRoomName('');
-    setAddingRoom(false);
-    const pub = roomIsPublic;
-    setRoomIsPublic(false);
-    if (!n) return;
-    // Passes DEFAULT_CATEGORY so createRoom auto-creates the bucket if it doesn't exist.
-    const message = await onCreateRoom?.(DEFAULT_CATEGORY, n, pub);
-    setRoomError(typeof message === 'string' ? message : null);
   };
 
   // Cascade only the FIRST time this space's list is shown this session.
@@ -129,56 +117,22 @@ export function RoomCategoryList({
 
       {/* Empty-space "New channel" CTA — only when there are no categories yet. */}
       {categories.length === 0 && onCreateRoom ? (
-        addingRoom ? (
-          <View style={styles.emptyAddBox}>
-            <SegmentedControl
-              segments={VISIBILITY_SEGMENTS}
-              selected={roomIsPublic ? 'public' : 'private'}
-              onSelect={(k) => setRoomIsPublic(k === 'public')}
-            />
-            {roomIsPublic ? (
-              <Callout tone="warning" iconName="globe">
-                Not end-to-end encrypted — messages are world-readable.
-              </Callout>
-            ) : null}
-            <TextField
-              leadingIcon="hash"
-              value={roomName}
-              onChangeText={setRoomName}
-              onSubmitEditing={submitRoom}
-              onKeyPress={(e) => {
-                if (e.nativeEvent.key === 'Escape') { setAddingRoom(false); setRoomIsPublic(false); }
-              }}
-              placeholder="new-channel"
-              autoFocus
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="done"
-              containerStyle={[styles.addCatField, { backgroundColor: colors.paper }]}
-            />
-          </View>
-        ) : (
-          <View style={styles.emptyCta}>
-            <Button
-              label="New channel"
-              iconName="hash"
-              variant="primary"
-              onPress={() => {
-                setRoomError(null);
-                setAddingRoom(true);
-              }}
-            />
-          </View>
-        )
-      ) : null}
-
-      {roomError ? (
-        <View style={styles.notice}>
-          <Callout tone="warning" iconName="alert">
-            {roomError}
-          </Callout>
+        <View style={styles.emptyCta}>
+          <Button
+            label="New channel"
+            iconName="hash"
+            variant="primary"
+            onPress={() => setAddingRoom(true)}
+          />
         </View>
       ) : null}
+
+      <CreateRoomSheet
+        visible={addingRoom}
+        onClose={() => setAddingRoom(false)}
+        defaultCategory={DEFAULT_CATEGORY}
+        onSubmit={(name, category, isPublic) => onCreateRoom?.(category, name, isPublic)}
+      />
 
       {/* "New category" only shown once rooms exist — in the empty state we offer
           "New channel" above so the first action is always creating a room. */}
@@ -238,15 +192,9 @@ export function RoomCategoryList({
   );
 }
 
-const VISIBILITY_SEGMENTS = [
-  { key: 'private' as const, label: '🔒 Private' },
-  { key: 'public' as const, label: '🌐 Public' },
-];
-
 const styles = StyleSheet.create({
   addCat: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: spacing.md, marginTop: spacing.xs },
   addCatField: { marginHorizontal: spacing.xs, marginTop: spacing.xs },
   notice: { marginHorizontal: spacing.xs, marginTop: spacing.xs },
   emptyCta: { alignItems: 'center', marginTop: spacing.md, paddingHorizontal: spacing.md },
-  emptyAddBox: { marginTop: spacing.md, paddingHorizontal: spacing.xs, gap: spacing.xs },
 });

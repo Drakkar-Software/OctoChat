@@ -17,7 +17,7 @@
   "dependencies": {
     "@drakkar.software/expo-conductor": "0.4.1",
     "@drakkar.software/octochat-sdk": "workspace:*",
-    "@drakkar.software/octospaces-ui": "0.4.3",
+    "@drakkar.software/octospaces-ui": "0.4.4",
     "@drakkar.software/starfish-client": "3.0.0-alpha.27",
     "@drakkar.software/starfish-identities": "3.0.0-alpha.27",
     "@drakkar.software/starfish-keyring": "3.0.0-alpha.27",

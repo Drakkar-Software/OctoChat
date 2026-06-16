@@ -12,11 +12,11 @@ import { useSpaces } from '@/lib/use-spaces';
 import { useDms, type DmEntry } from '@/lib/use-dms';
 import type { Room } from '@drakkar.software/octochat-sdk';
 import { Divider } from '@/components/ui/Divider';
-import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { ChannelListSkeleton } from '@/components/chat/ChannelListSkeleton';
+import { ChatNoSpaces } from '@/components/chat/ChatEmpty';
 import { SpaceDigestCard } from '@/components/chat/SpaceDigestCard';
 import { DmList } from '@/components/chat/DmList';
 import { OfflineBanner } from '@/components/chat/OfflineBanner';
@@ -78,25 +78,7 @@ export default function RoomsScreen() {
       ) : spacesLoading || (!isDmHome && roomsLoading) ? (
         <ChannelListSkeleton />
       ) : !isDmHome && spaces.length === 0 ? (
-        // No spaces at all (different from "in a space but it has no channels").
-        // Show a welcoming entry point mirroring the desktop sidebar empty state
-        // (DesktopNav.tsx) rather than the misleading "No channels yet" message.
-        <View style={styles.emptyFloor}>
-          <EmptyState
-            iconName="globe"
-            title="No spaces yet"
-            subtitle="Join or create a space to start chatting."
-            action={
-              <Button
-                label="Join or create a space"
-                variant="primary"
-                iconName="plus"
-                full
-                onPress={() => router.push('/join')}
-              />
-            }
-          />
-        </View>
+        <ChatNoSpaces />
       ) : isDmHome ? (
         // EmptyState is flex:1, which collapses inside the ScrollView content container
         // — give it a floor so the no-DMs case still centers.
@@ -172,3 +154,4 @@ const styles = StyleSheet.create({
   emptyFloor: { minHeight: 260 },
   navDivider: { marginVertical: spacing.xs, marginHorizontal: spacing.xs },
 });
+

@@ -7,13 +7,11 @@ import type { ThreadSummary } from '@drakkar.software/octochat-sdk';
 import type { RoomCategory } from '@/lib/use-rooms';
 import { useRoomDropZone } from '@/lib/use-room-dnd';
 import { useTheme } from '@/lib/use-theme';
-import { Callout } from '@/components/ui/Callout';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
-import { SegmentedControl } from '@/components/ui/SegmentedControl';
-import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
+import { CreateRoomSheet } from './CreateRoomSheet';
 import { DraggableChannelRow } from './DraggableChannelRow';
 import { ThreadRow } from './ThreadRow';
 
@@ -56,24 +54,11 @@ export function RoomCategorySection({
 }: RoomCategorySectionProps) {
   const { colors } = useTheme();
   const [adding, setAdding] = useState(false);
-  const [name, setName] = useState('');
-  const [isPublic, setIsPublic] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [dropOver, setDropOver] = useState(false);
 
   // Web drag-drop target (no-op on native). The dropped room re-homes into this
   // category; `dropOver` paints a highlight while a row hovers over the section.
   const dropRef = useRoomDropZone(category.name, (roomId) => onMoveRoom?.(roomId), setDropOver);
-
-  const submit = async () => {
-    const n = name.trim();
-    setName('');
-    setAdding(false);
-    setIsPublic(false);
-    if (!n) return;
-    const message = await onCreateRoom?.(category.name, n, isPublic);
-    setError(typeof message === 'string' ? message : null);
-  };
 
   return (
     <View
@@ -104,18 +89,11 @@ export function RoomCategorySection({
         </Pressable>
         {onCreateRoom ? (
           <IconButton
-            name={adding ? 'x' : 'plus'}
+            name="plus"
             size={14}
             color={colors.inkMuted}
-            accessibilityLabel={adding ? 'Cancel new room' : `Add a room to ${category.name}`}
-            onPress={() => {
-              setError(null);
-              if (collapsed) onToggleCollapse(); // expand so the add box is visible
-              setAdding((a) => {
-                if (a) setIsPublic(false); // reset on close
-                return !a;
-              });
-            }}
+            accessibilityLabel={`Add a room to ${category.name}`}
+            onPress={() => setAdding(true)}
           />
         ) : null}
       </View>
@@ -138,56 +116,15 @@ export function RoomCategorySection({
           ))
         : null}
 
-      {!collapsed && adding ? (
-        <View style={styles.addBox}>
-          <SegmentedControl
-            segments={VISIBILITY_SEGMENTS}
-            selected={isPublic ? 'public' : 'private'}
-            onSelect={(k) => setIsPublic(k === 'public')}
-          />
-          {isPublic ? (
-            <View style={styles.visibilityWarning}>
-              <Callout tone="warning" iconName="globe">
-                Not end-to-end encrypted — messages are world-readable.
-              </Callout>
-            </View>
-          ) : null}
-          <TextField
-            leadingIcon="hash"
-            value={name}
-            onChangeText={setName}
-            onSubmitEditing={submit}
-            onKeyPress={(e) => {
-              // Escape cancels the add box (web). The header +/× toggle also closes it;
-              // we deliberately DON'T close on blur — that fired on every internal click
-              // (field icon, padding) and dismissed the box mid-interaction.
-              if (e.nativeEvent.key === 'Escape') { setAdding(false); setIsPublic(false); }
-            }}
-            placeholder="new-channel"
-            autoFocus
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="done"
-            containerStyle={[styles.addField, { backgroundColor: colors.paper }]}
-          />
-        </View>
-      ) : null}
-
-      {error ? (
-        <View style={styles.notice}>
-          <Callout tone="warning" iconName="lock">
-            {error}
-          </Callout>
-        </View>
-      ) : null}
+      <CreateRoomSheet
+        visible={adding}
+        onClose={() => setAdding(false)}
+        defaultCategory={category.name}
+        onSubmit={(name, cat, isPublic) => onCreateRoom?.(cat, name, isPublic)}
+      />
     </View>
   );
 }
-
-const VISIBILITY_SEGMENTS = [
-  { key: 'private' as const, label: '🔒 Private' },
-  { key: 'public' as const, label: '🌐 Public' },
-];
 
 const styles = StyleSheet.create({
   // A shelf: a lit top hairline + a touch of breathing room above it groups each
@@ -203,8 +140,4 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingRight: spacing.xs },
   toggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingVertical: 6, paddingHorizontal: spacing.md },
   label: { flex: 1 },
-  addBox: { marginTop: spacing.xs, paddingHorizontal: spacing.xs, gap: spacing.xs },
-  visibilityWarning: { marginTop: spacing.xs },
-  addField: { marginTop: spacing.xs },
-  notice: { marginHorizontal: spacing.xs, marginTop: spacing.xs },
 });

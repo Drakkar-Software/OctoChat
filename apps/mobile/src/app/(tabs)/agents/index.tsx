@@ -10,6 +10,7 @@ import type { Room } from '@drakkar.software/octochat-sdk';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { AgentsPanel } from '@/components/chat/AgentsPanel';
+import { ChatNoSpaces } from '@/components/chat/ChatEmpty';
 import { SpaceTabHeader } from '@/components/chat/SpaceTabHeader';
 
 /**
@@ -20,7 +21,7 @@ import { SpaceTabHeader } from '@/components/chat/SpaceTabHeader';
  */
 export default function AgentsScreen() {
   const { session } = useSession();
-  const { activeId } = useSpaces();
+  const { spaces, activeId, loading: spacesLoading } = useSpaces();
   const isDmHome = isDmHomeId(activeId);
   const { categories, isOwner } = useRooms(isDmHome ? null : activeId);
 
@@ -46,6 +47,8 @@ export default function AgentsScreen() {
     >
       {!session ? (
         <SignInPrompt subtitle="Create an identity to manage agents." />
+      ) : !spacesLoading && !isDmHome && spaces.length === 0 ? (
+        <ChatNoSpaces />
       ) : (
         <AgentsPanel
           categories={categories}
