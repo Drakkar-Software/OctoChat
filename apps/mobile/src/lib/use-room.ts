@@ -329,24 +329,22 @@ export function useRoom(roomId: string, opts: { enabled?: boolean; access?: Node
     [session, append],
   );
 
-  // Attachments live in the separate `attachments` collection (orthogonal to the
-  // append-only message log). For encrypted (E2EE) rooms the encryptor seals the blob
-  // client-side; for plaintext (public/unencrypted) rooms we pass null and the bytes
-  // are stored raw — the SDK's uploadAttachment/loadAttachment handle both paths.
-  // The only requirement is an open space client (`client`).
+  // Attachments live in the `objblob` collection, keyed by SPACE (not room). For
+  // encrypted (E2EE) rooms the encryptor seals the blob client-side; for plaintext
+  // (public/unencrypted) rooms we pass null and bytes are stored raw.
   const uploadAttachment = useCallback(
     async (bytes: Uint8Array, name: string, mime: string): Promise<AttachmentRef | null> => {
       if (!client) return null;
-      return uploadAttachmentDoc(client, encryptor ? (encryptor as unknown as ByteSealer) : null, roomId, bytes, name, mime);
+      return uploadAttachmentDoc(client, encryptor ? (encryptor as unknown as ByteSealer) : null, spaceId, bytes, name, mime);
     },
-    [client, encryptor, roomId],
+    [client, encryptor, spaceId],
   );
   const loadAttachment = useCallback(
     async (ref: AttachmentRef): Promise<Uint8Array | null> => {
       if (!client) return null;
-      return loadAttachmentDoc(client, encryptor ? (encryptor as unknown as ByteSealer) : null, roomId, ref);
+      return loadAttachmentDoc(client, encryptor ? (encryptor as unknown as ByteSealer) : null, spaceId, ref);
     },
-    [client, encryptor, roomId],
+    [client, encryptor, spaceId],
   );
 
   return {

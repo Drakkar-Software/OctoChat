@@ -65,13 +65,12 @@ export const config: SyncConfig = {
       maxBodyBytes: 131_072,
       allowedMimeTypes: JSON_ONLY,
     },
-    // Encrypted file attachments, in a per-space subtree keyed by room. Bytes are
-    // sealed client-side with the space keyring CEK (sealBytes), so the collection
-    // itself is "none" — the server only ever holds opaque ciphertext. Covered by
-    // the `spaces/{spaceId}/**` member cap; not split by room access tier.
+    // Encrypted file/image blobs (sealed client-side with the space keyring CEK).
+    // Keyed by space + blobId — mirrors octospaces `objblob`. Server stores opaque
+    // ciphertext ("none" encryption). Covered by the `spaces/{spaceId}/**` member cap.
     {
-      name: "attachments",
-      storagePath: "spaces/{spaceId}/attachments/{roomId}/{blobId}",
+      name: "objblob",
+      storagePath: "spaces/{spaceId}/objects/blobs/{blobId}",
       readRoles: ["space:member"],
       writeRoles: ["space:member"],
       encryption: "none",

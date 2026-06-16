@@ -64,7 +64,7 @@ const roleResolver = createCapCertRoleResolver({
   plugins: [identitiesServerPlugin, sharingServerPlugin],
   // The resolver buffers the body to verify the request signature and checks
   // it against this global ceiling BEFORE the per-collection limit runs (it
-  // defaults to 64 KB). Raise it to the largest collection cap (attachments,
+  // defaults to 64 KB). Raise it to the largest collection cap (objblob,
   // ~11 MB) so blob uploads aren't 413'd here; per-collection `maxBodyBytes`
   // still enforces each collection's own tighter limit downstream.
   maxBodyBytes: 11_534_336,

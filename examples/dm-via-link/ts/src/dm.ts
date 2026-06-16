@@ -194,7 +194,7 @@ async function main(): Promise<void> {
   const sendText = (text: string) =>
     append({ t: 'msg', e: { id: randomId(), authorId: sender.userId, ts: Date.now(), text } });
   const sendAttachment = async (bytes: Uint8Array, name: string, mime: string): Promise<AttachmentRef> => {
-    const attachment = await uploadAttachment(client, encryptor as unknown as ByteSealer, roomId, bytes, name, mime);
+    const attachment = await uploadAttachment(client, encryptor as unknown as ByteSealer, spaceId, bytes, name, mime);
     await append({ t: 'msg', e: { id: randomId(), authorId: sender.userId, ts: Date.now(), attachment } });
     return attachment;
   };
@@ -215,7 +215,7 @@ async function main(): Promise<void> {
   for (const m of ordered) {
     const who = m.authorId === sender.userId ? SENDER_NAME : peerName;
     if (m.attachment) {
-      const bytes = await loadAttachment(client, encryptor as unknown as ByteSealer, roomId, m.attachment);
+      const bytes = await loadAttachment(client, encryptor as unknown as ByteSealer, spaceId, m.attachment);
       console.log(`[dm]   ${who}: 📎 ${m.attachment.name} [${m.attachment.kind}] — ${bytes.length} B decrypted`);
     } else {
       console.log(`[dm]   ${who}: ${m.text ?? '(no text)'}`);

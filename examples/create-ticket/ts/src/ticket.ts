@@ -238,7 +238,7 @@ async function main(): Promise<void> {
     name: string,
     mime: string,
   ): Promise<AttachmentRef> => {
-    const attachment = await uploadAttachment(client, sealer, ticketId, bytes, name, mime);
+    const attachment = await uploadAttachment(client, sealer, spaceId, bytes, name, mime);
     await append({ t: 'msg', e: { id: randomId(), authorId: agent.userId, ts: Date.now(), attachment } });
     return attachment;
   };
@@ -275,7 +275,7 @@ async function main(): Promise<void> {
   for (const m of initialMsgs) {
     seen.add(m.id);
     if (m.attachment && hasCrypto) {
-      const bytes = await loadAttachment(client, sealer, ticketId, m.attachment);
+      const bytes = await loadAttachment(client, sealer, spaceId, m.attachment);
       console.log(`[ticket]   ${formatMsg(m, agent.userId, AGENT_NAME)}  (${bytes.length} B decrypted)`);
     } else {
       console.log(`[ticket]   ${formatMsg(m, agent.userId, AGENT_NAME)}`);

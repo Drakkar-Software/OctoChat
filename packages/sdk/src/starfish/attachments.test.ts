@@ -1,7 +1,8 @@
 /**
- * Tests for uploadAttachment / loadAttachment, covering both the E2EE path (enc present)
- * and the plaintext path (enc = null). Guards against the regression where `enc = null`
- * caused a silent no-op in the app's `uploadAttachment` / `loadAttachment` wrappers.
+ * Tests for uploadAttachment / loadAttachment (OctoChat wrapper over createObjectBlobStore).
+ * Blobs are keyed by SPACE (not room) and pushed to the `objblob` collection
+ * (`spaces/{spaceId}/objects/blobs/{blobId}`). Guards against the regression where
+ * `enc = null` caused a silent no-op, and verifies the cache/persist behaviour.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -26,7 +27,6 @@ beforeEach(() => {
 
 // ── Fake StarfishClient ────────────────────────────────────────────────────────
 
-type FakeBlob = { path: string; data: Uint8Array };
 function makeFakeClient() {
   const blobs = new Map<string, Uint8Array>();
   return {
@@ -80,12 +80,13 @@ describe('attachmentKind', () => {
 // ── uploadAttachment — encrypted (enc present) ─────────────────────────────────
 
 describe('uploadAttachment — encrypted (enc != null)', () => {
-  it('seals the blob before storing (stored bytes differ from plaintext)', async () => {
+  it('seals the blob before storing, pushes to objblob path (spaces/{spaceId}/objects/blobs/{blobId})', async () => {
     const client = makeFakeClient();
-    const ref: AttachmentRef = await uploadAttachment(client as never, fakeSealer, 'room-1', BYTES, 'test.png', 'image/png');
+    const ref: AttachmentRef = await uploadAttachment(client as never, fakeSealer, 'sp-1', BYTES, 'test.png', 'image/png');
     expect(fakeSealer.sealBytes).toHaveBeenCalledOnce();
     // The bytes on the server must be the SEALED form, not the plaintext.
     const storedPath = [...client.blobs.keys()][0]!;
+    expect(storedPath).toContain('sp-1/objects/blobs/');
     expect(client.blobs.get(storedPath)).toEqual(SEALED);
     expect(ref.name).toBe('test.png');
     expect(ref.mime).toBe('image/png');
@@ -95,30 +96,32 @@ describe('uploadAttachment — encrypted (enc != null)', () => {
 
   it('returns the original plaintext on loadAttachment (round-trip)', async () => {
     const client = makeFakeClient();
-    const ref = await uploadAttachment(client as never, fakeSealer, 'room-1', BYTES, 'test.txt', 'text/plain');
+    const ref = await uploadAttachment(client as never, fakeSealer, 'sp-1', BYTES, 'test.txt', 'text/plain');
     clearAttachmentCache(); // force a cold load
-    const loaded = await loadAttachment(client as never, fakeSealer, 'room-1', ref);
+    // expose push path as pull path
+    const pushPath = [...client.blobs.keys()][0]!;
+    client.blobs.set(pushPath.replace('/push/', '/pull/'), client.blobs.get(pushPath)!);
+    const loaded = await loadAttachment(client as never, fakeSealer, 'sp-1', ref);
     expect(loaded).toEqual(BYTES);
     expect(fakeSealer.openBytes).toHaveBeenCalledOnce();
   });
 
   it('loadAttachment serves from in-memory cache on the second call (no network)', async () => {
     const client = makeFakeClient();
-    const ref = await uploadAttachment(client as never, fakeSealer, 'room-1', BYTES, 'a.png', 'image/png');
-    // First load — primes the cache (upload already primed it in fact, so openBytes won't run).
-    const first = await loadAttachment(client as never, fakeSealer, 'room-1', ref);
-    const second = await loadAttachment(client as never, fakeSealer, 'room-1', ref);
+    const ref = await uploadAttachment(client as never, fakeSealer, 'sp-1', BYTES, 'a.png', 'image/png');
+    // Upload already primed the cache, so no pull should occur.
+    const first = await loadAttachment(client as never, fakeSealer, 'sp-1', ref);
+    const second = await loadAttachment(client as never, fakeSealer, 'sp-1', ref);
     expect(first).toEqual(BYTES);
     expect(second).toEqual(BYTES);
-    // pullBlob not called for the second load (in-memory cache hit).
     expect(client.pullBlob).not.toHaveBeenCalled();
   });
 
   it('loadAttachment falls back to KV persistence on cache miss (no network pull)', async () => {
     const client = makeFakeClient();
-    const ref = await uploadAttachment(client as never, fakeSealer, 'room-2', BYTES, 'b.txt', 'text/plain');
+    const ref = await uploadAttachment(client as never, fakeSealer, 'sp-2', BYTES, 'b.txt', 'text/plain');
     clearAttachmentCache(); // evict the sender's own cache entry
-    const loaded = await loadAttachment(client as never, fakeSealer, 'room-2', ref);
+    const loaded = await loadAttachment(client as never, fakeSealer, 'sp-2', ref);
     // KV path served it — pullBlob should NOT have been called.
     expect(client.pullBlob).not.toHaveBeenCalled();
     expect(loaded).toEqual(BYTES);
@@ -130,10 +133,10 @@ describe('uploadAttachment — encrypted (enc != null)', () => {
 describe('uploadAttachment — plaintext (enc = null)', () => {
   it('does NOT seal the blob (stored bytes are the raw plaintext)', async () => {
     const client = makeFakeClient();
-    const ref: AttachmentRef = await uploadAttachment(client as never, null, 'room-pub', BYTES, 'file.pdf', 'application/pdf');
+    const ref: AttachmentRef = await uploadAttachment(client as never, null, 'sp-pub', BYTES, 'file.pdf', 'application/pdf');
     expect(fakeSealer.sealBytes).not.toHaveBeenCalled();
-    // The bytes on the server must be the original plaintext.
     const storedPath = [...client.blobs.keys()][0]!;
+    expect(storedPath).toContain('sp-pub/objects/blobs/');
     expect(client.blobs.get(storedPath)).toEqual(BYTES);
     expect(ref.name).toBe('file.pdf');
     expect(ref.mime).toBe('application/pdf');
@@ -143,9 +146,11 @@ describe('uploadAttachment — plaintext (enc = null)', () => {
 
   it('returns the original bytes on loadAttachment (round-trip, no open call)', async () => {
     const client = makeFakeClient();
-    const ref = await uploadAttachment(client as never, null, 'room-pub', BYTES, 'img.jpg', 'image/jpeg');
+    const ref = await uploadAttachment(client as never, null, 'sp-pub', BYTES, 'img.jpg', 'image/jpeg');
     clearAttachmentCache();
-    const loaded = await loadAttachment(client as never, null, 'room-pub', ref);
+    const pushPath = [...client.blobs.keys()][0]!;
+    client.blobs.set(pushPath.replace('/push/', '/pull/'), client.blobs.get(pushPath)!);
+    const loaded = await loadAttachment(client as never, null, 'sp-pub', ref);
     expect(loaded).toEqual(BYTES);
     expect(fakeSealer.openBytes).not.toHaveBeenCalled();
   });
@@ -154,14 +159,11 @@ describe('uploadAttachment — plaintext (enc = null)', () => {
     // Simulate: some other device uploaded a plaintext blob. We have neither the
     // in-memory cache nor the KV entry — must pull from the server.
     const client = makeFakeClient();
-    // The pull path is /pull/spaces/<spaceId>/attachments/<roomId>/<blobId>.
-    // spaceIdFromRoomId('room-pub') = 'room-pub' (2-segment id), so:
-    const fakePullPath = '/pull/spaces/room-pub/attachments/room-pub/blob-x';
+    // objblob pull path: /pull/spaces/{spaceId}/objects/blobs/{blobId}
+    const fakePullPath = '/pull/spaces/sp-pub/objects/blobs/blob-x';
     client.blobs.set(fakePullPath, BYTES);
-    // Build a fake ref that points to this blob.
     const ref: AttachmentRef = { blobId: 'blob-x', name: 'img.jpg', mime: 'image/jpeg', size: 5, kind: 'image' };
-    // Pull via loadAttachment with no enc and a cold cache.
-    const loaded = await loadAttachment(client as never, null, 'room-pub', ref);
+    const loaded = await loadAttachment(client as never, null, 'sp-pub', ref);
     expect(client.pullBlob).toHaveBeenCalledOnce();
     expect(loaded).toEqual(BYTES);
     expect(fakeSealer.openBytes).not.toHaveBeenCalled();
@@ -172,12 +174,10 @@ describe('uploadAttachment — plaintext (enc = null)', () => {
 
 describe('enc path integrity', () => {
   it('loading a sealed blob with enc=null returns the sealed (garbled) bytes — not plaintext', async () => {
-    // This tests that the enc=null path really is raw passthrough: if you accidentally
-    // load with enc=null what was uploaded with enc=fakeSealer, you get garbled bytes.
     const client = makeFakeClient();
-    const ref = await uploadAttachment(client as never, fakeSealer, 'room-x', BYTES, 'f.bin', 'application/octet-stream');
+    const ref = await uploadAttachment(client as never, fakeSealer, 'sp-x', BYTES, 'f.bin', 'application/octet-stream');
     clearAttachmentCache();
-    const wrong = await loadAttachment(client as never, null, 'room-x', ref);
+    const wrong = await loadAttachment(client as never, null, 'sp-x', ref);
     // The KV stored the SEALED form; loading without dec gives us the sealed form — NOT BYTES.
     expect(wrong).toEqual(SEALED);
   });
