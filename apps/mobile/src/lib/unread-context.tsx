@@ -111,18 +111,27 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   // the shared SpacesProvider (which sits above this one), NOT via useSpaces():
   // that hook overlays unread state and would create a circular dep. The provider
   // already refreshes on navigation, so a join/create propagates here for free.
-  const { spaces, dms, setActiveId } = useSpacesContext();
+  const { spaces, dms, dmSpaceIds, setActiveId } = useSpacesContext();
   // DM spaces are kept out of the visible `spaces` list (no rail tile — see
   // starfish/dm.ts), but their rooms still need the live SSE stream + unread
-  // aggregation like any other room. Union the DM peer→space map's ids into the
-  // candidate set: without it the server forwards no room-change event for a DM
-  // space, so an open DM never live-pulls a peer's message (the conversation
-  // wouldn't follow to the new message the way a normal channel does), and DM
-  // unread would be pruned on hydrate (the prune below drops rooms whose space
-  // isn't in this set). Deduped, though DM spaces never overlap the visible list.
+  // aggregation like any other room. Union DM space ids into the candidate set
+  // from TWO sources (both deduped by the Set):
+  //
+  //   1. `dmSpaceIds` — the `dm-` ids extracted from the DURABLE joined-spaces
+  //      list in SpacesProvider. This is populated immediately on first paint
+  //      (even from the primed snapshot) so DM spaces are subscribed as early as
+  //      rooms, with no async gap. This is the primary source.
+  //
+  //   2. `Object.values(dms)` — the peer→space index, kept as a belt-and-
+  //      suspenders for any DM that is in the index but somehow missing from the
+  //      joined list (shouldn't happen for a fully-established DM, but defensive).
+  //
+  // Without the DM ids here the server forwards no room-change event for a DM
+  // space, so an open DM never live-pulls a peer's message and DM unread is
+  // pruned on hydrate (the prune below drops rooms whose space isn't in this set).
   const spaceIds = useMemo(
-    () => [...new Set([...spaces.map((s) => s.id), ...Object.values(dms)])],
-    [spaces, dms],
+    () => [...new Set([...spaces.map((s) => s.id), ...dmSpaceIds, ...Object.values(dms)])],
+    [spaces, dmSpaceIds, dms],
   );
 
   // Deps for resolving a clicked toast's room name/kind + focusing its space (web/

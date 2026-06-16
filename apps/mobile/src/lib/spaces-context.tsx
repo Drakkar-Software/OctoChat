@@ -40,6 +40,13 @@ interface SpacesContextValue {
   spaces: Space[];
   /** Peer userId → shared DM-space id. Drives the Direct Messages section. */
   dms: DmMap;
+  /** The `dm-` space ids from the DURABLE joined-spaces list (same source as
+   *  `spaces`, before `railSpaces` filters them out). Used by `UnreadProvider` to
+   *  subscribe DM spaces for SSE + FCM push without depending on the lossy `dms`
+   *  index — DM spaces are reliably persisted via `addJoinedSpace`/
+   *  `addJoinedSpaceWithCap` on both sides of the DM. Available immediately from
+   *  the primed snapshot (no async gap). */
+  dmSpaceIds: string[];
   activeId: string | null;
   setActiveId: (id: string | null) => void;
   loading: boolean;
@@ -64,6 +71,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [dms, setDms] = useState<DmMap>({});
+  const [dmSpaceIds, setDmSpaceIds] = useState<string[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -72,6 +80,11 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     const { spaces: list, mutes, reads, archivedDms, dms: dmMap } = await readSpaces(session.spacesRegistryClient, session.userId);
     const rail = railSpaces(list);
     setSpaces(rail);
+    // The durable joined-spaces list is the reliable source for DM space ids — DM
+    // spaces are persisted on both sides via addJoinedSpace/addJoinedSpaceWithCap,
+    // unlike the lossy `dms` peer-index. Expose them for the SSE+FCM subscription
+    // (see UnreadProvider) independently of the `dms` map.
+    setDmSpaceIds(list.filter((s) => isDmSpaceId(s.id)).map((s) => s.id));
     // Derive DMs from the durable `dm-` spaces, not just the lossy `dms` index, so a DM
     // survives a clobbered/missing map entry and re-syncs across same-seed devices.
     setDms(dmMap);
@@ -112,6 +125,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     if (!session) {
       setSpaces([]);
       setDms({});
+      setDmSpaceIds([]);
       setActiveId(null);
       setLoading(false);
       return;
@@ -128,6 +142,11 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       // Paint the rail instantly from the primed snapshot…
       const rail = railSpaces(primed);
       setSpaces(rail);
+      // The primed list IS the full _spaces list — extract DM space ids from it
+      // immediately so the SSE + FCM subscription covers DMs on first paint (same
+      // timing as rooms). Without this, dmSpaceIds stays [] until refresh() below
+      // completes, creating a window where DM messages arrive unsubscribed.
+      setDmSpaceIds(primed.filter((s) => isDmSpaceId(s.id)).map((s) => s.id));
       setActiveId((prev) => prev ?? rail[0]?.id ?? null);
       setLoading(false);
       // …but the prime only carries the spaces array, NOT the `dms` map — so the
@@ -241,8 +260,8 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<SpacesContextValue>(
-    () => ({ spaces, dms, activeId, setActiveId, loading, refresh, createSpace, reorderSpaces, moveSpace }),
-    [spaces, dms, activeId, loading, refresh, createSpace, reorderSpaces, moveSpace],
+    () => ({ spaces, dms, dmSpaceIds, activeId, setActiveId, loading, refresh, createSpace, reorderSpaces, moveSpace }),
+    [spaces, dms, dmSpaceIds, activeId, loading, refresh, createSpace, reorderSpaces, moveSpace],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
