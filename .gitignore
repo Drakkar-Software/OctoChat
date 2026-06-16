@@ -34,6 +34,9 @@ yarn-error.*
 .env*.local
 .env
 
+# example bot state (contains private keys — never commit)
+.bot-state.json
+
 # typescript
 *.tsbuildinfo
 

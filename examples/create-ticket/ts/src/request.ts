@@ -27,11 +27,17 @@
  * The requester ends up with a **ticket-scoped cap only** — they can read/write
  * that one ticket room; they cannot see other rooms or tickets in the space.
  *
- * Two modes:
- *   DEFAULT (zero setup):  creates a fresh bot + space so the script is
- *     self-contained and works against any server.
+ * Three modes:
+ *   PERSISTED (default):  on first run, creates a fresh bot + space and saves
+ *     keys + space id + KV snapshot to `.bot-state.json` next to `.env`.
+ *     Subsequent runs restore from that file — same identity link every time.
  *   ENV-DRIVEN:  set BOT_IDENTITY_LINK and REQUESTER_SPACE_ID to use a real
- *     desk bot (production pattern).
+ *     desk bot without any local state file.
+ *   STATELESS:  set STATELESS=1 to disable persistence (ephemeral identity,
+ *     useful for CI / one-shot testing).
+ *
+ * The state file stores private keys in plaintext — keep it out of source
+ * control (it is listed in .gitignore as `.bot-state.json`).
  *
  * Run from the repo root:
  *   pnpm --filter @drakkar.software/octochat-sdk build
@@ -39,6 +45,7 @@
  *   STARFISH_URL=http://127.0.0.1:8799 \
  *     node_modules/.bin/tsx examples/create-ticket/ts/src/request.ts
  */
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
@@ -92,6 +99,34 @@ const REQUESTER_SPACE_ID = process.env.REQUESTER_SPACE_ID?.trim() || '';
 const BOT_NAME = process.env.BOT_NAME?.trim() || 'Desk Bot';
 const REQUESTER_NAME = process.env.REQUESTER_NAME?.trim() || 'Alice (requester)';
 const TICKET_ORIGIN = process.env.TICKET_ORIGIN?.trim() || 'https://desk.drakkar.software';
+/** Set STATELESS=1 to skip loading/saving the bot state file. */
+const STATELESS = process.env.STATELESS === '1';
+
+// ── Local bot-state persistence ───────────────────────────────────────────────
+
+/** Stored in `.bot-state.json` next to `.env` — private keys, gitignored. */
+interface BotState {
+  userId: string;
+  spaceId: string;
+  keys: { edPub: string; edPriv: string; kemPub: string; kemPriv: string };
+  kv: Record<string, string>;
+}
+
+const STATE_FILE = join(import.meta.dirname, '..', '..', '.bot-state.json');
+
+async function loadBotState(): Promise<BotState | null> {
+  if (STATELESS) return null;
+  try {
+    return JSON.parse(await readFile(STATE_FILE, 'utf8')) as BotState;
+  } catch {
+    return null; // not found or unreadable — start fresh
+  }
+}
+
+async function saveBotState(state: BotState): Promise<void> {
+  if (STATELESS) return;
+  await writeFile(STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
+}
 
 /** How often (ms) to poll for the bot's reconcile / the requester's grant. */
 const POLL_MS = 500;
@@ -122,12 +157,27 @@ async function newUser(name: string): Promise<Session> {
 
 async function main(): Promise<void> {
   configureOctoChat({ syncBase: SERVER, ...(NAMESPACE ? { syncNamespace: NAMESPACE } : {}) });
-  // In-memory KV — sufficient for a one-shot example; a real app uses platform KV.
-  const mem = new Map<string, string>();
+
+  // ── KV: write-through adapter persisting to .bot-state.json ──────────────
+  // Load any saved state first so the Map is pre-populated before configureKv.
+  const saved = await loadBotState();
+  const mem = new Map<string, string>(Object.entries(saved?.kv ?? {}));
+
+  // currentBotInfo is set once we know the bot's keys/userId/spaceId.
+  // flushState is a no-op until then (guards on null).
+  let currentBotInfo: BotState | null = saved
+    ? { userId: saved.userId, spaceId: saved.spaceId, keys: saved.keys, kv: {} }
+    : null;
+
+  const flushState = async (): Promise<void> => {
+    if (!currentBotInfo) return;
+    await saveBotState({ ...currentBotInfo, kv: Object.fromEntries(mem) });
+  };
+
   configureKv({
     get: async (k) => mem.get(k) ?? null,
-    set: async (k, v) => void mem.set(k, v),
-    remove: async (k) => void mem.delete(k),
+    set: async (k, v) => { mem.set(k, v); await flushState(); },
+    remove: async (k) => { mem.delete(k); await flushState(); },
   });
 
   console.log('[req] OctoDesk sealed resource-request example');
@@ -139,22 +189,36 @@ async function main(): Promise<void> {
   let spaceId: string;
 
   if (BOT_IDENTITY_LINK && REQUESTER_SPACE_ID) {
-    // Production-style: use a real bot link + space id from env vars.
+    // Env-driven: use a real bot link + space id (no local state file involved).
     const i = BOT_IDENTITY_LINK.indexOf('#');
     botLink = decodeIdentityLink(i === -1 ? BOT_IDENTITY_LINK : BOT_IDENTITY_LINK.slice(i + 1));
     spaceId = REQUESTER_SPACE_ID;
     console.log(`[req] bot     via BOT_IDENTITY_LINK (${botLink.ownerId.slice(0, 8)}…)`);
     console.log(`[req] space   via REQUESTER_SPACE_ID → ${spaceId.slice(0, 8)}…`);
-  } else {
-    // Self-contained: create a fresh bot + space so zero prior state is needed.
-    bot = await newUser(BOT_NAME);
-    const space = await createSpace(bot, 'Drakkar Support');
-    spaceId = space.id;
+  } else if (saved) {
+    // Restored: rebuild session from saved keys — no newUser / createSpace needed.
+    bot = await buildSession({ userId: saved.userId, keys: saved.keys }, BOT_NAME);
+    spaceId = saved.spaceId;
     const fullLink = await myIdentityLink(bot, TICKET_ORIGIN, '/request');
     if (!fullLink) throw new Error('could not derive bot identity link');
     const i = fullLink.indexOf('#');
     botLink = decodeIdentityLink(i === -1 ? fullLink : fullLink.slice(i + 1));
-    console.log(`[req] bot     "${BOT_NAME}" (${bot.userId.slice(0, 8)}…)`);
+    console.log(`[req] bot     "${BOT_NAME}" (${bot.userId.slice(0, 8)}…)  [restored from state]`);
+    console.log(`[req] space   ${spaceId.slice(0, 8)}…  [restored]`);
+    console.log(`[req] link    ${fullLink}`);
+  } else {
+    // Fresh: generate a new bot + space and persist for next run.
+    bot = await newUser(BOT_NAME);
+    const space = await createSpace(bot, 'Drakkar Support');
+    spaceId = space.id;
+    // Set currentBotInfo so flushState captures everything written to mem so far.
+    currentBotInfo = { userId: bot.userId, spaceId, keys: bot.keys, kv: {} };
+    await flushState();
+    const fullLink = await myIdentityLink(bot, TICKET_ORIGIN, '/request');
+    if (!fullLink) throw new Error('could not derive bot identity link');
+    const i = fullLink.indexOf('#');
+    botLink = decodeIdentityLink(i === -1 ? fullLink : fullLink.slice(i + 1));
+    console.log(`[req] bot     "${BOT_NAME}" (${bot.userId.slice(0, 8)}…)  [new — state saved to ${STATE_FILE}]`);
     console.log(`[req] space   "${space.name}" → ${spaceId.slice(0, 8)}…`);
     console.log(`[req] link    ${fullLink}`);
   }
