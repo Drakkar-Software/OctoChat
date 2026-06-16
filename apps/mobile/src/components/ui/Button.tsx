@@ -1,9 +1,10 @@
+import { useState } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated from 'react-native-reanimated';
 
-import { fonts, glowShadow, opacity, radii, shadows, spacing, type as typeScale } from '@/theme';
+import { focusWidth, fonts, glowShadow, opacity, radii, shadows, spacing, type as typeScale } from '@/theme';
 import { useHover } from '@/lib/use-hover';
 import { useScalePress } from '@/lib/use-scale-press';
 import { useTheme, type Palette } from '@/lib/use-theme';
@@ -78,6 +79,7 @@ export function Button({
   const s = SIZES[size];
   const { hovered, hoverProps } = useHover();
   const { animStyle, onPressIn, onPressOut } = useScalePress({ scaleTo: 0.97 });
+  const [focused, setFocused] = useState(false);
 
   const isPrimary = variant === 'primary';
   const isPill = shape === 'pill';
@@ -110,6 +112,8 @@ export function Button({
       {...hoverProps}
       onPressIn={onPressIn}
       onPressOut={onPressOut}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
       style={[
         styles.base,
         {
@@ -123,6 +127,11 @@ export function Button({
           gap: square ? 0 : s.gap,
         },
         isPrimary ? glowShadow(colors.glow, hovered ? 0.34 : 0.18, hovered ? 12 : 9) : variant === 'secondary' && hovered ? shadows.sm : null,
+        // Web keyboard focus ring — a 2px accent outline (outlineOffset keeps it
+        // outside the border so it doesn't bleed into the button's fill layer).
+        Platform.OS === 'web' && focused
+          ? ({ outlineWidth: focusWidth, outlineColor: colors.focusRing, outlineStyle: 'solid', outlineOffset: 2 } as StyleProp<ViewStyle>)
+          : null,
         animStyle,
       ]}
     >

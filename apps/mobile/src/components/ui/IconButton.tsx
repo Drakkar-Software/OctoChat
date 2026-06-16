@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Pressable, StyleSheet } from 'react-native';
+import { Platform, Pressable, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 
-import { radii } from '@/theme';
+import { focusWidth, radii } from '@/theme';
 import { useHover } from '@/lib/use-hover';
 import { useScalePress } from '@/lib/use-scale-press';
 import { useTheme } from '@/lib/use-theme';
@@ -25,6 +26,7 @@ export function IconButton({ name, onPress, size = 20, color, accessibilityLabel
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
   const { animStyle, onPressIn, onPressOut } = useScalePress({ scaleTo: 0.86, fadeTo: 0.7 });
+  const [focused, setFocused] = useState(false);
 
   return (
     <AnimatedPressable
@@ -35,7 +37,18 @@ export function IconButton({ name, onPress, size = 20, color, accessibilityLabel
       {...hoverProps}
       onPressIn={onPressIn}
       onPressOut={onPressOut}
-      style={[styles.btn, { backgroundColor: hovered ? colors.hover : 'transparent' }, animStyle, style]}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={[
+        styles.btn,
+        { backgroundColor: hovered ? colors.hover : 'transparent' },
+        // Web keyboard focus ring — accent outline just outside the pill target.
+        Platform.OS === 'web' && focused
+          ? ({ outlineWidth: focusWidth, outlineColor: colors.focusRing, outlineStyle: 'solid', outlineOffset: 1 } as StyleProp<ViewStyle>)
+          : null,
+        animStyle,
+        style,
+      ]}
     >
       <Icon name={name} size={size} color={color ?? colors.inkSoft} />
     </AnimatedPressable>
