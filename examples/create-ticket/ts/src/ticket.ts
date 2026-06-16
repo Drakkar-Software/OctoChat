@@ -40,7 +40,9 @@ import {
   configureOctoChat,
   createSpace,
   createTicket,
+  createTicketNode,
   decodeSpaceInviteLink,
+  defaultTicketMeta,
   ensureProfileKeys,
   getSpaceClient,
   joinSpaceByLink,
@@ -144,7 +146,7 @@ async function main(): Promise<void> {
   let spaceId: string;
   if (SPACE_INVITE_LINK) {
     const i = SPACE_INVITE_LINK.indexOf('#');
-    const fragment = i === -1 ? SPACE_INVITE_LINK : SPACE_INVITE_LINK.slice(i);
+    const fragment = i === -1 ? SPACE_INVITE_LINK : SPACE_INVITE_LINK.slice(i + 1);
     const token = decodeSpaceInviteLink(fragment);
     const space = await joinSpaceByLink(agent, token);
     spaceId = space.id;
@@ -155,19 +157,48 @@ async function main(): Promise<void> {
     console.log(`[ticket] space    "${SPACE_NAME}" created → ${spaceId}`);
   }
 
-  // 3) Create the ticket room. `createTicket` mints an ObjectNode (type: 'ticket'),
-  //    attaches TicketMeta (status: open, priority: high), and returns a per-node
-  //    invite link the requester can use to join just this ticket room.
-  //    `memberTicket: false` (default) = plaintext node for external requesters.
-  //    Switch to `true` for full E2EE when the requester is a space member.
-  const { ticketId, requesterInviteLink } = await createTicket(agent, spaceId, {
-    title: 'Login fails on Safari 17',
-    requester: 'alice@example.com',
-    priority: 'high',
-    inviteLinkOrigin: TICKET_ORIGIN,
-  });
-  console.log(`[ticket] created  ticket ${ticketId}`);
-  console.log(`[ticket] invite   ${requesterInviteLink}`);
+  // 3) Create the ticket room.
+  //
+  //    OWNER PATH (new space, or existing space where the agent is the owner):
+  //      `createTicket` mints an ObjectNode, attaches TicketMeta, and calls
+  //      `createNodeInviteLink` — which requires owner-level access to the space
+  //      member roster. Returns a `requesterInviteLink` for the non-member requester.
+  //
+  //    MEMBER PATH (joined via SPACE_INVITE_LINK — regular member, not owner):
+  //      `createNodeInviteLink` would 403 (reading the member roster is owner-only).
+  //      Use `createTicketNode` directly instead — this writes the ticket object
+  //      into the space's object index (member-writable) without issuing an invite.
+  //      No `requesterInviteLink` is generated; the requester would need to be
+  //      added by the space owner separately.
+  const TICKET_TITLE = 'Login fails on Safari 17';
+  const TICKET_REQUESTER = 'alice@example.com';
+  const ticketId = `ticket-${randomId()}`;
+
+  let requesterInviteLink: string | null = null;
+
+  if (SPACE_INVITE_LINK) {
+    // Member path — just create the node, no invite link.
+    await createTicketNode(
+      agent,
+      spaceId,
+      ticketId,
+      TICKET_TITLE,
+      defaultTicketMeta({ requester: TICKET_REQUESTER, priority: 'high' }),
+      false,
+    );
+    console.log(`[ticket] created  ticket ${ticketId}  (member mode — no requester invite link)`);
+  } else {
+    // Owner path — full createTicket with requester invite link.
+    const result = await createTicket(agent, spaceId, {
+      title: TICKET_TITLE,
+      requester: TICKET_REQUESTER,
+      priority: 'high',
+      inviteLinkOrigin: TICKET_ORIGIN,
+    });
+    requesterInviteLink = result.requesterInviteLink;
+    console.log(`[ticket] created  ticket ${result.ticketId}`);
+    console.log(`[ticket] invite   ${requesterInviteLink}`);
+  }
 
   // 4) Open the space keyring + sync client.
   const client = getSpaceClient(spaceId, agent);
