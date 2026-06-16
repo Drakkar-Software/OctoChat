@@ -5,7 +5,7 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { configureKv } from '@drakkar.software/octospaces-sdk';
-import { cacheProfile, loadCachedProfile } from '@drakkar.software/octospaces-sdk';
+import { cacheProfile, loadCachedProfile } from '../index';
 
 const store = new Map<string, string>();
 const PROFILE = { pseudo: 'alice', avatar: 'https://example.com/a.png', edPub: 'aa', kemPub: 'bb' };

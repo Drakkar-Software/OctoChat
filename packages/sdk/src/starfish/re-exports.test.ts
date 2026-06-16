@@ -28,8 +28,8 @@ describe('account-seal re-exports', () => {
 });
 
 // ── session-restore ───────────────────────────────────────────────────────────
-// session-restore.ts deleted — import directly from octospaces-sdk
-import { sessionFromPersisted, activeAccountOf } from '@drakkar.software/octospaces-sdk';
+// session-restore.ts deleted — hoisted into barrel; import from barrel to guard re-export coverage
+import { sessionFromPersisted, activeAccountOf } from '../index';
 
 describe('session-restore re-exports', () => {
   it('exports sessionFromPersisted and activeAccountOf', () => {
