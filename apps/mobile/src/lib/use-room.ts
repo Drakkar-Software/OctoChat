@@ -106,7 +106,11 @@ export function useRoom(roomId: string, opts: { enabled?: boolean; access?: Node
     if (access === 'public') {
       return { pull: streamPubRoomPull(roomId), push: streamPubRoomPush(roomId), canWrite: true };
     }
-    if (access === 'invite' && !enc) {
+    if (access === 'invite') {
+      // Invite-stream rooms (OctoDesk tickets) live in objinvlog whether plaintext OR E2EE —
+      // for enc tickets the bytes are sealed client-side with the per-node keyring (the
+      // encryptor comes from use-room-open-flow), but the log is still the cap-gated invite
+      // stream, NOT the space-tier objlog.
       // Derive write permission from the stored access entry. Prefer the per-node entry
       // (set when invited to a specific node) over the space-wide entry, matching the
       // SDK's own nodeEntry ?? spaceEntry precedence in getNodeAccess / buildNodeAccess.

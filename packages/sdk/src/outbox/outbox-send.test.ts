@@ -81,6 +81,23 @@ describe('sendQueued — enc room', () => {
     expect(encryptor.encrypt).toHaveBeenCalledOnce();
     expect(mockAppend).not.toHaveBeenCalled(); // spaceClient.append not used
   });
+
+  it('E2EE ticket (invite + enc): seals via the NODE keyring, appends to the cap-gated invite stream', async () => {
+    const encClient = { append: vi.fn(async () => undefined) }; // node content client (must NOT be used for the stream)
+    const encryptor = { encrypt: vi.fn(async () => ({ _encrypted: 'ct' })) };
+    vi.mocked(readIndexRooms).mockResolvedValue(rooms('invite', true) as never);
+    vi.mocked(buildNodeAccess).mockResolvedValue({ client: encClient, encryptor } as never);
+    await sendQueued(SESSION, entry());
+    // SDK was told the access tier so it opens the per-node keyring (not the space keyring).
+    expect(buildNodeAccess).toHaveBeenCalledWith(SESSION, 'sp-abc', 'sp-abc-general', { access: 'invite', enc: true });
+    // Body is sealed (ciphertext), not plaintext.
+    expect(encryptor.encrypt).toHaveBeenCalledOnce();
+    // Appended via the per-node STREAM client (objinvlog, path contains /n/), NOT access.client.
+    const [pushPath, body] = mockAppend.mock.calls[0] as [string, unknown];
+    expect(pushPath).toContain('/n/');
+    expect(body).toEqual({ _encrypted: 'ct' });
+    expect(encClient.append).not.toHaveBeenCalled();
+  });
 });
 
 describe('sendQueued — plaintext routing', () => {

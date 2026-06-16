@@ -39,8 +39,19 @@ async function resolveContext(
   if (!room) throw new Error('Room not found in index — will retry');
 
   if (room.enc) {
-    const access = await buildNodeAccess(session, entry.spaceId, entry.roomId, { enc: true });
+    // Pass `access` so the SDK opens the PER-NODE keyring for invite+enc (E2EE tickets)
+    // instead of the space-wide keyring.
+    const access = await buildNodeAccess(session, entry.spaceId, entry.roomId, { access: room.access, enc: true });
     if (!access) throw new Error('No keyring access for room');
+    // An E2EE ticket (invite+enc) seals with the node keyring but its log lives in the
+    // cap-gated invite stream (objinvlog) — append via the per-node stream cap client.
+    if (room.access === 'invite') {
+      return {
+        client: getNodeStreamClient(entry.spaceId, entry.roomId, session),
+        encryptor: access.encryptor,
+        pushPath: streamInvRoomPush(entry.roomId),
+      };
+    }
     return { client: access.client, encryptor: access.encryptor, pushPath: streamRoomPush(entry.roomId) };
   }
 

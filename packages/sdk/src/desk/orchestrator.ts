@@ -3,12 +3,14 @@
  * with the per-node invite-link flow from `octospaces-sdk`, so callers (webhooks,
  * app flows) never touch ObjectNode internals.
  *
- * Access model:
- *  - Non-member requester → `enc: false` (plaintext, but per-node cap enforced
- *    server-side). The returned `requesterInviteLink` gives the requester access
- *    to their ticket only.
- *  - Member requester (memberTicket: true) → `enc: true` (full E2EE under space
- *    keyring). Requester must already hold the keyring (i.e. be a space member).
+ * Access model (both tiers ISOLATE the requester to their own ticket node — never
+ * the space index or other tickets):
+ *  - Plaintext ticket → `enc: false`. Per-node content + stream caps, cap-gated
+ *    server-side; messages are stored plaintext.
+ *  - E2EE ticket (memberTicket: true) → `enc: true`. The ticket gets its OWN
+ *    per-node keyring (CEK wrapped only to the ticket's participants — requester +
+ *    owner/bot, plus agents on assignment); the requester decrypts via that keyring
+ *    WITHOUT ever holding the space-wide key. No space membership required.
  *
  * The `makeTicketCreateHandler` factory returns a `create` callback compatible
  * with `acceptResourceRequest({ create })` so an OctoDesk bot can accept sealed
@@ -39,7 +41,7 @@ export async function createTicket(
     title: string;
     requester: string;
     priority?: TicketPriority;
-    /** true → enc: true (requester must hold the space keyring). Default: false. */
+    /** true → enc: true (E2EE via the ticket's OWN per-node keyring). Default: false. */
     memberTicket?: boolean;
     inviteLinkOrigin: string;
   },
@@ -58,9 +60,11 @@ export async function createTicket(
     { enc },
     true,
     opts.inviteLinkOrigin,
-    // Non-member requesters (enc:false) must reach only their own ticket — not the full
-    // desk space index. enc:true tickets are already space members so isolated is a no-op.
-    { isolated: !enc },
+    // ALWAYS isolate: a ticket requester must reach only their own ticket node, never the
+    // desk space index or other tickets. For enc tickets `isolated` ALSO selects the
+    // per-node keyring (E2EE without the space-wide key); for plaintext it withholds the
+    // space cap. (octospaces-sdk ≥0.12.6.)
+    { isolated: true },
   );
 
   return { ticketId, requesterInviteLink: link };

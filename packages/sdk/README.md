@@ -103,6 +103,30 @@ configureStarfishPlatform();
 configureKv({ get: kvGet, set: kvSet, remove: kvRemove });
 ```
 
+## Desk / tickets
+
+OctoDesk tickets are `access:'invite'` object nodes created by `createTicket`
+(`src/desk/orchestrator.ts`). Every ticket **isolates** the external requester to their
+own node — never the desk space index or other tickets:
+
+- **Plaintext ticket** (`memberTicket:false`, default) — per-node content + stream caps,
+  cap-gated server-side; messages stored plaintext. Every space member (agents/owner/bot)
+  reads+writes via the `space:member` role (shared support-queue model); the requester
+  reaches only their node via per-node caps.
+- **E2EE ticket** (`memberTicket:true`) — the ticket gets its OWN **per-node keyring**
+  (octospaces-sdk ≥0.12.6): the content key is wrapped only to the ticket's participants
+  (requester + owner/bot, plus agents on assignment). The requester decrypts via that
+  keyring **without ever holding the space-wide key** and without space membership.
+  Messages are sealed client-side and stored in the cap-gated invite stream (`objinvlog`).
+
+Both tiers route reads/writes through the invite stream: `outbox-send.ts` (queued send) and
+`use-room` / `use-room-open-flow` (live) pass the node's `access` to `buildNodeAccess` so the
+SDK opens the per-node keyring for `invite+enc`, and append via `getNodeStreamClient`.
+
+> Recipient model: E2EE tickets are **least-privilege** — only the requester + owner/bot are
+> recipients at creation; an agent is added to the node keyring when the ticket is assigned to
+> them (so unassigned agents cannot read an E2EE ticket until assignment).
+
 ## Reference consumer
 
 The OctoChat Expo app (`apps/mobile`) is a full reference frontend: it wires the SDK at

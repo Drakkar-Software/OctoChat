@@ -83,7 +83,9 @@ export function useRoomOpen(opts: {
           }
           return;
         }
-        // E2EE room: open the space-wide keyring (cached per space; offline from pull cache).
+        // E2EE room: open the keyring (cached per space; offline from pull cache). For an
+        // invite+enc node (E2EE ticket) the SDK opens the PER-NODE keyring; for space-tier enc
+        // it opens the space-wide keyring — passing `access` selects which.
         // When the caller is the known owner, use the minting path (getNodeAccess) so a space
         // created before Fix A self-heals on first open — the owner's chatClient has space:owner
         // permission and ownerEnsureKeyring is idempotent. For all other callers, use the soft
@@ -91,13 +93,13 @@ export function useRoomOpen(opts: {
         const isOwner = owner !== undefined && owner !== null && owner === session.userId;
         let nodeAccess: { client: unknown; encryptor: unknown } | null;
         if (isOwner) {
-          const handle = await getNodeAccess(spaceId, roomId, { enc: true }, session, {
+          const handle = await getNodeAccess(spaceId, roomId, { access, enc: true }, session, {
             owner,
             members: [],
           });
           nodeAccess = { client: handle.client, encryptor: handle.encryptor };
         } else {
-          nodeAccess = await buildNodeAccess(session, spaceId, roomId, { enc: true });
+          nodeAccess = await buildNodeAccess(session, spaceId, roomId, { access, enc: true });
         }
         if (!nodeAccess) throw new SpaceAccessError(`No access to room ${roomId}.`);
         if (!cancelled) {
