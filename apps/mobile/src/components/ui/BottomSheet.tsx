@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { radii, spacing } from '@/theme';
@@ -52,11 +52,19 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <Pressable
-        style={[styles.backdrop, { backgroundColor: colors.scrim }]}
-        onPress={onClose}
-        accessibilityLabel="Dismiss"
+      {/* KAV must live inside the Modal so it can respond to the keyboard that
+          appears over this modal's layer. On iOS it adds bottom padding equal to
+          the keyboard height; on Android the OS handles adjustResize instead. */}
+      <KeyboardAvoidingView
+        style={styles.avoid}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
+        {/* absoluteFill scrim doubles as the tap-to-dismiss backdrop. */}
+        <Pressable
+          style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim }]}
+          onPress={onClose}
+          accessibilityLabel="Dismiss"
+        />
         {/* Inner Pressable swallows taps so they don't fall through to the backdrop. */}
         <Pressable
           style={[
@@ -80,13 +88,13 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
             {children}
           </ScrollView>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
+  avoid: {
     flex: 1,
     justifyContent: 'flex-end',
   },
