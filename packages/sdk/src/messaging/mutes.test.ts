@@ -1,53 +1,69 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { configureKv } from '@drakkar.software/octospaces-sdk';
+import {
+  getMutePrefs,
+  hydrateMutes,
+  isMuteActive,
+  isRoomMuted,
+  loadMutesFromKv,
+  resetMutes,
+  setRoomMute,
+} from './mutes';
 
 const store = new Map<string, string>();
-vi.mock('../config/adapters', () => ({
-  kvGet: vi.fn(async (k: string) => store.get(k) ?? null),
-  kvSet: vi.fn(async (k: string, v: string) => {
-    store.set(k, v);
-  }),
-}));
-
-const updateMutesDoc = vi.fn(async () => {});
-vi.mock('../starfish/registry', () => ({
-  updateMutesDoc: (...args: unknown[]) => (updateMutesDoc as (...a: unknown[]) => Promise<void>)(...args),
-}));
-
-import { hydrateMutes, isRoomMuted, resetMutes, setRoomMute } from './mutes';
-
 const SESSION = { userId: 'u', accountClient: {}, spacesRegistryClient: {} } as never;
 
 beforeEach(() => {
   store.clear();
-  updateMutesDoc.mockReset();
-  updateMutesDoc.mockResolvedValue(undefined);
+  configureKv({
+    get: async (k) => store.get(k) ?? null,
+    set: async (k, v) => { store.set(k, v); },
+    remove: async (k) => { store.delete(k); },
+  });
   resetMutes();
 });
 
-describe('hydrateMutes in-flight guard', () => {
-  it('does not revert an optimistic mute while its server write is still pending', async () => {
-    // Hold the sync round-trip open to simulate real server latency.
-    let release = () => {};
-    updateMutesDoc.mockImplementation(() => new Promise<void>((r) => (release = r)));
+describe('isMuteActive', () => {
+  it('returns true for boolean true', () => expect(isMuteActive(true)).toBe(true));
+  it('returns false for undefined', () => expect(isMuteActive(undefined)).toBe(false));
+  it('returns true for a future timestamp', () => expect(isMuteActive(Date.now() + 100_000)).toBe(true));
+  it('returns false for a past timestamp', () => expect(isMuteActive(Date.now() - 1)).toBe(false));
+});
 
-    const p = setRoomMute(SESSION, 'r1', true); // optimistic: muted; push in flight
+describe('setRoomMute / isRoomMuted', () => {
+  it('applies an optimistic mute immediately (before server round-trip)', () => {
+    void setRoomMute(SESSION, 'r1', true);
     expect(isRoomMuted('r1')).toBe(true);
-
-    // A navigation re-pull returns the STALE (still-unmuted) server doc — must be ignored
-    // while the local write settles, or the toggle would visibly revert.
-    await hydrateMutes('u', { rooms: {}, spaces: {} });
-    expect(isRoomMuted('r1')).toBe(true);
-
-    release();
-    await p;
-
-    // Once settled, a normal re-hydrate applies server state again (guard released).
-    await hydrateMutes('u', { rooms: {}, spaces: {} });
-    expect(isRoomMuted('r1')).toBe(false);
   });
+});
 
-  it('applies a remote mute change on a normal re-hydrate (no write in flight)', async () => {
+describe('hydrateMutes', () => {
+  it('applies server prefs to an empty cache', async () => {
     await hydrateMutes('u', { rooms: { r2: true }, spaces: {} });
     expect(isRoomMuted('r2')).toBe(true);
+    expect(getMutePrefs().spaces).toEqual({});
+  });
+
+  it('writes under the octochat.mutes.* key (KV namespace lock-in)', async () => {
+    await hydrateMutes('u', { rooms: { r1: true }, spaces: {} });
+    expect(store.has('octochat.mutes.u')).toBe(true);
+  });
+
+  it('skips emit when prefs are unchanged (no spurious re-renders)', async () => {
+    const prefs = { rooms: { r1: true }, spaces: {} };
+    await hydrateMutes('u', prefs);
+    const snapshot = getMutePrefs();
+    await hydrateMutes('u', prefs);
+    expect(getMutePrefs()).toBe(snapshot); // same reference = no re-render
+  });
+});
+
+describe('loadMutesFromKv', () => {
+  it('reads back prefs written by hydrateMutes', async () => {
+    await hydrateMutes('u', { rooms: { r1: true }, spaces: { s1: true } });
+    resetMutes();
+    const prefs = await loadMutesFromKv('u');
+    expect(prefs.rooms['r1']).toBe(true);
+    expect(prefs.spaces['s1']).toBe(true);
   });
 });

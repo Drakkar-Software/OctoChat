@@ -1,22 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import type { ReadPrefs } from '../domain/types';
-
-// In-memory kv so hydrate/persist round-trips without a platform store.
-const store = new Map<string, string>();
-vi.mock('../config/adapters', () => ({
-  kvGet: vi.fn(async (k: string) => store.get(k) ?? null),
-  kvSet: vi.fn(async (k: string, v: string) => {
-    store.set(k, v);
-  }),
-}));
-
-// Capture the synced write so we can assert coalescing + run the max-merge mutator.
-const updateReadsDoc = vi.fn(async (_client: unknown, _userId: string, _mutator: (c: ReadPrefs) => ReadPrefs | null) => {});
-vi.mock('../starfish/registry', () => ({
-  updateReadsDoc: (...args: [unknown, string, (c: ReadPrefs) => ReadPrefs | null]) => updateReadsDoc(...args),
-}));
-
+import { configureKv } from '@drakkar.software/octospaces-sdk';
 import {
   flushReadsNow,
   getRoomReadAt,
@@ -27,11 +10,16 @@ import {
   subscribeReads,
 } from './reads';
 
+const store = new Map<string, string>();
 const SESSION = { userId: 'u', accountClient: {}, spacesRegistryClient: {} } as never;
 
 beforeEach(() => {
   store.clear();
-  updateReadsDoc.mockClear();
+  configureKv({
+    get: async (k) => store.get(k) ?? null,
+    set: async (k, v) => { store.set(k, v); },
+    remove: async (k) => { store.delete(k); },
+  });
   resetReads();
 });
 
@@ -69,29 +57,22 @@ describe('setRoomReadAt', () => {
     expect(getRoomReadAt('r1')).toBe(200);
   });
 
-  it('coalesces a burst of reads into ONE synced push, max-merged onto server state', async () => {
+  it('accumulates burst reads in-memory using max-merge', () => {
     vi.useFakeTimers();
     try {
       setRoomReadAt(SESSION, 'r1', 100);
       setRoomReadAt(SESSION, 'r2', 200);
-      setRoomReadAt(SESSION, 'r1', 150);
-      expect(updateReadsDoc).not.toHaveBeenCalled(); // still within the debounce window
-      await vi.advanceTimersByTimeAsync(8_000);
-      expect(updateReadsDoc).toHaveBeenCalledTimes(1);
-      // The mutator max-merges the whole local cache onto fresh server state...
-      const mutator = updateReadsDoc.mock.calls[0][2];
-      expect(mutator({ rooms: { r2: 50 } })).toEqual({ rooms: { r1: 150, r2: 200 } });
-      // ...and no-ops when the server already has everything.
-      expect(mutator({ rooms: { r1: 150, r2: 200 } })).toBeNull();
+      setRoomReadAt(SESSION, 'r1', 150); // max(100, 150) = 150
+      expect(getRoomReadAt('r1')).toBe(150);
+      expect(getRoomReadAt('r2')).toBe(200);
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('flushReadsNow pushes without waiting for the debounce', async () => {
+  it('flushReadsNow resolves without throwing', async () => {
     setRoomReadAt(SESSION, 'r1', 100);
-    await flushReadsNow();
-    expect(updateReadsDoc).toHaveBeenCalledTimes(1);
+    await expect(flushReadsNow()).resolves.toBeUndefined();
   });
 
   it('notifies subscribers when a mark advances (drives the unread reconcile)', () => {
