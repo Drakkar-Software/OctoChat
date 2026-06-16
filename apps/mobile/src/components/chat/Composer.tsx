@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
   pendingText: { flexShrink: 1, minWidth: 0 },
   offlineHint: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginBottom: spacing.sm },
   barWrap: {},
-  barGlow: { borderRadius: radii.sheet },
+  barGlow: { borderRadius: radii.xl },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingLeft: spacing.md,
     paddingRight: 6,
-    borderRadius: radii.sheet,
+    borderRadius: radii.xl,
     borderWidth: 1,
     backgroundColor: 'transparent',
     // On Android, elevation — not document order — decides which sibling draws

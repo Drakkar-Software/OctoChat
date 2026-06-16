@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { paperBorder, radii, shadows } from '@/theme';
+import { getElevation, radii, shadows, spacing } from '@/theme';
 import type { Reaction } from '@drakkar.software/octochat-sdk';
 import { plural } from '@drakkar.software/octochat-sdk';
 import { tapFeedback } from '@/lib/haptics';
@@ -18,10 +18,11 @@ type ReactionChipProps = Reaction & {
 function ReactionChip({ emoji, count, mine, userIds, nameFor, onPress }: ReactionChipProps) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
-  // Native has no pointer, so a long-press toggles the "who reacted" bubble there;
-  // on web hover still drives it.
+  // Native has no pointer, so a long-press toggles the "who reacted" names;
+  // on web hover drives it.
   const [revealed, setRevealed] = useState(false);
   const showWho = (hovered || revealed) && userIds.length > 0;
+  const e3 = getElevation(colors).e3;
 
   return (
     <Pressable
@@ -33,29 +34,29 @@ function ReactionChip({ emoji, count, mine, userIds, nameFor, onPress }: Reactio
       style={[
         styles.chip,
         {
-          backgroundColor: mine ? colors.accentBg : colors.fill,
-          borderColor: mine || showWho ? colors.accentBorder : colors.lineFaint,
+          // e2-level chip: paper surface, faint border — no heavy filled ring
+          backgroundColor: mine ? colors.accentBg : colors.paper,
+          borderColor: mine ? colors.accentBorder : hovered ? colors.lineSoft : colors.lineFaint,
         },
       ]}
     >
-      <Txt variant="footnote">{emoji}</Txt>
-      <Txt variant="micro" weight="semibold" mono color={mine ? colors.accentInk : colors.inkSoft}>
+      <Txt variant="callout">{emoji}</Txt>
+      <Txt variant="caption" weight="semibold" mono color={mine ? colors.accentInk : colors.inkSoft}>
         {count}
       </Txt>
       {showWho ? (
         <View
-          // Below the chip: more room than above and clear of the topbar. One name
-          // per line (each nowrap) so the bubble grows past the narrow chip width.
+          // Below the chip — one name per line so the card grows naturally.
           pointerEvents="none"
           style={[
             styles.tooltip,
-            paperBorder(colors),
-            // Floating tooltip — lift it clearly off the message surface.
-            shadows.md,
+            // e3 elevation: paper surface + lineSoft border + hairlineHi top + sm shadow
+            { backgroundColor: e3.surface, borderColor: e3.border, borderTopColor: e3.topHairline },
+            e3.shadow,
           ]}
         >
           {userIds.map((id) => (
-            <Txt key={id} variant="micro" weight="medium" tone="ink" numberOfLines={1}>
+            <Txt key={id} variant="caption" weight="medium" tone="ink" numberOfLines={1}>
               {nameFor?.(id) ?? id.slice(0, 8)}
             </Txt>
           ))}
@@ -98,27 +99,28 @@ export function ReactionBar({
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.sm },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: radii.pill,
+    gap: spacing.xs,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
   },
   tooltip: {
     position: 'absolute',
     top: '100%',
     left: 0,
-    marginTop: 6,
+    marginTop: spacing.xs,
     maxWidth: 240,
     gap: 2,
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    borderRadius: radii.sm,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
+    borderTopWidth: 1,
     zIndex: 10,
   },
 });

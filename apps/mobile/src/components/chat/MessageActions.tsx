@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { paperBorder, radii, shadows, spacing } from '@/theme';
+import { getElevation, radii, shadows, spacing } from '@/theme';
 import { tapFeedback } from '@/lib/haptics';
 import { useQuickReactions } from '@/lib/quick-reactions-context';
 import { useTheme } from '@/lib/use-theme';
@@ -52,13 +52,16 @@ export function MessageActions({ visible, onReact, onReply, onEdit, onDelete, on
     setConfirming(false);
   };
 
+  const e3 = getElevation(colors).e3;
+
   return (
     <View
       style={[
         styles.bar,
-        paperBorder(colors),
-        // Floating over the message stream — lift it off the depth gradient.
-        shadows.md,
+        // e3 elevation: paper surface + subtle border + top hairline + sm shadow
+        // (replaced the heavy md shadow + paperBorder triple-color for a flush, low-chrome look)
+        { backgroundColor: e3.surface, borderColor: e3.border, borderTopColor: e3.topHairline },
+        e3.shadow,
       ]}
     >
       {confirming ? (

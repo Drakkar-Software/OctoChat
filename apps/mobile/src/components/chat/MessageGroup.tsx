@@ -93,7 +93,7 @@ function PendingNote({ status, onRetry }: { status: NonNullable<Message['pending
 }
 
 /** The "N replies" entry point under a message that anchors a thread. Lifts to an
- *  accent tint + chevron nudge on hover so it reads as the tappable way in. */
+ *  accent tint on hover so it reads as the tappable way in. */
 function ThreadReplyChip({ count, onPress }: { count: number; onPress: () => void }) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
@@ -105,16 +105,18 @@ function ThreadReplyChip({ count, onPress }: { count: number; onPress: () => voi
       style={[
         styles.thread,
         {
-          borderColor: hovered ? colors.accentBorder : colors.lineFaint,
-          backgroundColor: hovered ? colors.accentBg : colors.surface,
+          // Borderless on rest, accent-tinted background on hover — more integrated,
+          // less like a standalone chip. Accent border only when hovered.
+          borderColor: hovered ? colors.accentBorder : 'transparent',
+          backgroundColor: hovered ? colors.accentBg : colors.accentBg,
         },
       ]}
     >
-      <Icon name="thread" size={13} color={colors.accent} />
-      <Txt variant="footnote" weight="semibold" tone="accent">
+      <Icon name="thread" size={12} color={colors.accentInk} />
+      <Txt variant="footnote" weight="semibold" color={colors.accentInk}>
         {plural(count, 'reply', 'replies')}
       </Txt>
-      <Icon name="chev" size={13} color={hovered ? colors.accent : colors.inkMuted} />
+      <Icon name="chev" size={11} color={hovered ? colors.accentInk : colors.accentInk} />
     </Pressable>
   );
 }
@@ -356,12 +358,12 @@ const styles = StyleSheet.create({
   thread: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: spacing.xs,
     alignSelf: 'flex-start',
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: radii.pill,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.md,
     borderWidth: 1,
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
 });
