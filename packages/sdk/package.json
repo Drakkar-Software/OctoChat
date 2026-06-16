@@ -5,7 +5,9 @@
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -37,8 +39,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@drakkar.software/octospaces-sdk": "0.10.0",
     "@drakkar.software/octospaces-platform-sdk": "0.1.0",
+    "@drakkar.software/octospaces-sdk": "0.11.0",
     "@drakkar.software/starfish-client": "3.0.0-alpha.27",
     "@drakkar.software/starfish-identities": "3.0.0-alpha.27",
     "@drakkar.software/starfish-keyring": "3.0.0-alpha.27",
@@ -55,9 +57,15 @@
     "react-native-quick-crypto": "^1.1.4"
   },
   "peerDependenciesMeta": {
-    "@react-native-async-storage/async-storage": { "optional": true },
-    "expo-secure-store": { "optional": true },
-    "react-native-quick-crypto": { "optional": true }
+    "@react-native-async-storage/async-storage": {
+      "optional": true
+    },
+    "expo-secure-store": {
+      "optional": true
+    },
+    "react-native-quick-crypto": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@octochat/tsconfig": "workspace:*",
