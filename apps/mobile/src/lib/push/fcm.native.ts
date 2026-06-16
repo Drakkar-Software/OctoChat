@@ -31,7 +31,7 @@ export interface PushData {
 }
 
 export const pushTopicForSpace = (spaceId: string): string =>
-  `octochat-octochat-chat-changed-${spaceId}`;
+  `octospaces-octospaces-log-changed-${spaceId}`;
 
 /**
  * Per-USER FCM topic. The device subscribes to its own account's user-topic so the
@@ -39,11 +39,12 @@ export const pushTopicForSpace = (spaceId: string): string =>
  * (`'<space-topic>' in topics && !('<user-topic>' in topics)`) — the message author
  * therefore never gets a push for their own message, on any of their devices. Only
  * the author's devices subscribe to this topic, so the exclusion targets exactly
- * them. MUST match the bridge's `octochat-user-<userId>` builder (see Infra
- * `bridge/src/apps/octochat/format.ts`); `userId` is the account id the server
- * reports as the write `identity` (sha256(edPub)[:16] — 32-char hex, topic-safe).
+ * them. MUST match the bridge's `octospaces-user-<userId>` condition template (see
+ * Infra `whistlers-fcm.config.json.j2` octospaces namespace); `userId` is the
+ * account id the server reports as the write `identity` (sha256(edPub)[:16] — 32-char
+ * hex, topic-safe).
  */
-export const pushTopicForUser = (userId: string): string => `octochat-user-${userId}`;
+export const pushTopicForUser = (userId: string): string => `octospaces-user-${userId}`;
 
 const asStr = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
 
