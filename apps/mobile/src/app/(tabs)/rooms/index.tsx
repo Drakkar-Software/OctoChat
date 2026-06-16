@@ -51,15 +51,51 @@ export default function RoomsScreen() {
   const openDm = (dm: DmEntry) =>
     router.push({ pathname: '/room/[id]', params: { id: dm.roomId, name: dm.name, kind: 'dm' } });
 
-  // On desktop the sidebar IS the room list, so this pane is the resting state.
+  // On desktop the sidebar IS the room list. The main pane's resting state is a
+  // real home rather than a dead-end "Select a room" placeholder — it shows the
+  // space name + member count, the AI unread digest (when applicable), and quick
+  // access to Threads/Pinned so landing here is actually useful.
   if (inShell) {
     return (
       <StackScreen inTabs>
-        <EmptyState
-          iconName="hash"
-          title="Select a room"
-          subtitle="Choose a channel or DM from the sidebar to start chatting."
-        />
+        <View style={styles.shellHome}>
+          {isDmHome ? (
+            // DM home: sidebar already shows every conversation — keep the pane calm.
+            <Txt variant="footnote" tone="inkMuted" style={styles.shellHint}>
+              Select a conversation from the sidebar.
+            </Txt>
+          ) : (
+            <>
+              {space ? (
+                <View style={styles.shellHeader}>
+                  <Txt variant="title" weight="bold" numberOfLines={1}>
+                    {space.name}
+                  </Txt>
+                  <Txt variant="footnote" tone="inkMuted">
+                    {space.members} {space.members === 1 ? 'member' : 'members'}
+                  </Txt>
+                </View>
+              ) : null}
+              {/* AI unread summary — visible when there are unreads and AI is on;
+                  renders null itself when the space is caught up or AI is off. */}
+              <SpaceDigestCard spaceId={activeId ?? space?.id ?? null} />
+              {/* Space-wide destinations so the home is a real launch pad, not a
+                  wait screen. Mirrors the sidebar nav group links. */}
+              <SidebarLinkRow iconName="thread" label="Threads" onPress={() => router.push('/threads')} />
+              {hasPins && activeId ? (
+                <SidebarLinkRow
+                  iconName="pin"
+                  label="Pinned"
+                  onPress={() => router.push({ pathname: '/pinned/[id]', params: { id: activeId } })}
+                />
+              ) : null}
+              <Divider style={styles.shellDivider} />
+              <Txt variant="footnote" tone="inkMuted" style={styles.shellHint}>
+                Select a channel from the sidebar to start chatting.
+              </Txt>
+            </>
+          )}
+        </View>
       </StackScreen>
     );
   }
@@ -163,5 +199,10 @@ const styles = StyleSheet.create({
   // the create control instead of collapsing in the scroll container.
   emptyFloor: { minHeight: 260 },
   navDivider: { marginVertical: spacing.xs, marginHorizontal: spacing.xs },
+  // Desktop shell home pane — a real launch pad, not a "Select a room" dead end.
+  shellHome: { padding: spacing.lg, gap: spacing.md },
+  shellHeader: { gap: 2, marginBottom: spacing.xs },
+  shellDivider: { marginVertical: spacing.xs },
+  shellHint: { textAlign: 'center', paddingVertical: spacing.md },
 });
 

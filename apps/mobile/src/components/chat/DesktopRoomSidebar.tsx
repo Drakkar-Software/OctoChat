@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { Sidebar } from '@drakkar.software/octospaces-ui';
+import { Sidebar, SidebarHeader } from '@drakkar.software/octospaces-ui';
 import { layout, radii, spacing } from '@/theme';
 import type { Room, Space } from '@drakkar.software/octochat-sdk';
 import type { ThreadSummary } from '@drakkar.software/octochat-sdk';
@@ -13,6 +13,7 @@ import { useHover } from '@/lib/use-hover';
 import { useTheme } from '@/lib/use-theme';
 import { VIEW_MODES, useViewMode } from '@/lib/view-mode';
 import { Divider } from '@/components/ui/Divider';
+import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { Txt } from '@/components/ui/Txt';
 
@@ -134,12 +135,19 @@ export function DesktopRoomSidebar({
       <Sidebar
         width={layout.sidebarWidth}
         header={
-          <View style={[styles.header, { borderBottomColor: colors.lineFaint }]}>
-            <Txt variant="subhead" weight="semibold" numberOfLines={1} style={styles.headerName}>
-              {DM_HOME_NAME}
-            </Txt>
-            <IconButton name="people" size={15} accessibilityLabel="Direct messages" />
-          </View>
+          // SidebarHeader: name in the leading slot, people icon in actions.
+          // divider=true replaces the hand-rolled borderBottom so the border
+          // colour comes from the shared theme contract (borderSubtle = lineFaint).
+          <SidebarHeader
+            divider
+            style={styles.header}
+            leading={
+              <Txt variant="subhead" weight="semibold" numberOfLines={1} style={styles.headerName}>
+                {DM_HOME_NAME}
+              </Txt>
+            }
+            actions={<IconButton name="people" size={15} accessibilityLabel="Direct messages" />}
+          />
         }
         contentContainerStyle={styles.listContent}
       >
@@ -164,39 +172,54 @@ export function DesktopRoomSidebar({
       width={layout.sidebarWidth}
       scrollable={false}
       header={
-        <View style={[styles.header, { borderBottomColor: colors.lineFaint }]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Space settings"
-            onPress={onOpenSpaceMenu}
-            {...headerHover.hoverProps}
-            style={[styles.headerName, { backgroundColor: headerHover.hovered ? colors.hover : 'transparent' }]}
-          >
-            <Txt variant="subhead" weight="semibold" numberOfLines={1}>
-              {space?.name}
-            </Txt>
-          </Pressable>
-          <View style={styles.headerActions}>
-            {VIEW_MODES.map((m) => (
-              <IconButton
-                key={m.key}
-                name={m.iconName}
-                size={15}
-                color={mode === m.key ? colors.accent : undefined}
-                accessibilityLabel={m.label}
-                onPress={() => setMode(m.key)}
+        // SidebarHeader: space name (with visible disclosure glyph) in leading,
+        // mode-switcher + search in actions. divider=true from the shared contract.
+        <SidebarHeader
+          divider
+          style={styles.header}
+          leading={
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Space settings"
+              onPress={onOpenSpaceMenu}
+              {...headerHover.hoverProps}
+              style={[styles.headerName, { backgroundColor: headerHover.hovered ? colors.hover : 'transparent' }]}
+            >
+              <Txt variant="subhead" weight="semibold" numberOfLines={1} style={styles.headerNameTxt}>
+                {space?.name}
+              </Txt>
+              {/* Disclosure glyph — makes the button self-evident instead of a
+                  "secret": the chevron lifts to inkSoft on hover. */}
+              <Icon
+                name="chev"
+                size={12}
+                color={headerHover.hovered ? colors.inkSoft : colors.inkMuted}
               />
-            ))}
-            {onJumpTo ? (
-              <IconButton
-                name="search"
-                size={15}
-                onPress={onJumpTo}
-                accessibilityLabel={Platform.OS === 'web' ? 'Jump to room ⌘K' : 'Jump to room'}
-              />
-            ) : null}
-          </View>
-        </View>
+            </Pressable>
+          }
+          actions={
+            <View style={styles.headerActions}>
+              {VIEW_MODES.map((m) => (
+                <IconButton
+                  key={m.key}
+                  name={m.iconName}
+                  size={15}
+                  color={mode === m.key ? colors.accent : undefined}
+                  accessibilityLabel={m.label}
+                  onPress={() => setMode(m.key)}
+                />
+              ))}
+              {onJumpTo ? (
+                <IconButton
+                  name="search"
+                  size={15}
+                  onPress={onJumpTo}
+                  accessibilityLabel={Platform.OS === 'web' ? 'Jump to room ⌘K' : 'Jump to room'}
+                />
+              ) : null}
+            </View>
+          }
+        />
       }
     >
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
@@ -271,22 +294,26 @@ export function DesktopRoomSidebar({
 }
 
 const styles = StyleSheet.create({
+  // SidebarHeader's outer container: height + horizontal padding. borderBottomWidth
+  // is no longer here — SidebarHeader draws it via its own divider=true borderSubtle.
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
     height: layout.desktopTopbarHeight,
     paddingLeft: spacing.md,
     paddingRight: spacing.xs,
-    borderBottomWidth: 1,
   },
+  // The space-name Pressable is the `leading` slot of SidebarHeader (flex:1 applied
+  // by the package). Row layout so the chevron disclosure glyph sits inline.
   headerName: {
-    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
     minWidth: 0,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: radii.sm,
   },
+  // The text shrinks so the chevron is always visible even with a long space name.
+  headerNameTxt: { flex: 1, minWidth: 0 },
   headerActions: { flexDirection: 'row', alignItems: 'center' },
   list: { flex: 1 },
   listContent: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.lg },
