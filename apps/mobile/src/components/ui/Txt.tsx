@@ -1,7 +1,7 @@
 import type { TextProps } from 'react-native';
 import { StyleSheet, Text } from 'react-native';
 
-import { displayTracking, fonts, labelTracking, type as typeScale } from '@/theme';
+import { displayTracking, headingTracking, fonts, labelTracking, type as typeScale } from '@/theme';
 import { useTheme, type Palette } from '@/lib/use-theme';
 
 type Variant = keyof typeof typeScale;
@@ -73,7 +73,7 @@ export function Txt({
             : variant === 'displayLg'
               ? displayTracking
               : variant === 'display'
-                ? -0.4
+                ? headingTracking
                 : 0,
           textTransform: uppercase ? 'uppercase' : 'none',
           textAlign: center ? 'center' : 'left',

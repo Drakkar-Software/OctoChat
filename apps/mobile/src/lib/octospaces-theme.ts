@@ -42,8 +42,8 @@ function toOctoSpacesPalette(p: Palette): Theme['colors'] {
     warningMuted: p.warningBg,
     danger: p.danger,
     dangerMuted: p.dangerBg,
-    info: p.accent,
-    infoMuted: p.accentBg,
+    info: p.info,
+    infoMuted: p.infoBg,
 
     presenceOnline: p.success,
     presenceAway: p.warning,
@@ -54,11 +54,18 @@ function toOctoSpacesPalette(p: Palette): Theme['colors'] {
     verificationPartial: p.warning,
     verificationNone: p.inkMuted,
 
+    // Interaction states — new optional fields in octospaces-ui 0.4.5
+    pressed: p.pressed,
+    selected: p.selected,
+    selectedHover: p.selectedHover,
+    disabledFill: p.disabledFill,
+    focusRing: p.focusRing,
+
     overlay: p.overlay,
     shadow: shadows.sm.shadowColor,
-    focus: p.accent,
-    skeleton: p.fill,
-    skeletonShimmer: p.fillDeep,
+    focus: p.focusRing,
+    skeleton: p.skeleton,
+    skeletonShimmer: p.skeletonShimmer,
 
     editorCanvas: p.editorCanvas,
     tooltipBg: p.tooltipBg,
@@ -155,9 +162,9 @@ export function toOctoSpacesTheme(palette: Palette, scheme: ColorScheme): Theme 
     },
     layers: { modal: 100, overlay: 50, header: 10 },
     easing: {
-      standard: [0.4, 0, 0.2, 1],
-      decelerate: [0, 0, 0.2, 1],
-      accelerate: [0.4, 0, 1, 1],
+      standard:   [...motion.easing.standard],
+      decelerate: [...motion.easing.decelerate],
+      accelerate: [...motion.easing.accelerate],
     },
     labelTracking: { mono: 0.8, display: -0.6 },
   };

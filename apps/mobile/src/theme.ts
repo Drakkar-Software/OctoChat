@@ -57,13 +57,23 @@ export interface Palette {
    *  that gives cards/sheets depth — dark mode's stand-in for a drop shadow). */
   hairlineHi: string;
 
-  // ── Interaction (web pointer states) ─────────────────────────────────────
+  // ── Interaction states ────────────────────────────────────────────────────
   /** Translucent fill painted under a hovered control/row. */
   hover: string;
   /** Hover wash for already-selected (accentSoft) rows. */
   accentSoftHover: string;
   /** White brightening wash layered over a solid/gradient fill on hover. */
   brightWash: string;
+  /** Translucent fill on an actively pressed control. */
+  pressed: string;
+  /** Solid accent-tinted fill for a selected row/item (aliases accentSoft). */
+  selected: string;
+  /** Hover state within an already-selected row. */
+  selectedHover: string;
+  /** Neutral fill for a disabled control's background (pairs with opacity.disabled). */
+  disabledFill: string;
+  /** Keyboard-focus ring color (WCAG-compliant accent, for web :focus-visible). */
+  focusRing: string;
 
   // ── Marine accent system ─────────────────────────────────────────────────
   accent: string;
@@ -85,12 +95,17 @@ export interface Palette {
   accentBorder: string;
   accentBorderStrong: string;
 
-  // ── Desk accent (OctoDesk variant) ───────────────────────────────────────
+  // ── Desk accent (OctoDesk variant — full parity with marine) ────────────
   /** Support/amber accent for the OctoDesk variant. */
   accentDesk: string;
   accentDeskSoft: string;
   accentDeskBg: string;
   accentDeskBorder: string;
+  accentDeskStrong: string;
+  accentDeskInk: string;
+  accentDeskGradTop: string;
+  accentDeskGradBottom: string;
+  accentDeskGlow: string;
 
   // ── Status ───────────────────────────────────────────────────────────────
   unread: string;
@@ -108,6 +123,16 @@ export interface Palette {
   warningBorder: string;
 
   // ── Sticky-note (sparingly, e.g. security callouts) ──────────────────────
+  // ── Info status (informational — currently aliases accent, promoted here so
+  //    the bridge and components can use a distinct token when designs diverge) ──
+  info: string;
+  infoBg: string;
+  infoBorder: string;
+  // ── Neutral (non-semantic chips, muted tags, draft labels) ───────────────
+  neutral: string;
+  neutralBg: string;
+  neutralBorder: string;
+
   note: string;
   noteInk: string;
 
@@ -117,6 +142,10 @@ export interface Palette {
   overlay: string;
   /** Foreground (icons/text) drawn on top of `scrim` — light in both themes. */
   onScrim: string;
+
+  // ── Loading / skeleton ────────────────────────────────────────────────────
+  skeleton: string;
+  skeletonShimmer: string;
 
   // ── octospaces-ui extras ──────────────────────────────────────────────────
   /** Background of the rich-text editor canvas (doc/work surfaces). */
@@ -155,6 +184,11 @@ const light: Palette = {
   hover: 'rgba(20,38,52,0.05)',
   accentSoftHover: 'rgba(14,112,144,0.18)',
   brightWash: 'rgba(255,255,255,0.12)',
+  pressed: 'rgba(20,38,52,0.08)',
+  selected: '#bbdce6',
+  selectedHover: 'rgba(14,112,144,0.18)',
+  disabledFill: 'rgba(20,38,52,0.04)',
+  focusRing: '#0e7090',
 
   accent: '#0e7090',
   accentStrong: '#0a5a74',
@@ -172,6 +206,11 @@ const light: Palette = {
   accentDeskSoft: '#e8d5c0',
   accentDeskBg: 'rgba(139,90,43,0.10)',
   accentDeskBorder: 'rgba(139,90,43,0.32)',
+  accentDeskStrong: '#6f4520',
+  accentDeskInk: '#3d2010',
+  accentDeskGradTop: '#a36830',
+  accentDeskGradBottom: '#6f4520',
+  accentDeskGlow: '#8b5a2b',
 
   unread: '#0c8aaf',
   mention: '#a64034',
@@ -186,12 +225,22 @@ const light: Palette = {
   warningBg: 'rgba(176,122,30,0.12)',
   warningBorder: 'rgba(176,122,30,0.32)',
 
+  info: '#0e7090',
+  infoBg: 'rgba(14,112,144,0.10)',
+  infoBorder: 'rgba(14,112,144,0.32)',
+  neutral: '#7d96a8',
+  neutralBg: 'rgba(20,38,52,0.06)',
+  neutralBorder: 'rgba(20,38,52,0.14)',
+
   note: '#fff2b0',
   noteInk: '#4a3a10',
 
   scrim: 'rgba(20,38,52,0.55)',
   overlay: 'rgba(20,38,52,0.35)',
   onScrim: '#f4f8fb',
+
+  skeleton: '#e5edf2',
+  skeletonShimmer: '#d2dfe6',
 
   editorCanvas: '#f6f8fa',
   tooltipBg: '#142634',
@@ -226,6 +275,11 @@ const dark: Palette = {
   hover: 'rgba(216,230,238,0.055)',
   accentSoftHover: 'rgba(82,182,212,0.16)',
   brightWash: 'rgba(255,255,255,0.12)',
+  pressed: 'rgba(216,230,238,0.10)',
+  selected: '#264a58',
+  selectedHover: 'rgba(82,182,212,0.16)',
+  disabledFill: 'rgba(216,230,238,0.05)',
+  focusRing: '#52b6d4',
 
   accent: '#52b6d4',
   accentStrong: '#6cc6e0',
@@ -243,6 +297,11 @@ const dark: Palette = {
   accentDeskSoft: '#3a2415',
   accentDeskBg: 'rgba(212,149,106,0.12)',
   accentDeskBorder: 'rgba(212,149,106,0.35)',
+  accentDeskStrong: '#b07040',
+  accentDeskInk: '#e8c098',
+  accentDeskGradTop: '#d4a870',
+  accentDeskGradBottom: '#b07040',
+  accentDeskGlow: '#d4956a',
 
   unread: '#52b6d4',
   mention: '#cf6b5e',
@@ -257,12 +316,22 @@ const dark: Palette = {
   warningBg: 'rgba(214,162,63,0.14)',
   warningBorder: 'rgba(214,162,63,0.34)',
 
+  info: '#52b6d4',
+  infoBg: 'rgba(82,182,212,0.12)',
+  infoBorder: 'rgba(82,182,212,0.35)',
+  neutral: '#6f8696',
+  neutralBg: 'rgba(216,230,238,0.07)',
+  neutralBorder: 'rgba(216,230,238,0.14)',
+
   note: '#3a3416',
   noteInk: '#e9d98a',
 
   scrim: 'rgba(4,10,15,0.66)',
   overlay: 'rgba(4,10,15,0.45)',
   onScrim: '#f4f8fb',
+
+  skeleton: '#1f3240',
+  skeletonShimmer: '#283f4f',
 
   editorCanvas: '#0f1e27',
   tooltipBg: '#d8e6ee',
@@ -312,6 +381,9 @@ export const labelTracking = 0.8;
 /** Tight tracking for the large display step — big Bricolage reads better pulled in. */
 export const displayTracking = -0.6;
 
+/** Slightly tight tracking for the `display` variant (28px) — intermediate tightening. */
+export const headingTracking = -0.4;
+
 /** 4px spacing scale + semantic aliases. */
 export const spacing = {
   none: 0,
@@ -342,6 +414,19 @@ export const radii = {
   sheet: 22,
   pill: 999,
 } as const;
+
+/** Border-width scale — use instead of inline `borderWidth` literals. */
+export const borders = {
+  /** Sub-pixel hairline rule (closest to 0.5px across densities). */
+  hairline: 0.5,
+  /** Standard divider, outline, chip border. */
+  thin: 1,
+  /** Emphasized border — active input ring, selection indicator, focus ring. */
+  thick: 1.5,
+} as const;
+
+/** Width (in px) of the keyboard-focus ring applied to interactive controls. */
+export const focusWidth = 2;
 
 /** Cross-platform elevation presets (react-native-web maps these to boxShadow). */
 export const shadows = {
@@ -406,6 +491,58 @@ export function paperBorder(p: Palette, border: string = p.lineSoft) {
   } as const;
 }
 
+/**
+ * A single step of the depth-based elevation system.
+ * "More elevated = more light" — surfaces closer to the viewer catch more of the
+ * bioluminescent bloom that stands in for drop shadows in the marine theme.
+ */
+export interface ElevationLevel {
+  /** Surface background color. */
+  surface: string;
+  /** Perimeter border color (all sides except top). */
+  border: string;
+  /** Top-edge "lit-from-above" hairline — omit on deeply recessed surfaces. */
+  topHairline: string;
+  /** Shadow preset from `shadows` for this level (none on flat levels). */
+  shadow: (typeof shadows)[keyof typeof shadows];
+}
+
+export type ElevationScale = {
+  /** Canvas — the deepest level; no lift, no shadow. */
+  e0: ElevationLevel;
+  /** Recessed wells — inputs, inset code blocks, inset panels. */
+  e1: ElevationLevel;
+  /** Raised rows and cards — the standard "paper" surface. */
+  e2: ElevationLevel;
+  /** Floating controls — popovers, hovercards, action clusters. */
+  e3: ElevationLevel;
+  /** Modals and sheets — the highest interactive layer. */
+  e4: ElevationLevel;
+};
+
+/**
+ * Return the full elevation scale for the active palette. Call once inside a
+ * component alongside `useTheme()`:
+ *
+ * ```tsx
+ * const { colors } = useTheme();
+ * const elev = getElevation(colors);
+ * // style={{ backgroundColor: elev.e3.surface, ...elev.e3.shadow }}
+ * ```
+ *
+ * Replace ad-hoc uses of `paperBorder(colors)` + `shadows.sm/md` with the
+ * appropriate level so every floating surface picks the same shadow + hairline.
+ */
+export function getElevation(p: Palette): ElevationScale {
+  return {
+    e0: { surface: p.canvas,   border: p.rule,      topHairline: 'transparent', shadow: shadows.none },
+    e1: { surface: p.paperAlt, border: p.lineFaint,  topHairline: 'transparent', shadow: shadows.none },
+    e2: { surface: p.paper,    border: p.lineSoft,   topHairline: p.hairlineHi,  shadow: shadows.none },
+    e3: { surface: p.paper,    border: p.lineSoft,   topHairline: p.hairlineHi,  shadow: shadows.sm   },
+    e4: { surface: p.paper,    border: p.lineSoft,   topHairline: p.hairlineHi,  shadow: shadows.md   },
+  };
+}
+
 export const motion = {
   fast: 140,
   base: 220,
@@ -428,6 +565,19 @@ export const motion = {
   /** Orchestrated page-load reveals (StaggerList): `base` head delay + per-index
    *  `step`. Keep small — one staggered entrance, never per-scroll jitter. */
   stagger: { base: 0, step: 45 },
+  /**
+   * Named cubic-bezier easing curves as [x1, y1, x2, y2]. Use with Reanimated
+   * `withTiming({ easing: Easing.bezier(...motion.easing.standard) })`.
+   * Mirrors the octospaces-ui Theme.easing contract.
+   */
+  easing: {
+    /** General UI motion — accelerates out of rest, decelerates into target. */
+    standard:    [0.4, 0, 0.2, 1] as const,
+    /** Element entering the screen — starts fast, eases in. */
+    decelerate:  [0, 0, 0.2, 1]   as const,
+    /** Element leaving the screen — starts slow, ends fast. */
+    accelerate:  [0.4, 0, 1, 1]   as const,
+  },
 } as const;
 
 export const opacity = {
