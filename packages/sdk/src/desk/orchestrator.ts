@@ -58,6 +58,9 @@ export async function createTicket(
     { enc },
     true,
     opts.inviteLinkOrigin,
+    // Non-member requesters (enc:false) must reach only their own ticket — not the full
+    // desk space index. enc:true tickets are already space members so isolated is a no-op.
+    { isolated: !enc },
   );
 
   return { ticketId, requesterInviteLink: link };
