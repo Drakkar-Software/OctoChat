@@ -279,11 +279,16 @@ export default function JoinScreen() {
         ) : null}
         <View style={styles.actionRow}>
           <Button
-            label={busy ? 'Joining…' : 'Join space'}
+            label={
+              busy ? 'Joining…'
+              : !invite.trim() ? 'Paste the invite to join'
+              : pendingInvite ? 'Press join to confirm'
+              : 'Join space'
+            }
             variant="primary"
             size="md"
             style={styles.actionBtn}
-            disabled={busy}
+            disabled={busy || !invite.trim() || !!pendingInvite}
             onPress={() => join(invite)}
           />
           {canScan ? (
