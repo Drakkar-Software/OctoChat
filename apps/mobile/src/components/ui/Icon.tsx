@@ -71,7 +71,7 @@ const ICONS = {
   clock: { lib: Feather, n: 'clock' },
   refresh: { lib: Feather, n: 'refresh-cw' },
   zap: { lib: Feather, n: 'zap' },
-  globe: { lib: Ionicons, n: 'globe-outline' },
+  globe: { lib: Feather, n: 'globe' },
   folder: { lib: Feather, n: 'folder' },
   share: { lib: Feather, n: 'share' },
   archive: { lib: Feather, n: 'archive' },

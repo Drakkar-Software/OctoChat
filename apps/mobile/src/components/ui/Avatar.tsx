@@ -24,7 +24,7 @@ interface AvatarProps {
 
 /** Avatar — an uploaded image clipped to a circle when present, else a softly
  *  dimensional monogram. Optional presence dot and accent glow ring. */
-export function Avatar({ label, size = 36, ring = false, presence, image, tint = false }: AvatarProps) {
+export function Avatar({ label, size = 36, ring = false, presence, image, tint = true }: AvatarProps) {
   const { colors } = useTheme();
   const t = tint ? avatarTint(colors, label) : null;
   const [failed, setFailed] = useState(false);
@@ -100,7 +100,7 @@ interface AvatarStackProps {
 /** Overlapping cluster of avatars with a paper hairline ring between each, and a
  *  trailing "+N" disc when the member count exceeds `max`. For member-count rows
  *  (space members, room participants). */
-export function AvatarStack({ labels, size = 28, max = 4, tint = false }: AvatarStackProps) {
+export function AvatarStack({ labels, size = 28, max = 4, tint = true }: AvatarStackProps) {
   const { colors } = useTheme();
   const overlap = Math.round(size * 0.36);
   const shown = labels.slice(0, max);
