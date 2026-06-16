@@ -206,4 +206,33 @@ export {
   type CreateNodeInput,
   type NodeInviteBundle,
   type NodeInviteLinkToken,
+  // inbox helpers (shard rotation + authenticated read)
+  inboxShard,
+  inboxShards,
+  pullInbox,
+  type InboxElement,
+  // anonymous signed append
+  appendToInbox,
+  postAnonymousAppend,
+  AppendHttpError,
+  // pure-identity link tokens (no cap/credential — safe to publish)
+  encodeIdentityLink,
+  decodeIdentityLink,
+  verifyIdentityLinkBinding,
+  verifyIdentityLinkKeys,
+  myIdentityLink,
+  type IdentityLink,
+  // sealed resource-request inbox
+  submitResourceRequest,
+  scanResourceRequests,
+  acceptResourceRequest,
+  rejectResourceRequest,
+  scanResourceGrants,
+  acceptResourceGrant,
+  type ResourceRequest,
+  type ResourceGrant,
+  type ResourceReject,
+  type PendingRequest,
+  type AcceptResult,
+  type SubmitResourceRequestOptions,
 } from '@drakkar.software/octospaces-sdk';

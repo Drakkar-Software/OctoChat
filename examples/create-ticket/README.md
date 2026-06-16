@@ -58,29 +58,37 @@ grant the requester access.
 cap to write to the member roster. A client app that only has a member cap — or
 no space cap at all — can't call it directly.
 
-The alternative that needs **no REST API and no server credentials in the client**
-is the **DM-inbox path**: use the existing `createDmViaLink` machinery to deliver
-the ticket request to the desk bot's inbox.
+The recommended approach is the **sealed resource-request inbox** — a generic
+primitive in `@drakkar.software/octospaces-sdk` (`submitResourceRequest` /
+`scanResourceRequests` / `acceptResourceRequest` / `scanResourceGrants` /
+`acceptResourceGrant`). The requester needs only the bot's **public identity link**
+(no cap, no secret, safe to embed anywhere):
 
 ```
-client app (any identity)                  desk bot (space owner, always running)
-──────────────────────────                 ──────────────────────────────────────
-createDmViaLink(bot DM link)            ← publishes myDmLink()
-  │ sealed ticket-request message
-  └─▶ bot dminbox/<botId>/<month>
-                                           reconcileDmInbox()
-                                             └─ sees sealed message
-                                             └─ createTicket() on the desk space
-                                             └─ replies with requesterInviteLink
-                                                  via the DM room
+REQUESTER (any identity; holds only the bot's identity link)
+  submitResourceRequest(botLink, { spaceId, nodeType:'ticket', title, meta, message })
+    │ verify identity-link binding + live profile cross-check
+    │ seal ResourceRequest to bot's KEM key
+    └─▶ anonymous append → inbox/{botId}/{shard}
+
+BOT (space owner; reconcile loop)
+  scanResourceRequests()
+    │ trial-unseal, verify sender identity, dedup by reqId
+    └─▶ acceptResourceRequest({ create: makeTicketCreateHandler() })
+          ├─▶ createTicketNode(title, TicketMeta, meta.reqId)   ← stamps reqId for dedup
+          ├─▶ inviteToNode() → nodeMemberScope cap
+          └─▶ seal ResourceGrant → inbox/{requesterId}/{shard}
+
+REQUESTER (poll back)
+  scanResourceGrants() → acceptResourceGrant()
+    └─▶ nodeMemberScope cap stored → open the ticket room (ticket-scoped access only)
 ```
 
-The client only needs the **bot's DM link** (a public URL, safe to embed in a
-client app — it's just the bot's identity). The bot's space credentials and the
-member roster never touch the client. The entire exchange is E2EE.
+The bot's space credentials never touch the client. The entire exchange is E2EE.
+The requester ends up with a **ticket-scoped cap only** — they can read/write that
+one ticket room and nothing else in the space.
 
-See [`dm-via-link`](../dm-via-link) for the DM mechanics. This ticket-request
-pattern is the recommended approach for client-side ticket submission.
+See `ts/src/request.ts` for the full end-to-end demo (both sides in one script).
 
 ## How this example differs from the DM example
 
@@ -108,13 +116,12 @@ cp examples/create-ticket/.env.example examples/create-ticket/.env
 | `AGENT_NAME` | `Support Bot` | Display name of the agent identity. |
 | `TICKET_ORIGIN` | `https://desk.drakkar.software` | Scheme+host for the requester invite link URL (owner path only). |
 
-## Run — TypeScript
+## Run — TypeScript (direct-create flow)
 
-This example consumes the **in-repo** SDK. Run from the **repo root** (reuses the
-workspace's hoisted deps + `tsx` — no per-example install needed):
+`ticket.ts` — the bot-owns-the-space path: bot creates the ticket directly.
+Run from the **repo root** (reuses workspace deps + `tsx`):
 
 ```bash
-# from the repo root
 pnpm --filter @drakkar.software/octochat-sdk build   # ensure dist/ is current
 node_modules/.bin/tsx examples/create-ticket/ts/src/ticket.ts
 ```
@@ -126,6 +133,30 @@ STARFISH_DATA_DIR=$(mktemp -d) PORT=8799 pnpm --filter @octochat/server start &
 STARFISH_URL=http://127.0.0.1:8799 \
   node_modules/.bin/tsx examples/create-ticket/ts/src/ticket.ts
 ```
+
+## Run — TypeScript (sealed resource-request flow)
+
+`request.ts` — the no-write-all-link path: requester has only the bot's public
+identity link; bot creates the ticket and seals a narrow cap back. Zero setup —
+creates a fresh bot + space automatically when `BOT_IDENTITY_LINK` is unset:
+
+```bash
+pnpm --filter @drakkar.software/octochat-sdk build
+STARFISH_DATA_DIR=$(mktemp -d) PORT=8799 pnpm --filter @octochat/server start &
+STARFISH_URL=http://127.0.0.1:8799 \
+  node_modules/.bin/tsx examples/create-ticket/ts/src/request.ts
+```
+
+To wire against a real desk bot, set `BOT_IDENTITY_LINK` (printed by the bot on
+startup via `myIdentityLink()`) and `REQUESTER_SPACE_ID`:
+
+| Var | Default | Meaning |
+| --- | --- | --- |
+| `BOT_IDENTITY_LINK` | *(empty → auto-create)* | Full `<origin>/request#<token>` identity link printed by the desk bot. |
+| `REQUESTER_SPACE_ID` | *(empty → auto-create)* | The bot's OctoDesk space id — required when `BOT_IDENTITY_LINK` is set. |
+| `BOT_NAME` | `Desk Bot` | Display name for the auto-created bot (default mode only). |
+| `REQUESTER_NAME` | `Alice (requester)` | Display name for the requester identity. |
+| `TICKET_ORIGIN` | `https://desk.drakkar.software` | Scheme+host used when encoding the identity link (default mode only). |
 
 > **Note:** you can also run `npm run start` from inside `examples/create-ticket/ts/`
 > if `tsx` resolves from the repo root `node_modules` (it will on a hoisted pnpm workspace).

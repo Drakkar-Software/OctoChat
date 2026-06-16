@@ -42,6 +42,37 @@ export async function createTicketNode(
 }
 
 /**
+ * Append a new ticket node and stamp `meta.reqId` for dedup.
+ * Used by `makeTicketCreateHandler` so `scanResourceRequests` can skip
+ * re-delivered requests (checks `node.meta?.reqId === req.reqId`).
+ */
+export async function createTicketNodeWithReqId(
+  session: Session,
+  spaceId: string,
+  ticketId: string,
+  title: string,
+  ticketMeta: TicketMeta,
+  enc: boolean,
+  reqId: string,
+): Promise<void> {
+  await updateObjectIndex(session, spaceId, (raw, now) => {
+    const next = asLocal(raw);
+    return addObject(
+      next,
+      {
+        type: 'ticket',
+        id: ticketId,
+        title,
+        access: 'invite',
+        enc,
+        meta: { ticket: ticketMeta, reqId },
+      },
+      now,
+    ).nodes as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
+  });
+}
+
+/**
  * Merge a patch into `meta.ticket` on an existing ticket node.
  * No-op when the node is gone or is not a ticket node.
  */

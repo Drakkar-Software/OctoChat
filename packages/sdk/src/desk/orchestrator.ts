@@ -9,14 +9,19 @@
  *    to their ticket only.
  *  - Member requester (memberTicket: true) → `enc: true` (full E2EE under space
  *    keyring). Requester must already hold the keyring (i.e. be a space member).
+ *
+ * The `makeTicketCreateHandler` factory returns a `create` callback compatible
+ * with `acceptResourceRequest({ create })` so an OctoDesk bot can accept sealed
+ * resource requests and create properly-typed ticket nodes with `TicketMeta`.
  */
 import { createNodeInviteLink } from '@drakkar.software/octospaces-sdk';
+import type { ResourceRequest } from '@drakkar.software/octospaces-sdk';
 import { randomId } from '../domain/ids';
 import type { Session } from '../starfish/identity';
 import type { ID } from '../domain/types';
 import type { TicketPriority, TicketStatus } from './ticket';
 import { defaultTicketMeta } from './ticket';
-import { createTicketNode, patchTicketMeta } from './registry-write';
+import { createTicketNode, createTicketNodeWithReqId, patchTicketMeta } from './registry-write';
 
 /**
  * Create a new ticket room and return a one-time invite link for the requester.
@@ -76,4 +81,40 @@ export async function assignTicket(
   assigneeId: ID | null,
 ): Promise<void> {
   await patchTicketMeta(session, spaceId, ticketId, { assigneeId });
+}
+
+/**
+ * Factory: returns a `create` callback for use with `acceptResourceRequest({ create })`.
+ *
+ * The callback interprets a `ResourceRequest` (nodeType `'ticket'` by convention)
+ * and creates a properly-typed ticket node with `TicketMeta` — forwarding the
+ * `requester` string and `priority` from `req.meta`, and stamping `meta.reqId` for
+ * idempotency. Use this to wire a desk bot's reconcile loop:
+ *
+ * ```ts
+ * const ticketHandler = makeTicketCreateHandler();
+ * for (const pending of await scanResourceRequests(session)) {
+ *   await acceptResourceRequest(session, pending, { create: ticketHandler });
+ * }
+ * ```
+ */
+export function makeTicketCreateHandler(): (
+  session: Session,
+  req: ResourceRequest,
+) => Promise<{ nodeId: string }> {
+  return async (session: Session, req: ResourceRequest) => {
+    const ticketId = `ticket-${randomId()}`;
+    const requester =
+      typeof req.meta?.requester === 'string' ? (req.meta.requester as string) : req.requester.userId;
+    const priority =
+      typeof req.meta?.priority === 'string'
+        ? (req.meta.priority as TicketPriority)
+        : 'medium';
+    const ticketMeta = defaultTicketMeta({ requester, priority });
+    // Create the ticket node with BOTH the TicketMeta sub-object AND meta.reqId so the
+    // dedup check in scanResourceRequests (which tests node.meta?.reqId === req.reqId)
+    // correctly skips re-delivered requests.
+    await createTicketNodeWithReqId(session, req.spaceId, ticketId, req.title, ticketMeta, false, req.reqId);
+    return { nodeId: ticketId };
+  };
 }
