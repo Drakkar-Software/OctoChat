@@ -36,15 +36,20 @@ export async function startDevicePairing(session: Session, pin: string): Promise
       // OWNS so it can decrypt those spaces immediately. A keyring write is
       // `space:owner`-gated, so we can only grant OWNED spaces — joined spaces stay
       // locked until their owner re-invites this device.
-      const { spaces, caps } = await readSpaces(session.spacesRegistryClient, session.userId);
-      for (const space of spaces) {
-        if (caps[space.id]) continue; // joined (has a member cap) — not ours to grant
-        try {
-          await addDeviceToSpaceKeyring(session, space.id, { kemPub: device.kemPub, edPub: device.edPub, userId: session.userId });
-        } catch (err) {
-          // Best-effort per space — a single keyring failure must not abort pairing.
-          console.log('[pairing] keyring grant failed', { spaceId: space.id, error: String((err as Error)?.message ?? err) });
-        }
+      //
+      // The entire block is best-effort: if readSpaces fails (network error) we log
+      // and return — pairing must succeed regardless of keyring grants.
+      try {
+        const { spaces, caps } = await readSpaces(session.spacesRegistryClient, session.userId);
+        const ownedSpaces = spaces.filter(s => !caps[s.id]); // joined spaces have a member cap
+        await Promise.all(
+          ownedSpaces.map(space =>
+            addDeviceToSpaceKeyring(session, space.id, { kemPub: device.kemPub, edPub: device.edPub, userId: session.userId })
+              .catch(err => console.log('[pairing] keyring grant failed', { spaceId: space.id, error: String((err as Error)?.message ?? err) })),
+          ),
+        );
+      } catch (err) {
+        console.log('[pairing] readSpaces failed, skipping keyring grants', String((err as Error)?.message ?? err));
       }
     },
   });
