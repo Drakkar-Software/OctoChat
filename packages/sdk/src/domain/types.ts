@@ -24,6 +24,8 @@ import type {
   AttachmentRef,
   NodeAccess,
   ObjectContentKind,
+  PresenceStatus,
+  VerificationLevel,
 } from '@drakkar.software/octospaces-sdk';
 
 export interface User {
@@ -157,8 +159,8 @@ export const BUILTIN_OBJECT_TYPES: readonly BuiltinObjectType[] = ['room', 'cate
  *   - `merge`  → a merge-doc (pull→union-merge→push), like a doc or a channel.
  *   - `append` → an append-only `by_timestamp` event log, like a project or a stream.
  *   - `none`   → no content doc; the node is structure only, like a category.
- *  Builtins infer this (see `object-types.ts`); a custom type sets it on the node. */
-export type ObjectContentKind = 'merge' | 'append' | 'none';
+ *  Builtins infer this (see `object-types.ts`); a custom type sets it on the node.
+ *  Sourced from `@drakkar.software/octospaces-sdk` (re-exported above). */
 
 /** When `type === 'room'`, which flavour. Maps the legacy {@link RoomKind}:
  *  `channel`/`private`→`channel`, `dm`→`dm`, `automated`→`automation`. A legacy
