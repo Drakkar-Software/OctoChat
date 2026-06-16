@@ -85,6 +85,13 @@ export interface Palette {
   accentBorder: string;
   accentBorderStrong: string;
 
+  // ── Desk accent (OctoDesk variant) ───────────────────────────────────────
+  /** Support/amber accent for the OctoDesk variant. */
+  accentDesk: string;
+  accentDeskSoft: string;
+  accentDeskBg: string;
+  accentDeskBorder: string;
+
   // ── Status ───────────────────────────────────────────────────────────────
   unread: string;
   mention: string;
@@ -161,6 +168,10 @@ const light: Palette = {
   accentBgStrong: 'rgba(14,112,144,0.16)',
   accentBorder: 'rgba(14,112,144,0.32)',
   accentBorderStrong: 'rgba(14,112,144,0.50)',
+  accentDesk: '#8b5a2b',
+  accentDeskSoft: '#e8d5c0',
+  accentDeskBg: 'rgba(139,90,43,0.10)',
+  accentDeskBorder: 'rgba(139,90,43,0.32)',
 
   unread: '#0c8aaf',
   mention: '#a64034',
@@ -228,6 +239,10 @@ const dark: Palette = {
   accentBgStrong: 'rgba(82,182,212,0.20)',
   accentBorder: 'rgba(82,182,212,0.35)',
   accentBorderStrong: 'rgba(82,182,212,0.55)',
+  accentDesk: '#d4956a',
+  accentDeskSoft: '#3a2415',
+  accentDeskBg: 'rgba(212,149,106,0.12)',
+  accentDeskBorder: 'rgba(212,149,106,0.35)',
 
   unread: '#52b6d4',
   mention: '#cf6b5e',

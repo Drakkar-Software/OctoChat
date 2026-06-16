@@ -19,6 +19,7 @@ export const ROOM_TYPES = {
   category: 'category',
   dm: 'dm',
   automation: 'automation',
+  ticket: 'ticket',
 } as const;
 
 export type RoomObjectType = (typeof ROOM_TYPES)[keyof typeof ROOM_TYPES];
@@ -41,6 +42,7 @@ const BUILTINS: Record<string, ObjectDescriptor> = {
   doc: { contentKind: 'merge', icon: 'file', label: 'Doc' },
   project: { contentKind: 'append', icon: 'work', label: 'Project' },
   task: { contentKind: 'none', icon: 'check', label: 'Task' },
+  ticket: { contentKind: 'append', icon: 'ticket', label: 'Ticket' },
 };
 
 /** The fallback for an unknown (custom) type: a structureless-until-declared object

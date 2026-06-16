@@ -147,12 +147,12 @@ export interface Room {
  *  rooms, categories, docs, projects (and a project's tasks) — are all `Object`s of
  *  one `ObjectType`. A custom (user-defined) type rides the same `string` field, so
  *  the union stays open-ended; builtins are the ones the app ships renderers for. */
-export type BuiltinObjectType = 'room' | 'category' | 'automation' | 'doc' | 'project' | 'task';
+export type BuiltinObjectType = 'room' | 'category' | 'automation' | 'doc' | 'project' | 'task' | 'ticket';
 export type ObjectType = BuiltinObjectType | (string & {});
 
 /** The builtin types, as a runtime set — so code can ask "is this one we ship a
  *  renderer for?" and fall back to the generic custom-type path otherwise. */
-export const BUILTIN_OBJECT_TYPES: readonly BuiltinObjectType[] = ['room', 'category', 'automation', 'doc', 'project', 'task'];
+export const BUILTIN_OBJECT_TYPES: readonly BuiltinObjectType[] = ['room', 'category', 'automation', 'doc', 'project', 'task', 'ticket'];
 
 /** How an object's CONTENT syncs — the one axis a custom type must declare so the app
  *  can pick a hook without hardcoding its `type`:

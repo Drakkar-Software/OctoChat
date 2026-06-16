@@ -22,6 +22,7 @@ import { flushReadsNow, hydrateReads, resetReads } from '@drakkar.software/octoc
 import { activeAccountOf, sessionFromPersisted } from '@drakkar.software/octochat-sdk';
 import { clearNodeAccessCache } from '@drakkar.software/octochat-sdk';
 import { enrollPasskey, passkeyEnrollable } from '@drakkar.software/octochat-sdk/platform';
+import { activeVariant } from './variants';
 import {
   addPasskeyToVault,
   clearVault,
@@ -537,7 +538,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       passkeyEnrolled,
       enablePasskey: async () => {
         // Enroll on the live gesture, then wrap the unlocked VMK under its PRF secret.
-        const passkey = await enrollPasskey('OctoChat');
+        const passkey = await enrollPasskey(activeVariant.appName);
         await addPasskeyToVault(passkey);
         setPasskeyEnrolled(true);
       },

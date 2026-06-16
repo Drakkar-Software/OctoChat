@@ -46,6 +46,8 @@ export interface NewObjectInput {
   access?: NodeAccess;
   /** True when the node's content is E2EE under the space keyring. */
   enc?: boolean;
+  /** Free-form per-node metadata bag (e.g. `{ ticket: TicketMeta }` for desk nodes). */
+  meta?: Record<string, unknown>;
 }
 
 /** Append a new node under `parentId` at the end of its sibling order. */
@@ -64,6 +66,7 @@ export function addObject(nodes: ObjectNode[], input: NewObjectInput, now: numbe
     ...(input.automation ? { automation: input.automation } : {}),
     ...(input.access ? { access: input.access } : {}),
     ...(input.enc !== undefined ? { enc: input.enc } : {}),
+    ...(input.meta ? { meta: input.meta } : {}),
   };
   return { nodes: [...nodes, node], node };
 }

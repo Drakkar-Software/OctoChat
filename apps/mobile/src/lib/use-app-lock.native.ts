@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 
+import { activeVariant } from './variants';
 import {
   biometricLabel,
   biometricSupported,
@@ -68,7 +69,7 @@ export function useAppLock(): AppLockControl {
     error,
     iconName: 'lock',
     title: `Require ${cap}`,
-    detail: `Unlock OctoChat with ${label} every time you open it.`,
+    detail: `Unlock ${activeVariant.appName} with ${label} every time you open it.`,
     toggle,
   };
 }

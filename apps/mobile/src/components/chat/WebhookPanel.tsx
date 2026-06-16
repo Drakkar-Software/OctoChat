@@ -10,6 +10,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { Row } from '@/components/ui/Row';
 
 import { OwnerConfigPanel } from './OwnerConfigPanel';
+import { activeVariant } from '@/lib/variants';
 
 const shortDate = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
@@ -26,7 +27,7 @@ export function WebhookPanel({ spaceId, roomId }: { spaceId: string; roomId: str
   return (
     <OwnerConfigPanel
       title="Incoming webhooks"
-      subtitle={<>Let an external tool post here by POSTing {'{ "text": "…" }'} to a URL — no OctoChat account needed.</>}
+      subtitle={<>Let an external tool post here by POSTing {'{ "text": "…" }'} to a URL — no {activeVariant.appName} account needed.</>}
     >
       {items.map((w) => (
         <Row

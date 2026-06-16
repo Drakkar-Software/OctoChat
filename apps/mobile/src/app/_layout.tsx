@@ -24,6 +24,7 @@ import { SpacesProvider } from '@/lib/spaces-context';
 import { ThreadDigestProvider } from '@/lib/thread-digest-context';
 import { UnreadProvider } from '@/lib/unread-context';
 import { ViewModeProvider } from '@/lib/view-mode';
+import { BrandProvider } from '@/lib/brand-context';
 
 import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
@@ -83,6 +84,7 @@ export default function RootLayout() {
 
   return (
     <OctoSpacesThemeProvider theme={octoSpacesTheme}>
+    <BrandProvider>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         {/* Drives react-native-keyboard-controller's keyboard-tracking on iOS/Android
@@ -143,6 +145,7 @@ export default function RootLayout() {
         </KeyboardProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+    </BrandProvider>
     </OctoSpacesThemeProvider>
   );
 }

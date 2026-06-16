@@ -8,6 +8,8 @@ import type { AutomationProvider } from '../types';
 import { aiProvider } from './ai';
 import { httpProvider } from './http';
 import { rssProvider } from './rss';
+import { deskAutoreplyProvider } from './desk-autoreply';
+import { deskSlaProvider } from './desk-sla';
 
 // Each concrete provider is parameterized over its own params shape, so a
 // catalog cell is widened to `AutomationProvider<any>` at the type level — the
@@ -15,7 +17,7 @@ import { rssProvider } from './rss';
 // the provider's own implementation enforces its real param shape internally.
 type AnyProvider = AutomationProvider<any>;
 
-export const PROVIDERS: AnyProvider[] = [aiProvider, rssProvider, httpProvider];
+export const PROVIDERS: AnyProvider[] = [aiProvider, rssProvider, httpProvider, deskAutoreplyProvider, deskSlaProvider];
 
 /** Resolve a provider by id, or `null` for an unknown id (a registry entry might
  *  pin an id that no longer ships — the runner skips it; the UI shows "Unknown

@@ -134,6 +134,13 @@ export * from './automations/schedule';
 export * from './automations/orchestrator';
 export * from './automations/providers/index';
 
+// ── desk/ — OctoDesk sub-app: ticket model + orchestrator ─────────────────────
+export * from './desk/ticket';
+export * from './desk/orchestrator';
+
+// ── domain/capabilities — variant capability registry ─────────────────────────
+export * from './domain/capabilities';
+
 // ── octospaces-sdk — new generic utilities (0.4.3) ─────────────────────────────
 // These were extracted into the shared SDK; re-exported here so OctoChat code
 // imports from '@drakkar.software/octochat-sdk' without knowing the origin.

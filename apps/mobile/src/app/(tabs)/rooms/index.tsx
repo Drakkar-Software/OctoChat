@@ -23,6 +23,8 @@ import { OfflineBanner } from '@/components/chat/OfflineBanner';
 import { RoomCategoryList } from '@/components/chat/RoomCategoryList';
 import { SidebarLinkRow } from '@/components/chat/SidebarLinkRow';
 import { SpaceTabHeader } from '@/components/chat/SpaceTabHeader';
+import { useFeature } from '@/lib/use-feature';
+import { TicketList } from '@/components/desk/TicketList';
 
 /**
  * Chat bottom tab — the space's rooms, threads and pins. One of the three mode
@@ -41,6 +43,9 @@ export default function RoomsScreen() {
   const space = isDmHome ? undefined : spaces.find((s) => s.id === activeId) ?? spaces[0];
   const { hasPins } = useSpaceNav(isDmHome ? null : activeId);
   const dms = useDms();
+
+  const hasChannels = useFeature('channels');
+  const hasTickets = useFeature('tickets');
 
   const openRoom = (room: Room) =>
     router.push({ pathname: '/room/[id]', params: { id: room.id, name: room.name, kind: room.kind } });
@@ -89,31 +94,9 @@ export default function RoomsScreen() {
         <>
           {/* Hoisted above the empty-state so an offline user is always told WHY the
               list is sparse — even when the cache is empty and they see "No rooms yet". */}
-          {!online ? <OfflineBanner message="You’re offline — showing your last-synced rooms." /> : null}
-          {categories.length === 0 ? (
-            // Owner gets a welcoming first-channel state (+ the create control below);
-            // a non-owner is told the space is empty rather than to "create a channel".
-            <>
-              <View style={styles.emptyFloor}>
-                <EmptyState
-                  iconName="hash"
-                  title="No channels yet"
-                  subtitle={isOwner ? 'Create your first channel to start the conversation.' : 'The owner hasn’t added channels yet.'}
-                />
-              </View>
-              {isOwner ? (
-                <RoomCategoryList
-                  categories={[]}
-                  userId={session.userId}
-                  spaceId={activeId ?? space?.id ?? ''}
-                  onOpenRoom={openRoom}
-                  onCreateRoom={(category, name, isPublic) => createRoom(name, category, { isPublic })}
-                  onMoveRoom={moveRoom}
-                  onCreateCategory={createCategory}
-                />
-              ) : null}
-            </>
-          ) : (
+          {!online ? <OfflineBanner message="You're offline — showing your last-synced rooms." /> : null}
+          {categories.length > 0 ? (
+            // Space has channels — show digest, nav links, and the channel list.
             <>
               {/* Threads + Pinned are space-scoped destinations; automations live in
                   the Agents tab, so automated rooms are stripped from this list. */}
@@ -139,7 +122,35 @@ export default function RoomsScreen() {
                 onCreateCategory={isOwner ? createCategory : undefined}
               />
             </>
-          )}
+          ) : hasChannels ? (
+            // Channels are enabled but none created yet.
+            // Owner gets a welcoming first-channel state; a non-owner is told the space is empty.
+            <>
+              <View style={styles.emptyFloor}>
+                <EmptyState
+                  iconName="hash"
+                  title="No channels yet"
+                  subtitle={isOwner ? 'Create your first channel to start the conversation.' : "The owner hasn't added channels yet."}
+                />
+              </View>
+              {isOwner ? (
+                <RoomCategoryList
+                  categories={[]}
+                  userId={session.userId}
+                  spaceId={activeId ?? space?.id ?? ''}
+                  onOpenRoom={openRoom}
+                  onCreateRoom={(category, name, isPublic) => createRoom(name, category, { isPublic })}
+                  onMoveRoom={moveRoom}
+                  onCreateCategory={createCategory}
+                />
+              ) : null}
+            </>
+          ) : null}
+          {/* Ticket rooms — gated by capability, independent of channel count so that
+              OctoDesk spaces (channels not enabled) always render the ticket list. */}
+          {hasTickets && (activeId ?? space?.id) ? (
+            <TicketList spaceId={activeId ?? space?.id ?? ''} />
+          ) : null}
         </>
       )}
     </StackScreen>

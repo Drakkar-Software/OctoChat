@@ -2,6 +2,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { glowShadow, radii, shadows, spacing } from '@/theme';
+import { activeVariant } from '@/lib/variants';
 import { useCopy } from '@/lib/clipboard';
 import { useProfile } from '@/lib/profile-context';
 import { canShare, shareText } from '@/lib/share';
@@ -94,7 +95,7 @@ export function DmLinkSheet({ visible, onClose }: DmLinkSheetProps) {
                       variant="primary"
                       size="md"
                       style={styles.action}
-                      onPress={() => void shareText(link, 'DM me on OctoChat')}
+                      onPress={() => void shareText(link, `DM me on ${activeVariant.appName}`)}
                     />
                   ) : null}
                 </View>

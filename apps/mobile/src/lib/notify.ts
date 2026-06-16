@@ -17,7 +17,8 @@
 import { router } from 'expo-router';
 
 import { focusDesktopWindow, isDesktop } from './desktop';
-import { APP_NAME, notificationTitle } from '@drakkar.software/octochat-sdk';
+import { notificationTitle } from '@drakkar.software/octochat-sdk';
+import { activeVariant } from './variants';
 import { playNotificationSound } from './notification-sound';
 import type { NotificationSound } from './notification-settings';
 import {
@@ -65,7 +66,7 @@ export function notifyNewMessage(roomId: string, body = GENERIC_BODY, options: N
     // (see `notification-sound.ts`); on plain web the OS toast sound is fine, so
     // we keep driving it with the `silent` flag.
     const desktop = isDesktop();
-    const n = new Notification(options.title ?? APP_NAME, {
+    const n = new Notification(options.title ?? activeVariant.appName, {
       body,
       tag: `octochat-message-${roomId}`,
       renotify: true,

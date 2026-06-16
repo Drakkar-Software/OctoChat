@@ -9,7 +9,8 @@
       "distribution": "internal",
       "channel": "development",
       "env": {
-        "EXPO_PUBLIC_WEB_URL": "https://oc.drakkar.software"
+        "EXPO_PUBLIC_WEB_URL": "https://oc.drakkar.software",
+        "EXPO_PUBLIC_VARIANT": "octochat"
       }
     },
     "preview": {
@@ -19,14 +20,72 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_WEB_URL": "https://oc.drakkar.software"
+        "EXPO_PUBLIC_WEB_URL": "https://oc.drakkar.software",
+        "EXPO_PUBLIC_VARIANT": "octochat"
       }
     },
     "production": {
       "autoIncrement": true,
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_WEB_URL": "https://oc.drakkar.software"
+        "EXPO_PUBLIC_WEB_URL": "https://oc.drakkar.software",
+        "EXPO_PUBLIC_VARIANT": "octochat"
+      }
+    },
+    "octodesk-development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "octodesk-development",
+      "env": {
+        "EXPO_PUBLIC_WEB_URL": "https://desk.drakkar.software",
+        "EXPO_PUBLIC_VARIANT": "octodesk"
+      }
+    },
+    "octodesk-preview": {
+      "distribution": "internal",
+      "channel": "octodesk-preview",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_WEB_URL": "https://desk.drakkar.software",
+        "EXPO_PUBLIC_VARIANT": "octodesk"
+      }
+    },
+    "octodesk-production": {
+      "autoIncrement": true,
+      "channel": "octodesk-production",
+      "env": {
+        "EXPO_PUBLIC_WEB_URL": "https://desk.drakkar.software",
+        "EXPO_PUBLIC_VARIANT": "octodesk"
+      }
+    },
+    "octopulse-development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "octopulse-development",
+      "env": {
+        "EXPO_PUBLIC_WEB_URL": "https://pulse.drakkar.software",
+        "EXPO_PUBLIC_VARIANT": "octopulse"
+      }
+    },
+    "octopulse-preview": {
+      "distribution": "internal",
+      "channel": "octopulse-preview",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_WEB_URL": "https://pulse.drakkar.software",
+        "EXPO_PUBLIC_VARIANT": "octopulse"
+      }
+    },
+    "octopulse-production": {
+      "autoIncrement": true,
+      "channel": "octopulse-production",
+      "env": {
+        "EXPO_PUBLIC_WEB_URL": "https://pulse.drakkar.software",
+        "EXPO_PUBLIC_VARIANT": "octopulse"
       }
     }
   },

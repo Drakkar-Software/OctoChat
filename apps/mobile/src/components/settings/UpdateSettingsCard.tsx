@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
+import { activeVariant } from '@/lib/variants';
 import { useUpdateCheck, type UpdateStatus } from '@/lib/use-update-check';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
@@ -72,7 +73,7 @@ function UpdateStatusNote({ status }: { status: UpdateStatus }) {
     case 'unavailable':
       return (
         <Txt variant="micro" tone="inkMuted">
-          OctoChat keeps itself up to date.
+          {activeVariant.appName} keeps itself up to date.
         </Txt>
       );
     default:

@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
+import { activeVariant } from '@/lib/variants';
 import { HeroMark } from '@/components/brand/HeroMark';
 import { AppBar } from '@/components/ui/AppBar';
 import { StackScreen } from '@/components/ui/StackScreen';
@@ -26,7 +27,7 @@ export default function UnlockScreen() {
     <StackScreen
       scroll
       contentStyle={styles.content}
-      header={<AppBar title="Unlock OctoChat" subtitle="welcome back" />}
+      header={<AppBar title={`Unlock ${activeVariant.appName}`} subtitle="welcome back" />}
     >
       <View style={styles.brand}>
         <HeroMark size={72} />

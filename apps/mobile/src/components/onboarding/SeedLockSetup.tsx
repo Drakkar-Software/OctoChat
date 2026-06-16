@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
+import { activeVariant } from '@/lib/variants';
 import { enrollPasskey } from '@drakkar.software/octochat-sdk/platform';
 import type { SeedLock } from '@drakkar.software/octochat-sdk';
 import { Button } from '@/components/ui/Button';
@@ -54,7 +55,7 @@ export function SeedLockSetup({ passkeyAvailable, onSubmit, onDone }: SeedLockSe
     setBusy(true);
     setError(null);
     try {
-      const passkey = await enrollPasskey('OctoChat');
+      const passkey = await enrollPasskey(activeVariant.appName);
       await submit({ pin, passkey }); // submit owns its own error/busy handling
     } catch (e) {
       setError(String((e as Error)?.message ?? e));
@@ -132,7 +133,7 @@ export function SeedLockSetup({ passkeyAvailable, onSubmit, onDone }: SeedLockSe
     <View style={styles.block}>
       <Callout tone="accent" iconName="shield">
         Your recovery seed is encrypted with this PIN before it&apos;s saved on this
-        device. You&apos;ll enter it each time you open OctoChat here.
+        device. You&apos;ll enter it each time you open {activeVariant.appName} here.
       </Callout>
 
       <View style={styles.pinBlock}>

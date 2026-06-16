@@ -16,9 +16,9 @@ export const OCTOCHAT_FACTS: OctoFact[] = [
   { icon: 'shield', text: 'Messages are end-to-end encrypted — the server only ever stores ciphertext, never your words.' },
   { icon: 'key', text: 'Your keys are derived from a 12-word recovery phrase and never leave this device.' },
   { icon: 'lock', text: 'Each room carries its own keyring, so every space stays sealed on its own.' },
-  { icon: 'shield', text: 'OctoChat pairs Ed25519 signing with Kyber — a post-quantum key exchange.' },
+  { icon: 'shield', text: 'The app pairs Ed25519 signing with Kyber — a post-quantum key exchange.' },
   { icon: 'devices', text: 'Add a new device by scanning a QR code: your seed is shared, never typed.' },
-  { icon: 'globe', text: 'One codebase ships OctoChat to iOS, Android, web and desktop alike.' },
+  { icon: 'globe', text: 'One codebase ships to iOS, Android, web and desktop alike.' },
   { icon: 'clock', text: 'Stretching your PIN takes a moment on purpose — it makes a stolen vault far harder to crack.' },
   { icon: 'people', text: 'An octopus has three hearts and blue blood — fitting for a chat that keeps your team in sync.' },
 ];
