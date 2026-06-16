@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { radii, spacing } from '@/theme';
+import { spacing } from '@/theme';
 import type { Room } from '@drakkar.software/octochat-sdk';
 import type { ThreadSummary } from '@drakkar.software/octochat-sdk';
 import { DEFAULT_CATEGORY } from '@drakkar.software/octochat-sdk';
@@ -131,7 +131,7 @@ export function RoomCategoryList({
         visible={addingRoom}
         onClose={() => setAddingRoom(false)}
         defaultCategory={DEFAULT_CATEGORY}
-        onSubmit={(name, category, isPublic) => onCreateRoom?.(category, name, isPublic)}
+        onSubmit={async (name, category, isPublic) => await onCreateRoom?.(category, name, isPublic) ?? null}
       />
 
       {/* "New category" only shown once rooms exist — in the empty state we offer

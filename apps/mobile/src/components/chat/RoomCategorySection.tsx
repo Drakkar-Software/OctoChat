@@ -120,7 +120,7 @@ export function RoomCategorySection({
         visible={adding}
         onClose={() => setAdding(false)}
         defaultCategory={category.name}
-        onSubmit={(name, cat, isPublic) => onCreateRoom?.(cat, name, isPublic)}
+        onSubmit={async (name, cat, isPublic) => await onCreateRoom?.(cat, name, isPublic) ?? null}
       />
     </View>
   );

@@ -11,16 +11,15 @@ import { SpaceSwitcherButton } from './SpaceSwitcherButton';
  * which all carry the same space identity. On web it stays headerless — each tab
  * draws the custom {@link SpaceTabHeader} inside its own screen (unchanged). On
  * iOS/Android it gives the tab a REAL native-stack header (iOS 26 Liquid Glass /
- * Material) that hosts the same controls: the space switcher on the left, the
- * profile puck on the right. `expo-router`'s `NativeTabs` can't render a header,
- * so the header lives on this nested Stack instead.
+ * Material) with the space switcher centered as the title and an owner-gated
+ * create-room "+" on the right. `expo-router`'s `NativeTabs` can't render a
+ * header, so the header lives on this nested Stack instead.
  *
  * `headerTransparent` lets the screen body scroll UNDER the bar (the screen pads
  * its content down past it — see {@link StackScreen} `headerProvidedNatively}),
  * and `headerBlurEffect` blurs that content through the bar — the iOS 26 Liquid
  * Glass / Material look. Without transparency the bar would reserve its own opaque
- * strip and the canvas wouldn't sit behind it, reading as a blank gap. The switcher
- * renders in `compact` mode (icon + name, name capped so it truncates). Hidden on
+ * strip and the canvas wouldn't sit behind it, reading as a blank gap. Hidden on
  * wide native layouts (iPad / foldable) where the desktop shell owns the chrome.
  */
 export default function SpaceStackLayout() {

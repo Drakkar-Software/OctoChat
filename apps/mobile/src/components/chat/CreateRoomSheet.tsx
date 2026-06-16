@@ -18,7 +18,7 @@ interface CreateRoomSheetProps {
    * Called with name + category + isPublic on submit.
    * Returns null on success, or an error message string on failure.
    */
-  onSubmit: (name: string, category: string, isPublic: boolean) => Promise<string | null> | void;
+  onSubmit: (name: string, category: string, isPublic: boolean) => Promise<string | null>;
 }
 
 const VISIBILITY_SEGMENTS = [

@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { DEFAULT_CATEGORY } from '@drakkar.software/octochat-sdk';
 
-import { isDmHomeId } from '@/lib/dm-home';
-import { useSpaces } from '@/lib/use-spaces';
 import { useRooms } from '@/lib/use-rooms';
 import { useSpaceHeader } from '@/lib/use-space-header';
 import { IconButton } from '@/components/ui/IconButton';
@@ -18,9 +16,8 @@ import { CreateRoomSheet } from './CreateRoomSheet';
  * be dropped into any header slot with no prop wiring.
  */
 export function CreateRoomButton() {
-  const { space, isDmHome } = useSpaceHeader();
-  const { activeId } = useSpaces();
-  const { isOwner, createRoom } = useRooms(isDmHomeId(activeId) ? null : activeId);
+  const { space, isDmHome, activeId } = useSpaceHeader();
+  const { isOwner, createRoom } = useRooms(isDmHome ? null : activeId);
   const [open, setOpen] = useState(false);
 
   if (isDmHome || !space || !isOwner) return null;
