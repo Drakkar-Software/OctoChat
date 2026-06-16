@@ -25,6 +25,7 @@ export type { DeviceKeys, PublicProfile } from '@drakkar.software/octospaces-sdk
 export {
   capProviderFor,
   makeClient,
+  ownerEnsureKeyring,
   readProfile,
   readPseudo,
   readProfiles,

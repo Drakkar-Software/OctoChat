@@ -1,126 +1,23 @@
 /**
- * Space membership (space-wide keyring model).
+ * Space membership — re-exports the generic invite/keyring surface from the SDK.
  *
- * A *join request* is just the invitee's identity (Ed/KEM pubkeys + userId). An
- * *invite* makes them a member of a whole SPACE: they're added to the space's one
- * keyring (so they can decrypt every channel) and to its owner-written roster (so
- * the server grants them `space:member`), and handed a single space-scoped cap.
- * Accepting verifies keyring access, stores the cap, and registers the space in
- * the invitee's own space list.
+ * `acceptSpaceInvite` is kept OctoChat-local because it performs a live keyring-access
+ * pre-check (via `buildEncryptor`) that the SDK version omits: it fails early with
+ * "ask the owner to re-invite" instead of silently succeeding without decryption access.
+ * It also uses `session.spacesRegistryClient` for the `_spaces` doc write.
  */
-import { addCollectionRecipient } from '@drakkar.software/starfish-keyring';
-import { mintMemberCap } from '@drakkar.software/starfish-sharing';
+export type { JoinRequest } from '@drakkar.software/octospaces-sdk';
+export { makeJoinRequest, inviteToSpace, addDeviceToSpaceKeyring } from '@drakkar.software/octospaces-sdk';
 
 import type { Space } from '../domain/types';
-
-import { getSpaceAccessEntry, saveSpaceAccessEntry } from '@drakkar.software/octospaces-sdk';
-
+import { addJoinedSpaceWithCap, saveSpaceAccessEntry } from '@drakkar.software/octospaces-sdk';
 import { buildEncryptor, makeClient } from './client';
 import type { Session } from './identity';
-import { keyringName, spaceMemberScope } from './paths';
-import { addJoinedSpaceWithCap, addSpaceMember, readSpaces } from './registry';
-
-export interface JoinRequest {
-  edPub: string;
-  kemPub: string;
-  userId: string;
-}
-
-/** The invitee shares this so a space owner can invite them. */
-export function makeJoinRequest(session: Session): string {
-  const req: JoinRequest = { edPub: session.keys.edPub, kemPub: session.keys.kemPub, userId: session.userId };
-  return JSON.stringify(req);
-}
 
 interface SpaceInvite {
   spaceId: string;
   spaceName: string;
   cap: unknown;
-}
-
-/**
- * True when `addCollectionRecipient` failed only because the invitee is already
- * a recipient of the keyring's current epoch. The keyring SDK throws a plain
- * `Error` for this (no typed error is exported), so match its message — see
- * starfish-keyring `addRecipient`: "Recipient <kem> already present in epoch <n>".
- */
-function isAlreadyPresentRecipient(err: unknown): boolean {
-  return err instanceof Error && /already present in epoch/.test(err.message);
-}
-
-/**
- * Owner-side: add a recipient's KEM key to a SPACE keyring (one keyring → every
- * channel). `session` must OWN the keyring — its write is `space:owner`-gated
- * server-side, so this only works for spaces the caller owns.
- *
- * The keyring SDK builds its own `/pull|/push` paths; `session.chatClient` carries
- * the `namespace` option (see makeClient), so those paths get the `/v1/octochat`
- * prefix on the deployed server automatically — no client wrapper needed.
- *
- * Re-invite tolerance: a recipient already wrapped into the keyring makes the SDK
- * throw "already present in epoch". That's the recover no-op — a member who lost
- * their LOCAL cap (reinstall, or a same-seed device) is still a keyring recipient;
- * swallow only that one error so the caller can fall through to re-mint a cap. Any
- * other failure propagates.
- *
- * Reused by {@link inviteToSpace} (a new member) and by device pairing (granting a
- * freshly-paired device its owner's keyrings — see `pairing.ts`).
- */
-export async function addDeviceToSpaceKeyring(
-  session: Session,
-  spaceId: string,
-  recipient: { kemPub: string; userId: string },
-): Promise<void> {
-  try {
-    await addCollectionRecipient(
-      session.chatClient,
-      keyringName(spaceId),
-      { subKem: recipient.kemPub, userId: recipient.userId, label: recipient.userId.slice(0, 8) },
-      { edPriv: session.keys.edPriv, edPub: session.keys.edPub, kemPriv: session.keys.kemPriv },
-      { trustedAdders: [session.keys.edPub] },
-    );
-  } catch (err) {
-    if (!isAlreadyPresentRecipient(err)) throw err;
-  }
-}
-
-/**
- * Owner: invite an identity into a space. Adds them to the space keyring (one
- * keyring → all channels), records them in the roster (gates `space:member`),
- * and mints a single space-scoped member cap. Returns the invite bundle JSON.
- * `spaceName` (when given) names the bundle without a `_spaces` lookup — used when
- * the space isn't in the inviter's list (yet), e.g. a DM-link space registered only
- * after delivery succeeds (see dm-link.ts), or when the INVITEE-facing name differs
- * from the inviter's own (a DM is named after the respective peer on each side).
- */
-export async function inviteToSpace(
-  session: Session,
-  spaceId: string,
-  requestJson: string,
-  canWrite = true,
-  spaceName?: string,
-): Promise<string> {
-  const req = JSON.parse(requestJson) as JoinRequest;
-  if (!req.edPub || !req.kemPub || !req.userId) throw new Error('That is not a valid join request.');
-  // 1. Add the invitee to the space keyring (covers every channel at once).
-  await addDeviceToSpaceKeyring(session, spaceId, { kemPub: req.kemPub, userId: req.userId });
-  // 2. Record them in the space roster (owner-only write → grants space:member).
-  await addSpaceMember(session.accountClient, spaceId, session.userId, req.userId);
-  // 3. Mint one space-scoped cap covering all current + future channels.
-  const cap = await mintMemberCap(
-    session.keys.edPriv,
-    session.keys.edPub,
-    { edPubHex: req.edPub, kemPubHex: req.kemPub, userIdHex: req.userId },
-    'chat',
-    spaceMemberScope(spaceId, canWrite),
-  );
-  let name = spaceName?.trim();
-  if (!name) {
-    const { spaces } = await readSpaces(session.spacesRegistryClient, session.userId);
-    name = spaces.find((s) => s.id === spaceId)?.name ?? 'Space';
-  }
-  const invite: SpaceInvite = { spaceId, spaceName: name, cap };
-  return JSON.stringify(invite);
 }
 
 /**
@@ -154,4 +51,3 @@ export async function acceptSpaceInvite(session: Session, inviteJson: string): P
   saveSpaceAccessEntry(spaceId, { kind: 'member', cap: capJson });
   return space;
 }
-

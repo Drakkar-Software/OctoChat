@@ -65,7 +65,7 @@ export async function startDevicePairing(session: Session, pin: string): Promise
   for (const space of spaces) {
     if (caps[space.id]) continue; // joined (has a member cap) — not ours to grant
     try {
-      await addDeviceToSpaceKeyring(session, space.id, { kemPub: deviceKeys.kemPub, userId: session.userId });
+      await addDeviceToSpaceKeyring(session, space.id, { kemPub: deviceKeys.kemPub, edPub: deviceKeys.edPub, userId: session.userId });
     } catch (err) {
       // Best-effort per space — a single keyring failure must not abort pairing.
       console.log('[pairing] keyring grant failed', { spaceId: space.id, error: String((err as Error)?.message ?? err) });

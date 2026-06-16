@@ -1,25 +1,25 @@
 /**
- * Tests for OctoChat space membership helpers.
- * Focus on the pure-logic paths and validation guards that don't require a live
- * keyring/server, mocking at the boundary of the heavy crypto dependencies.
+ * Tests for OctoChat-specific space membership behavior.
+ *
+ * `makeJoinRequest`, `inviteToSpace`, and `addDeviceToSpaceKeyring` are now re-exported
+ * directly from @drakkar.software/octospaces-sdk and are tested in the SDK's own
+ * members.test.ts / members.keyring.test.ts. Only the OctoChat-specific overrides are
+ * tested here:
+ *
+ *  - makeJoinRequest   — parity smoke-test (pure JSON; trivial, no mocks needed)
+ *  - acceptSpaceInvite — OctoChat-local: live keyring pre-check (buildEncryptor) +
+ *                        spacesRegistryClient write path
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ── Mocks (hoisted) ───────────────────────────────────────────────────────────
 
-vi.mock('@drakkar.software/starfish-keyring', () => ({
-  addCollectionRecipient: vi.fn(),
-}));
-
-vi.mock('@drakkar.software/starfish-sharing', () => ({
-  mintMemberCap: vi.fn(),
-}));
-
 vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@drakkar.software/octospaces-sdk')>();
   return {
     ...actual,
-    getSpaceAccessEntry: vi.fn(),
+    // acceptSpaceInvite calls addJoinedSpaceWithCap from the SDK directly
+    addJoinedSpaceWithCap: vi.fn(),
     saveSpaceAccessEntry: vi.fn(),
   };
 });
@@ -29,27 +29,11 @@ vi.mock('./client', () => ({
   makeClient: vi.fn(),
 }));
 
-vi.mock('./registry', () => ({
-  addSpaceMember: vi.fn(),
-  addJoinedSpaceWithCap: vi.fn(),
-  readSpaces: vi.fn(),
-}));
-
 // ── Imports (after mocks) ─────────────────────────────────────────────────────
 
-import { addCollectionRecipient } from '@drakkar.software/starfish-keyring';
-import { mintMemberCap } from '@drakkar.software/starfish-sharing';
-import { saveSpaceAccessEntry } from '@drakkar.software/octospaces-sdk';
+import { addJoinedSpaceWithCap, saveSpaceAccessEntry } from '@drakkar.software/octospaces-sdk';
 import { buildEncryptor, makeClient } from './client';
-import { addSpaceMember, addJoinedSpaceWithCap, readSpaces } from './registry';
-
-import {
-  makeJoinRequest,
-  inviteToSpace,
-  acceptSpaceInvite,
-  addDeviceToSpaceKeyring,
-  type JoinRequest,
-} from './members';
+import { makeJoinRequest, acceptSpaceInvite, type JoinRequest } from './members';
 import type { Session } from './identity';
 
 // ── Shared test fixtures ──────────────────────────────────────────────────────
@@ -70,19 +54,9 @@ function makeSession(overrides?: Partial<Session>): Session {
   } as Session;
 }
 
-const INVITEE_REQUEST: JoinRequest = {
-  edPub: 'edpub-invitee',
-  kemPub: 'kempub-invitee',
-  userId: 'u-invitee',
-};
-
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(addCollectionRecipient).mockResolvedValue(undefined as never);
-  vi.mocked(mintMemberCap).mockResolvedValue('{"kind":"member","sub":"edpub-invitee"}' as never);
-  vi.mocked(addSpaceMember).mockResolvedValue(undefined);
   vi.mocked(addJoinedSpaceWithCap).mockResolvedValue(undefined);
-  vi.mocked(readSpaces).mockResolvedValue({ spaces: [{ id: 'sp-abc', name: 'Test Space', short: 'TE', members: 1 }], hash: null } as never);
   vi.mocked(makeClient).mockReturnValue({} as never);
   vi.mocked(buildEncryptor).mockResolvedValue({ decrypt: vi.fn() } as never);
 });
@@ -97,68 +71,6 @@ describe('makeJoinRequest', () => {
     expect(parsed.edPub).toBe('edpub-owner');
     expect(parsed.kemPub).toBe('kempub-owner');
     expect(parsed.userId).toBe('u-owner');
-  });
-});
-
-// ── addDeviceToSpaceKeyring ───────────────────────────────────────────────────
-
-describe('addDeviceToSpaceKeyring', () => {
-  it('calls addCollectionRecipient with the correct keyring name and recipient', async () => {
-    const session = makeSession();
-    await addDeviceToSpaceKeyring(session, 'sp-abc', { kemPub: 'kempub-device', userId: 'u-device' });
-    expect(addCollectionRecipient).toHaveBeenCalledOnce();
-    const [, collectionName, recipient] = vi.mocked(addCollectionRecipient).mock.calls[0]!;
-    expect(collectionName).toBe('spaces/sp-abc'); // keyringName(spaceId)
-    expect((recipient as { subKem: string }).subKem).toBe('kempub-device');
-  });
-
-  it('swallows "already present in epoch" error (idempotent re-invite)', async () => {
-    vi.mocked(addCollectionRecipient).mockRejectedValueOnce(
-      new Error('Recipient kempub already present in epoch 1'),
-    );
-    const session = makeSession();
-    await expect(addDeviceToSpaceKeyring(session, 'sp-abc', { kemPub: 'kempub-x', userId: 'u-x' })).resolves.toBeUndefined();
-  });
-
-  it('re-throws other errors', async () => {
-    vi.mocked(addCollectionRecipient).mockRejectedValueOnce(new Error('network failure'));
-    const session = makeSession();
-    await expect(addDeviceToSpaceKeyring(session, 'sp-abc', { kemPub: 'kempub-x', userId: 'u-x' })).rejects.toThrow('network failure');
-  });
-});
-
-// ── inviteToSpace ─────────────────────────────────────────────────────────────
-
-describe('inviteToSpace', () => {
-  it('rejects a request missing required fields', async () => {
-    const session = makeSession();
-    await expect(inviteToSpace(session, 'sp-abc', JSON.stringify({ edPub: 'a' }))).rejects.toThrow('valid join request');
-  });
-
-  it('adds the invitee to the keyring, roster, and mints a cap', async () => {
-    const session = makeSession();
-    await inviteToSpace(session, 'sp-abc', JSON.stringify(INVITEE_REQUEST), true, 'My Space');
-    expect(addCollectionRecipient).toHaveBeenCalledOnce(); // keyring
-    expect(addSpaceMember).toHaveBeenCalledWith(session.accountClient, 'sp-abc', 'u-owner', 'u-invitee');
-    expect(mintMemberCap).toHaveBeenCalledOnce();
-  });
-
-  it('returns a JSON string containing spaceId, spaceName, and cap', async () => {
-    const session = makeSession();
-    const result = await inviteToSpace(session, 'sp-abc', JSON.stringify(INVITEE_REQUEST), true, 'My Space');
-    const parsed = JSON.parse(result) as { spaceId: string; spaceName: string; cap: unknown };
-    expect(parsed.spaceId).toBe('sp-abc');
-    expect(parsed.spaceName).toBe('My Space');
-    expect(parsed.cap).toBeDefined();
-  });
-
-  it('falls back to readSpaces for the name when spaceName is not provided', async () => {
-    const session = makeSession();
-    await inviteToSpace(session, 'sp-abc', JSON.stringify(INVITEE_REQUEST), true);
-    expect(readSpaces).toHaveBeenCalledOnce();
-    const result = await inviteToSpace(session, 'sp-abc', JSON.stringify(INVITEE_REQUEST), true);
-    const parsed = JSON.parse(result) as { spaceName: string };
-    expect(parsed.spaceName).toBe('Test Space');
   });
 });
 
@@ -215,5 +127,13 @@ describe('acceptSpaceInvite', () => {
     expect(saveSpaceAccessEntry).toHaveBeenCalledWith('sp-abc', expect.objectContaining({ kind: 'member' }));
     // addJoinedSpaceWithCap must be called BEFORE saveSpaceAccessEntry (crash-safety: server-side persist first)
     expect(callOrder).toEqual(['addJoinedSpaceWithCap', 'saveSpaceAccessEntry']);
+  });
+
+  it('writes the joined space to session.spacesRegistryClient (not accountClient)', async () => {
+    const session = makeInviteeSession();
+    await acceptSpaceInvite(session, makeInviteJson());
+    // OctoChat uses spacesRegistryClient; the SDK's generic acceptSpaceInvite uses accountClient.
+    // This test pins the OctoChat-specific routing.
+    expect(vi.mocked(addJoinedSpaceWithCap).mock.calls[0]![0]).toBe(session.spacesRegistryClient);
   });
 });
