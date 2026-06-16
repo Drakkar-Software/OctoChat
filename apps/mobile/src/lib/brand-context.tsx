@@ -1,28 +1,50 @@
-import { createContext, useContext } from 'react';
-import type { VariantConfig } from './variants';
-import { activeVariant } from './variants';
+import { createContext, useContext, useEffect, useSyncExternalStore, type ReactNode } from 'react';
+
 import type { Capability } from '@drakkar.software/octochat-sdk';
+
+import type { VariantConfig, VariantId } from './variants';
+import { VARIANTS } from './variants';
+import {
+  getActiveVariantId,
+  loadVariantId,
+  saveVariantId,
+  setActiveVariantId,
+  subscribeVariant,
+} from './variant-store';
 
 interface BrandContextValue {
   variant: VariantConfig;
   has: (cap: Capability) => boolean;
+  setVariant: (id: VariantId) => Promise<void>;
 }
 
 const BrandContext = createContext<BrandContextValue>({
-  variant: activeVariant,
-  has: (cap) => activeVariant.features.includes(cap),
+  variant: VARIANTS[getActiveVariantId()],
+  has: (cap) => VARIANTS[getActiveVariantId()].features.includes(cap),
+  setVariant: saveVariantId,
 });
 
-/** Provides the active variant config to the component tree. */
-export function BrandProvider({ children }: { children: React.ReactNode }) {
+/** Provides the active variant config to the component tree. Loads the
+ *  persisted choice from KV on mount so the user's preference survives restarts. */
+export function BrandProvider({ children }: { children: ReactNode }) {
+  const variantId = useSyncExternalStore(subscribeVariant, getActiveVariantId, getActiveVariantId);
+  const variant = VARIANTS[variantId];
+
+  useEffect(() => {
+    void loadVariantId().then((id) => {
+      if (id !== getActiveVariantId()) setActiveVariantId(id);
+    });
+  }, []);
+
   const value: BrandContextValue = {
-    variant: activeVariant,
-    has: (cap) => activeVariant.features.includes(cap),
+    variant,
+    has: (cap) => variant.features.includes(cap),
+    setVariant: saveVariantId,
   };
   return <BrandContext.Provider value={value}>{children}</BrandContext.Provider>;
 }
 
-/** Returns the active variant config and a `has(cap)` helper. */
+/** Returns the active variant config, a `has(cap)` helper, and `setVariant`. */
 export function useBrand(): BrandContextValue {
   return useContext(BrandContext);
 }

@@ -34,6 +34,8 @@ OctoChat is a Slack/Mattermost-style chat with a marine soul. One Expo codebase 
 - 🤖 **Automations & bots** — scheduled tasks, slash commands, and append-only rooms (public or private) for bots to push events (runnable [`examples/`](examples/README.md)).
 - 📲 **Smart notifications** — real-content push on Android, grouped per-room, taps route straight to the room. You never see notifications for your own messages.
 - 📎 **File sharing** — drag-and-drop (web), native share & save. Every blob sealed client-side before it leaves.
+- 🎫 **OctoDesk** *(variant)* — ticket sub-app built on top of the same encrypted rooms. Each ticket is a dedicated invite room with status tracking (open / pending / solved / closed), priority, and a requester invite link. Activated by building with `EXPO_PUBLIC_VARIANT=octodesk`.
+- 🎨 **White-label variants** — one codebase ships as **OctoChat** (team chat), **OctoDesk** (support), or **OctoPulse** (all features). Set `EXPO_PUBLIC_VARIANT` at build time; `BrandProvider` + `useFeature()` gate UI sections on the active capability set. See [Activating variants](#activating-variants) below.
 
 ## 🔒 Security by design
 
@@ -172,6 +174,49 @@ infra/
   whistlers.config.json — Whistlers subscription config
 docker-compose.yml      — NATS service
 ```
+
+## Activating variants
+
+The app ships as three flavours from a single codebase:
+
+| Variant | `EXPO_PUBLIC_VARIANT` | Features |
+|---|---|---|
+| **OctoChat** *(default)* | `octochat` | channels, DMs, threads, automations |
+| **OctoDesk** | `octodesk` | tickets, automations, threads |
+| **OctoPulse** | `octopulse` | channels, DMs, threads, automations, tickets |
+
+**In development** — set the env var before starting Expo:
+
+```bash
+EXPO_PUBLIC_VARIANT=octodesk pnpm web
+```
+
+**EAS builds** — each variant has its own set of build profiles in `eas.json`:
+`octodesk-development`, `octodesk-preview`, `octodesk-production` (and the same
+for `octopulse`). Pick the profile when building:
+
+```bash
+eas build --profile octodesk-production --platform ios
+```
+
+Each profile applies a distinct app name, bundle ID, URL scheme, and EAS Update
+channel so the three variants are fully independent, separately distributable apps.
+
+> **Note:** `octodesk` and `octopulse` `easProjectId` fields are placeholders —
+> create your own EAS projects and update them in `apps/mobile/src/lib/variants.ts`
+> before submitting those variants.
+
+**In code** — read capabilities with the `useFeature` hook:
+
+```tsx
+import { useFeature } from '@/lib/use-feature'
+
+const hasTickets = useFeature('tickets')   // true for octodesk / octopulse
+const hasChannels = useFeature('channels') // true for octochat / octopulse
+```
+
+The `BrandProvider` (mounted at the root in `_layout.tsx`) exposes the active
+variant via `useBrand()`; `useFeature` is a thin wrapper over it.
 
 ## Architecture
 

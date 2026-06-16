@@ -6,7 +6,9 @@ import { useUpdateCheck, type UpdateStatus } from '@/lib/use-update-check';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
 import { Card } from '@/components/ui/Card';
+import { Divider } from '@/components/ui/Divider';
 import { Txt } from '@/components/ui/Txt';
+import { VariantSwitcherRows } from './VariantSwitcherRows';
 
 /**
  * The APP section of the profile screen: the running version plus a manual
@@ -45,6 +47,8 @@ export function UpdateSettingsCard() {
             never reads "latest version" while the banner says "Update ready". */}
         <UpdateStatusNote status={pending ? 'downloaded' : status} />
       </View>
+      <Divider style={styles.sectionDivider} />
+      <VariantSwitcherRows />
     </Card>
   );
 }
@@ -85,4 +89,5 @@ const styles = StyleSheet.create({
   action: { gap: spacing.sm },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
   info: { flex: 1, gap: 2 },
+  sectionDivider: { marginVertical: spacing.sm },
 });

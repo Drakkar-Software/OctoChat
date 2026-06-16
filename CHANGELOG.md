@@ -1,5 +1,30 @@
 # OctoChat Changelog
 
+## octochat-sdk 0.3.0 — 2026-06-16 · variant system + OctoDesk
+
+### New
+- **Capability registry** (`domain/capabilities.ts`): `Capability` type
+  (`'channels' | 'dms' | 'threads' | 'automations' | 'tickets'`),
+  `CAPABILITY_META` record (label, description, roomType per capability),
+  `ROOM_TYPE_CAPABILITIES` array.
+- **OctoDesk ticket model** (`desk/ticket.ts`): `TicketStatus`
+  (`open | pending | solved | closed`), `TicketPriority`
+  (`low | normal | high | urgent`), `TicketMeta` interface, and pure helpers
+  `ticketOf` / `withTicket` / `isTicketNode` / `defaultTicketMeta`.
+- **Low-level registry write** (`desk/registry-write.ts`):
+  `createTicketNode` (appends to the object index via `addObject` +
+  `updateObjectIndex`), `patchTicketMeta`.
+- **Ticket orchestrator** (`desk/orchestrator.ts`): `createTicket` (creates
+  node + returns `requesterInviteLink` via `createNodeInviteLink`),
+  `patchTicketStatus`, `assignTicket`.
+- **`ticket` builtin object type** added to `domain/object-types.ts` and
+  `domain/types.ts`; `meta?: Record<string, unknown>` field added to
+  `NewObjectInput` in `starfish/objects.ts`.
+- **Two new automation providers**: `desk-autoreply`, `desk-sla` (registered in
+  `automations/providers/index.ts`).
+- New exports at the package root: `desk/ticket`, `desk/orchestrator`,
+  `domain/capabilities`.
+
 ## octochat-sdk 0.2.0 — 2026-06-14 · octospaces-sdk@0.4.3 migration
 
 ### Breaking changes
