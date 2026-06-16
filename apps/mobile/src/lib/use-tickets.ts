@@ -5,9 +5,18 @@ import { ticketOf, withTicket } from '@drakkar.software/octochat-sdk';
 import type { ObjectNode } from '@drakkar.software/octochat-sdk';
 import type { TicketMeta, TicketStatus } from '@drakkar.software/octochat-sdk';
 
+/** Shown for an E2EE ticket in the all-member list — the real subject/requester are sealed
+ *  in the per-node stream and only visible to participants once the ticket is opened. */
+export const ENCRYPTED_TICKET_TITLE = '🔒 Encrypted ticket';
+
 export interface TicketEntry {
   node: ObjectNode;
   ticket: TicketMeta;
+  /** Display subject: plaintext tickets show the real title; E2EE tickets show a placeholder
+   *  (the sealed title is recovered on open via `readSealedTicketInfo`). */
+  title: string;
+  /** Display requester: empty/placeholder for E2EE tickets (sealed). */
+  requester: string;
   /** Unread message count for this ticket's room. Zero when caught up. */
   unread: number;
 }
@@ -32,11 +41,14 @@ export function useTickets(spaceId: string | null): {
     () =>
       nodes
         .filter((n) => n.type === 'ticket')
-        .map((n) => ({
-          node: n,
-          ticket: ticketOf(n) ?? { status: 'open', priority: 'medium', assigneeId: null, requester: '', slaDueAt: null },
-          unread: unreadByRoom[n.id] ?? 0,
-        })),
+        .map((n) => {
+          const ticket = ticketOf(n) ?? { status: 'open', priority: 'medium', assigneeId: null, requester: '', title: '', slaDueAt: null };
+          // E2EE tickets strip title/requester from the index — show a placeholder in the
+          // list; participants see the real values on open (decrypted from the stream).
+          const title = n.enc ? ENCRYPTED_TICKET_TITLE : (ticket.title || n.title || 'Untitled ticket');
+          const requester = n.enc ? '' : ticket.requester;
+          return { node: n, ticket, title, requester, unread: unreadByRoom[n.id] ?? 0 };
+        }),
     [nodes, unreadByRoom],
   );
 

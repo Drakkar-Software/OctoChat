@@ -136,6 +136,7 @@ export * from './automations/providers/index';
 
 // ── desk/ — OctoDesk sub-app: ticket model + orchestrator ─────────────────────
 export * from './desk/ticket';
+export * from './desk/ticket-info';
 export * from './desk/registry-write';
 export * from './desk/orchestrator';
 

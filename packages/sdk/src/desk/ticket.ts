@@ -17,10 +17,41 @@ export interface TicketMeta {
   priority: TicketPriority;
   /** Space-member userId of the assignee, or null when unassigned. */
   assigneeId: ID | null;
-  /** Display name or email of the requester (may be a non-space-member). */
+  /** Display name or email of the requester (may be a non-space-member).
+   *  PII — omitted from the all-member index for E2EE tickets (sealed instead). */
   requester: string;
+  /** The ticket subject. Lives in `meta` (not `node.title`, which the index strips for
+   *  invite nodes) — omitted from the index for E2EE tickets (sealed instead). */
+  title: string;
   /** Epoch-ms deadline for SLA; null when no SLA is set. */
   slaDueAt: number | null;
+}
+
+/** The human-readable, possibly-sensitive fields. For E2EE tickets these are stripped from
+ *  the plaintext index and sealed into the per-node stream instead (see `desk/ticket-info`). */
+export interface TicketInfo {
+  title: string;
+  requester: string;
+}
+
+/** Max lengths for index/sealed strings — bounds storage-amplification + index bloat. */
+export const TICKET_TITLE_MAX = 200;
+export const TICKET_REQUESTER_MAX = 320; // RFC 5321 max email length
+
+/** Clamp a free-text field to a max length (and drop control chars). */
+export function clampField(s: string, max: number): string {
+  // eslint-disable-next-line no-control-regex
+  return s.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, max);
+}
+
+/**
+ * Project a ticket's `meta.ticket` for storage in the ALL-MEMBER plaintext index.
+ * Plaintext tickets keep every field; E2EE tickets STRIP `title` + `requester` (those are
+ * sealed into the per-node stream so they never touch the plaintext index).
+ */
+export function ticketMetaForIndex(meta: TicketMeta, enc: boolean): TicketMeta {
+  if (!enc) return meta;
+  return { ...meta, title: '', requester: '' };
 }
 
 /** Extract `TicketMeta` from a node's `meta.ticket` field; null if absent or wrong type. */
@@ -37,6 +68,7 @@ export function withTicket(node: ObjectNode, patch: Partial<TicketMeta>): Object
     priority: 'medium',
     assigneeId: null,
     requester: '',
+    title: '',
     slaDueAt: null,
   };
   return { ...node, meta: { ...node.meta, ticket: { ...current, ...patch } } };
@@ -47,13 +79,15 @@ export function isTicketNode(node: ObjectNode): boolean {
   return node.type === 'ticket';
 }
 
-/** Build the initial `TicketMeta` for a newly created ticket. */
-export function defaultTicketMeta(opts: { requester: string; priority?: TicketPriority }): TicketMeta {
+/** Build the initial `TicketMeta` for a newly created ticket. Title + requester are clamped
+ *  (length/control-char bounds) — they may be attacker-controlled (e.g. a public webhook). */
+export function defaultTicketMeta(opts: { title: string; requester: string; priority?: TicketPriority }): TicketMeta {
   return {
     status: 'open',
     priority: opts.priority ?? 'medium',
     assigneeId: null,
-    requester: opts.requester,
+    requester: clampField(opts.requester, TICKET_REQUESTER_MAX),
+    title: clampField(opts.title, TICKET_TITLE_MAX),
     slaDueAt: null,
   };
 }

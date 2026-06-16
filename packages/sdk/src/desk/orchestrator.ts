@@ -24,6 +24,7 @@ import type { ID } from '../domain/types';
 import type { TicketPriority, TicketStatus } from './ticket';
 import { defaultTicketMeta } from './ticket';
 import { createTicketNode, createTicketNodeWithReqId, patchTicketMeta } from './registry-write';
+import { writeSealedTicketInfo } from './ticket-info';
 
 /**
  * Create a new ticket room and return a one-time invite link for the requester.
@@ -48,9 +49,9 @@ export async function createTicket(
 ): Promise<{ ticketId: ID; requesterInviteLink: string }> {
   const ticketId = `ticket-${randomId()}`;
   const enc = opts.memberTicket ?? false;
-  const ticketMeta = defaultTicketMeta({ requester: opts.requester, priority: opts.priority });
+  const ticketMeta = defaultTicketMeta({ title: opts.title, requester: opts.requester, priority: opts.priority });
 
-  await createTicketNode(session, spaceId, ticketId, opts.title, ticketMeta, enc);
+  await createTicketNode(session, spaceId, ticketId, ticketMeta, enc);
 
   const { link } = await createNodeInviteLink(
     session,
@@ -66,6 +67,13 @@ export async function createTicket(
     // space cap. (octospaces-sdk ≥0.12.6.)
     { isolated: true },
   );
+
+  // E2EE ticket: title + requester were stripped from the plaintext index — seal them into
+  // the per-node stream so participants (requester + desk) can recover them. The node keyring
+  // now exists (created by createNodeInviteLink) and this session is a recipient.
+  if (enc) {
+    await writeSealedTicketInfo(session, spaceId, ticketId, { title: opts.title, requester: opts.requester });
+  }
 
   return { ticketId, requesterInviteLink: link };
 }
@@ -143,11 +151,11 @@ export function makeTicketCreateHandler(): (
       typeof req.meta?.priority === 'string'
         ? (req.meta.priority as TicketPriority)
         : 'medium';
-    const ticketMeta = defaultTicketMeta({ requester, priority });
+    const ticketMeta = defaultTicketMeta({ title: req.title, requester, priority });
     // Create the ticket node with BOTH the TicketMeta sub-object AND meta.reqId so the
     // dedup check in scanResourceRequests (which tests node.meta?.reqId === req.reqId)
-    // correctly skips re-delivered requests.
-    await createTicketNodeWithReqId(session, req.spaceId, ticketId, req.title, ticketMeta, false, req.reqId);
+    // correctly skips re-delivered requests. (Resource-request tickets are plaintext.)
+    await createTicketNodeWithReqId(session, req.spaceId, ticketId, ticketMeta, false, req.reqId);
     return { nodeId: ticketId };
   };
 }

@@ -15,9 +15,14 @@ vi.mock('./registry-write', () => ({
   patchTicketMeta: vi.fn(async () => undefined),
 }));
 
+vi.mock('./ticket-info', () => ({
+  writeSealedTicketInfo: vi.fn(async () => undefined),
+}));
+
 import { createTicket, assignTicket, patchTicketStatus } from './orchestrator';
 import { createNodeInviteLink, addNodeKeyringRecipient, readProfile } from '@drakkar.software/octospaces-sdk';
 import { patchTicketMeta } from './registry-write';
+import { writeSealedTicketInfo } from './ticket-info';
 import type { Session } from '../starfish/identity';
 
 const session = { userId: 'owner', keys: {} } as unknown as Session;
@@ -25,20 +30,27 @@ const session = { userId: 'owner', keys: {} } as unknown as Session;
 describe('createTicket — isolation', () => {
   beforeEach(() => {
     vi.mocked(createNodeInviteLink).mockClear().mockResolvedValue({ link: 'l', token: {} } as never);
+    vi.mocked(writeSealedTicketInfo).mockClear();
   });
 
-  it('plaintext ticket: enc:false, ALWAYS isolated', async () => {
+  it('plaintext ticket: enc:false, ALWAYS isolated, NO sealed info', async () => {
     await createTicket(session, 'sp-1', { title: 'T', requester: 'a@b.c', inviteLinkOrigin: 'https://x' });
     const args = vi.mocked(createNodeInviteLink).mock.calls[0]!;
     expect(args[4]).toEqual({ enc: false }); // node descriptor
     expect(args[7]).toEqual({ isolated: true }); // opts — never leaks the space index
+    expect(writeSealedTicketInfo).not.toHaveBeenCalled(); // plaintext title lives in the index
   });
 
-  it('E2EE ticket (memberTicket): enc:true + isolated:true → per-node keyring', async () => {
-    await createTicket(session, 'sp-1', { title: 'T', requester: 'a@b.c', memberTicket: true, inviteLinkOrigin: 'https://x' });
+  it('E2EE ticket (memberTicket): enc:true + isolated:true → per-node keyring + SEALED title/requester', async () => {
+    await createTicket(session, 'sp-1', { title: 'Secret', requester: 'a@b.c', memberTicket: true, inviteLinkOrigin: 'https://x' });
     const args = vi.mocked(createNodeInviteLink).mock.calls[0]!;
     expect(args[4]).toEqual({ enc: true });
     expect(args[7]).toEqual({ isolated: true });
+    // The PII is sealed into the per-node stream (stripped from the plaintext index).
+    expect(writeSealedTicketInfo).toHaveBeenCalledWith(session, 'sp-1', expect.any(String), {
+      title: 'Secret',
+      requester: 'a@b.c',
+    });
   });
 });
 

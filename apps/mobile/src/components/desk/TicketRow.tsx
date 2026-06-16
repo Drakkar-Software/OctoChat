@@ -17,7 +17,7 @@ interface TicketRowProps {
 export function TicketRow({ entry, onPress, onLongPress }: TicketRowProps) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
-  const { node, ticket, unread } = entry;
+  const { ticket, title, requester, unread } = entry;
 
   return (
     <Pressable
@@ -28,11 +28,11 @@ export function TicketRow({ entry, onPress, onLongPress }: TicketRowProps) {
     >
       <View style={styles.content}>
         <Txt variant="body" weight="medium" numberOfLines={1} style={styles.title}>
-          {node.title}
+          {title}
         </Txt>
-        {ticket.requester ? (
+        {requester ? (
           <Txt variant="caption" color={colors.inkMuted} numberOfLines={1}>
-            {ticket.requester}
+            {requester}
           </Txt>
         ) : null}
       </View>

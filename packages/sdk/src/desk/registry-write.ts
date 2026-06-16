@@ -7,6 +7,7 @@ import { addObject } from '../starfish/objects';
 import type { Session } from '../starfish/identity';
 import type { ObjectNode } from '../domain/types';
 import type { TicketMeta } from './ticket';
+import { ticketMetaForIndex } from './ticket';
 
 const asLocal = (nodes: import('@drakkar.software/octospaces-sdk').ObjectNode[]) =>
   nodes as unknown as ObjectNode[];
@@ -20,10 +21,14 @@ export async function createTicketNode(
   session: Session,
   spaceId: string,
   ticketId: string,
-  title: string,
   ticketMeta: TicketMeta,
   enc: boolean,
 ): Promise<void> {
+  // For E2EE tickets, strip title + requester (PII) from the all-member plaintext index —
+  // they are sealed into the per-node stream instead (see writeSealedTicketInfo). `node.title`
+  // is always stripped by the SDK's serializeForIndex for invite nodes, so the visible title
+  // lives in meta.ticket.title (plaintext tickets only).
+  const indexMeta = ticketMetaForIndex(ticketMeta, enc);
   await updateObjectIndex(session, spaceId, (raw, now) => {
     const next = asLocal(raw);
     return addObject(
@@ -31,10 +36,10 @@ export async function createTicketNode(
       {
         type: 'ticket',
         id: ticketId,
-        title,
+        title: indexMeta.title,
         access: 'invite',
         enc,
-        meta: { ticket: ticketMeta },
+        meta: { ticket: indexMeta },
       },
       now,
     ).nodes as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
@@ -50,11 +55,11 @@ export async function createTicketNodeWithReqId(
   session: Session,
   spaceId: string,
   ticketId: string,
-  title: string,
   ticketMeta: TicketMeta,
   enc: boolean,
   reqId: string,
 ): Promise<void> {
+  const indexMeta = ticketMetaForIndex(ticketMeta, enc);
   await updateObjectIndex(session, spaceId, (raw, now) => {
     const next = asLocal(raw);
     return addObject(
@@ -62,10 +67,10 @@ export async function createTicketNodeWithReqId(
       {
         type: 'ticket',
         id: ticketId,
-        title,
+        title: indexMeta.title,
         access: 'invite',
         enc,
-        meta: { ticket: ticketMeta, reqId },
+        meta: { ticket: indexMeta, reqId },
       },
       now,
     ).nodes as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
