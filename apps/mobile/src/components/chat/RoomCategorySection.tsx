@@ -1,16 +1,12 @@
 import { Fragment, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-
-import { radii, spacing } from '@/theme';
 import type { Room } from '@drakkar.software/octochat-sdk';
 import type { ThreadSummary } from '@drakkar.software/octochat-sdk';
 import type { RoomCategory } from '@/lib/use-rooms';
 import { useRoomDropZone } from '@/lib/use-room-dnd';
 import { useTheme } from '@/lib/use-theme';
-import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
-import { Txt } from '@/components/ui/Txt';
 
+import { CollapsibleSection } from './CollapsibleSection';
 import { CreateRoomSheet } from './CreateRoomSheet';
 import { DraggableChannelRow } from './DraggableChannelRow';
 import { ThreadRow } from './ThreadRow';
@@ -61,60 +57,42 @@ export function RoomCategorySection({
   const dropRef = useRoomDropZone(category.name, (roomId) => onMoveRoom?.(roomId), setDropOver);
 
   return (
-    <View
-      ref={dropRef}
-      style={[
-        styles.section,
-        // A quiet lit-from-above top divider separates one shelf from the next so
-        // categories read as distinct groups without adding chrome. The drag-over
-        // state still wins, washing the whole section in accent.
-        { borderTopColor: colors.ruleSoft },
-        dropOver ? { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder, borderTopColor: colors.accentBorder } : null,
-      ]}
-    >
-      {/* Collapse toggle and the add button are separate press targets so the
-          "+" stays comfortably clickable and never just folds the category. */}
-      <View style={styles.header}>
-        <Pressable accessibilityRole="button" onPress={onToggleCollapse} style={styles.toggle}>
-          <Icon name={collapsed ? 'chev' : 'chevron-down'} size={12} color={colors.inkMuted} />
-          <Txt variant="caption" weight="bold" mono uppercase tone="inkMuted" numberOfLines={1} style={styles.label}>
-            {category.name}
-          </Txt>
-          {/* A faint room count so even a collapsed shelf communicates its size. */}
-          {category.rooms.length ? (
-            <Txt variant="caption" mono tone="inkFaint">
-              {category.rooms.length}
-            </Txt>
-          ) : null}
-        </Pressable>
-        {onCreateRoom ? (
-          <IconButton
-            name="plus"
-            size={14}
-            color={colors.inkMuted}
-            accessibilityLabel={`Add a room to ${category.name}`}
-            onPress={() => setAdding(true)}
-          />
-        ) : null}
-      </View>
-
-      {!collapsed
-        ? category.rooms.map((room) => (
-            <Fragment key={room.id}>
-              <DraggableChannelRow
-                room={room}
-                active={room.id === activeRoomId}
-                onPress={() => onOpenRoom(room)}
-                onRequestMove={onRequestMove}
-              />
-              {room.id === activeRoomId && threads?.length
-                ? threads.map((t) => (
-                    <ThreadRow key={t.parentId} thread={t} onPress={() => onOpenThread?.(t.parentId)} />
-                  ))
-                : null}
-            </Fragment>
-          ))
-        : null}
+    <>
+      <CollapsibleSection
+        containerRef={dropRef}
+        style={dropOver ? { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder, borderTopColor: colors.accentBorder } : null}
+        label={category.name}
+        count={category.rooms.length || undefined}
+        collapsed={collapsed}
+        onToggleCollapse={onToggleCollapse}
+        headerTrailing={
+          onCreateRoom ? (
+            <IconButton
+              name="plus"
+              size={14}
+              color={colors.inkMuted}
+              accessibilityLabel={`Add a room to ${category.name}`}
+              onPress={() => setAdding(true)}
+            />
+          ) : null
+        }
+      >
+        {category.rooms.map((room) => (
+          <Fragment key={room.id}>
+            <DraggableChannelRow
+              room={room}
+              active={room.id === activeRoomId}
+              onPress={() => onOpenRoom(room)}
+              onRequestMove={onRequestMove}
+            />
+            {room.id === activeRoomId && threads?.length
+              ? threads.map((t) => (
+                  <ThreadRow key={t.parentId} thread={t} onPress={() => onOpenThread?.(t.parentId)} />
+                ))
+              : null}
+          </Fragment>
+        ))}
+      </CollapsibleSection>
 
       <CreateRoomSheet
         visible={adding}
@@ -122,22 +100,7 @@ export function RoomCategorySection({
         defaultCategory={category.name}
         onSubmit={async (name, cat, isPublic) => await onCreateRoom?.(cat, name, isPublic) ?? null}
       />
-    </View>
+    </>
   );
 }
 
-const styles = StyleSheet.create({
-  // A shelf: a lit top hairline + a touch of breathing room above it groups each
-  // category's rows. The 1px frame stays (transparent at rest) so the drag-over
-  // accent border has somewhere to paint without shifting layout.
-  section: {
-    marginBottom: spacing.sm,
-    paddingTop: spacing.xs,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    borderRadius: radii.md,
-  },
-  header: { flexDirection: 'row', alignItems: 'center', paddingRight: spacing.xs },
-  toggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingVertical: 6, paddingHorizontal: spacing.md },
-  label: { flex: 1 },
-});

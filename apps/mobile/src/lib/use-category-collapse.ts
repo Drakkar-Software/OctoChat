@@ -16,10 +16,13 @@ import { kvGet, kvSet } from '@drakkar.software/octochat-sdk';
 
 // `.v2`: the stored map flipped meaning (was expanded-names, now collapsed-names) when
 // the default became expanded — a fresh key avoids reinterpreting old maps backwards.
-const collapseKey = (userId: string, spaceId: string) => `octochat.cat-collapse.v2.${userId}.${spaceId}`;
+// `scope` namespaces independent collapse maps (e.g. 'cat' for categories, 'tickets'
+// for the magic Tickets shelf) so they never clobber each other.
+const collapseKey = (userId: string, spaceId: string, scope: string) =>
+  `octochat.${scope}-collapse.v2.${userId}.${spaceId}`;
 
-export function useCategoryCollapse(userId: string | undefined, spaceId: string | null) {
-  const storageKey = userId && spaceId ? collapseKey(userId, spaceId) : undefined;
+export function useCategoryCollapse(userId: string | undefined, spaceId: string | null, scope = 'cat') {
+  const storageKey = userId && spaceId ? collapseKey(userId, spaceId, scope) : undefined;
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   // The key whose stored value we've loaded — gates the persist effect so the
   // pre-hydration empty map never clobbers a stored one (mirrors useDraft).

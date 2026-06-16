@@ -1,6 +1,8 @@
 import { Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { useResponsive } from '@/lib/use-responsive';
+import { useSpaceHeader } from '@/lib/use-space-header';
+import { useRooms } from '@/lib/use-rooms';
 import { useTheme } from '@/lib/use-theme';
 
 import { CreateRoomButton } from './CreateRoomButton';
@@ -25,7 +27,10 @@ import { SpaceSwitcherButton } from './SpaceSwitcherButton';
 export default function SpaceStackLayout() {
   const { colors, scheme } = useTheme();
   const { isWide } = useResponsive();
+  const { space, isDmHome, activeId } = useSpaceHeader();
+  const { isOwner } = useRooms(isDmHome ? null : activeId);
   const dark = scheme === 'dark';
+  const showCreateRoom = !isDmHome && !!space && isOwner;
 
   if (Platform.OS === 'web') {
     return <Stack screenOptions={{ headerShown: false }} />;
@@ -45,7 +50,7 @@ export default function SpaceStackLayout() {
         // strip that reads as a blank gap on iOS.
         headerTransparent: true,
         headerBlurEffect: dark ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight',
-        headerRight: () => <CreateRoomButton />,
+        headerRight: showCreateRoom ? () => <CreateRoomButton /> : undefined,
       }}
     />
   );

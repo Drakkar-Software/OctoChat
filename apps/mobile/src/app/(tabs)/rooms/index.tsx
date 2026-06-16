@@ -45,7 +45,6 @@ export default function RoomsScreen() {
   const dms = useDms();
 
   const hasChannels = useFeature('channels');
-  const hasTickets = useFeature('tickets');
 
   const openRoom = (room: Room) =>
     router.push({ pathname: '/room/[id]', params: { id: room.id, name: room.name, kind: room.kind } });
@@ -146,10 +145,10 @@ export default function RoomsScreen() {
               ) : null}
             </>
           ) : null}
-          {/* Ticket rooms — gated by capability, independent of channel count so that
-              OctoDesk spaces (channels not enabled) always render the ticket list. */}
-          {hasTickets && (activeId ?? space?.id) ? (
-            <TicketList spaceId={activeId ?? space?.id ?? ''} />
+          {/* Ticket rooms — capability-gated inside TicketList, independent of channel
+              count so that OctoDesk spaces (channels not enabled) always render it. */}
+          {(activeId ?? space?.id) ? (
+            <TicketList spaceId={activeId ?? space?.id ?? ''} userId={session.userId} />
           ) : null}
         </>
       )}

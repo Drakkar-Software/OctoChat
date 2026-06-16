@@ -1,8 +1,11 @@
+import type { StyleProp, ViewStyle } from 'react-native';
 import { Pill } from '@/components/ui/Pill';
 import type { TicketStatus } from '@drakkar.software/octochat-sdk';
 
 interface StatusPillProps {
   status: TicketStatus;
+  /** Optional style forwarded to the underlying {@link Pill} (e.g. `alignSelf:'center'`). */
+  style?: StyleProp<ViewStyle>;
 }
 
 const STATUS_TONE: Record<TicketStatus, 'neutral' | 'accent' | 'success' | 'danger' | 'note'> = {
@@ -20,6 +23,6 @@ const STATUS_LABEL: Record<TicketStatus, string> = {
 };
 
 /** A small pill showing a ticket's status with the appropriate semantic tone. */
-export function StatusPill({ status }: StatusPillProps) {
-  return <Pill label={STATUS_LABEL[status]} tone={STATUS_TONE[status]} />;
+export function StatusPill({ status, style }: StatusPillProps) {
+  return <Pill label={STATUS_LABEL[status]} tone={STATUS_TONE[status]} style={style} />;
 }

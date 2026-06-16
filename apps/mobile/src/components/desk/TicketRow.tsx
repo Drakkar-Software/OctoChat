@@ -2,6 +2,7 @@ import { View, StyleSheet, Pressable } from 'react-native';
 import { useTheme } from '@/lib/use-theme';
 import { useHover } from '@/lib/use-hover';
 import { radii, spacing } from '@/theme';
+import { Badge } from '@/components/ui/Badge';
 import { Txt } from '@/components/ui/Txt';
 import { StatusPill } from './StatusPill';
 import type { TicketEntry } from '@/lib/use-tickets';
@@ -15,7 +16,7 @@ interface TicketRowProps {
 export function TicketRow({ entry, onPress }: TicketRowProps) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
-  const { node, ticket } = entry;
+  const { node, ticket, unread } = entry;
 
   return (
     <Pressable
@@ -33,7 +34,11 @@ export function TicketRow({ entry, onPress }: TicketRowProps) {
           </Txt>
         ) : null}
       </View>
-      <StatusPill status={ticket.status} />
+      {/* Unread badge self-hides when count is 0. */}
+      <Badge count={unread} />
+      {/* alignSelf:'center' overrides Pill's own flex-start so the pill stays
+          vertically centered even when the content column is two lines tall. */}
+      <StatusPill status={ticket.status} style={styles.pillCenter} />
     </Pressable>
   );
 }
@@ -49,4 +54,5 @@ const styles = StyleSheet.create({
   },
   content: { flex: 1 },
   title: { flexShrink: 1 },
+  pillCenter: { alignSelf: 'center' },
 });

@@ -1,22 +1,29 @@
-import { View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
-import { spacing } from '@/theme';
-import { useTheme } from '@/lib/use-theme';
-import { Txt } from '@/components/ui/Txt';
 import { useTickets } from '@/lib/use-tickets';
+import { useFeature } from '@/lib/use-feature';
+import { useCategoryCollapse } from '@/lib/use-category-collapse';
+import { CollapsibleSection } from '@/components/chat/CollapsibleSection';
 import { TicketRow } from './TicketRow';
 import type { TicketEntry } from '@/lib/use-tickets';
 
+// Stable key used to store the collapsed state of the Tickets shelf — it is
+// intentionally not a real category name so it can never clash with user categories.
+const TICKETS_KEY = '__tickets__';
+
 interface TicketListProps {
   spaceId: string;
+  userId: string;
 }
 
-/** Sidebar section listing all ticket rooms in the active space. */
-export function TicketList({ spaceId }: TicketListProps) {
-  const { colors } = useTheme();
-  const { tickets } = useTickets(spaceId);
+/** Magic collapsible "Tickets" shelf — rendered identically to a channel category
+ *  but non-deletable by construction (not a real ObjectNode category). Self-gates
+ *  on the 'tickets' capability and hides when the space has no ticket rooms. */
+export function TicketList({ spaceId, userId }: TicketListProps) {
+  const hasTickets = useFeature('tickets');
+  const { tickets } = useTickets(hasTickets ? spaceId : null);
+  const { isCollapsed, toggle } = useCategoryCollapse(userId, spaceId, 'tickets');
 
-  if (tickets.length === 0) return null;
+  if (!hasTickets || tickets.length === 0) return null;
 
   const openTicket = (entry: TicketEntry) => {
     router.push({
@@ -26,25 +33,15 @@ export function TicketList({ spaceId }: TicketListProps) {
   };
 
   return (
-    <View style={styles.section}>
-      <Txt
-        variant="caption"
-        weight="semibold"
-        mono
-        uppercase
-        color={colors.inkMuted}
-        style={styles.header}
-      >
-        Tickets
-      </Txt>
+    <CollapsibleSection
+      label="Tickets"
+      count={tickets.length}
+      collapsed={isCollapsed(TICKETS_KEY)}
+      onToggleCollapse={() => toggle(TICKETS_KEY)}
+    >
       {tickets.map((entry) => (
         <TicketRow key={entry.node.id} entry={entry} onPress={openTicket} />
       ))}
-    </View>
+    </CollapsibleSection>
   );
 }
-
-const styles = StyleSheet.create({
-  section: { marginTop: spacing.sm },
-  header: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
-});
