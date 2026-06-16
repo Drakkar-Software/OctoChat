@@ -127,6 +127,11 @@ SDK opens the per-node keyring for `invite+enc`, and append via `getNodeStreamCl
 > recipients at creation; an agent is added to the node keyring when the ticket is assigned to
 > them (so unassigned agents cannot read an E2EE ticket until assignment).
 
+**Revocation:** `revokeTicketAgent(session, spaceId, ticketId, agentUserId)` rotates the
+ticket's per-node keyring so a removed agent can no longer decrypt FUTURE messages (forward
+secrecy only — already-seen messages can't be un-seen). Use it when unassigning/off-boarding
+an agent from an encrypted ticket; the caller must hold the keyring (the desk owner/bot).
+
 ## Reference consumer
 
 The OctoChat Expo app (`apps/mobile`) is a full reference frontend: it wires the SDK at

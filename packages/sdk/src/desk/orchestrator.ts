@@ -16,7 +16,7 @@
  * with `acceptResourceRequest({ create })` so an OctoDesk bot can accept sealed
  * resource requests and create properly-typed ticket nodes with `TicketMeta`.
  */
-import { createNodeInviteLink, addNodeKeyringRecipient, readProfile } from '@drakkar.software/octospaces-sdk';
+import { createNodeInviteLink, addNodeKeyringRecipient, removeNodeKeyringRecipient, readProfile } from '@drakkar.software/octospaces-sdk';
 import type { ResourceRequest } from '@drakkar.software/octospaces-sdk';
 import { randomId } from '../domain/ids';
 import type { Session } from '../starfish/identity';
@@ -122,6 +122,27 @@ export async function assignTicket(
       userId: assigneeId,
     });
   }
+}
+
+/**
+ * REVOKE an agent's access to an E2EE ticket (e.g. on unassignment or off-boarding):
+ * rotates the ticket's per-node keyring so the agent can no longer decrypt FUTURE messages.
+ * Already-seen messages remain readable (forward secrecy only — they can't be un-seen).
+ *
+ * The caller MUST already hold the node keyring (the desk owner/bot). Returns the new epoch.
+ * No-op-safe for plaintext tickets (there is no keyring) — only call for `enc` tickets.
+ */
+export async function revokeTicketAgent(
+  session: Session,
+  spaceId: string,
+  ticketId: ID,
+  agentUserId: ID,
+): Promise<{ newEpoch: number }> {
+  const profile = await readProfile(agentUserId);
+  if (!profile.kemPub) {
+    throw new Error(`Cannot revoke ${agentUserId}: no published encryption key.`);
+  }
+  return removeNodeKeyringRecipient(session, spaceId, ticketId, [profile.kemPub]);
 }
 
 /**

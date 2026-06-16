@@ -6,6 +6,7 @@ vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   createNodeInviteLink: vi.fn(async () => ({ link: 'https://x/join#tok', token: {} })),
   addNodeKeyringRecipient: vi.fn(async () => undefined),
+  removeNodeKeyringRecipient: vi.fn(async () => ({ newEpoch: 2 })),
   readProfile: vi.fn(async () => ({ kemPub: 'assignee-kem', pseudo: null, avatar: null, edPub: 'assignee-ed' })),
 }));
 
@@ -19,8 +20,8 @@ vi.mock('./ticket-info', () => ({
   writeSealedTicketInfo: vi.fn(async () => undefined),
 }));
 
-import { createTicket, assignTicket, patchTicketStatus } from './orchestrator';
-import { createNodeInviteLink, addNodeKeyringRecipient, readProfile } from '@drakkar.software/octospaces-sdk';
+import { createTicket, assignTicket, patchTicketStatus, revokeTicketAgent } from './orchestrator';
+import { createNodeInviteLink, addNodeKeyringRecipient, removeNodeKeyringRecipient, readProfile } from '@drakkar.software/octospaces-sdk';
 import { patchTicketMeta } from './registry-write';
 import { writeSealedTicketInfo } from './ticket-info';
 import type { Session } from '../starfish/identity';
@@ -88,6 +89,26 @@ describe('assignTicket — E2EE keyring grant', () => {
     vi.mocked(readProfile).mockResolvedValue({ kemPub: null, pseudo: null, avatar: null, edPub: null } as never);
     await expect(assignTicket(session, 'sp-1', 'ticket-1', 'agent-1', { enc: true })).rejects.toThrow(/no published/);
     expect(addNodeKeyringRecipient).not.toHaveBeenCalled();
+  });
+});
+
+describe('revokeTicketAgent — rotation on revocation', () => {
+  beforeEach(() => {
+    vi.mocked(removeNodeKeyringRecipient).mockClear().mockResolvedValue({ newEpoch: 2 } as never);
+    vi.mocked(readProfile).mockClear().mockResolvedValue({ kemPub: 'agent-kem', pseudo: null, avatar: null, edPub: 'a' } as never);
+  });
+
+  it('rotates the node keyring, removing the agent KEM (resolved from their profile)', async () => {
+    const res = await revokeTicketAgent(session, 'sp-1', 'ticket-1', 'agent-1');
+    expect(readProfile).toHaveBeenCalledWith('agent-1');
+    expect(removeNodeKeyringRecipient).toHaveBeenCalledWith(session, 'sp-1', 'ticket-1', ['agent-kem']);
+    expect(res.newEpoch).toBe(2);
+  });
+
+  it('throws when the agent has no published key (nothing to revoke deterministically)', async () => {
+    vi.mocked(readProfile).mockResolvedValue({ kemPub: null, pseudo: null, avatar: null, edPub: null } as never);
+    await expect(revokeTicketAgent(session, 'sp-1', 'ticket-1', 'agent-1')).rejects.toThrow(/no published/);
+    expect(removeNodeKeyringRecipient).not.toHaveBeenCalled();
   });
 });
 
