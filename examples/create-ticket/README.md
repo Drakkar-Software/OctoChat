@@ -158,6 +158,29 @@ startup via `myIdentityLink()`) and `REQUESTER_SPACE_ID`:
 | `REQUESTER_NAME` | `Alice (requester)` | Display name for the requester identity. |
 | `TICKET_ORIGIN` | `https://desk.drakkar.software` | Scheme+host used when encoding the identity link (default mode only). |
 
+### How to generate BOT_IDENTITY_LINK and REQUESTER_SPACE_ID
+
+In the default (zero-setup) mode the script auto-creates both and prints them:
+
+```
+[req] bot     "Desk Bot" (a3f1c8d2…)
+[req] space   "Drakkar Support" → 7e4b9c0f…
+[req] link    https://desk.drakkar.software/request#eyJ2IjoxLCJv…
+```
+
+Copy the printed values into `examples/create-ticket/.env`:
+
+```bash
+BOT_IDENTITY_LINK=https://desk.drakkar.software/request#eyJ2IjoxLCJv…
+REQUESTER_SPACE_ID=space-7e4b9c0f…
+```
+
+In a production deployment, generate the identity link from the running bot session
+with `myIdentityLink(botSession, origin, '/request')` — the link is pure identity
+(no cap, no secret) so it is safe to hard-code in client apps or publish as a QR code.
+The `REQUESTER_SPACE_ID` is the space id the bot owns (returned by `createSpace` or
+visible in the space registry).
+
 > **Note:** you can also run `npm run start` from inside `examples/create-ticket/ts/`
 > if `tsx` resolves from the repo root `node_modules` (it will on a hoisted pnpm workspace).
 > The `.env` is always loaded from `examples/create-ticket/.env` regardless of where you run from.
