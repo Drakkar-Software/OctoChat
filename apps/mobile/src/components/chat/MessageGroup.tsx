@@ -211,7 +211,7 @@ export function MessageGroup({
       {continuation ? (
         <View style={styles.gutter}>
           {showActions ? (
-            <Txt variant="micro" mono tone="inkMuted">
+            <Txt variant="caption" mono tone="inkMuted">
               {message.time}
             </Txt>
           ) : null}
@@ -223,15 +223,15 @@ export function MessageGroup({
         {continuation ? null : (
           <View style={styles.head}>
             {authorLink(
-              <Txt variant="callout" weight="bold" tone={isSelf ? 'accent' : undefined}>
+              <Txt variant="subhead" weight="semibold" tone={isSelf ? 'accent' : undefined}>
                 {author.name}
               </Txt>,
             )}
-            <Txt variant="micro" mono tone="inkMuted">
+            <Txt variant="caption" mono tone="inkMuted">
               {message.time}
             </Txt>
             {message.edited ? (
-              <Txt variant="micro" mono tone="inkFaint">
+              <Txt variant="caption" mono tone="inkFaint">
                 · edited
               </Txt>
             ) : null}
@@ -320,13 +320,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     paddingHorizontal: spacing.screenX,
-    // Asymmetric: a roomy top opens the gap above a new author's group, a tight
-    // bottom keeps stacked messages close. A follow-up zeroes its top (below).
+    // Symmetric: equal top/bottom padding lets a new author group breathe above
+    // AND below. A follow-up row (same author, <5 min) zeroes its top so stacked
+    // messages remain tight while still honouring the group's bottom padding.
     paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
+    paddingBottom: spacing.sm,
   },
-  // Drop the top gap entirely so a follow-up hugs the message above it; only the
-  // row's tight bottom padding remains between it and the previous message.
+  // Drop the top gap entirely so a follow-up hugs the message above it; the
+  // bottom padding of the previous row already provides the inter-message gap.
   continuation: { paddingTop: spacing.none },
   // Empty stand-in for the avatar so a continuation's body stays aligned; the
   // time surfaces here on hover (web) / always (native) as a quiet timestamp.
@@ -334,7 +335,7 @@ const styles = StyleSheet.create({
   // Width + color set inline per row (3px accent normally; 6px accentStrong for
   // an unread @-mention of you).
   mentionBar: { position: 'absolute', left: 0, top: 0, bottom: 0 },
-  body: { flex: 1, gap: 4 },
+  body: { flex: 1, gap: spacing.sm },
   // Dim a queued/sending message so it reads as not-yet-on-the-server.
   pendingDim: { opacity: 0.6 },
   // Clock/alert + status text under an unsent message.

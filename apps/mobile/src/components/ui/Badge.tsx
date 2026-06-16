@@ -21,7 +21,7 @@ export function Badge({ count = 0, mention = false, size = 'sm' }: BadgeProps) {
   const sz = size === 'md' ? styles.md : styles.sm;
   return (
     <View style={[styles.badge, sz, { backgroundColor: bg }]}>
-      <Txt variant={size === 'md' ? 'caption' : 'micro'} weight="bold" mono color={colors.onUnread}>
+      <Txt variant={size === 'md' ? 'footnote' : 'caption'} weight="bold" mono color={colors.onUnread}>
         {mention ? '@' : count > 99 ? '99+' : String(count)}
       </Txt>
     </View>

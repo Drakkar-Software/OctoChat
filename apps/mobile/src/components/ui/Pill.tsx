@@ -38,8 +38,8 @@ export function Pill({ label, tone = 'neutral', iconName, mono = false, style }:
   const t = toneColors(colors, tone);
   return (
     <View style={[styles.pill, { backgroundColor: t.bg, borderColor: t.border }, style]}>
-      {iconName ? <Icon name={iconName} size={11} color={t.fg} /> : null}
-      <Txt variant="micro" weight="medium" mono={mono} color={t.fg}>
+      {iconName ? <Icon name={iconName} size={12} color={t.fg} /> : null}
+      <Txt variant="caption" weight="medium" mono={mono} color={t.fg}>
         {label}
       </Txt>
     </View>
@@ -51,8 +51,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingVertical: 2,
-    paddingHorizontal: 8,
+    paddingVertical: 3,
+    paddingHorizontal: 9,
     borderRadius: radii.pill,
     borderWidth: 1,
     alignSelf: 'flex-start',
