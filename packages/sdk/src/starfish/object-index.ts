@@ -11,6 +11,9 @@
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 import { getSpaceClient } from '@drakkar.software/octospaces-sdk';
 
+// Generic index helpers (no room-category projection) — re-exported from octospaces-sdk.
+export { updateObjectIndex, readObjectTree } from '@drakkar.software/octospaces-sdk';
+
 import type { ObjectNode, Room } from '../domain/types';
 
 import type { Session } from './identity';

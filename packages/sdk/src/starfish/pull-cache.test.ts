@@ -1,27 +1,30 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-// Back the adapter with an in-memory kv so we can assert the exact stored key
-// (the adapter's only job is to prefix the SDK's document-path key and delegate).
-const store = new Map<string, string>();
-vi.mock('../config/adapters', () => ({
-  kvGet: vi.fn(async (k: string) => store.get(k) ?? null),
-  kvSet: vi.fn(async (k: string, v: string) => {
-    store.set(k, v);
-  }),
-}));
-
+/**
+ * Tests for the pull cache. After the clean-break migration to octospaces-sdk's
+ * shared implementation, the prefix changed from `octochat.pullcache.` to
+ * `octospaces.pullcache.` (accepted cold-cache on upgrade).
+ */
+import { beforeEach, describe, expect, it } from 'vitest';
+import { configureKv } from '@drakkar.software/octospaces-sdk';
 import { pullCache, PULL_CACHE_MAX_AGE_MS } from './pull-cache';
 
-describe('pullCache', () => {
-  beforeEach(() => store.clear());
+const store = new Map<string, string>();
 
-  it('round-trips a value under the octochat.pullcache.<key> prefix', async () => {
+beforeEach(() => {
+  store.clear();
+  configureKv({
+    get: async (k) => store.get(k) ?? null,
+    set: async (k, v) => { store.set(k, v); },
+    remove: async (k) => { store.delete(k); },
+  });
+});
+
+describe('pullCache', () => {
+  it('round-trips a value under the octospaces.pullcache.<key> prefix', async () => {
     const cache = pullCache();
-    await cache.set('/v1/octochat/pull/spaces/u/_spaces', '{"hello":1}');
-    // Stored under the prefixed key…
-    expect(store.get('octochat.pullcache./v1/octochat/pull/spaces/u/_spaces')).toBe('{"hello":1}');
-    // …and read back by the same logical key.
-    expect(await cache.get('/v1/octochat/pull/spaces/u/_spaces')).toBe('{"hello":1}');
+    await cache.set('/v1/octospaces/pull/spaces/u/_spaces', '{"hello":1}');
+    // Stored under the SDK prefix (migrated from octochat.pullcache.*)
+    expect(store.get('octospaces.pullcache./v1/octospaces/pull/spaces/u/_spaces')).toBe('{"hello":1}');
+    expect(await cache.get('/v1/octospaces/pull/spaces/u/_spaces')).toBe('{"hello":1}');
   });
 
   it('returns null for a missing key', async () => {

@@ -5,28 +5,28 @@
  * nonce; the new device fetches the sealed blob, opens it with the PIN, and
  * validates the cap bundle. This proves the cryptographic handshake end-to-end.
  *
- * Promoting a paired device to a full multi-room session reuses the per-room
- * keyring-recipient mechanism (see members.ts) and is a follow-up.
+ * `startDevicePairing` is OctoChat-specific: it also grants the new device to every
+ * owned space's E2EE keyring so it can decrypt those rooms immediately. The generic
+ * `completeDevicePairing` and `PairResult` are re-exported from octospaces-sdk.
  */
 import { StarfishClient } from '@drakkar.software/starfish-client';
-import {
-  installPairingBundle,
-  openWithPassphrase,
-  provisionDevice,
-  sealWithPassphrase,
-} from '@drakkar.software/starfish-identities';
-import type { CapCert } from '@drakkar.software/starfish-protocol';
+import { provisionDevice, sealWithPassphrase } from '@drakkar.software/starfish-identities';
 
-import type { DeviceKeys } from './client';
 import { getSyncBase, getSyncNamespace } from '../config/config';
 import { fetchWithTimeout } from './fetch-timeout';
 import type { Session } from './identity';
-import { fingerprintFromUserId } from './identity';
 import { addDeviceToSpaceKeyring } from './members';
 import { bytesToHex, linkedDeviceScope } from './paths';
 import { readSpaces } from './registry';
 
+// OctoChat keeps its own QR prefix so cross-app scans are rejected rather than
+// silently attempted. The octospaces-sdk completeDevicePairing accepts any *-pair:
+// prefix via its dual-accept logic — so existing OctoChat QR codes keep working.
 export const PAIR_PREFIX = 'octochat-pair:';
+
+// completeDevicePairing and PairResult are identical to the SDK's — re-export.
+export type { PairResult } from '@drakkar.software/octospaces-sdk';
+export { completeDevicePairing } from '@drakkar.software/octospaces-sdk';
 
 // Linked-device cap-cert lifetime. `provisionDevice` defaults to 30 days, after
 // which the paired session's cap expires and it must be re-paired. A year keeps a
@@ -82,50 +82,3 @@ export async function startDevicePairing(session: Session, pin: string): Promise
   return `${PAIR_PREFIX}${nonce}.${session.keys.edPub}`;
 }
 
-export interface PairResult {
-  userId: string;
-  fingerprint: string;
-  /** The freshly-provisioned device keypair (this device's own keys). */
-  deviceKeys: DeviceKeys;
-  /** The root-signed cap-cert delegating scope to {@link deviceKeys} — what the
-   *  paired device presents instead of a self-minted cap. */
-  capCert: CapCert;
-}
-
-/** New device: fetch the sealed blob by nonce, open with PIN, validate the bundle. */
-export async function completeDevicePairing(payload: string, pin: string): Promise<PairResult> {
-  const body = (payload.startsWith(PAIR_PREFIX) ? payload.slice(PAIR_PREFIX.length) : payload).trim();
-  const [nonce, expectedRootEdPub] = body.split('.');
-  console.log('[pairing] completeDevicePairing pulling', { base: getSyncBase(), namespace: getSyncNamespace(), nonce, expectedRootEdPub });
-  const res = await anonClient()
-    .pull(`/pull/_pairing/${nonce}`)
-    .catch((e) => {
-      console.log('[pairing] pull threw', { nonce, error: String((e as Error)?.message ?? e) });
-      return null;
-    });
-  const sealed = res?.data as Record<string, unknown> | undefined;
-  console.log('[pairing] pull result', { nonce, hasRes: !!res, hasData: !!sealed, sealedV: sealed?.v });
-  if (!sealed || !sealed.v) throw new Error('Pairing code not found or expired.');
-  let inner: Uint8Array;
-  try {
-    inner = await openWithPassphrase(pin, sealed as never);
-  } catch {
-    throw new Error('Wrong PIN or corrupted pairing code.');
-  }
-  const blob = JSON.parse(new TextDecoder().decode(inner)) as { keys: unknown; bundle: unknown };
-  // Pin the bundle to the QR-supplied root pubkey: rejects a bundle minted by a
-  // different root even if the PIN seal were somehow opened by the wrong party.
-  const opts = (expectedRootEdPub ? { expectedRootEdPub } : {}) as Parameters<typeof installPairingBundle>[2];
-  const installed = await installPairingBundle(
-    blob.bundle as Parameters<typeof installPairingBundle>[0],
-    blob.keys as Parameters<typeof installPairingBundle>[1],
-    opts,
-  );
-  const userId = installed.credentials.userId;
-  return {
-    userId,
-    fingerprint: fingerprintFromUserId(userId),
-    deviceKeys: installed.credentials.device,
-    capCert: installed.credentials.capCert,
-  };
-}

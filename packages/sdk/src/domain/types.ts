@@ -1,67 +1,30 @@
 /** Domain model for OctoChat — the chat-domain types shared by the SDK and any UI. */
 
-import type { SealedBlob } from '../starfish/account-seal';
-import type { AttachmentRef } from '../starfish/attachments';
-import type { NodeAccess } from '@drakkar.software/octospaces-sdk';
+// Shared scaffolding re-exported from octospaces-sdk so downstream consumers get
+// them from one place. OctoChat-specific types follow below.
+export type {
+  ID,
+  PresenceStatus,
+  VerificationLevel,
+  CapMap,
+  PubAccessMap,
+  DmMap,
+  ArchivedDms,
+  MuteValue,
+  MutePrefs,
+  ReadValue,
+  ReadPrefs,
+  Space,
+  ObjectContentKind,
+} from '@drakkar.software/octospaces-sdk';
 
-export type ID = string;
-
-/** A user's presence indicator. The theme maps each to a color (app-side). */
-export type PresenceStatus = 'online' | 'away' | 'dnd' | 'offline';
-
-/** A security item's verification state. The theme maps each to a color (app-side).
- *  `none` = unknown / not yet verified; maps to a neutral/muted color in the theme. */
-export type VerificationLevel = 'verified' | 'pending' | 'unverified' | 'none';
-
-/** Maps a joined private space's id → its owner-issued member cap-cert (serialized
- *  JSON). Persisted in the user's own synced `_spaces` doc so a fresh device
- *  re-hydrates it. */
-export type CapMap = Record<string, string>;
-
-/** Maps a joined link-access key → its sealed invitation credential (cap + ephemeral
- *  private key) SEALED to the account's own key. Keys are either `spaceId`
- *  (space-level link) or `${spaceId}:${nodeId}` (per-node invite link). Sealed
- *  because it embeds a bearer secret; recovered on any device with the same seed.
- *  See `account-seal.ts` and `starfish/space-access-store` (via octospaces-sdk). */
-export type PubAccessMap = Record<string, SealedBlob>;
-
-/** Maps a DM peer's userId → the private DM-space id shared with them. Lets the
- *  initiator dedup (one conversation per peer) and the non-initiator record the
- *  space their inbox reconciler accepted. Shares the `_spaces` doc like {@link CapMap}
- *  (the space's member cap rides `caps`; this is just the peer→space pointer). See
- *  `starfish/dm.ts`. */
-export type DmMap = Record<string, string>;
-
-/** The set of DM-space ids the user has archived (hidden from the DM list). Keyed by
- *  DM-space id (`dm-…`) — a set-as-map like `mutes.spaces`. Synced via the `_spaces`
- *  doc so an archive on one device propagates cross-device. A new incoming message
- *  removes a space from this set (auto-resurface). See `messaging/archived-dms.ts`. */
-export type ArchivedDms = Record<string, true>;
-
-/** A mute entry. `true` = muted indefinitely; a number = muted UNTIL that epoch-ms
- *  instant (the forward-compatible shape for a future "mute for 15 min" — read-
- *  supported now, but the current UI only ever writes `true` or deletes the key). */
-export type MuteValue = true | number;
-
-/** Per-user mute preferences: which rooms and which whole spaces are silenced.
- *  Synced across the user's devices (stored alongside `spaces`/`caps` in the
- *  `user/<userId>/_spaces` doc) and mirrored to device-local kv (`mutes.ts`). */
-export interface MutePrefs {
-  rooms: Record<string, MuteValue>;
-  spaces: Record<string, MuteValue>;
-}
-
-/** A per-room read mark: the epoch-ms instant the viewer last read that room.
- *  Monotonic (only ever advances) so a merge across devices takes the MAX. */
-export type ReadValue = number;
-
-/** Per-user read marks — the timestamp each room was last read. Synced across the
- *  user's devices (a `reads` key alongside `spaces`/`caps`/`mutes` in the
- *  `user/<userId>/_spaces` doc) and mirrored to device-local kv (`reads.ts`) so the
- *  unread badge / divider clears on every device, not just the one that read. */
-export interface ReadPrefs {
-  rooms: Record<string, ReadValue>;
-}
+import type {
+  ID,
+  SealedBlob,
+  AttachmentRef,
+  NodeAccess,
+  ObjectContentKind,
+} from '@drakkar.software/octospaces-sdk';
 
 export interface User {
   id: ID;
@@ -71,20 +34,6 @@ export interface User {
   presence?: PresenceStatus;
   /** Uploaded avatar as a data URI; absent → render the monogram initials. */
   avatar?: string;
-}
-
-/** A joined or listed space. Visibility and encryption are per-node (on each
- *  {@link ObjectNode}), not per-space — a space is a neutral container. */
-export interface Space {
-  id: ID;
-  name: string;
-  /** 2-letter monogram used in the space rail. */
-  short: string;
-  /** Uploaded space image as a data URI; absent → render the `short` monogram.
-   *  Owner-set + shared via the space's `_access` registry (plaintext, NOT E2EE). */
-  image?: string;
-  members: number;
-  unread?: number;
 }
 
 /** EVERY room is an APPEND-ONLY log: writers append `{t,e}` envelopes (no
