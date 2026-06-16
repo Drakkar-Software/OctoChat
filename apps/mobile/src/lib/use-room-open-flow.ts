@@ -20,7 +20,8 @@ import { makeClient } from '@drakkar.software/octochat-sdk';
 // Derive StarfishClient from the SDK's `makeClient` to keep the nominal type consistent
 // across symlinked packages (see original comment in the file this replaced).
 type StarfishClient = ReturnType<typeof makeClient>;
-import { getSpaceClient, buildNodeAccess, getNodeAccess, SpaceAccessError } from '@drakkar.software/octochat-sdk';
+import { getSpaceClient, getNodeStreamClient, buildNodeAccess, getNodeAccess, SpaceAccessError } from '@drakkar.software/octochat-sdk';
+import type { NodeAccess } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useRoomOpenState } from './use-room-open';
 
@@ -38,6 +39,9 @@ export function useRoomOpen(opts: {
   spaceId: string;
   /** True when the room's content is E2EE (sealed with the space-wide keyring). */
   enc: boolean;
+  /** The room's access tier — invite-plaintext streams (objinvlog) are cap-gated and
+   *  reached via the per-node stream cap, not the space client. */
+  access?: NodeAccess;
   enabled: boolean;
   /**
    * The space owner's userId if known. When provided and the caller IS the owner,
@@ -47,7 +51,7 @@ export function useRoomOpen(opts: {
    */
   owner?: string | null;
 }): RoomOpenFlow {
-  const { roomId, spaceId, enc, enabled, owner } = opts;
+  const { roomId, spaceId, enc, access, enabled, owner } = opts;
   const { session } = useSession();
   const [encryptor, setEncryptor] = useState<Encryptor | null>(null);
   const [client, setClient] = useState<StarfishClient | null>(null);
@@ -64,12 +68,17 @@ export function useRoomOpen(opts: {
     (async () => {
       try {
         if (!enc) {
-          // Plaintext room: the space client handles auth, no encryptor needed.
-          // getSpaceClient is synchronous — no network call, proves no reachability.
-          const spaceClient = getSpaceClient(spaceId, session) as unknown as StarfishClient;
+          // Plaintext room: no encryptor. Invite streams (objinvlog) are cap-gated and NOT
+          // reachable by the space cap — present the per-node stream cap via
+          // getNodeStreamClient. Public/space streams use the synchronous space client.
+          const plainClient = (
+            access === 'invite'
+              ? getNodeStreamClient(spaceId, roomId, session)
+              : getSpaceClient(spaceId, session)
+          ) as unknown as StarfishClient;
           if (!cancelled) {
             setEncryptor(null);
-            setClient(spaceClient);
+            setClient(plainClient);
             finishOpening();
           }
           return;
@@ -80,20 +89,20 @@ export function useRoomOpen(opts: {
         // permission and ownerEnsureKeyring is idempotent. For all other callers, use the soft
         // path (buildNodeAccess) which returns null instead of throwing when access is unavailable.
         const isOwner = owner !== undefined && owner !== null && owner === session.userId;
-        let access: { client: unknown; encryptor: unknown } | null;
+        let nodeAccess: { client: unknown; encryptor: unknown } | null;
         if (isOwner) {
           const handle = await getNodeAccess(spaceId, roomId, { enc: true }, session, {
             owner,
             members: [],
           });
-          access = { client: handle.client, encryptor: handle.encryptor };
+          nodeAccess = { client: handle.client, encryptor: handle.encryptor };
         } else {
-          access = await buildNodeAccess(session, spaceId, roomId, { enc: true });
+          nodeAccess = await buildNodeAccess(session, spaceId, roomId, { enc: true });
         }
-        if (!access) throw new SpaceAccessError(`No access to room ${roomId}.`);
+        if (!nodeAccess) throw new SpaceAccessError(`No access to room ${roomId}.`);
         if (!cancelled) {
-          setEncryptor(access.encryptor as unknown as Encryptor);
-          setClient(access.client as unknown as StarfishClient);
+          setEncryptor(nodeAccess.encryptor as unknown as Encryptor);
+          setClient(nodeAccess.client as unknown as StarfishClient);
           finishOpening();
         }
       } catch (e) {
@@ -103,7 +112,7 @@ export function useRoomOpen(opts: {
     return () => {
       cancelled = true;
     };
-  }, [enabled, session, roomId, spaceId, enc, owner, reloadNonce, beginOpen, finishOpening, failOpen]);
+  }, [enabled, session, roomId, spaceId, enc, access, owner, reloadNonce, beginOpen, finishOpening, failOpen]);
 
   return { encryptor, client, opening, openError, offline, reload };
 }

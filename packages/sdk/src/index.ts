@@ -168,6 +168,7 @@ export {
   getNodeAccess,
   buildNodeAccess,
   getSpaceClient,
+  getNodeStreamClient,
   clearNodeAccessCache,
   type NodeAccessHandle,
   // space access store (replaces member-caps + pubspace-caps)

@@ -4,7 +4,7 @@
  * via the stored credential. Caller is responsible for writing back `lastRunAt`
  * / `lastError` to the registry — this function only reports the outcome.
  */
-import { getSpaceClient } from '@drakkar.software/octospaces-sdk';
+import { getSpaceClient, getNodeStreamClient } from '@drakkar.software/octospaces-sdk';
 
 import type { Room } from '../domain/types';
 import type { Session } from '../starfish/identity';
@@ -50,11 +50,16 @@ export async function appendBotMessage(
   text: string,
   ts: number,
 ): Promise<void> {
-  const client = getSpaceClient(room.spaceId, session);
+  // Invite streams (objinvlog) are cap-gated, not reachable by the space cap; present the
+  // per-node stream cap via getNodeStreamClient. Public/space streams use the space client.
+  const isInviteStream = room.access === 'invite' && !room.enc;
+  const client = isInviteStream
+    ? getNodeStreamClient(room.spaceId, room.id, session)
+    : getSpaceClient(room.spaceId, session);
   const pushPath =
     room.access === 'public'
       ? streamPubRoomPush(room.id)
-      : room.access === 'invite' && !room.enc
+      : isInviteStream
         ? streamInvRoomPush(room.id)
         : streamRoomPush(room.id);
   const author = botAuthorId(room.id);

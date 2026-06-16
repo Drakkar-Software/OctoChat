@@ -74,6 +74,7 @@ export function useRoom(roomId: string, opts: { enabled?: boolean; access?: Node
     roomId,
     spaceId,
     enc,
+    access,
     enabled,
     owner: opts.owner,
   });

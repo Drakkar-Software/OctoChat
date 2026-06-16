@@ -11,7 +11,7 @@
  * message carries the entry's own `id`/`ts`, so it lands in the room store under
  * the same id the pending bubble used (dedup-by-id ⇒ no duplicate).
  */
-import { buildNodeAccess, getSpaceClient } from '@drakkar.software/octospaces-sdk';
+import { buildNodeAccess, getSpaceClient, getNodeStreamClient } from '@drakkar.software/octospaces-sdk';
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { Session } from '../starfish/identity';
@@ -45,12 +45,17 @@ async function resolveContext(
   }
 
   // Route plaintext rooms by access tier: public → streampub; invite → streaminv; else → streamchat.
-  const pushPath =
-    room.access === 'public'
-      ? streamPubRoomPush(entry.roomId)
-      : room.access === 'invite'
-        ? streamInvRoomPush(entry.roomId)
-        : streamRoomPush(entry.roomId);
+  // Invite streams (objinvlog) are cap-gated, NOT reachable by the space cap — present the
+  // per-node stream cap via getNodeStreamClient so the ticket requester (and members, once
+  // granted) can actually post.
+  if (room.access === 'invite') {
+    return {
+      client: getNodeStreamClient(entry.spaceId, entry.roomId, session),
+      encryptor: null,
+      pushPath: streamInvRoomPush(entry.roomId),
+    };
+  }
+  const pushPath = room.access === 'public' ? streamPubRoomPush(entry.roomId) : streamRoomPush(entry.roomId);
   return { client: spaceClient, encryptor: null, pushPath };
 }
 
