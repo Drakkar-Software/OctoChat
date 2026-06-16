@@ -90,6 +90,18 @@ export function Button({
   const square = iconOnly && !!iconName;
 
   return (
+    // Opacity and layout sit on a plain View so animStyle (which always emits
+    // opacity:1 at rest) cannot override the disabled dim on the inner Pressable.
+    <View
+      style={[
+        {
+          opacity: disabled ? opacity.disabled : 1,
+          alignSelf: full ? 'stretch' : 'flex-start',
+          width: full ? '100%' : undefined,
+        },
+        style,
+      ]}
+    >
     <AnimatedPressable
       accessibilityRole="button"
       accessibilityLabel={square ? label : undefined}
@@ -109,13 +121,9 @@ export function Button({
           minHeight: s.minHeight,
           minWidth: square ? s.minHeight : undefined,
           gap: square ? 0 : s.gap,
-          opacity: disabled ? opacity.disabled : 1,
-          alignSelf: full ? 'stretch' : 'flex-start',
-          width: full ? '100%' : undefined,
         },
         isPrimary ? glowShadow(colors.glow, hovered ? 0.34 : 0.18, hovered ? 12 : 9) : variant === 'secondary' && hovered ? shadows.sm : null,
         animStyle,
-        style,
       ]}
     >
       {isPrimary ? (
@@ -136,6 +144,7 @@ export function Button({
         </Text>
       )}
     </AnimatedPressable>
+    </View>
   );
 }
 
