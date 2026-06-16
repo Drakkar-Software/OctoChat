@@ -22,6 +22,9 @@ interface DesktopChatTopbarProps {
   /** DM only: navigate back to the DM list after archiving (called after the
    *  archive toggle fires). */
   onArchived?: () => void;
+  /** Ticket only: open the ticket actions sheet (status picker + archive).
+   *  Omit to hide the action (non-ticket rooms). */
+  onTicketActions?: () => void;
 }
 
 /**
@@ -37,7 +40,7 @@ interface DesktopChatTopbarProps {
  * carries an Archive toggle (archive icon when active, unarchived) so the user can
  * archive/unarchive without leaving the conversation.
  */
-export function DesktopChatTopbar({ name, kind = 'channel', spaceId, onSearch, onDetails, onThreads, onArchived }: DesktopChatTopbarProps) {
+export function DesktopChatTopbar({ name, kind = 'channel', spaceId, onSearch, onDetails, onThreads, onArchived, onTicketActions }: DesktopChatTopbarProps) {
   const { colors } = useTheme();
   const dms = useDms();
   const { isDmArchived, setDmArchived } = useArchivedDms();
@@ -73,6 +76,9 @@ export function DesktopChatTopbar({ name, kind = 'channel', spaceId, onSearch, o
       </Txt>
       {onThreads ? (
         <IconButton name="thread" size={16} onPress={onThreads} accessibilityLabel="All threads with this person" />
+      ) : null}
+      {onTicketActions ? (
+        <IconButton name="check-circle" size={16} onPress={onTicketActions} accessibilityLabel="Ticket actions" />
       ) : null}
       {kind === 'dm' ? (
         <IconButton

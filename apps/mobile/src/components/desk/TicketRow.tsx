@@ -10,10 +10,11 @@ import type { TicketEntry } from '@/lib/use-tickets';
 interface TicketRowProps {
   entry: TicketEntry;
   onPress: (entry: TicketEntry) => void;
+  onLongPress?: (entry: TicketEntry) => void;
 }
 
 /** A single row in the ticket list sidebar section. */
-export function TicketRow({ entry, onPress }: TicketRowProps) {
+export function TicketRow({ entry, onPress, onLongPress }: TicketRowProps) {
   const { colors } = useTheme();
   const { hovered, hoverProps } = useHover();
   const { node, ticket, unread } = entry;
@@ -21,6 +22,7 @@ export function TicketRow({ entry, onPress }: TicketRowProps) {
   return (
     <Pressable
       onPress={() => onPress(entry)}
+      onLongPress={onLongPress ? () => onLongPress(entry) : undefined}
       style={({ pressed }) => [styles.row, (pressed || hovered) && { backgroundColor: colors.hover }]}
       {...hoverProps}
     >

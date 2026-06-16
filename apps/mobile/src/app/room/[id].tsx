@@ -43,6 +43,9 @@ import { ReadOnlyFooter } from '@/components/chat/ReadOnlyFooter';
 import { RoomConversation } from '@/components/chat/RoomConversation';
 import { WebhookPanelWhenEmpty } from '@/components/chat/WebhookPanel';
 import { ThreadDigestPublisher } from '@/components/chat/ThreadDigestPublisher';
+import { TicketActionsSheet } from '@/components/desk/TicketActionsSheet';
+import { useFeature } from '@/lib/use-feature';
+import { useTickets } from '@/lib/use-tickets';
 
 export default function RoomScreen() {
   const params = useLocalSearchParams<{ id: string; name?: string; kind?: string }>();
@@ -87,6 +90,14 @@ export default function RoomScreen() {
   const [showAutomationSheet, setShowAutomationSheet] = useState(false);
   const isOwner = !!owner && session?.userId === owner;
   const onPinMessage = (msgId: string, pin: boolean) => (pin ? pinMessage(msgId) : unpinMessage(msgId));
+
+  // Ticket detection — only active when the space has the 'tickets' capability.
+  // Tickets open as kind:'channel' so the room screen doesn't know they're tickets;
+  // we detect by looking up the room in the object index.
+  const hasTickets = useFeature('tickets');
+  const { tickets, setStatus: setTicketStatus, archive: archiveTicket } = useTickets(hasTickets ? spaceId : null);
+  const ticketEntry = tickets.find((t) => t.node.id === id) ?? null;
+  const [showTicketSheet, setShowTicketSheet] = useState(false);
 
   // DM archive toggle — only used when kind === 'dm'.
   const { isDmArchived, setDmArchived } = useArchivedDms();
@@ -212,6 +223,9 @@ export default function RoomScreen() {
                   onPress={toggleDmArchive}
                 />
               ) : null}
+              {ticketEntry ? (
+                <IconButton name="check-circle" accessibilityLabel="Ticket actions" onPress={() => setShowTicketSheet(true)} />
+              ) : null}
               <IconButton name="info" accessibilityLabel="Space details" onPress={openMembers} />
             </View>
           }
@@ -226,6 +240,7 @@ export default function RoomScreen() {
           onDetails={openMembers}
           onThreads={kind === 'dm' ? openDmThreads : undefined}
           onArchived={kind === 'dm' ? goBack : undefined}
+          onTicketActions={ticketEntry ? () => setShowTicketSheet(true) : undefined}
         />
       }
       footer={
@@ -348,6 +363,13 @@ export default function RoomScreen() {
           }}
         />
       ) : null}
+      <TicketActionsSheet
+        visible={showTicketSheet}
+        entry={ticketEntry}
+        onSetStatus={(s) => setTicketStatus(id, s)}
+        onArchive={() => { archiveTicket(id); goBack(); }}
+        onClose={() => setShowTicketSheet(false)}
+      />
     </StackScreen>
   );
 }
