@@ -5,6 +5,7 @@ vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
   return {
     ...(actual as object),
     getSpaceClient: vi.fn(() => mockClient),
+    getNodeStreamClient: vi.fn(() => mockClient),
     buildNodeAccess: vi.fn(async () => null),
   };
 });

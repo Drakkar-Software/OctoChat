@@ -6,7 +6,11 @@ const mockAppend = vi.fn(async () => undefined);
 vi.mock('./secrets', () => ({ loadAutomationSecrets: vi.fn(async () => ({})) }));
 vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
   const actual = await importOriginal();
-  return { ...(actual as object), getSpaceClient: vi.fn(() => ({ append: mockAppend })) };
+  return {
+    ...(actual as object),
+    getSpaceClient: vi.fn(() => ({ append: mockAppend })),
+    getNodeStreamClient: vi.fn(() => ({ append: mockAppend })),
+  };
 });
 
 import { hashContent } from './hash';
