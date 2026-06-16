@@ -13,6 +13,7 @@ import { useDms, type DmEntry } from '@/lib/use-dms';
 import type { Room } from '@drakkar.software/octochat-sdk';
 import { Divider } from '@/components/ui/Divider';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Txt } from '@/components/ui/Txt';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { ChannelListSkeleton } from '@/components/chat/ChannelListSkeleton';

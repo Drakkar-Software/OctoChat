@@ -9,12 +9,13 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
+import { Image } from 'expo-image';
 
 import { motion } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
 import { PulseHalo } from '@/components/ui/PulseHalo';
 
-import { Octopus } from './Octopus';
+const LOGO = require('../../../assets/images/logo.png') as number;
 
 interface HeroMarkProps {
   /** Diameter of the logo; drives halo size too. */
@@ -22,8 +23,8 @@ interface HeroMarkProps {
 }
 
 /**
- * The onboarding hero lockup: the vector octopus mark floating inside a
- * bioluminescent halo. Encapsulates the motion so route pages stay declarative.
+ * The onboarding hero lockup: the logo PNG floating inside a bioluminescent
+ * halo. Encapsulates the motion so route pages stay declarative.
  */
 export function HeroMark({ size = 128 }: HeroMarkProps) {
   const { colors } = useTheme();
@@ -43,9 +44,7 @@ export function HeroMark({ size = 128 }: HeroMarkProps) {
   return (
     <Animated.View style={floatStyle}>
       <PulseHalo size={size} color={colors.accent} rings={3}>
-        {/* Crisp vector mark — no PNG decode, no asset size; accent-colored to
-            pulse with the halo's bioluminescent glow. */}
-        <Octopus size={size} color={colors.accent} />
+        <Image source={LOGO} style={{ width: size, height: size }} contentFit="contain" />
       </PulseHalo>
     </Animated.View>
   );
