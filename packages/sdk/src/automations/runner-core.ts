@@ -4,7 +4,7 @@
  * via the stored credential. Caller is responsible for writing back `lastRunAt`
  * / `lastError` to the registry — this function only reports the outcome.
  */
-import { getSpaceClient, getNodeStreamClient } from '@drakkar.software/octospaces-sdk';
+import { getSpaceClient, getNodeStreamClient, buildNodeAccess } from '@drakkar.software/octospaces-sdk';
 
 import type { Room } from '../domain/types';
 import type { Session } from '../starfish/identity';
@@ -50,6 +50,22 @@ export async function appendBotMessage(
   text: string,
   ts: number,
 ): Promise<void> {
+  const author = botAuthorId(room.id);
+  const env = { t: 'msg', e: { id: `${author}-${ts}`, authorId: author, ts, text } } as Record<string, unknown>;
+
+  // E2EE ticket (invite + enc): SEAL the envelope with the ticket's per-node keyring (the bot
+  // is a keyring recipient — it created the ticket), then append the ciphertext to the
+  // cap-gated invite stream (objinvlog). Without this the bot's reply would land in cleartext.
+  if (room.access === 'invite' && room.enc) {
+    const access = await buildNodeAccess(session, room.spaceId, room.id, { access: 'invite', enc: true });
+    if (!access) throw new Error('No keyring access for room');
+    const body = access.encryptor
+      ? await (access.encryptor as unknown as { encrypt: (d: Record<string, unknown>) => Promise<Record<string, unknown>> }).encrypt(env)
+      : env;
+    await getNodeStreamClient(room.spaceId, room.id, session).append(streamInvRoomPush(room.id), body);
+    return;
+  }
+
   // Invite streams (objinvlog) are cap-gated, not reachable by the space cap; present the
   // per-node stream cap via getNodeStreamClient. Public/space streams use the space client.
   const isInviteStream = room.access === 'invite' && !room.enc;
@@ -62,11 +78,7 @@ export async function appendBotMessage(
       : isInviteStream
         ? streamInvRoomPush(room.id)
         : streamRoomPush(room.id);
-  const author = botAuthorId(room.id);
-  await client.append(pushPath, {
-    t: 'msg',
-    e: { id: `${author}-${ts}`, authorId: author, ts, text },
-  });
+  await client.append(pushPath, env);
 }
 
 export async function tickRoom(opts: {

@@ -16,7 +16,7 @@
  * with `acceptResourceRequest({ create })` so an OctoDesk bot can accept sealed
  * resource requests and create properly-typed ticket nodes with `TicketMeta`.
  */
-import { createNodeInviteLink } from '@drakkar.software/octospaces-sdk';
+import { createNodeInviteLink, addNodeKeyringRecipient, readProfile } from '@drakkar.software/octospaces-sdk';
 import type { ResourceRequest } from '@drakkar.software/octospaces-sdk';
 import { randomId } from '../domain/ids';
 import type { Session } from '../starfish/identity';
@@ -80,14 +80,40 @@ export async function patchTicketStatus(
   await patchTicketMeta(session, spaceId, ticketId, { status });
 }
 
-/** Assign (or unassign) a ticket to a space member. */
+/**
+ * Assign (or unassign) a ticket to a space member.
+ *
+ * For an **E2EE ticket** (`opts.enc`), assigning also grants the assignee CRYPTOGRAPHIC
+ * access by adding their KEM key (from their public profile) to the ticket's per-node
+ * keyring — so the agent can decrypt the conversation. Least-privilege: an unassigned agent
+ * holds no key until assigned. The caller MUST already hold the node keyring (the desk
+ * owner/bot, which created the ticket); a non-recipient cannot grant access.
+ *
+ * Note: unassigning here only clears `assigneeId` — it does NOT rotate the keyring (the
+ * former assignee keeps access to messages already seen). Key rotation on unassignment is
+ * Phase 5.
+ */
 export async function assignTicket(
   session: Session,
   spaceId: string,
   ticketId: ID,
   assigneeId: ID | null,
+  opts: { enc?: boolean } = {},
 ): Promise<void> {
   await patchTicketMeta(session, spaceId, ticketId, { assigneeId });
+
+  if (opts.enc && assigneeId) {
+    const profile = await readProfile(assigneeId);
+    if (!profile.kemPub) {
+      throw new Error(
+        `Cannot grant E2EE ticket access: assignee ${assigneeId} has no published encryption key.`,
+      );
+    }
+    await addNodeKeyringRecipient(session, spaceId, ticketId, {
+      subKem: profile.kemPub,
+      userId: assigneeId,
+    });
+  }
 }
 
 /**

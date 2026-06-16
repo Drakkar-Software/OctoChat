@@ -10,6 +10,12 @@ vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
     ...(actual as object),
     getSpaceClient: vi.fn(() => ({ append: mockAppend })),
     getNodeStreamClient: vi.fn(() => ({ append: mockAppend })),
+    // E2EE ticket path: returns a node-keyring encryptor that wraps the envelope so the
+    // test can assert the appended body is SEALED (not plaintext).
+    buildNodeAccess: vi.fn(async () => ({
+      client: { append: vi.fn() },
+      encryptor: { encrypt: async (d: Record<string, unknown>) => ({ _sealed: d }) },
+    })),
   };
 });
 
@@ -114,6 +120,16 @@ describe('tickRoom push-path routing', () => {
     const [pushPath] = mockAppend.mock.calls[0] as [string, unknown];
     expect(pushPath).toContain('/n/');
     expect(pushPath).not.toContain('pub/');
+  });
+
+  it('E2EE ticket (invite + enc): SEALS the bot reply via the node keyring, posts to objinvlog', async () => {
+    await tick({ room: room({}, { access: 'invite', enc: true }) });
+    const [pushPath, body] = mockAppend.mock.calls[0] as [string, { _sealed?: unknown; e?: unknown }];
+    expect(pushPath).toContain('/n/'); // cap-gated invite stream (objinvlog), not space objlog
+    expect(pushPath).not.toContain('/objects/logs/');
+    // Body is the sealed wrapper — the cleartext envelope is NOT posted directly.
+    expect(body._sealed).toBeDefined();
+    expect(body.e).toBeUndefined();
   });
 
   it('routes a private/space room to objlog (path contains /objects/logs/, no pub/ or /n/)', async () => {
