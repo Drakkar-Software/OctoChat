@@ -195,7 +195,6 @@ export function DesktopRoomSidebar({
                 accessibilityLabel={Platform.OS === 'web' ? 'Jump to room ⌘K' : 'Jump to room'}
               />
             ) : null}
-            <IconButton name="gear" size={15} onPress={onOpenSpaceMenu} accessibilityLabel="Space settings" />
           </View>
         </View>
       }
