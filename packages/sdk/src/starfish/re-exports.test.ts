@@ -28,17 +28,18 @@ describe('account-seal re-exports', () => {
 });
 
 // ── session-restore ───────────────────────────────────────────────────────────
-import * as sessionRestore from './session-restore';
+// session-restore.ts deleted — import directly from octospaces-sdk
+import { sessionFromPersisted, activeAccountOf } from '@drakkar.software/octospaces-sdk';
 
 describe('session-restore re-exports', () => {
   it('exports sessionFromPersisted and activeAccountOf', () => {
-    expect(typeof sessionRestore.sessionFromPersisted).toBe('function');
-    expect(typeof sessionRestore.activeAccountOf).toBe('function');
+    expect(typeof sessionFromPersisted).toBe('function');
+    expect(typeof activeAccountOf).toBe('function');
   });
 
   it('is parity with octospaces-sdk', () => {
-    expect(sessionRestore.sessionFromPersisted).toBe(sdk.sessionFromPersisted);
-    expect(sessionRestore.activeAccountOf).toBe(sdk.activeAccountOf);
+    expect(sessionFromPersisted).toBe(sdk.sessionFromPersisted);
+    expect(activeAccountOf).toBe(sdk.activeAccountOf);
   });
 });
 

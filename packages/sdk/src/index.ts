@@ -35,10 +35,18 @@ export * from './format/markdown';
 export * from './format/message-view';
 
 // ── starfish/ — encrypted sync / crypto / registry core ────────────────────────
-export * from './starfish/base64';
+export { starfishBase64 } from '@drakkar.software/octospaces-sdk';
 export * from './starfish/fetch-timeout';
 export * from './starfish/paths';
-export * from './starfish/storage-types';
+export type {
+  DerivedIdentity,
+  PersistedSession,
+  Vault,
+  VaultLoad,
+  UnlockMethod,
+  PasskeyEnrollment,
+  SeedLock,
+} from '@drakkar.software/octospaces-sdk';
 export * from './starfish/account-seal';
 export * from './starfish/identity';
 export * from './starfish/client';
@@ -47,9 +55,9 @@ export * from './starfish/client';
 // from the `private baseUrl` field across duplicate package copies/symlinks).
 export { AppendLogCursor } from '@drakkar.software/starfish-client';
 export * from './starfish/pairing';
-export * from './starfish/session-restore';
-export * from './starfish/profile-cache';
-export * from './starfish/pull-cache';
+export { sessionFromPersisted, activeAccountOf } from '@drakkar.software/octospaces-sdk';
+export { cacheProfile, loadCachedProfile } from '@drakkar.software/octospaces-sdk';
+export { pullCache, PULL_CACHE_MAX_AGE_MS } from '@drakkar.software/octospaces-sdk';
 export * from './starfish/registry';
 export * from './starfish/members';
 // member-caps, space-encryptor, pubspace, pubspace-caps are REMOVED —

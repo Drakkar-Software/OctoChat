@@ -6,7 +6,23 @@
  * not WebAuthn), and react-native-quick-crypto install. Selected by Metro's
  * `react-native` export condition / `.native` resolution.
  */
-export * from './kv.native';
-export * from './storage.native';
-export * from './passkey.native';
-export * from './platform.native';
+import { createVaultStorageNative, enrollPasskey as _enrollPasskey } from '@drakkar.software/octospaces-platform-sdk';
+import type { PasskeyEnrollment } from '@drakkar.software/octospaces-sdk';
+
+export { kvGet, kvSet, kvRemove } from '@drakkar.software/octospaces-platform-sdk';
+export { configureStarfishPlatform } from '@drakkar.software/octospaces-platform-sdk';
+export { passkeySupported, passkeyEnrollable, evalPasskey } from '@drakkar.software/octospaces-platform-sdk';
+export type { PersistedSession } from '@drakkar.software/octospaces-sdk';
+
+const _vault = createVaultStorageNative({ storageKey: 'octochat_session_v1' });
+
+export const loadVault = () => _vault.loadVault();
+export const vaultMethods = () => _vault.vaultMethods();
+export const unlockVault = _vault.unlockVault.bind(_vault);
+export const saveVault = _vault.saveVault.bind(_vault);
+export const addPasskeyToVault = _vault.addPasskeyToVault.bind(_vault);
+export const removePasskeyFromVault = () => _vault.removePasskeyFromVault();
+export const clearVault = () => _vault.clearVault();
+
+export const enrollPasskey = (displayName: string): Promise<PasskeyEnrollment> =>
+  _enrollPasskey(displayName, 'OctoChat', 'octochat');
