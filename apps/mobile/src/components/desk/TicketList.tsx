@@ -31,7 +31,18 @@ export function TicketList({ spaceId, userId }: TicketListProps) {
   const openTicket = (entry: TicketEntry) => {
     router.push({
       pathname: '/room/[id]',
-      params: { id: entry.node.id, name: entry.node.title, kind: 'channel' },
+      // A ticket id (`ticket-<hex>`) carries no space segment, and tickets live outside the
+      // rooms registry — so the room screen can't recover the space or the access tier on its
+      // own. Pass them explicitly: `spaceId` (this shelf already knows it), the node's `access`
+      // ('invite') and `enc`. `entry.title` is the display title (placeholder for E2EE tickets).
+      params: {
+        id: entry.node.id,
+        name: entry.title,
+        kind: 'channel',
+        spaceId,
+        access: entry.node.access,
+        enc: entry.node.enc ? '1' : '0',
+      },
     });
   };
 

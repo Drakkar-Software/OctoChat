@@ -20,7 +20,7 @@ import { makeClient } from '@drakkar.software/octochat-sdk';
 // Derive StarfishClient from the SDK's `makeClient` to keep the nominal type consistent
 // across symlinked packages (see original comment in the file this replaced).
 type StarfishClient = ReturnType<typeof makeClient>;
-import { getSpaceClient, getNodeStreamClient, buildNodeAccess, getNodeAccess, SpaceAccessError } from '@drakkar.software/octochat-sdk';
+import { getSpaceClient, getNodeStreamClient, ensureDeskTicketStreamAccess, buildNodeAccess, getNodeAccess, SpaceAccessError } from '@drakkar.software/octochat-sdk';
 import type { NodeAccess } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useRoomOpenState } from './use-room-open';
@@ -67,15 +67,28 @@ export function useRoomOpen(opts: {
     if (!enabled || !session) return;
     (async () => {
       try {
+        // The space owner can self-heal missing per-node access (a keyring OR an objinvlog
+        // cap) because it is the cap issuer; non-owners use the soft read path. Computed once
+        // here so BOTH the plaintext-invite branch and the E2EE branch below can use it.
+        const isOwner = owner !== undefined && owner !== null && owner === session.userId;
         if (!enc) {
           // Plaintext room: no encryptor. Invite streams (objinvlog) are cap-gated and NOT
-          // reachable by the space cap — present the per-node stream cap via
-          // getNodeStreamClient. Public/space streams use the synchronous space client.
-          const plainClient = (
-            access === 'invite'
-              ? getNodeStreamClient(spaceId, roomId, session)
-              : getSpaceClient(spaceId, session)
-          ) as unknown as StarfishClient;
+          // reachable by the space cap — present the per-node stream cap via getNodeStreamClient.
+          // Public/space streams use the synchronous space client.
+          let plainClient: StarfishClient;
+          if (access === 'invite') {
+            // objinvlog admits ONLY an owner-issued (delegated) cap or a narrow per-node cap —
+            // the broad owner device cap is NOT honoured. getNodeStreamClient returns a working
+            // cap only if a per-node entry is stored in THIS device's KV (saved at ticket
+            // creation). When the caller IS the space owner but has no such entry — a different
+            // device, or a ticket created elsewhere (e.g. by a desk bot) — re-mint the owner's
+            // per-node objinvlog cap: the owner is the cap issuer, so this is always possible
+            // and idempotent (mirrors the keyring self-heal in the E2EE branch below).
+            if (isOwner) await ensureDeskTicketStreamAccess(session, spaceId, roomId);
+            plainClient = getNodeStreamClient(spaceId, roomId, session) as unknown as StarfishClient;
+          } else {
+            plainClient = getSpaceClient(spaceId, session) as unknown as StarfishClient;
+          }
           if (!cancelled) {
             setEncryptor(null);
             setClient(plainClient);
@@ -90,7 +103,6 @@ export function useRoomOpen(opts: {
         // created before Fix A self-heals on first open — the owner's chatClient has space:owner
         // permission and ownerEnsureKeyring is idempotent. For all other callers, use the soft
         // path (buildNodeAccess) which returns null instead of throwing when access is unavailable.
-        const isOwner = owner !== undefined && owner !== null && owner === session.userId;
         let nodeAccess: { client: unknown; encryptor: unknown } | null;
         if (isOwner) {
           const handle = await getNodeAccess(spaceId, roomId, { access, enc: true }, session, {

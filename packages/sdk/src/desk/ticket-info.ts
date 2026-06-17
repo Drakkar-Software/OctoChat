@@ -4,10 +4,12 @@
  * For an E2EE ticket the human-readable subject + requester are STRIPPED from the
  * all-member plaintext index (see `ticketMetaForIndex`) and instead sealed with the
  * ticket's per-node keyring. They are stored as a single typed header entry in the ticket's
- * invite stream (`objinvlog`) — the only per-node location that BOTH the desk side
- * (owner/bot/assigned agents, via `space:member`) AND the isolated requester (via their
- * per-node stream cap) can reach. Only node-keyring recipients can DECRYPT it, so a
- * non-participant (e.g. an unassigned agent) sees ciphertext → renders a placeholder.
+ * invite stream (`objinvlog`) — the per-node location reachable by BOTH the desk side
+ * (owner/bot/assigned agents) AND the isolated requester. NOTE: `objinvlog` is NOT covered by
+ * the `space:member` cap — each side reaches it via a PER-NODE cap: the requester via its
+ * stored grant, the owner by re-minting its own (`ensureDeskTicketStreamAccess`). Only
+ * node-keyring recipients can DECRYPT it, so a non-participant (e.g. an unassigned agent)
+ * sees ciphertext → renders a placeholder.
  *
  * Plaintext tickets do NOT use this — their title/requester live in the index `meta.ticket`.
  */

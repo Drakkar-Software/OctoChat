@@ -18,8 +18,8 @@ import {
   streamRoomPush,
   streamPubRoomPull,
   streamPubRoomPush,
-  streamInvRoomPull,
-  streamInvRoomPush,
+  objInvLogPull,
+  objInvLogPush,
   spaceIdFromRoomId,
 } from '@drakkar.software/octochat-sdk';
 import {
@@ -55,7 +55,7 @@ import type { StoredMsg } from '@drakkar.software/octochat-sdk';
  * holds no store. Attachments (private spaces only) seal a blob to the separate
  * `attachments` collection, exactly as the old merge-doc room did.
  */
-export function useRoom(roomId: string, opts: { enabled?: boolean; access?: NodeAccess; enc?: boolean; owner?: string | null } = {}): RoomHook {
+export function useRoom(roomId: string, opts: { enabled?: boolean; access?: NodeAccess; enc?: boolean; owner?: string | null; spaceId?: string } = {}): RoomHook {
   const enabled = opts.enabled ?? true;
   // Per-node access flags from the object index (passed by the room screen once the
   // registry resolves). When access is not yet known (registry still loading), default
@@ -64,7 +64,9 @@ export function useRoom(roomId: string, opts: { enabled?: boolean; access?: Node
   const access = opts.access;
   const enc = opts.enc ?? (opts.access !== undefined ? true : false);
   const { session } = useSession();
-  const spaceId = spaceIdFromRoomId(roomId);
+  // The screen passes the resolved spaceId (a ticket id encodes no space — see room/[id]);
+  // fall back to deriving it for normal sp-…-room ids that DO embed it.
+  const spaceId = opts.spaceId ?? spaceIdFromRoomId(roomId);
 
   // Shared crypto/auth open (+ opening/error/offline flags & reconnect). An append-only
   // room has no doc to seed (it pulls as [] until its first append). The synthetic store
@@ -118,7 +120,9 @@ export function useRoom(roomId: string, opts: { enabled?: boolean; access?: Node
       // write access.
       const entry = getNodeAccessEntry(spaceId, roomId) ?? getSpaceAccessEntry(spaceId);
       const canWrite = !entry || entry.kind === 'member' || (entry.kind === 'link' && entry.write);
-      return { pull: streamInvRoomPull(roomId), push: streamInvRoomPush(roomId), canWrite };
+      // objInvLog*(spaceId, roomId) — pass spaceId explicitly; streamInvRoom*(roomId) would
+      // re-derive it from the room id, which is wrong for ticket ids (no embedded space).
+      return { pull: objInvLogPull(spaceId, roomId), push: objInvLogPush(spaceId, roomId), canWrite };
     }
     return { pull: streamRoomPull(roomId), push: streamRoomPush(roomId), canWrite: true };
   }, [session, access, enc, roomId, spaceId]);
