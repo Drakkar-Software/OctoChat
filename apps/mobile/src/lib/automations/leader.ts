@@ -5,7 +5,7 @@
  * tab + the Electron desktop) of the same account share the same `edPub`, so BOTH would
  * mount the foreground driver + command watcher for a room they both have open. Result:
  * scheduled ticks double-post on changed content, and slash commands are answered twice
- * (the in-memory `processedIds` dedup is per-instance). See the automation review, H2.
+ * (the in-memory `processedIds` dedup is per-instance).
  *
  * Fix: hold an exclusive **Web Lock** named per room — only the lock holder is the
  * "leader" that ticks / replies; other instances are passive observers. The browser
