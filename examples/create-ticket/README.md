@@ -11,7 +11,7 @@ space cap.
 | Script | `pnpm` (from `ts/`) | What it does | Use when |
 | --- | --- | --- | --- |
 | `seed-ticket.ts` | `start:seed-ticket` | Creates a ticket **in your own account** (your seed) and posts a message into its objinvlog — then prints how to open it in the app. | **You want to SEE a ticket in the OctoChat app** and verify the owner can read it. |
-| `ticket.ts` | `start:ticket` | Standalone interactive desk CLI: one process creates a ticket and chats in it (poll + stdin). Self-contained. | You want a quick end-to-end CLI demo of the desk side. |
+| `ticket.ts` | `start:ticket` | Interactive desk CLI: create a ticket (new space · an existing one you own via `SPACE_ID` · or join via invite link) and live-chat in it (poll + stdin). | An interactive desk demo. With `SPACE_ID` + `AGENT_SEED` (your account) the conversation is app-viewable too. |
 | `request.ts` | `start:request` | The sealed **resource-request** round-trip: a fresh requester (holding only the bot's public link) files a ticket; the bot accepts and seals back a ticket-scoped cap; both sides read the conversation. | You want the no-cap client-submission flow end-to-end. |
 
 > Run any of them from the repo root, e.g.
@@ -75,35 +75,42 @@ space → **Tickets** shelf → open the ticket.
 
 ---
 
-## `ticket.ts` — standalone interactive desk CLI
+## `ticket.ts` — interactive desk CLI
 
-One process creates a ticket and chats in it: send an attachment + reply, set status,
-assign, then poll every 10 s and accept stdin replies until Ctrl+C. Two modes via
-`SPACE_INVITE_LINK`:
+Create a ticket and chat in it: an initial reply, set status, assign, then poll every 10 s
+and accept stdin replies until Ctrl+C. Three space modes (first match wins):
 
 ```
-NEW SPACE (default — agent owns the space):
-  agent ──createSpace──▶ space ──createTicket──▶ ticket room + requesterInviteLink
-EXISTING SPACE (set SPACE_INVITE_LINK — agent joins as member):
-  agent ──joinSpaceByLink──▶ space ──createTicketNode──▶ ticket room (no invite link)
+EXISTING SPACE YOU OWN (set SPACE_ID, pair with AGENT_SEED = that account):
+  agent ──▶ spaceId ──createTicket──▶ ticket room (+ invite link)   ← messages → objinvlog (app-viewable)
+JOIN AN EXISTING SPACE (set SPACE_INVITE_LINK):
+  agent ──joinSpaceByLink──▶ space ──createTicketNode──▶ ticket room (member; no invite link)
+NEW SPACE (default):
+  agent ──createSpace──▶ space ──createTicket──▶ ticket room (+ invite link)
 ```
 
 ```bash
-STARFISH_DATA_DIR=$(mktemp -d) PORT=8799 pnpm --filter @octochat/server start &
-STARFISH_URL=http://127.0.0.1:8799 \
+# View the live conversation in the app: target a space you own, as your account.
+AGENT_SEED="your seed words" SPACE_ID=sp-48521ba9… \
+STARFISH_URL=https://dev-sync.drakkar.software/sync STARFISH_NAMESPACE=octospaces \
   node_modules/.bin/tsx examples/create-ticket/ts/src/ticket.ts
+# …then open the app (EXPO_PUBLIC_VARIANT=octodesk) → Tickets → the ticket, and type to chat.
 ```
 
-> **App-view caveat:** `ticket.ts` posts to the space-tier stream, not `objinvlog`, so its
-> messages won't appear when you open the ticket in the app. It's a self-contained CLI demo
-> — to view a ticket (with its conversation) in the app, use **`seed-ticket.ts`** above.
+> **Owner vs member:** the owner path (`SPACE_ID` or a new space) posts to the per-node
+> `objinvlog` log, so the conversation **renders in the app**. The member path
+> (`SPACE_INVITE_LINK`) can't post to objinvlog — only owner-issued caps are honoured — so it
+> falls back to the space-tier stream and is **not** shown as a ticket conversation in the app.
+> Attachments are space-keyring-sealed, so they're sent only on the member path (the owner path
+> is plaintext text-only, like `seed-ticket.ts`).
 
 | Var | Default | Meaning |
 | --- | --- | --- |
-| `SPACE_INVITE_LINK` | *(empty → new space)* | A `…/join#<token>` link. Empty ⇒ fresh space (owner path, full `createTicket` + invite link). Set ⇒ join as member (`createTicketNode` only, no requester invite link — roster write is owner-only, 403 for a member). |
-| `SPACE_NAME` | `Drakkar Support` | New-space name (owner path only). |
+| `SPACE_ID` | *(empty)* | An **existing space this identity OWNS** (e.g. `sp-48521ba9…`) — used directly. Pair with `AGENT_SEED` = that account. Ignored if `SPACE_INVITE_LINK` is set. |
+| `SPACE_INVITE_LINK` | *(empty)* | A `…/join#<token>` link → join as **member** (`createTicketNode` only, no invite link — roster write is owner-only, 403 for a member). |
+| `SPACE_NAME` | `Drakkar Support` | New-space name (only when neither `SPACE_ID` nor `SPACE_INVITE_LINK` is set). |
 | `AGENT_NAME` | `Support Bot` | Display name of the agent identity. |
-| `AGENT_SEED` | *(empty → generate + print)* | BIP-39 seed; set to reuse the same identity across runs. |
+| `AGENT_SEED` | *(empty → generate + print)* | BIP-39 seed; set to your app account's seed to own the space + view the ticket in the app. |
 | `TICKET_ORIGIN` | `https://desk.drakkar.software` | Scheme+host for the requester invite link (owner path). |
 | `STARFISH_URL` · `STARFISH_NAMESPACE` · `SHARED_SPACES_NAMESPACE` | see [shared](#shared-config) | Server + namespaces. |
 
@@ -170,10 +177,11 @@ SHARED_SPACES_NAMESPACE=
 # TICKET_TITLE=Login fails on Safari 17
 # TICKET_REQUESTER=alice@example.com
 
-# ── ticket.ts — standalone interactive desk CLI ────────────────────────
+# ── ticket.ts — interactive desk CLI ───────────────────────────────────
 # AGENT_SEED="word1 word2 … word12"
-# SPACE_INVITE_LINK=https://…/join#<token>   # join existing space as member (else new space)
-# SPACE_NAME=Drakkar Support
+# SPACE_ID=sp-…                              # existing space you OWN (app-viewable; needs AGENT_SEED)
+# SPACE_INVITE_LINK=https://…/join#<token>   # OR join an existing space as a member
+# SPACE_NAME=Drakkar Support                 # name for a brand-new space (when neither above is set)
 # AGENT_NAME=Support Bot
 # TICKET_ORIGIN=https://desk.drakkar.software
 

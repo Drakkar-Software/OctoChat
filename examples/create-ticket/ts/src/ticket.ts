@@ -3,17 +3,18 @@
  * identity, send an initial reply with a file attachment, then enter a live
  * loop: poll every 10 s for new messages and let the agent type replies on stdin.
  *
- * Two modes, controlled by env vars:
+ * Three modes, by env var (first match wins):
  *
- *   NEW SPACE (default — zero setup, fully self-contained):
- *     agent identity ──createSpace──▶ desk space
- *          │                                │
- *          └── createTicket ───────────────▶ ticket room + requesterInviteLink
+ *   EXISTING SPACE YOU OWN (set SPACE_ID — pair with AGENT_SEED for your own account):
+ *     agent identity ──▶ uses spaceId directly ──createTicket──▶ ticket room (+ invite link)
+ *     Messages go to the per-node objinvlog log → the ticket is VIEWABLE in the OctoChat app.
  *
- *   EXISTING SPACE (set SPACE_INVITE_LINK):
- *     agent identity ──joinSpaceByLink──▶ existing desk space
- *          │                                      │
- *          └── createTicket ────────────────────▶ ticket room + requesterInviteLink
+ *   JOIN AN EXISTING SPACE (set SPACE_INVITE_LINK):
+ *     agent identity ──joinSpaceByLink──▶ space ──createTicketNode──▶ ticket room (member;
+ *     no invite link). Messages use the space-tier stream — NOT shown as a ticket in the app.
+ *
+ *   NEW SPACE (default — zero setup, self-contained):
+ *     agent identity ──createSpace──▶ desk space ──createTicket──▶ ticket room (+ invite link)
  *
  * Either way, after the ticket is created:
  *   send attachment + text ──▶ patchTicketStatus('pending') ──▶ assignTicket
@@ -44,10 +45,13 @@ import {
   deriveSession,
   ensureProfileKeys,
   generateSeedWords,
+  getNodeStreamClient,
   getSpaceClient,
   isValidSeed,
   joinSpaceByLink,
   loadAttachment,
+  objInvLogPull,
+  objInvLogPush,
   openEncryptor,
   ownerTrustedAdders,
   patchTicketStatus,
@@ -76,6 +80,11 @@ const NAMESPACE = process.env.STARFISH_NAMESPACE?.trim() || undefined;
 /** A `…/join#<token>` space invite link (or bare `#<token>`). Set this to add
  *  the fresh agent to a pre-existing OctoDesk space instead of creating a new one. */
 const SPACE_INVITE_LINK = process.env.SPACE_INVITE_LINK?.trim() || '';
+/** An EXISTING space this identity OWNS (e.g. `sp-48521ba9…`) — used directly, no create/join.
+ *  Pair with `AGENT_SEED` set to that account's seed. Ignored when `SPACE_INVITE_LINK` is set
+ *  (that path joins a space as a member). The agent must own it — `createTicket` writes the
+ *  member roster (owner-only). */
+const SPACE_ID = process.env.SPACE_ID?.trim() || '';
 const SPACE_NAME = process.env.SPACE_NAME?.trim() || 'Drakkar Support';
 const AGENT_NAME = process.env.AGENT_NAME?.trim() || 'Support Bot';
 const TICKET_ORIGIN = process.env.TICKET_ORIGIN?.trim() || 'https://desk.drakkar.software';
@@ -179,12 +188,20 @@ async function main(): Promise<void> {
     const token = decodeSpaceInviteLink(fragment);
     const space = await joinSpaceByLink(agent, token);
     spaceId = space.id;
-    console.log(`[ticket] joined   existing space → ${spaceId}`);
+    console.log(`[ticket] joined   existing space → ${spaceId}  (member)`);
+  } else if (SPACE_ID) {
+    spaceId = SPACE_ID;
+    console.log(`[ticket] space    ${spaceId}  (existing — must be OWNED by this identity)`);
   } else {
     const space = await createSpace(agent, SPACE_NAME);
     spaceId = space.id;
     console.log(`[ticket] space    "${SPACE_NAME}" created → ${spaceId}`);
   }
+  // Owner when we created the space or were handed one we own (SPACE_ID); member when we joined
+  // via an invite link. Drives whether ticket messages go to the per-node objinvlog log (owner
+  // — app-viewable) or the space-tier stream (member — only honoured for owner-issued objinvlog
+  // caps, so a member can't post there).
+  const ownsSpace = !SPACE_INVITE_LINK;
 
   // 3) Create the ticket room.
   //
@@ -228,14 +245,16 @@ async function main(): Promise<void> {
     console.log(`[ticket] invite   ${requesterInviteLink}`);
   }
 
-  // 4) Open the space keyring + sync client.
-  //    For member-joined sessions (SPACE_INVITE_LINK path), the member may not
-  //    be a keyring recipient — joinSpaceByLink grants a cap but the owner must
-  //    separately add them to the keyring. For enc: false (plaintext) tickets,
-  //    no keyring is needed at all, so we fall back to a passthrough encryptor
-  //    on SpaceAccessError and skip attachment upload (which always seals bytes).
+  // 4) Open the space keyring + sync client (used for the MEMBER transport + attachments).
+  //    For member-joined sessions (SPACE_INVITE_LINK), the member may not be a keyring
+  //    recipient; for enc:false tickets no keyring is needed, so fall back to a passthrough on
+  //    SpaceAccessError (attachment upload, which always seals bytes, is then skipped).
   const client = getSpaceClient(spaceId, agent);
   type RawEncryptor = Awaited<ReturnType<typeof openEncryptor>>;
+  const passthrough: RawEncryptor = {
+    encrypt: async <T>(d: T) => d as unknown as Record<string, unknown>,
+    decrypt: async <T>(d: T) => d,
+  } as unknown as RawEncryptor;
   const encryptorOrNull = await openEncryptor(
     client, agent.keys, spaceId, ownerTrustedAdders(agent),
   ).catch((e: unknown) => {
@@ -243,18 +262,27 @@ async function main(): Promise<void> {
     return null;
   });
   const hasCrypto = encryptorOrNull !== null;
-  const encryptor: RawEncryptor = encryptorOrNull ?? ({
-    encrypt: async <T>(d: T) => d as unknown as Record<string, unknown>,
-    decrypt: async <T>(d: T) => d,
-  } as unknown as RawEncryptor);
+  const encryptor: RawEncryptor = encryptorOrNull ?? passthrough;
   const sealer = encryptor as unknown as ByteSealer;
-  const seal = encryptor as unknown as {
+
+  // Ticket transport. A ticket's conversation lives in the per-node invite log (objinvlog),
+  // reached via a per-node cap. As the space OWNER we hold that cap (established at creation),
+  // so post/read there with the EXPLICIT spaceId — and since these tickets are plaintext
+  // (enc:false) the messages are NOT sealed (the app reads objinvlog plaintext, so the
+  // conversation renders). The MEMBER path can't post to objinvlog (only owner-issued caps are
+  // honoured), so it falls back to the space-tier stream sealed with the space keyring — runs
+  // standalone, but the app won't render it as a ticket conversation.
+  const ticketClient = ownsSpace ? getNodeStreamClient(spaceId, ticketId, agent) : client;
+  const ticketEncryptor: RawEncryptor = ownsSpace ? passthrough : encryptor;
+  const ticketPush = ownsSpace ? objInvLogPush(spaceId, ticketId) : streamRoomPush(ticketId);
+  const ticketPull = ownsSpace ? objInvLogPull(spaceId, ticketId) : streamRoomPull(ticketId);
+  const ticketSeal = ticketEncryptor as unknown as {
     encrypt: (d: Record<string, unknown>) => Promise<Record<string, unknown>>;
   };
 
   const append = async (env: StreamEnvelope): Promise<void> => {
-    const body = await seal.encrypt(env as unknown as Record<string, unknown>);
-    await client.append(streamRoomPush(ticketId), body);
+    const body = await ticketSeal.encrypt(env as unknown as Record<string, unknown>);
+    await ticketClient.append(ticketPush, body);
   };
 
   const sendText = (text: string) =>
@@ -272,13 +300,14 @@ async function main(): Promise<void> {
 
   // 5) Send a screenshot attachment (uploaded + sealed before it leaves the client),
   //    then an initial text reply.
-  //    Skip the attachment in member mode — uploadAttachment always seals with the
-  //    space keyring regardless of enc setting, so it would fail without keyring access.
-  if (hasCrypto) {
+  //    Attachments are space-keyring-sealed, so they're only sent on the member/space-keyring
+  //    path. The owner/objinvlog path is plaintext — a sealed attachment wouldn't decrypt in the
+  //    app's plaintext-ticket view — so it sends text only (matching seed-ticket.ts).
+  if (!ownsSpace && hasCrypto) {
     const screenshot = await sendAttachment(screenshotBytes(), 'safari-error.png', 'image/png');
     console.log(`[ticket] sent     attachment ${screenshot.name} (${screenshot.size} B, kind=${screenshot.kind})`);
   } else {
-    console.log('[ticket] note     attachment skipped (no keyring — member mode, enc: false ticket)');
+    console.log('[ticket] note     attachment skipped (text-only — owner/objinvlog plaintext ticket or no keyring)');
   }
 
   await sendText(
@@ -294,7 +323,7 @@ async function main(): Promise<void> {
 
   // 7) Initial fetch — print everything in the room so far.
   const seen = new Set<string>();
-  const initialPull = await pullAndFold(client, encryptor, streamRoomPull(ticketId));
+  const initialPull = await pullAndFold(ticketClient, ticketEncryptor, ticketPull);
   const initialMsgs = [...initialPull.data.messages].sort(
     (a: StoredMsg, b: StoredMsg) => a.ts - b.ts,
   );
@@ -317,7 +346,7 @@ async function main(): Promise<void> {
   // Poll timer — runs in the background; prints any messages not yet in `seen`.
   const pollTimer = setInterval(async () => {
     try {
-      const { data } = await pullAndFold(client, encryptor, streamRoomPull(ticketId));
+      const { data } = await pullAndFold(ticketClient, ticketEncryptor, ticketPull);
       const fresh = [...data.messages]
         .filter((m: StoredMsg) => !seen.has(m.id))
         .sort((a: StoredMsg, b: StoredMsg) => a.ts - b.ts);
