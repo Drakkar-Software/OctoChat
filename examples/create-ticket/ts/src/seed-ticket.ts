@@ -121,6 +121,16 @@ async function main(): Promise<void> {
   console.log('[seed-ticket] create a viewable ticket in YOUR account');
   console.log(`[seed-ticket] server ${SERVER}${NAMESPACE ? `  (namespace ${NAMESPACE})` : '  (local)'}`);
 
+  // SPACE_ID must already be OWNED by this identity; without AGENT_SEED the identity is fresh and
+  // owns nothing, so the first write to SPACE_ID returns 403. Fail early with guidance.
+  if (SPACE_ID && !AGENT_SEED_RAW) {
+    throw new Error(
+      `SPACE_ID=${SPACE_ID} is set but AGENT_SEED is not. A freshly generated identity cannot own ` +
+        'an existing space, so writing its ticket index returns HTTP 403. Set AGENT_SEED to the ' +
+        'seed phrase of the account that OWNS this space, or unset SPACE_ID to create a new one.',
+    );
+  }
+
   // 1) The desk identity = YOUR app account (derived from AGENT_SEED).
   const agent = await newUser(AGENT_NAME);
   console.log(`[seed-ticket] agent  "${AGENT_NAME}" (${agent.userId.slice(0, 8)}…)`);

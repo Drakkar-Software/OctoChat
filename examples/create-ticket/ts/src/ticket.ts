@@ -172,6 +172,17 @@ async function main(): Promise<void> {
   console.log('[ticket] OctoDesk create-ticket example');
   console.log(`[ticket] server   ${SERVER}${NAMESPACE ? `  (namespace ${NAMESPACE})` : '  (local, no namespace)'}`);
 
+  // Guard the most common foot-gun: SPACE_ID names a space that must already be OWNED by this
+  // identity, but without AGENT_SEED the identity is freshly generated and owns nothing — so
+  // the first index write to SPACE_ID returns 403. Fail early with guidance instead.
+  if (SPACE_ID && !AGENT_SEED_RAW) {
+    throw new Error(
+      `SPACE_ID=${SPACE_ID} is set but AGENT_SEED is not. A freshly generated identity cannot own ` +
+        'an existing space, so writing its ticket index returns HTTP 403. Set AGENT_SEED to the ' +
+        'seed phrase of the account that OWNS this space, or unset SPACE_ID to create a new one.',
+    );
+  }
+
   // 1) Create a fresh agent identity that will act as the desk bot / support agent.
   const agent = await newUser(AGENT_NAME);
   console.log(`[ticket] agent    "${AGENT_NAME}" (${agent.userId.slice(0, 8)}…)`);
