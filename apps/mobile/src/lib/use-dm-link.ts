@@ -1,18 +1,18 @@
 /**
- * The account's "DM me" link for the profile screen. The link is the IDENTITY
- * made portable (userId + pseudo + published public keys — see the SDK's
- * `dm-link.ts`): permanent, the same on every device, nothing to generate or
- * revoke. This hook only derives it (root session: synchronously from the keys;
- * paired device: through the cached public profile) and exposes a loading state.
+ * The account's portable identity link (the v:2 `IdentityLink`): permanent, the same on every
+ * device, nothing to generate or revoke. ONE producer shared by both link surfaces — the profile
+ * "DM me" share (`path: 'dm'`) and a space's request link base (`path: 'request'`, then wrapped
+ * with the target space by `encodeRequestLink`). Derives via `myIdentityLink` (root device: from
+ * the session keys; paired device: from the published profile) and exposes a loading state.
  */
 import { useEffect, useState } from 'react';
 
-import { myDmLink } from '@drakkar.software/octochat-sdk';
+import { myIdentityLink } from '@drakkar.software/octochat-sdk';
 
 import { webOrigin } from './links';
 import { useSession } from './session-context';
 
-export interface UseDmLink {
+export interface UseIdentityLink {
   /** True until the link has been derived. */
   loading: boolean;
   /** The shareable URL, or `null` when the identity's keys aren't published yet
@@ -20,7 +20,7 @@ export interface UseDmLink {
   link: string | null;
 }
 
-export function useDmLink(): UseDmLink {
+export function useIdentityLink(path = 'dm'): UseIdentityLink {
   const { session } = useSession();
   const [loading, setLoading] = useState(true);
   const [link, setLink] = useState<string | null>(null);
@@ -29,7 +29,7 @@ export function useDmLink(): UseDmLink {
     if (!session) return;
     let cancelled = false;
     setLoading(true);
-    void myDmLink(session, webOrigin())
+    void myIdentityLink(session, webOrigin(), path)
       .then((l) => {
         if (!cancelled) setLink(l);
       })
@@ -42,7 +42,7 @@ export function useDmLink(): UseDmLink {
     return () => {
       cancelled = true;
     };
-  }, [session]);
+  }, [session, path]);
 
   return { loading, link };
 }

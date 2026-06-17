@@ -15,7 +15,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { router } from 'expo-router';
 
-import { createDmViaLink, decodeDmLink, verifyDmLinkBinding, type DmLinkToken } from '@drakkar.software/octochat-sdk';
+import { createDmViaLink, decodeIdentityLink, verifyIdentityLinkBinding, type IdentityLink } from '@drakkar.software/octochat-sdk';
 
 import { useSession } from './session-context';
 
@@ -25,7 +25,7 @@ export interface DmScan {
   /** Where we are in the flow (drives what the UI renders). */
   phase: DmScanPhase;
   /** The decoded code, once scanned. `null` while scanning or on a decode error. */
-  token: DmLinkToken | null;
+  token: IdentityLink | null;
   /** Display name for the scanned identity (the live profile resolves after start). */
   name: string;
   /** Mono handle for the scanned identity. */
@@ -48,7 +48,7 @@ export interface DmScan {
 export function useDmScan(): DmScan {
   const { session } = useSession();
   const [phase, setPhase] = useState<DmScanPhase>('idle');
-  const [token, setToken] = useState<DmLinkToken | null>(null);
+  const [token, setToken] = useState<IdentityLink | null>(null);
   const [verified, setVerified] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,14 +67,14 @@ export function useDmScan(): DmScan {
   }, []);
 
   const scan = useCallback((data: string) => {
-    // The QR encodes a `…/dm#<token>` URL; `decodeDmLink` accepts the fragment
-    // with or without the leading `#`, so hand it everything from the first `#`
-    // (or the whole payload if there's none — a malformed code then errors out).
+    // The QR encodes an identity link (`…/dm#<token>` or `…/request?s=…#<token>`); the identity
+    // rides in the fragment, so take everything after the first `#` (dropping any `?s=` query)
+    // and decode it (a malformed code then errors out).
     const i = data.indexOf('#');
-    const frag = i === -1 ? data : data.slice(i);
-    let decoded: DmLinkToken;
+    const frag = i === -1 ? data : data.slice(i + 1);
+    let decoded: IdentityLink;
     try {
-      decoded = decodeDmLink(frag);
+      decoded = decodeIdentityLink(frag);
     } catch (e) {
       setToken(null);
       setVerified(null);
@@ -86,7 +86,7 @@ export function useDmScan(): DmScan {
     setToken(decoded);
     setVerified(null);
     setPhase('confirm');
-    void verifyDmLinkBinding(decoded).then(setVerified);
+    void verifyIdentityLinkBinding(decoded).then(setVerified);
   }, []);
 
   // The link's embedded pseudo is only a display hint until the live profile

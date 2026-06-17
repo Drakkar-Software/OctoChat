@@ -33,6 +33,7 @@ import {
   configureKv,
   configureOctoChat,
   decodeIdentityLink,
+  decodeRequestLink,
   ensureProfileKeys,
   readPeerKeys,
   submitResourceRequest,
@@ -49,9 +50,13 @@ try {
 
 const SERVER = process.env.STARFISH_URL?.trim() || 'http://localhost:8787';
 const NAMESPACE = process.env.STARFISH_NAMESPACE?.trim() || undefined;
-/** The owner's PUBLIC identity link (full `…/request#<token>` or bare token). */
+/** A combined request link `…/request?s=<spaceId>#<token>` (copied from the space's Requests card).
+ *  When set it supplies BOTH the owner identity AND the target space — no OWNER_LINK/SPACE_ID needed. */
+const REQUEST_LINK = process.env.REQUEST_LINK?.trim() || '';
+/** The owner's PUBLIC identity link (full `…/request#<token>` or bare token). Used with SPACE_ID
+ *  when no REQUEST_LINK is given. */
 const OWNER_LINK = process.env.OWNER_LINK?.trim() || '';
-/** The owner's space to file into — the identity link does NOT encode it. */
+/** The owner's space to file into — a bare identity link does NOT encode it. */
 const SPACE_ID = process.env.SPACE_ID?.trim() || '';
 const REQUESTER_NAME = process.env.REQUESTER_NAME?.trim() || 'Alice (requester)';
 const TICKET_TITLE = process.env.TICKET_TITLE?.trim() || 'Login fails on Safari 17';
@@ -84,8 +89,24 @@ async function newRequester(name: string): Promise<Session> {
 }
 
 async function main(): Promise<void> {
-  if (!OWNER_LINK) throw new Error("Set OWNER_LINK to the space owner's public identity link.");
-  if (!SPACE_ID) throw new Error("Set SPACE_ID to the owner's space id (the link does not encode it).");
+  // Resolve the owner identity + target space from a combined REQUEST_LINK (preferred) or from
+  // OWNER_LINK + SPACE_ID. Both decode to the SAME v:2 identity token (the DM link's format too).
+  let ownerLink;
+  let spaceId: string;
+  if (REQUEST_LINK) {
+    const decoded = decodeRequestLink(REQUEST_LINK);
+    if (!decoded.spaceId) {
+      throw new Error('REQUEST_LINK has no target space (?s=…). Use the link from the space Requests card, or set OWNER_LINK + SPACE_ID.');
+    }
+    ownerLink = decoded.identity;
+    spaceId = decoded.spaceId;
+  } else {
+    if (!OWNER_LINK) throw new Error('Set REQUEST_LINK (from the space Requests card), or OWNER_LINK + SPACE_ID.');
+    if (!SPACE_ID) throw new Error("Set SPACE_ID (a bare identity link doesn't encode it), or use a combined REQUEST_LINK.");
+    const i = OWNER_LINK.indexOf('#');
+    ownerLink = decodeIdentityLink(i === -1 ? OWNER_LINK : OWNER_LINK.slice(i + 1));
+    spaceId = SPACE_ID;
+  }
 
   configureOctoChat({ syncBase: SERVER, ...(NAMESPACE ? { syncNamespace: NAMESPACE } : {}) });
   const mem = new Map<string, string>();
@@ -98,18 +119,17 @@ async function main(): Promise<void> {
   console.log('[submit] OctoDesk — submit a ticket request');
   console.log(`[submit] server ${SERVER}${NAMESPACE ? `  (namespace ${NAMESPACE})` : '  (local)'}`);
 
-  // The owner's link is identity-only (verified offline + cross-checked against their live profile).
-  const i = OWNER_LINK.indexOf('#');
-  const ownerLink = decodeIdentityLink(i === -1 ? OWNER_LINK : OWNER_LINK.slice(i + 1));
-  console.log(`[submit] owner  ${ownerLink.ownerId.slice(0, 8)}…  (from OWNER_LINK)`);
-  console.log(`[submit] space  ${SPACE_ID}`);
+  // ownerLink is identity-only — submitResourceRequest verifies its binding (kemSig) offline and
+  // cross-checks it against the owner's live profile.
+  console.log(`[submit] owner  ${ownerLink.ownerId.slice(0, 8)}…`);
+  console.log(`[submit] space  ${spaceId}`);
 
   // A brand-new identity that is NOT a member of the owner's space and holds no cap.
   const requester = await newRequester(REQUESTER_NAME);
   console.log(`[submit] requester "${REQUESTER_NAME}" (${requester.userId.slice(0, 8)}…)  [fresh, non-member]`);
 
   const { reqId } = await submitResourceRequest(requester, ownerLink, {
-    spaceId: SPACE_ID,
+    spaceId,
     nodeType: 'ticket',
     title: TICKET_TITLE,
     meta: { requester: TICKET_REQUESTER, priority: 'high' },

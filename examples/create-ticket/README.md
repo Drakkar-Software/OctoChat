@@ -21,12 +21,13 @@ is exactly one script — `submit-ticket.ts` (the requester half). Acceptance ha
 
 ## Run
 
-Build the SDK, then submit against a real space using the owner's public link + space id:
+Build the SDK, then submit using the **request link** the owner copies from their space
+(OctoChat → space **Settings → Requests → Copy link**). One link carries both the owner identity
+and the target space:
 
 ```bash
 pnpm --filter @drakkar.software/octochat-sdk build
-OWNER_LINK="https://desk.drakkar.software/request#<token>" \
-SPACE_ID=sp-48521ba9… \
+REQUEST_LINK="https://desk.drakkar.software/request?s=sp-48521ba9…#<token>" \
 STARFISH_URL=https://dev-sync.drakkar.software/sync STARFISH_NAMESPACE=octospaces \
   node_modules/.bin/tsx examples/create-ticket/ts/src/submit-ticket.ts
 # or, from examples/create-ticket/ts/ :  pnpm start
@@ -34,20 +35,17 @@ STARFISH_URL=https://dev-sync.drakkar.software/sync STARFISH_NAMESPACE=octospace
 
 You'll see `submitted ✓ reqId=…`. The request now sits sealed in the owner's inbox.
 
-### Where do `OWNER_LINK` and `SPACE_ID` come from?
+### Where does the link come from?
 
-Both are the **owner's**, and **neither is a secret**:
-
-- `OWNER_LINK` — the owner's public identity link (`<origin>/request#<token>`), shared from
-  OctoChat. It binds an identity only (no cap), so it's safe to publish or embed in a QR code.
-  Generated in code with `myIdentityLink(ownerSession, origin, '/request')`.
-- `SPACE_ID` — the id of the owner's space to file into. The link does **not** encode it, so it's
-  passed separately.
+It's the **owner's**, and **not a secret**. The request link is `…/request?s=<spaceId>#<token>` —
+a public identity link (`#<token>`, the same v:2 format as a "DM me" link, safe to publish/QR) plus
+the target space (`?s=`). Use the one combined `REQUEST_LINK`, or pass the parts separately:
 
 | Var | Default | Meaning |
 | --- | --- | --- |
-| `OWNER_LINK` | *(required)* | The owner's public identity link (full `…/request#<token>` or bare token). |
-| `SPACE_ID` | *(required)* | The owner's space to file the ticket into. |
+| `REQUEST_LINK` | *(preferred)* | Combined `…/request?s=<spaceId>#<token>` from the space's Requests card — supplies BOTH the owner identity and the target space. |
+| `OWNER_LINK` | *(alt.)* | The owner's public identity link (`…#<token>` or bare token) — used with `SPACE_ID` when no `REQUEST_LINK`. |
+| `SPACE_ID` | *(alt.)* | The space to file into (a bare identity link doesn't encode it). |
 | `STARFISH_URL` | `http://localhost:8787` | Sync server base URL. Must match the owner's. |
 | `STARFISH_NAMESPACE` | *(empty)* | Deployed namespace (e.g. `octospaces`); empty for local. |
 | `TICKET_TITLE` · `TICKET_REQUESTER` · `TICKET_MESSAGE` | demo values | Ticket subject, requester field, and body. |
@@ -55,8 +53,8 @@ Both are the **owner's**, and **neither is a secret**:
 
 ## What the owner sees
 
-Acceptance lives in the OctoChat app, configurable **per space** under **Settings → Incoming
-requests** (shown only on a desk-capable build):
+Acceptance lives in the OctoChat app, configurable **per space** under **Settings → Requests**
+(shown only on a desk-capable build):
 
 - **Review manually** (default) — the request appears under **Requests** to **Accept** or
   **Decline**.
@@ -83,9 +81,12 @@ cp examples/create-ticket/.env.example examples/create-ticket/.env
 STARFISH_URL=https://dev-sync.drakkar.software/sync
 STARFISH_NAMESPACE=octospaces
 
-# The owner's PUBLIC identity link + the space to file into (both non-secret).
-OWNER_LINK=https://desk.drakkar.software/request#<token>
-SPACE_ID=sp-…
+# Preferred: the combined request link from the space's Requests card (identity + space, no secret).
+REQUEST_LINK=https://desk.drakkar.software/request?s=sp-…#<token>
+
+# Alternative to REQUEST_LINK: the owner's public identity link + the space, passed separately.
+# OWNER_LINK=https://desk.drakkar.software/request#<token>
+# SPACE_ID=sp-…
 
 # Optional ticket fields.
 # TICKET_TITLE=Login fails on Safari 17

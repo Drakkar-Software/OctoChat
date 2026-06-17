@@ -6,7 +6,7 @@ import { activeVariant } from '@/lib/variants';
 import { useCopy } from '@/lib/clipboard';
 import { useProfile } from '@/lib/profile-context';
 import { canShare, shareText } from '@/lib/share';
-import { useDmLink } from '@/lib/use-dm-link';
+import { useIdentityLink } from '@/lib/use-dm-link';
 import { useTheme } from '@/lib/use-theme';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -26,13 +26,13 @@ interface DmLinkSheetProps {
  * the same link without ever surfacing the raw URL. Presented as a full-screen
  * sheet (RN `Modal`, like {@link MoveToCategorySheet}) so it's reachable from
  * anywhere — the DMs header share action AND the profile's About card — instead
- * of being inlined per screen. Pure display over {@link useDmLink} + the live
+ * of being inlined per screen. Pure display over {@link useIdentityLink} + the live
  * {@link useProfile} identity.
  */
 export function DmLinkSheet({ visible, onClose }: DmLinkSheetProps) {
   const { colors } = useTheme();
   const { profile } = useProfile();
-  const { loading, link } = useDmLink();
+  const { loading, link } = useIdentityLink('dm');
   const { copied, copy } = useCopy();
   const showShare = canShare();
 

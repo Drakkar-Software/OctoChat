@@ -19,7 +19,8 @@ import { configureKv } from '../config/adapters';
 
 import { reconcileDmInbox } from './dm';
 import { readPeerKeys } from './dm-keys';
-import { createDmViaLink, decodeDmLink, myDmLink } from './dm-link';
+import { decodeIdentityLink, myIdentityLink } from '@drakkar.software/octospaces-sdk';
+import { createDmViaLink } from './dm-link';
 import { buildSession, type Session } from './identity';
 import { dmInboxShard, inboxPull, userIdFromEdPub } from './paths';
 import { readSpaces } from './registry';
@@ -57,10 +58,11 @@ describe.skipIf(!BASE)('dm-link end-to-end (STARFISH_E2E)', () => {
     const bob = await newUser('Bob');
 
     // Alice's link is derived, permanent, and embeds her published identity.
-    const link = await myDmLink(alice, 'https://oc.test');
+    const link = await myIdentityLink(alice, 'https://oc.test', 'dm');
     expect(link!.startsWith('https://oc.test/dm#')).toBe(true);
-    const token = decodeDmLink(link!.slice(link!.indexOf('#')));
-    expect(token).toEqual({ v: 1, ownerId: alice.userId, pseudo: 'Alice', edPub: alice.keys.edPub, kemPub: alice.keys.kemPub });
+    const token = decodeIdentityLink(link!.slice(link!.indexOf('#') + 1));
+    expect(token).toMatchObject({ v: 2, ownerId: alice.userId, pseudo: 'Alice', edPub: alice.keys.edPub, kemPub: alice.keys.kemPub });
+    expect(typeof token.kemSig).toBe('string');
 
     // Bob — who shares NO space with Alice — starts the DM through the link.
     const ref = await createDmViaLink(bob, token, 'Alice');

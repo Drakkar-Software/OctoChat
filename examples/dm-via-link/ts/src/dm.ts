@@ -45,11 +45,11 @@ import {
   configureOctoChat,
   buildSession,
   createDmViaLink,
-  decodeDmLink,
+  decodeIdentityLink,
   ensureProfileKeys,
   getSpaceClient,
   loadAttachment,
-  myDmLink,
+  myIdentityLink,
   openEncryptor,
   ownerTrustedAdders,
   pullAndFold,
@@ -61,7 +61,7 @@ import {
   userIdFromEdPub,
   type AttachmentRef,
   type ByteSealer,
-  type DmLinkToken,
+  type IdentityLink,
   type Session,
   type StoredMsg,
   type StreamEnvelope,
@@ -134,9 +134,9 @@ async function newUser(name: string): Promise<Session> {
 
 /** Decode a DM link to its token, accepting either a full `…/dm#<token>` URL or
  *  a bare fragment. */
-function tokenFrom(link: string): DmLinkToken {
+function tokenFrom(link: string): IdentityLink {
   const i = link.indexOf('#');
-  return decodeDmLink(i === -1 ? link : link.slice(i));
+  return decodeIdentityLink(i === -1 ? link : link.slice(i + 1));
 }
 
 async function main(): Promise<void> {
@@ -161,7 +161,7 @@ async function main(): Promise<void> {
     console.log('[dm] recipient via DM_LINK from the environment');
   } else {
     const recipient = await newUser(RECIPIENT_NAME);
-    const minted = await myDmLink(recipient, 'https://octochat.app');
+    const minted = await myIdentityLink(recipient, 'https://octochat.app', 'dm');
     if (!minted) throw new Error('could not derive the recipient DM link');
     link = minted;
     console.log(`[dm] recipient created "${RECIPIENT_NAME}" (${recipient.userId.slice(0, 8)}…) → ${link}`);

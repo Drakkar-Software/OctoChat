@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import { createDmViaLink, decodeDmLink, verifyDmLinkBinding, type DmLinkToken } from '@drakkar.software/octochat-sdk';
+import { createDmViaLink, decodeIdentityLink, verifyIdentityLinkBinding, type IdentityLink } from '@drakkar.software/octochat-sdk';
 import { useInviteFragment } from '@/lib/use-invite-link';
 import { useAvatars, usePseudos } from '@/lib/use-pseudos';
 import { useSession } from '@/lib/session-context';
@@ -34,10 +34,10 @@ export default function DmLinkScreen() {
   const [error, setError] = useState<string | null>(null);
 
   // Decode once per fragment; a malformed link renders as an error, not a crash.
-  const { token, decodeError } = useMemo((): { token: DmLinkToken | null; decodeError: string | null } => {
+  const { token, decodeError } = useMemo((): { token: IdentityLink | null; decodeError: string | null } => {
     if (!inviteFrag || inviteFrag === '#') return { token: null, decodeError: null };
     try {
-      return { token: decodeDmLink(inviteFrag), decodeError: null };
+      return { token: decodeIdentityLink(inviteFrag.replace(/^#/, '')), decodeError: null };
     } catch (e) {
       return { token: null, decodeError: String((e as Error)?.message ?? e) };
     }
@@ -51,7 +51,7 @@ export default function DmLinkScreen() {
     if (!token) return;
     let cancelled = false;
     setVerified(null);
-    void verifyDmLinkBinding(token).then((ok) => {
+    void verifyIdentityLinkBinding(token).then((ok) => {
       if (!cancelled) setVerified(ok);
     });
     return () => {

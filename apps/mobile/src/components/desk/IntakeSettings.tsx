@@ -3,9 +3,13 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
+import { useIdentityLink } from '@/lib/use-dm-link';
 import { useIntakeConfig } from '@/lib/use-intake-config';
+import { encodeRequestLink } from '@drakkar.software/octochat-sdk';
 import type { IntakeMode } from '@drakkar.software/octochat-sdk';
 import { Card } from '@/components/ui/Card';
+import { CopyField } from '@/components/ui/CopyField';
+import { Divider } from '@/components/ui/Divider';
 import { Reveal } from '@/components/ui/Reveal';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { TextField } from '@/components/ui/TextField';
@@ -20,14 +24,17 @@ const MODES: { key: IntakeMode; title: string; detail: string }[] = [
 const REPLY_PLACEHOLDER = "Thanks for reaching out — we've logged your request and will reply shortly.";
 
 /**
- * Owner-only "Incoming requests" settings for one space: how inbound ticket requests are
- * handled (review manually / auto-accept / auto-accept and reply), plus the auto-reply source
- * (a fixed message or an on-device AI reply). Mount inside the space settings screen, gated on
- * the desk variant (`useFeature('tickets')`).
+ * Owner-only "Requests" card for one space: the shareable request link (so non-members can file
+ * tickets), plus how inbound requests are handled (review manually / auto-accept / auto-accept and
+ * reply, with the reply written by AI or a fixed message). Mount inside the space settings screen,
+ * gated on the desk variant (`useFeature('tickets')`).
  */
 export function IntakeSettings({ spaceId }: { spaceId: string }) {
   const { colors } = useTheme();
   const { config, loading, error, save } = useIntakeConfig(spaceId);
+  // The owner's shareable request link for THIS space: the identity link + the target space.
+  const { link } = useIdentityLink('request');
+  const requestLink = link ? encodeRequestLink(link, spaceId) : null;
 
   // Local draft for the fixed reply so typing is smooth; persisted on blur.
   const [draft, setDraft] = useState(config.replyText);
@@ -36,9 +43,22 @@ export function IntakeSettings({ spaceId }: { spaceId: string }) {
   }, [config.replyText]);
 
   return (
-    <Card title="INCOMING REQUESTS">
+    <Card title="REQUESTS">
       <Txt variant="footnote" tone="inkSoft">
-        Choose what happens when someone sends your space a request.
+        Share this link so anyone can file a ticket into this space — no account or membership needed.
+      </Txt>
+      {requestLink ? (
+        <CopyField label="Request link" value={requestLink} copyLabel="Copy link" lines={3} />
+      ) : (
+        <Txt variant="caption" tone="inkMuted">
+          Your link will be ready once this identity has synced its keys.
+        </Txt>
+      )}
+
+      <Divider />
+
+      <Txt variant="footnote" tone="inkSoft">
+        Choose what happens when someone sends a request.
       </Txt>
 
       <View style={styles.options}>
