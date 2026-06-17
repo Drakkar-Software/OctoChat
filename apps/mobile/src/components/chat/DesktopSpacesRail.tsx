@@ -34,6 +34,7 @@ const RAIL_ICON: Record<RailIconName, IconName> = {
   lock: 'lock',
   mute: 'volume-off',
   add: 'plus',
+  notes: 'file',
 };
 
 // ── Props (unchanged from before — DesktopNav is untouched) ───────────────────
@@ -116,10 +117,11 @@ export function DesktopSpacesRail({
       activeId={activeId}
       onSelect={onSelect}
       onAdd={onAdd}
-      onSelectDms={onSelectDms}
-      dmsActive={dmsActive}
-      dmUnread={dmUnread}
-      dmLabel={DM_HOME_NAME}
+      specialTiles={
+        onSelectDms
+          ? [{ key: 'dm', icon: 'dm', onPress: onSelectDms, active: dmsActive, unread: dmUnread, label: DM_HOME_NAME }]
+          : undefined
+      }
       showLockCorner
       renderIcon={(name, size, color) => (
         <Icon name={RAIL_ICON[name]} size={size} color={color} />
