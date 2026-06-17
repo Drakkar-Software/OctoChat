@@ -23,7 +23,7 @@
     "typecheck": "pnpm -r --if-present run typecheck",
     "lint": "pnpm -r --if-present run lint",
     "test": "pnpm -r --if-present run test",
-    "publish:sdk": "pnpm --filter @drakkar.software/octochat-sdk publish"
+    "publish:sdk": "pnpm --filter @drakkar.software/octochat-sdk publish:npm"
   },
   "dependencies": {
     "@drakkar.software/whistlers": "^0.6.0"

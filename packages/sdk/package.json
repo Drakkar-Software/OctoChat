@@ -1,6 +1,6 @@
 {
   "name": "@drakkar.software/octochat-sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Headless, reusable OctoChat core — chat-domain logic (identity, encrypted Starfish sync, registry, spaces/rooms, messages, DMs, formatters) with no UI and no platform lock-in.",
   "license": "MIT",
   "type": "module",
@@ -37,7 +37,7 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "publish": "pnpm build && npm publish"
+    "publish:npm": "pnpm build && npm publish"
   },
   "dependencies": {
     "@drakkar.software/octospaces-platform-sdk": "0.1.1",
