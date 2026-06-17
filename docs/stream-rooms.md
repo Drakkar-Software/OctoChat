@@ -22,9 +22,22 @@ Storage paths (as declared in `apps/server/src/config.ts`):
 | `streampub` | `spaces/{spaceId}/streams/pub/{roomId}` | Plaintext, bot-friendly |
 | `streaminv` | `spaces/{spaceId}/streams/n/{roomId}/log` | Plaintext, per-node cap access |
 
-All three collections are registered on the `octochat.chat.changed` queue topic, so an
-append fires the same per-space SSE notification a normal message does — readers see
-bot posts live. **No new nginx route is needed**: `append` reuses the `/push/` action.
+All three collections are registered on the `octospaces.log.changed` queue topic (the
+`streamchat`/`streampub`/`streaminv` names above are the SDK-side aliases for the unified
+`objlog`/`objpublog`/`objinvlog` collections), so an append fires the same per-space SSE
+notification a normal message does — readers see bot posts live. **No new nginx route is
+needed**: `append` reuses the `/push/` action.
+
+> **Live delivery is gated on the `_access` roster, not the member cap.** The `/events`
+> SSE proxy and the FCM bridge authorize a space ONLY for callers named in
+> `spaces/{spaceId}/_access.{owner,members}` — the strict, no-TOFU space-role enricher;
+> the member cap that satisfies message *reads* is deliberately ignored here. So a space
+> must list **every** participant in `_access.members` to receive live notifications +
+> unread, even though reads work from the cap alone. This bit DMs: a DM whose peer was
+> missing from the roster loaded history but got no live notifications/unread. DMs now seed
+> the peer into the roster at creation (`createDmSpaceCore`), and `healDmRosters` (run on
+> reconcile) repairs DMs created earlier — only the space owner may write `_access`, so
+> each side heals the DMs it owns.
 
 ## The element format (what the app renders)
 

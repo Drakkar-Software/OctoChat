@@ -6,7 +6,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { spacing } from '@/theme';
 import { webOrigin } from '@/lib/links';
 import { isDmSpaceId } from '@drakkar.software/octochat-sdk';
-import { useFeature } from '@/lib/use-feature';
 import { useMutes } from '@/lib/mutes-context';
 import { automationBotUserIds, useRooms } from '@/lib/use-rooms';
 import { useSession } from '@/lib/session-context';
@@ -54,8 +53,6 @@ export default function SpaceScreen() {
   // no categories to manage and no one to invite — the peer is already its sole member —
   // so those owner cards are hidden for it.
   const isDm = isDmSpaceId(spaceId);
-  // Desk builds expose the per-space "Incoming requests" intake settings (owner-only, below).
-  const hasTickets = useFeature('tickets');
   const fromRoomId = params.roomId;
   const { session } = useSession();
   const { spaces } = useSpaces();
@@ -286,7 +283,7 @@ export default function SpaceScreen() {
 
               <SpaceStatsCard stats={spaceStats} loading={statsLoading} />
 
-              {hasTickets && !isDm ? <IntakeSettings spaceId={spaceId} /> : null}
+              {!isDm ? <IntakeSettings spaceId={spaceId} /> : null}
 
               {isDm ? null : (
                 <Card title="CATEGORIES">

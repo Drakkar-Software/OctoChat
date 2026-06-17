@@ -25,7 +25,7 @@ import { usePathname } from 'expo-router';
 import type { DmMap, Space } from '@drakkar.software/octochat-sdk';
 
 import { createSpace as createSpaceDoc, onSpaceMeta, readSpaces, reorderSpaces as reorderSpacesDoc } from '@drakkar.software/octochat-sdk';
-import { healDmMap, isDmSpaceId, reconcileDmInbox, reconcileTicketRequests } from '@drakkar.software/octochat-sdk';
+import { healDmMap, healDmRosters, isDmSpaceId, reconcileDmInbox, reconcileTicketRequests } from '@drakkar.software/octochat-sdk';
 import { isSharedRoomId, isTicketRoomId, localSpaceAccessEntries } from '@drakkar.software/octochat-sdk';
 import { consumePrimedSpaces } from './spaces-prime';
 import { hydrateMutes } from '@drakkar.software/octochat-sdk';
@@ -138,6 +138,11 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     void healDmMap(session, list, dmMap)
       .then((healed) => {
         if (healed !== dmMap) setDms(healed);
+        // Repair DM access rosters: a DM whose peer is missing from `_access.members`
+        // gets NO live notifications/unread, because the /events SSE proxy + FCM bridge
+        // authorize from the roster (not the member cap that gates reads). Owner-only
+        // writes, idempotent; each side heals the DMs it owns. Best-effort.
+        return healDmRosters(session, healed);
       })
       .catch(() => {});
     setActiveId((prev) => prev ?? rail[0]?.id ?? null);
@@ -160,7 +165,10 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       .then(async (changed) => {
         if (!changed) return;
         const next = await readSpaces(session.spacesRegistryClient, session.userId);
-        setDms(await healDmMap(session, next.spaces, next.dms));
+        const healed = await healDmMap(session, next.spaces, next.dms);
+        setDms(healed);
+        // A freshly-accepted DM must land its peer in `_access.members` too (see above).
+        await healDmRosters(session, healed);
       })
       .catch(() => {});
     // On a desk build, also accept inbound TICKET requests per each space's intake config

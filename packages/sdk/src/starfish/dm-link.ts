@@ -85,7 +85,7 @@ export async function createOrOpenDmViaInbox(session: Session, peer: DmPeer, own
   // Create the DM space + invite the owner through the EXISTING machinery (keyring recipient +
   // roster + member cap). The bundle is named after the VISITOR — the peer pseudo from the owner's
   // side of the DM.
-  const ref = await createDmSpaceCore(session, ownerPseudo);
+  const ref = await createDmSpaceCore(session, ownerPseudo, peer.userId);
   const requestJson = JSON.stringify({ edPub: peer.edPub, kemPub: peer.kemPub, userId: peer.userId });
   const inviteJson = await inviteToSpace(session, ref.spaceId, requestJson, true, session.name);
   // Deliver: seal to the owner (same blob a carrier would hold) and append it to their

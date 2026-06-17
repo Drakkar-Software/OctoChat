@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
+import { useFeature } from '@/lib/use-feature';
 import { useIdentityLink } from '@/lib/use-dm-link';
 import { useIntakeConfig } from '@/lib/use-intake-config';
 import { encodeRequestLink } from '@drakkar.software/octochat-sdk';
@@ -24,13 +25,14 @@ const MODES: { key: IntakeMode; title: string; detail: string }[] = [
 const REPLY_PLACEHOLDER = "Thanks for reaching out — we've logged your request and will reply shortly.";
 
 /**
- * Owner-only "Requests" card for one space: the shareable request link (so non-members can file
- * tickets), plus how inbound requests are handled (review manually / auto-accept / auto-accept and
- * reply, with the reply written by AI or a fixed message). Mount inside the space settings screen,
- * gated on the desk variant (`useFeature('tickets')`).
+ * Owner-only "Requests" card for one space: the shareable request link (so non-members can request
+ * a private room or file a ticket without joining), plus — on desk builds — how inbound ticket
+ * requests are handled (review manually / auto-accept / auto-accept and reply).
+ * Mount inside the space settings screen for any non-DM owner.
  */
 export function IntakeSettings({ spaceId }: { spaceId: string }) {
   const { colors } = useTheme();
+  const hasTickets = useFeature('tickets');
   const { config, loading, error, save } = useIntakeConfig(spaceId);
   // The owner's shareable request link for THIS space: the identity link + the target space.
   const { link } = useIdentityLink('request');
@@ -45,7 +47,8 @@ export function IntakeSettings({ spaceId }: { spaceId: string }) {
   return (
     <Card title="REQUESTS">
       <Txt variant="footnote" tone="inkSoft">
-        Share this link so anyone can file a ticket into this space — no account or membership needed.
+        Share this link so anyone can request a private room or file a support ticket — no account
+        or membership needed.
       </Txt>
       {requestLink ? (
         <CopyField label="Request link" value={requestLink} copyLabel="Copy link" lines={3} />
@@ -55,78 +58,82 @@ export function IntakeSettings({ spaceId }: { spaceId: string }) {
         </Txt>
       )}
 
-      <Divider />
+      {hasTickets ? (
+        <>
+          <Divider />
 
-      <Txt variant="footnote" tone="inkSoft">
-        Choose what happens when someone sends a request.
-      </Txt>
-
-      <View style={styles.options}>
-        {MODES.map((m) => {
-          const active = config.mode === m.key;
-          return (
-            <Pressable
-              key={m.key}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: active, disabled: loading }}
-              disabled={loading}
-              onPress={() => void save({ mode: m.key })}
-              style={({ pressed }) => [
-                styles.option,
-                {
-                  borderColor: active ? colors.accentDeskBorder : colors.ruleSoft,
-                  backgroundColor: active ? colors.accentDeskBg : 'transparent',
-                },
-                pressed && !active && { backgroundColor: colors.hover },
-              ]}
-            >
-              <View style={[styles.radio, { borderColor: active ? colors.accentDesk : colors.inkFaint }]}>
-                {active ? <View style={[styles.radioDot, { backgroundColor: colors.accentDesk }]} /> : null}
-              </View>
-              <View style={styles.optionText}>
-                <Txt variant="body" weight="medium">
-                  {m.title}
-                </Txt>
-                <Txt variant="caption" tone="inkMuted">
-                  {m.detail}
-                </Txt>
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {config.mode === 'auto-reply' ? (
-        <Reveal style={styles.replyBlock}>
-          <Txt variant="micro" weight="semibold" mono uppercase tone="inkSoft">
-            Reply with
+          <Txt variant="footnote" tone="inkSoft">
+            Choose what happens when someone sends a ticket request.
           </Txt>
-          <SegmentedControl
-            segments={[
-              { key: 'fixed', label: 'Fixed message' },
-              { key: 'ai', label: 'AI-written' },
-            ]}
-            selected={config.replyKind}
-            onSelect={(k) => void save({ replyKind: k === 'ai' ? 'ai' : 'fixed' })}
-          />
-          {config.replyKind === 'fixed' ? (
-            <TextField
-              value={draft}
-              onChangeText={setDraft}
-              onBlur={() => {
-                if (draft !== config.replyText) void save({ replyText: draft });
-              }}
-              placeholder={REPLY_PLACEHOLDER}
-              multiline
-              autoCapitalize="sentences"
-            />
-          ) : (
-            <Txt variant="caption" tone="inkMuted">
-              An on-device model writes a short first reply. If AI isn&apos;t ready on this device, your
-              fixed message is sent instead.
-            </Txt>
-          )}
-        </Reveal>
+
+          <View style={styles.options}>
+            {MODES.map((m) => {
+              const active = config.mode === m.key;
+              return (
+                <Pressable
+                  key={m.key}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active, disabled: loading }}
+                  disabled={loading}
+                  onPress={() => void save({ mode: m.key })}
+                  style={({ pressed }) => [
+                    styles.option,
+                    {
+                      borderColor: active ? colors.accentDeskBorder : colors.ruleSoft,
+                      backgroundColor: active ? colors.accentDeskBg : 'transparent',
+                    },
+                    pressed && !active && { backgroundColor: colors.hover },
+                  ]}
+                >
+                  <View style={[styles.radio, { borderColor: active ? colors.accentDesk : colors.inkFaint }]}>
+                    {active ? <View style={[styles.radioDot, { backgroundColor: colors.accentDesk }]} /> : null}
+                  </View>
+                  <View style={styles.optionText}>
+                    <Txt variant="body" weight="medium">
+                      {m.title}
+                    </Txt>
+                    <Txt variant="caption" tone="inkMuted">
+                      {m.detail}
+                    </Txt>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {config.mode === 'auto-reply' ? (
+            <Reveal style={styles.replyBlock}>
+              <Txt variant="micro" weight="semibold" mono uppercase tone="inkSoft">
+                Reply with
+              </Txt>
+              <SegmentedControl
+                segments={[
+                  { key: 'fixed', label: 'Fixed message' },
+                  { key: 'ai', label: 'AI-written' },
+                ]}
+                selected={config.replyKind}
+                onSelect={(k) => void save({ replyKind: k === 'ai' ? 'ai' : 'fixed' })}
+              />
+              {config.replyKind === 'fixed' ? (
+                <TextField
+                  value={draft}
+                  onChangeText={setDraft}
+                  onBlur={() => {
+                    if (draft !== config.replyText) void save({ replyText: draft });
+                  }}
+                  placeholder={REPLY_PLACEHOLDER}
+                  multiline
+                  autoCapitalize="sentences"
+                />
+              ) : (
+                <Txt variant="caption" tone="inkMuted">
+                  An on-device model writes a short first reply. If AI isn&apos;t ready on this device,
+                  your fixed message is sent instead.
+                </Txt>
+              )}
+            </Reveal>
+          ) : null}
+        </>
       ) : null}
 
       {error ? (

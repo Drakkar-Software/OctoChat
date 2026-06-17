@@ -26,7 +26,7 @@ import type { PeerKeys } from './dm-keys';
 import { ownerTrustedAdders, type Session } from './identity';
 import { DEFAULT_CATEGORY } from './objects';
 import { pushIndexSeed } from './object-index';
-import { addJoinedSpace, readSpaceAccess, readSpaces, setDmMapping, writeSpaceAccess } from './registry';
+import { addJoinedSpace, addSpaceMember, readSpaceAccess, readSpaces, setDmMapping, writeSpaceAccess } from './registry';
 
 // Re-export the pure id/dedup helpers so existing importers can keep reaching for them
 // through `starfish/dm` (their canonical home is the dependency-light `dm-ids`).
@@ -44,16 +44,20 @@ export interface DmRef {
  *  unguessable-id) `_rooms`/keyring orphan rather than a ghost DM — the posture
  *  {@link createSpace} documents for a failed seed. Invisible to {@link healDmMap},
  *  which scans only `_spaces` entries. */
-export async function createDmSpaceCore(session: Session, peerPseudo: string): Promise<DmRef> {
+export async function createDmSpaceCore(session: Session, peerPseudo: string, peerUserId?: string): Promise<DmRef> {
   const spaceId = newDmSpaceId();
   const roomId = dmRoomId(spaceId);
   // Seed the space keyring (owner = this session) — required so E2EE DM messages can
   // be encrypted. The DM room itself is an append-only log (the `streamchat` collection).
   await ownerEnsureKeyring(session.chatClient, session.keys, keyringPull(spaceId), keyringPush(spaceId), ownerTrustedAdders(session));
-  // Claim ownership (TOFU first write) in the access record; members start empty
-  // (inviteToSpace adds the peer to the roster). The single `kind:'dm'` room lives
-  // in the plaintext object index — seed it now.
-  await writeSpaceAccess(session.chatClient, spaceId, session.userId, [], null, { name: peerPseudo });
+  // Claim ownership AND seed the peer into the roster in ONE owner write. The /events SSE
+  // proxy + FCM bridge authorize a space purely from `_access.{owner,members}` (the strict
+  // no-TOFU enricher — caps are ignored there), so a DM whose peer is missing from this
+  // roster gets NO live notifications/unread even though message READS still work (cap-gated).
+  // Writing `members` here — instead of the later read-modify-write `addSpaceMember` inside
+  // `inviteToSpace` — avoids a read-after-write race that could drop the peer; that
+  // addSpaceMember then no-ops. `healDmRosters` repairs DMs created before this seeding.
+  await writeSpaceAccess(session.chatClient, spaceId, session.userId, peerUserId ? [peerUserId] : [], null, { name: peerPseudo });
   // enc:true: DM messages are sealed with the space keyring (streamchat); the client
   // must open the encryptor to decrypt them. access is 'space' (default — DM-space
   // members only), so no explicit access field is needed.
@@ -70,9 +74,10 @@ export function dmSpaceRecord(spaceId: string, peerPseudo: string): Space {
 
 /** Create a private DM space owned by this session: seed its keyring + the single
  *  `kind:'dm'` room doc, stamp ownership in `_rooms`, and record the space locally.
- *  The peer is added separately via {@link inviteToSpace} (keyring + roster + cap). */
-async function createDmSpace(session: Session, peerPseudo: string): Promise<DmRef> {
-  const ref = await createDmSpaceCore(session, peerPseudo);
+ *  The peer is seeded into the access roster at creation; their keyring slot + member
+ *  cap are added via {@link inviteToSpace}. */
+async function createDmSpace(session: Session, peerPseudo: string, peerUserId: string): Promise<DmRef> {
+  const ref = await createDmSpaceCore(session, peerPseudo, peerUserId);
   await addJoinedSpace(session.spacesRegistryClient, session.userId, dmSpaceRecord(ref.spaceId, peerPseudo));
   return ref;
 }
@@ -121,7 +126,7 @@ export async function createOrOpenDm(
   const existing = dms[peerUserId];
   if (existing) return { spaceId: existing, roomId: dmRoomId(existing) };
 
-  const ref = await createDmSpace(session, peerPseudo);
+  const ref = await createDmSpace(session, peerPseudo, peerUserId);
   // Reuse the whole space-invite flow (keyring recipient + roster + member cap). It
   // builds the same SpaceInvite JSON acceptSpaceInvite consumes, reading the space name
   // we just stored for the bundle.
@@ -169,6 +174,27 @@ export async function healDmMap(session: Session, rawSpaces: Space[], dmMap: DmM
     }
   }
   return healed;
+}
+
+/**
+ * Self-heal DM access rosters: ensure every DM space THIS session owns lists its peer in
+ * `_access.members`. The /events SSE proxy + FCM bridge authorize a space purely from
+ * `_access.{owner,members}` (strict no-TOFU enricher; caps are ignored), so a DM whose peer
+ * never landed in the roster delivers message READS (cap-gated) but NO live notifications or
+ * unread. New DMs seed the roster at creation ({@link createDmSpaceCore}); this repairs DMs
+ * created before that seeding.
+ *
+ * `addSpaceMember` is idempotent and self-skips when the peer is the space OWNER (adding the
+ * owner as a member no-ops), and only the owner may write `_access` — so this heals only the
+ * DMs WE own and leaves peer-owned DMs for the peer's own heal pass. Once both sides run it,
+ * every DM is covered. Best-effort per DM, never throws. `dms` is the peer→space map — the
+ * only source of the peer id for a DM whose roster is still empty.
+ */
+export async function healDmRosters(session: Session, dms: DmMap): Promise<void> {
+  for (const [peerUserId, spaceId] of Object.entries(dms)) {
+    if (!isDmSpaceId(spaceId)) continue;
+    await addSpaceMember(session.chatClient, spaceId, session.userId, peerUserId).catch(() => {});
+  }
 }
 
 /**

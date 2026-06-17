@@ -1,5 +1,42 @@
 # OctoChat Changelog
 
+## mobile 1.14.2 / sdk 0.3.3 — 2026-06-17 · DM + ticket live notifications
+
+### Bug fixes
+
+- **DM live notifications + unread never delivered** (`starfish/dm.ts`,
+  `lib/spaces-context.tsx`): the deployed `/events` SSE proxy + FCM bridge authorize a
+  space purely from `spaces/{id}/_access.{owner,members}` (the strict, no-TOFU enricher —
+  the member cap that gates message *reads* is ignored there), so a DM whose peer was
+  missing from that roster loaded history but received NO live notifications/unread on any
+  surface (web SSE, native FCM, in-app badge). Root cause: the peer was added to `_access`
+  via a read-modify-write (`addSpaceMember`) that raced the just-written owner stamp.
+  - `createDmSpaceCore` now seeds the peer into `_access.members` in the single owner write
+    (no race); the later `inviteToSpace` `addSpaceMember` no-ops.
+  - New `healDmRosters(session, dms)` (wired into the spaces reconcile) repairs DMs created
+    before the fix — owner-only, idempotent, best-effort; each side heals the DMs it owns.
+  - The space-rail DM badge (`useTotalDmUnread`) needed no change — it lights up once DM
+    unread populates.
+- **Ticket notifications dropped + ticket unread pruned on reload** (`44c2b83`;
+  `notifications/notification-{labels,preview}.ts`, `lib/notify.ts`,
+  `lib/push/background-notify.native.ts`, `lib/unread-context.tsx`): the notification
+  resolvers re-derived the space from the room id via `spaceIdFromRoomId`, which returns a
+  bogus space for `ticket-<hex>` ids (no embedded space). They now accept the real
+  `spaceId` the SSE event / FCM payload already carries; ticket room ids are exempt from
+  the unread hydrate-prune (new `isTicketRoomId`).
+- **Request link card hidden on non-desk builds** (`components/desk/IntakeSettings.tsx`,
+  `app/space/[id].tsx`): the "REQUESTS" card (shareable request link) was gated on
+  `useFeature('tickets')`, so non-desk spaces could not share their request link even though
+  the link can now be used to request a private room. The gate is removed from the mount
+  site; the ticket intake-mode selector inside the card remains gated on `hasTickets`.
+
+### Tests
+- `starfish/dm.test.ts`: roster seeding at creation + `healDmRosters` (adds missing peer,
+  idempotent, skips peer-owned DMs, best-effort, skips non-DM ids) — end-to-end against the
+  real `addSpaceMember` + an in-memory client.
+- `notifications/notification-{labels,preview}.test.ts`, `desk/ticket.test.ts`: explicit
+  `spaceId` resolves the real space (not `ticket-<hex>`); `isTicketRoomId` predicate.
+
 ## mobile 1.14.1 / sdk 0.3.2 — 2026-06-17 · post-review bug fixes
 
 ### Bug fixes
