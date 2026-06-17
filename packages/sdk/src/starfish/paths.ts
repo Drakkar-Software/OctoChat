@@ -74,6 +74,12 @@ export { objPubName, objPubPull, objPubPush } from '@drakkar.software/octospaces
 // ── Invite-only plaintext node content (objinv) ───────────────────────────────
 export { objInvName, objInvPull, objInvPush } from '@drakkar.software/octospaces-sdk';
 
+// ── Invite-only plaintext node message log (objinvlog) ────────────────────────
+// Takes (spaceId, nodeId) explicitly — unlike streamInvRoomPush/Pull which derive
+// the space id from the room id via spaceIdFromRoomId (only works for sp-<hex>-<local>
+// room ids, NOT ticket-<hex> ids from the desk flow).
+export { objInvLogName, objInvLogPull, objInvLogPush } from '@drakkar.software/octospaces-sdk';
+
 // ── Profile + registries ──────────────────────────────────────────────────────
 export { profilePull, profilePush, spacesPull, spacesPush } from '@drakkar.software/octospaces-sdk';
 // NOTE: spaceAccessPull/Push are also exported by octospaces-sdk under those names;

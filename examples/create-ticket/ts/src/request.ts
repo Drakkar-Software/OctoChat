@@ -19,10 +19,10 @@
  *
  *   REQUESTER (poll back)
  *     scanResourceGrants → acceptResourceGrant
- *       └─▶ nodeMemberScope cap stored → post a message into the ticket room
+ *       └─▶ nodeStreamScope cap stored → post a message into the ticket invite stream
  *
  *   BOT (read-back)
- *     getNodeAccess → pullAndFold on the ticket stream
+ *     getNodeStreamClient → pullAndFold on the ticket invite stream
  *
  * The requester ends up with a **ticket-scoped cap only** — they can read/write
  * that one ticket room; they cannot see other rooms or tickets in the space.
@@ -61,10 +61,13 @@ import {
   configureOctoChat,
   createSpace,
   decodeIdentityLink,
+  ensureDeskTicketStreamAccess,
   ensureProfileKeys,
-  getNodeAccess,
+  getNodeStreamClient,
   makeTicketCreateHandler,
   myIdentityLink,
+  objInvLogPull,
+  objInvLogPush,
   openEncryptor,
   ownerTrustedAdders,
   pullAndFold,
@@ -72,8 +75,6 @@ import {
   readPeerKeys,
   scanResourceGrants,
   scanResourceRequests,
-  streamRoomPull,
-  streamRoomPush,
   submitResourceRequest,
   userIdFromEdPub,
   type IdentityLink,
@@ -292,18 +293,18 @@ async function main(): Promise<void> {
   if (!grantedNodeId || !grantedSpaceId) throw new Error('requester: no grant received after polling');
 
   // ── 6. Requester posts a message into the ticket room ────────────────────
-  // After `acceptResourceGrant`, the requester holds a `nodeMemberScope` cap for
-  // this specific node. `getNodeAccess` picks up the per-node entry stored by
-  // `acceptNodeInvite` — this is narrower than a full space cap and is what lets
-  // the server enforce ticket-scoped access.
+  // After `acceptResourceGrant`, the requester holds a `nodeStreamScope` cap for
+  // this specific node's INVITE STREAM (`objinvlog`). This cap is stored by
+  // `acceptNodeInvite` (via `saveNodeStreamAccessEntry`) and picked up by
+  // `getNodeStreamClient`. An invite-ticket log lives in `objinvlog` — a
+  // collection EXCLUDED from both `spaceMemberScope` and `nodeMemberScope` — so
+  // the append MUST go through the per-node stream cap + `objInvLogPush`.
+  // IMPORTANT: pass the real spaceId explicitly — `streamInvRoomPush(nodeId)` derives
+  // the space from the room id via split('-'), which only works for `sp-<hex>-<local>`
+  // ids, NOT `ticket-<hex>` ids (no embedded space segment → wrong path → 403).
   // The ticket was created with `enc: false`, so no keyring / encryptor is needed.
   console.log('[req] step 6: requester posting a message…');
-  const { client: rClient } = await getNodeAccess(
-    grantedSpaceId,
-    grantedNodeId,
-    { enc: false, access: 'invite' },
-    requester,
-  );
+  const rClient = getNodeStreamClient(grantedSpaceId, grantedNodeId, requester);
   const msgEnv: StreamEnvelope = {
     t: 'msg',
     e: {
@@ -313,23 +314,27 @@ async function main(): Promise<void> {
       text: 'Hi! Consistently fails on macOS 14.5 + Safari 17.4. Cleared cookies, still 403.',
     },
   };
-  await rClient.append(streamRoomPush(grantedNodeId), msgEnv as unknown as Record<string, unknown>);
+  await rClient.append(objInvLogPush(grantedSpaceId, grantedNodeId), msgEnv as unknown as Record<string, unknown>);
   console.log('[req] requester sent message into ticket room');
 
   // ── 7. Bot reads the ticket conversation back ─────────────────────────────
-  // `getNodeAccess` uses the owner's full space keyring; enc:false means the
-  // "encryptor" is null — messages are stored as plaintext and no decryption runs.
+  // `objinvlog` is reachable ONLY by an owner-issued member cap (it does not honour the
+  // broad owner device cap), so the desk holds a per-node stream cap established at ticket
+  // creation. Re-establish it here: this single-process demo shares ONE in-memory access
+  // store between bot and requester, and the requester's `acceptResourceGrant` (step 5)
+  // overwrote the bot's `${spaceId}:${ticketId}:stream` entry with its own cap. In a real
+  // deployment bot and requester are separate processes, so the creation-time cap survives
+  // and this call is a harmless idempotent refresh. enc:false → passthrough for pullAndFold.
   if (bot && ticketNodeId) {
     console.log('[req] step 7: bot reading ticket conversation…');
-    const bHandle = await getNodeAccess(spaceId, ticketNodeId, { enc: false, access: 'invite' }, bot);
-    // enc:false → encryptor is null; fall back to a passthrough for pullAndFold.
+    await ensureDeskTicketStreamAccess(bot, spaceId, ticketNodeId);
+    const bClient = getNodeStreamClient(spaceId, ticketNodeId, bot);
     const passthrough = {
       encrypt: async <T>(d: T) => d as unknown as Record<string, unknown>,
       decrypt: async <T>(d: T) => d,
     } as unknown as Awaited<ReturnType<typeof openEncryptor>>;
-    const encryptor = bHandle.encryptor ?? passthrough;
 
-    const { data } = await pullAndFold(bHandle.client, encryptor, streamRoomPull(ticketNodeId));
+    const { data } = await pullAndFold(bClient, passthrough, objInvLogPull(spaceId, ticketNodeId));
     const msgs = [...data.messages].sort((a: StoredMsg, b: StoredMsg) => a.ts - b.ts);
     console.log(`\n[req] ── ticket conversation (${msgs.length} message(s)) ──`);
     for (const m of msgs) {

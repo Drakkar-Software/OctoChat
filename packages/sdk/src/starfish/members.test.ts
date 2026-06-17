@@ -31,6 +31,7 @@ vi.mock('./client', () => ({
 
 // ── Imports (after mocks) ─────────────────────────────────────────────────────
 
+import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 import { addJoinedSpaceWithCap, saveSpaceAccessEntry } from '@drakkar.software/octospaces-sdk';
 import { buildEncryptor, makeClient } from './client';
 import { makeJoinRequest, acceptSpaceInvite, type JoinRequest } from './members';
@@ -65,12 +66,16 @@ beforeEach(() => {
 
 describe('makeJoinRequest', () => {
   it('serializes the session identity to a JSON join request', () => {
-    const session = makeSession();
+    // octospaces-sdk ≥0.13.0 (IdentityLink v:2) signs kemPub into a `kemSig`, so the
+    // request keys must be real hex (hexToBytes/ed25519.sign run inside makeJoinRequest).
+    const keys = generateDeviceKeys();
+    const session = makeSession({ userId: 'u-owner', keys });
     const json = makeJoinRequest(session);
     const parsed = JSON.parse(json) as JoinRequest;
-    expect(parsed.edPub).toBe('edpub-owner');
-    expect(parsed.kemPub).toBe('kempub-owner');
+    expect(parsed.edPub).toBe(keys.edPub);
+    expect(parsed.kemPub).toBe(keys.kemPub);
     expect(parsed.userId).toBe('u-owner');
+    expect(typeof (parsed as { kemSig?: unknown }).kemSig).toBe('string');
   });
 });
 

@@ -2,15 +2,51 @@
  * Low-level desk mutations on the unified object index.
  * Mirrors the `automations/registry-write.ts` pattern for ticket nodes.
  */
-import { updateObjectIndex } from '@drakkar.software/octospaces-sdk';
+import { nodeStreamScope, saveNodeStreamAccessEntry, updateObjectIndex } from '@drakkar.software/octospaces-sdk';
+import { mintMemberCap } from '@drakkar.software/starfish-sharing';
+import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 import { addObject } from '../starfish/objects';
 import type { Session } from '../starfish/identity';
 import type { ObjectNode } from '../domain/types';
+import { userIdFromEdPub } from '../starfish/paths';
 import type { TicketMeta } from './ticket';
 import { ticketMetaForIndex } from './ticket';
 
 const asLocal = (nodes: import('@drakkar.software/octospaces-sdk').ObjectNode[]) =>
   nodes as unknown as ObjectNode[];
+
+/**
+ * Establish (or refresh) the desk session's read/write access to a ticket's per-node
+ * `objinvlog` (invite-stream) log, so the desk can reconcile the ticket conversation.
+ * Ticket nodes are written directly via `updateObjectIndex` (not octospaces `createNode`),
+ * so this access has to be set up explicitly. It is auto-called at ticket creation, and is
+ * **idempotent** — call it again before reading a ticket whose per-node stream entry may
+ * have been lost (e.g. a fresh desk process, or — in a single-process demo — after an
+ * invitee's `acceptNodeInvite` overwrote the shared `${spaceId}:${nodeId}:stream` entry).
+ *
+ * `objinvlog` admits ONLY caps that synthesize a `delegated:<ownerId>:objinvlog` role —
+ * i.e. MEMBER caps ISSUED BY the owner — OR a member cap whose narrow `scope.paths` cover
+ * the node. A broad `ownerScope` device cap is NOT honoured. The owner can't mint a member
+ * cap to itself (`sub === iss` is rejected by `mintMemberCap`), so it mints one to a
+ * throwaway ephemeral subject it controls and stores the ephemeral signing key — the same
+ * per-node "link" access pattern `createNodeInviteLink` uses.
+ */
+export async function ensureDeskTicketStreamAccess(
+  session: Session,
+  spaceId: string,
+  ticketId: string,
+): Promise<void> {
+  const ek = generateDeviceKeys();
+  const ekUserId = await userIdFromEdPub(ek.edPub);
+  const cap = await mintMemberCap(
+    session.keys.edPriv,
+    session.keys.edPub,
+    { edPubHex: ek.edPub, kemPubHex: ek.kemPub, userIdHex: ekUserId },
+    'objinvlog',
+    nodeStreamScope(spaceId, ticketId, true),
+  );
+  saveNodeStreamAccessEntry(spaceId, ticketId, { kind: 'link', cap, key: ek.edPriv, write: true });
+}
 
 /**
  * Append a new ticket node to the object index.
@@ -44,6 +80,7 @@ export async function createTicketNode(
       now,
     ).nodes as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
   });
+  await ensureDeskTicketStreamAccess(session, spaceId, ticketId);
 }
 
 /**
@@ -75,6 +112,7 @@ export async function createTicketNodeWithReqId(
       now,
     ).nodes as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
   });
+  await ensureDeskTicketStreamAccess(session, spaceId, ticketId);
 }
 
 /**

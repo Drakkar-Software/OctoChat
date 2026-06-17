@@ -38,7 +38,9 @@ describe('loadCachedProfile', () => {
     cacheProfile('u-abc', PROFILE);
     await new Promise((r) => setTimeout(r, 0));
     const loaded = await loadCachedProfile('u-abc');
-    expect(loaded).toEqual(PROFILE);
+    // octospaces-sdk ≥0.13.0 (IdentityLink v:2) adds a signed `kemSig` field; absent in
+    // PROFILE so it round-trips as null.
+    expect(loaded).toEqual({ ...PROFILE, kemSig: null });
   });
 
   it('returns null and does not throw for malformed JSON', async () => {
@@ -49,12 +51,12 @@ describe('loadCachedProfile', () => {
   it('returns null for missing fields (partial stored object)', async () => {
     store.set('octospaces.profile.v1.u-partial', JSON.stringify({ pseudo: 'bob' }));
     const loaded = await loadCachedProfile('u-partial');
-    expect(loaded).toEqual({ pseudo: 'bob', avatar: null, edPub: null, kemPub: null });
+    expect(loaded).toEqual({ pseudo: 'bob', avatar: null, edPub: null, kemPub: null, kemSig: null });
   });
 
   it('returns null for non-string pseudo/avatar/edPub/kemPub', async () => {
     store.set('octospaces.profile.v1.u-typed', JSON.stringify({ pseudo: 42, avatar: true }));
     const loaded = await loadCachedProfile('u-typed');
-    expect(loaded).toEqual({ pseudo: null, avatar: null, edPub: null, kemPub: null });
+    expect(loaded).toEqual({ pseudo: null, avatar: null, edPub: null, kemPub: null, kemSig: null });
   });
 });

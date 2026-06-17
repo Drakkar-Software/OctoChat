@@ -8,7 +8,8 @@
     "node": ">=20.12"
   },
   "scripts": {
-    "start": "tsx src/request.ts",
+    "start:ticket": "tsx src/ticket.ts",
+    "start:request": "tsx src/request.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

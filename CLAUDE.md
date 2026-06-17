@@ -33,8 +33,8 @@ pnpm workspace. `pnpm-workspace.yaml` sets `nodeLinker: hoisted` because React
 Native / Metro resolve dependencies best with a flat `node_modules`
 (see https://docs.expo.dev/guides/monorepos/). The
 `@drakkar.software/starfish-*` SDK is consumed as pinned npm deps (`3.0.0-alpha.27`);
-`@drakkar.software/octospaces-sdk` (`^0.4.3`) is a dep of `packages/sdk`;
-`@drakkar.software/octospaces-ui` (`^0.1.0`) is a dep of `apps/mobile`.
+`@drakkar.software/octospaces-sdk` (`0.13.0`) is a dep of `packages/sdk`;
+`@drakkar.software/octospaces-ui` (`0.8.0`) is a dep of `apps/mobile`.
 `apps/mobile/metro.config.js` extends the SDK 56 default to
 watch the workspace root, enable package `exports`, and block the Node-only
 `apps/server` from the app bundle.

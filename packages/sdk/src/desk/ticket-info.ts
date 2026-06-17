@@ -11,7 +11,7 @@
  *
  * Plaintext tickets do NOT use this — their title/requester live in the index `meta.ticket`.
  */
-import { buildNodeAccess, getNodeStreamClient, streamInvRoomPull, streamInvRoomPush } from '@drakkar.software/octospaces-sdk';
+import { buildNodeAccess, getNodeStreamClient, objInvLogPull, objInvLogPush } from '@drakkar.software/octospaces-sdk';
 
 import type { Session } from '../starfish/identity';
 import { clampField, TICKET_TITLE_MAX, TICKET_REQUESTER_MAX } from './ticket';
@@ -40,7 +40,7 @@ export async function writeSealedTicketInfo(
     requester: clampField(info.requester, TICKET_REQUESTER_MAX),
   };
   const body = await (access.encryptor as unknown as Encryptor).encrypt({ t: TICKET_INFO_TYPE, e: clean });
-  await getNodeStreamClient(spaceId, ticketId, session).append(streamInvRoomPush(ticketId), body);
+  await getNodeStreamClient(spaceId, ticketId, session).append(objInvLogPush(spaceId, ticketId), body);
 }
 
 /**
@@ -56,7 +56,7 @@ export async function readSealedTicketInfo(
   const access = await buildNodeAccess(session, spaceId, ticketId, { access: 'invite', enc: true });
   if (!access?.encryptor) return null;
   const client = getNodeStreamClient(spaceId, ticketId, session);
-  const res = await client.pull(streamInvRoomPull(ticketId)).catch(() => null);
+  const res = await client.pull(objInvLogPull(spaceId, ticketId)).catch(() => null);
   const items = (res?.data as { items?: unknown[] } | undefined)?.items;
   if (!Array.isArray(items)) return null;
   for (const raw of items) {
