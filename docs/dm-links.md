@@ -135,8 +135,8 @@ to any server.
 
 v1 ships **without** a queue topic for `dminbox` appends: the owner's reconcile
 already runs on load/navigation/foreground, matching carrier-DM latency, and
-publishing on `octochat.chat.changed` would mis-format an FCM "new message" push
+publishing on `octospaces.log.changed` would mis-format an FCM "new message" push
 for something that isn't a room message yet. If live inbox notifications become
 worth it, register the collection on a dedicated topic (e.g.
-`octochat.dminbox.changed`) in `apps/server/src/index.ts` and add a push
+`octospaces.dminbox.changed`) in `apps/server/src/index.ts` and add a push
 formatter for it.

@@ -7,6 +7,20 @@ The Expo `runtimeVersion` follows `appVersion`, so bumping `version` (in `app.js
 and `package.json`) fences OTA updates whenever a release carries native changes —
 existing installs must take a fresh native build rather than an over-the-air update.
 
+## [1.14.2] — 2026-06-17
+
+### Fixed
+- **DM live notifications + unread** now delivered (web SSE, native FCM, in-app badge). The
+  `/events` proxy + FCM bridge authorize a space from `spaces/{id}/_access.{owner,members}`
+  (the member cap that gates reads is ignored), so a DM whose peer was missing from that
+  roster loaded history but received no live events. DMs now seed the peer into the roster at
+  creation, and a reconcile-time self-heal (`healDmRosters`) repairs DMs created earlier.
+- **Ticket notifications + unread**: the notification resolvers no longer re-derive a bogus
+  space from `ticket-<hex>` room ids — they use the real `spaceId` the SSE event / FCM
+  payload carries; ticket unread is exempt from the reload prune.
+- **Request-link card** is now visible on non-desk builds (the shareable request link can
+  request a private room, not only a ticket); the ticket intake-mode selector stays gated.
+
 ## [1.11.0] — 2026-06-16
 
 ### Added
