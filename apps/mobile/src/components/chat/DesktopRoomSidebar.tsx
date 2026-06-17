@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
   headerNameTxt: { flex: 1, minWidth: 0 },
   headerActions: { flexDirection: 'row', alignItems: 'center' },
   list: { flex: 1 },
-  listContent: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.lg },
+  listContent: { paddingTop: spacing.sm, paddingBottom: spacing.lg },
   navGroup: { paddingBottom: spacing.sm },
   navDivider: { marginHorizontal: spacing.xs, marginBottom: spacing.sm },
   banner: { paddingBottom: spacing.sm },
