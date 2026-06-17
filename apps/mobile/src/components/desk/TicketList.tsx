@@ -61,8 +61,12 @@ export function TicketList({ spaceId, userId }: TicketListProps) {
       <TicketActionsSheet
         visible={sheetEntry !== null}
         entry={sheetEntry}
-        onSetStatus={(s) => setStatus(sheetEntry!.node.id, s)}
-        onArchive={() => archive(sheetEntry!.node.id)}
+        // Guard the deref (don't use `sheetEntry!`): the React Compiler hoists an
+        // unconditional `sheetEntry.node.id` out of these callbacks into the render-time
+        // memo-dependency check, which throws while the sheet is closed (sheetEntry === null).
+        // A conditional read keeps the dependency on `sheetEntry` itself, never on `.node`.
+        onSetStatus={(s) => { if (sheetEntry) setStatus(sheetEntry.node.id, s); }}
+        onArchive={() => { if (sheetEntry) archive(sheetEntry.node.id); }}
         onClose={() => setSheetEntry(null)}
       />
     </>
