@@ -25,12 +25,14 @@ import { usePathname } from 'expo-router';
 import type { DmMap, Space } from '@drakkar.software/octochat-sdk';
 
 import { createSpace as createSpaceDoc, onSpaceMeta, readSpaces, reorderSpaces as reorderSpacesDoc } from '@drakkar.software/octochat-sdk';
-import { healDmMap, isDmSpaceId, reconcileDmInbox } from '@drakkar.software/octochat-sdk';
+import { healDmMap, isDmSpaceId, reconcileDmInbox, reconcileTicketRequests } from '@drakkar.software/octochat-sdk';
 import { consumePrimedSpaces } from './spaces-prime';
 import { hydrateMutes } from '@drakkar.software/octochat-sdk';
 import { flushReadsNow, hydrateReads } from '@drakkar.software/octochat-sdk';
 import { hydrateArchivedDms } from '@drakkar.software/octochat-sdk';
 import { refreshDmHeads } from '@drakkar.software/octochat-sdk';
+import { dispatchRoomChange } from './room-events-bus';
+import { activeVariant } from './variants';
 import { useSession } from './session-context';
 
 interface SpacesContextValue {
@@ -63,6 +65,9 @@ interface SpacesContextValue {
 
 /** Drop DM spaces — they never belong in the space rail / switcher. */
 const railSpaces = (list: Space[]): Space[] => list.filter((s) => !isDmSpaceId(s.id));
+
+/** Desk builds (the `tickets` feature) auto-handle inbound ticket requests per space settings. */
+const DESK_INTAKE = activeVariant.features.includes('tickets');
 
 const Ctx = createContext<SpacesContextValue | null>(null);
 
@@ -116,6 +121,18 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
         setDms(await healDmMap(session, next.spaces, next.dms));
       })
       .catch(() => {});
+    // On a desk build, also accept inbound TICKET requests per each space's intake config
+    // (auto-accept / auto-reply). Best-effort; manual-mode spaces are left for the Requests UI.
+    // On a change, nudge the affected spaces' object index so the new ticket repaints in the
+    // Tickets shelf without waiting for a focus-pull.
+    if (DESK_INTAKE) {
+      const railIds = new Set(rail.map((s) => s.id));
+      void reconcileTicketRequests(session, railIds)
+        .then((changed) => {
+          if (changed) for (const id of railIds) dispatchRoomChange(id);
+        })
+        .catch(() => {});
+    }
   }, [session]);
 
   useEffect(() => {

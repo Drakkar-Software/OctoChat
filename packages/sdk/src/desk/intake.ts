@@ -1,0 +1,141 @@
+/**
+ * Owner-side handling of incoming sealed ticket requests, driven by each space's
+ * {@link IntakeConfig}. A non-member files a request into the owner's inbox using only the
+ * owner's PUBLIC identity link (see `submitResourceRequest`); this is where the owner turns
+ * those requests into tickets.
+ *
+ *   manual      → leave requests pending (the Requests UI accepts/declines them by hand)
+ *   auto-accept → create a ticket for each request
+ *   auto-reply  → create the ticket, then post a first reply — AI-written when an on-device
+ *                 engine is wired (`configureLlm`), otherwise the configured fixed message
+ *
+ * Idempotent: `scanResourceRequests` skips requests already turned into a ticket (matched by
+ * `meta.reqId` in the space index), so re-running the reconcile never double-creates.
+ */
+import {
+  acceptResourceRequest,
+  getNodeStreamClient,
+  rejectResourceRequest,
+  scanResourceRequests,
+  type PendingRequest,
+  type ResourceRequest,
+} from '@drakkar.software/octospaces-sdk';
+
+import { isLlmConfigured, runLlm } from '../ai/engine-port';
+import { randomId } from '../domain/ids';
+import type { Session } from '../starfish/identity';
+import { objInvLogPush } from '../starfish/paths';
+import { readIntakeConfig, type IntakeConfig } from './intake-config';
+import { makeTicketCreateHandler } from './orchestrator';
+
+/** The fallback first reply when auto-reply has no fixed text and no AI engine is available. */
+export const DEFAULT_INTAKE_REPLY =
+  "Thanks for reaching out — we've logged your request and will reply shortly.";
+
+/**
+ * The auto-reply text for a request: AI-written when `replyKind: 'ai'` AND an on-device engine
+ * is wired; otherwise the configured fixed message (or {@link DEFAULT_INTAKE_REPLY} if blank).
+ */
+export async function composeIntakeReply(cfg: IntakeConfig, req: ResourceRequest): Promise<string> {
+  if (cfg.replyKind === 'ai' && isLlmConfigured()) {
+    try {
+      const out = await runLlm([
+        {
+          role: 'system',
+          content:
+            'You are a support-desk assistant. Warmly acknowledge the request in one or two short ' +
+            'sentences. Do not promise a timeline or a resolution.',
+        },
+        { role: 'user', content: `New request: ${req.title}\n\n${req.message ?? ''}`.trim() },
+      ]);
+      const text = out.trim();
+      if (text) return text;
+    } catch {
+      // engine unavailable or generation failed — fall back to the fixed message
+    }
+  }
+  return cfg.replyText.trim() || DEFAULT_INTAKE_REPLY;
+}
+
+/**
+ * Accept pending ticket requests for `spaceIds`, each per its own {@link IntakeConfig}:
+ * manual-mode spaces are left for the Requests UI; auto-accept / auto-reply spaces get their
+ * requests turned into tickets (auto-reply also posts a first reply). Pass the spaces in view
+ * (e.g. the rail) — requests only land in the caller's OWN inbox, so non-owned spaces simply
+ * have none, and a space whose config can't be read (not ours / offline) is skipped.
+ * Best-effort throughout; idempotent (scanResourceRequests skips already-created reqIds).
+ * Returns `true` if anything was accepted (so the caller can refresh the ticket list).
+ */
+export async function reconcileTicketRequests(
+  session: Session,
+  spaceIds: ReadonlySet<string>,
+): Promise<boolean> {
+  if (spaceIds.size === 0) return false;
+
+  // ONE inbox scan for all the given spaces (the inbox is the caller's own).
+  let pending: PendingRequest[];
+  try {
+    pending = await scanResourceRequests(session, spaceIds);
+  } catch {
+    return false; // inbox unreadable (offline) — retry next refresh
+  }
+  if (pending.length === 0) return false;
+
+  const create = makeTicketCreateHandler();
+  const cfgBySpace = new Map<string, IntakeConfig | null>(); // null = unreadable / not ours → skip
+  let changed = false;
+
+  for (const p of pending) {
+    const spaceId = p.req.spaceId;
+    if (!cfgBySpace.has(spaceId)) {
+      try {
+        cfgBySpace.set(spaceId, await readIntakeConfig(session, spaceId));
+      } catch {
+        cfgBySpace.set(spaceId, null);
+      }
+    }
+    const cfg = cfgBySpace.get(spaceId) ?? null;
+    if (!cfg || cfg.mode === 'manual') continue; // manual → handled by the Requests UI
+
+    try {
+      const { nodeId } = await acceptResourceRequest(session, p, { create });
+      changed = true;
+      if (cfg.mode === 'auto-reply') {
+        const text = await composeIntakeReply(cfg, p.req);
+        const env = { t: 'msg', e: { id: randomId(), authorId: session.userId, ts: Date.now(), text } };
+        // The owner holds the per-node objinvlog cap (established at ticket creation). The ticket
+        // is plaintext, so the reply is posted unsealed — where the app reads it.
+        await getNodeStreamClient(spaceId, nodeId, session).append(
+          objInvLogPush(spaceId, nodeId),
+          env as unknown as Record<string, unknown>,
+        );
+      }
+    } catch {
+      // best-effort: a bad/failed request must not block the others
+    }
+  }
+  return changed;
+}
+
+/** List a space's pending (not-yet-accepted) ticket requests — for the manual Requests UI. */
+export async function listPendingTicketRequests(session: Session, spaceId: string): Promise<PendingRequest[]> {
+  return scanResourceRequests(session, new Set([spaceId]));
+}
+
+/** Accept a single pending request → create the ticket (the manual-mode counterpart of the
+ *  reconcile's auto-accept). Returns the created node. */
+export async function acceptTicketRequest(
+  session: Session,
+  pending: PendingRequest,
+): Promise<{ spaceId: string; nodeId: string }> {
+  return acceptResourceRequest(session, pending, { create: makeTicketCreateHandler() });
+}
+
+/** Decline a pending request (seals a rejection to the requester; the owner may also just ignore it). */
+export async function declineTicketRequest(
+  session: Session,
+  pending: PendingRequest,
+  reason?: string,
+): Promise<void> {
+  await rejectResourceRequest(session, pending, reason);
+}

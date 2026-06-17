@@ -26,6 +26,7 @@ import { SidebarLinkRow } from '@/components/chat/SidebarLinkRow';
 import { SpaceTabHeader } from '@/components/chat/SpaceTabHeader';
 import { useFeature } from '@/lib/use-feature';
 import { TicketList } from '@/components/desk/TicketList';
+import { RequestsShelf } from '@/components/desk/RequestsShelf';
 
 /**
  * Chat bottom tab — the space's rooms, threads and pins. One of the three mode
@@ -185,7 +186,10 @@ export default function RoomsScreen() {
           {/* Ticket rooms — capability-gated inside TicketList, independent of channel
               count so that OctoDesk spaces (channels not enabled) always render it. */}
           {(activeId ?? space?.id) ? (
-            <TicketList spaceId={activeId ?? space?.id ?? ''} userId={session.userId} />
+            <>
+              <RequestsShelf spaceId={activeId ?? space?.id ?? ''} userId={session.userId} />
+              <TicketList spaceId={activeId ?? space?.id ?? ''} userId={session.userId} />
+            </>
           ) : null}
         </>
       )}

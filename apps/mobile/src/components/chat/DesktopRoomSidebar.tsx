@@ -18,6 +18,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { Txt } from '@/components/ui/Txt';
 
 import { TicketList } from '@/components/desk/TicketList';
+import { RequestsShelf } from '@/components/desk/RequestsShelf';
 import { AgentsPanel } from './AgentsPanel';
 import { ChannelListSkeleton } from './ChannelListSkeleton';
 import { DmList } from './DmList';
@@ -284,7 +285,10 @@ export function DesktopRoomSidebar({
             {/* Ticket rooms — capability-gated + empty-gated inside TicketList,
                 independent of channels so OctoDesk-only spaces always show it. */}
             {space?.id ? (
-              <TicketList spaceId={space.id} userId={userId} />
+              <>
+                <RequestsShelf spaceId={space.id} userId={userId} />
+                <TicketList spaceId={space.id} userId={userId} />
+              </>
             ) : null}
           </>
         )}

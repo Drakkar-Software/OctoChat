@@ -61,6 +61,14 @@ export const spaceWebhooksName = (spaceId: string) => objOwnerName(spaceId, '_we
 export const spaceWebhooksPull = (spaceId: string) => objOwnerPull(spaceId, '_webhooks');
 export const spaceWebhooksPush = (spaceId: string) => objOwnerPush(spaceId, '_webhooks');
 
+// ── Incoming-request intake config (objowner at _intake node) ──────────────────
+// Owner-written doc storing how inbound ticket requests are handled (manual /
+// auto-accept / auto-reply). Same `objowner` home + `space:owner` gating as the
+// webhook registry above.
+export const spaceIntakeName = (spaceId: string) => objOwnerName(spaceId, '_intake');
+export const spaceIntakePull = (spaceId: string) => objOwnerPull(spaceId, '_intake');
+export const spaceIntakePush = (spaceId: string) => objOwnerPush(spaceId, '_intake');
+
 // ── Space-wide keyring (spacekeyring) ─────────────────────────────────────────
 // Re-exported from octospaces-sdk; kept here for convenience imports within the SDK.
 export { keyringName, keyringPull, keyringPush } from '@drakkar.software/octospaces-sdk';

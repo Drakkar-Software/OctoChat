@@ -139,6 +139,8 @@ export * from './desk/ticket';
 export * from './desk/ticket-info';
 export * from './desk/registry-write';
 export * from './desk/orchestrator';
+export * from './desk/intake-config';
+export * from './desk/intake';
 
 // ── domain/capabilities — variant capability registry ─────────────────────────
 export * from './domain/capabilities';

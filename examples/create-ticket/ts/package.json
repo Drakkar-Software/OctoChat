@@ -3,14 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Example: from a fresh agent identity, create an OctoDesk ticket, send a reply, update status, assign it, then read the conversation back. Uses the in-repo @drakkar.software/octochat-sdk.",
+  "description": "Example: a fresh, non-member identity submits a sealed OctoDesk ticket request to a space using only the owner's public identity link. Uses the in-repo @drakkar.software/octochat-sdk.",
   "engines": {
     "node": ">=20.12"
   },
   "scripts": {
-    "start:ticket": "tsx src/ticket.ts",
-    "start:request": "tsx src/request.ts",
-    "start:seed-ticket": "tsx src/seed-ticket.ts",
+    "start": "tsx src/submit-ticket.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
