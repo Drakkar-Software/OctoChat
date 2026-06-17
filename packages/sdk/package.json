@@ -36,7 +36,8 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "publish": "pnpm build && npm publish"
   },
   "dependencies": {
     "@drakkar.software/octospaces-platform-sdk": "0.1.1",

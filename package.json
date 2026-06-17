@@ -22,7 +22,8 @@
     "desktop:package": "pnpm --filter @octochat/desktop package",
     "typecheck": "pnpm -r --if-present run typecheck",
     "lint": "pnpm -r --if-present run lint",
-    "test": "pnpm -r --if-present run test"
+    "test": "pnpm -r --if-present run test",
+    "publish:sdk": "pnpm --filter @drakkar.software/octochat-sdk publish"
   },
   "dependencies": {
     "@drakkar.software/whistlers": "^0.6.0"
