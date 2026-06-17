@@ -298,8 +298,7 @@ const styles = StyleSheet.create({
   // is no longer here — SidebarHeader draws it via its own divider=true borderSubtle.
   header: {
     height: layout.desktopTopbarHeight,
-    paddingLeft: spacing.md,
-    paddingRight: spacing.xs,
+    paddingHorizontal: spacing.xs,
   },
   // The space-name Pressable is the `leading` slot of SidebarHeader (flex:1 applied
   // by the package). Row layout so the chevron disclosure glyph sits inline.
