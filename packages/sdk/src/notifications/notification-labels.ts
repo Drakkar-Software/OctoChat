@@ -25,13 +25,18 @@ export interface NotificationLabels {
 export async function loadNotificationLabels(
   session: Session,
   roomId: string,
+  spaceId?: string,
 ): Promise<NotificationLabels | null> {
-  const spaceId = spaceIdFromRoomId(roomId);
+  // Prefer the caller-supplied space id (the SSE event / FCM payload carries it). Deriving
+  // the space from the room id is LOSSY: it only round-trips for `sp-`/`dm-` rooms and
+  // returns a bogus space for `ticket-<hex>` ids (no embedded space) — which would make
+  // every read below fail and the notification silently degrade. See spaceIdFromRoomId.
+  const sid = spaceId ?? spaceIdFromRoomId(roomId);
   try {
-    const client = getSpaceClient(spaceId, session);
+    const client = getSpaceClient(sid, session);
     const [{ name: spaceName }, indexResult] = await Promise.all([
-      readSpaceAccess(client, spaceId),
-      readIndexRooms(client, null, objIndexPull(spaceId), spaceId),
+      readSpaceAccess(client, sid),
+      readIndexRooms(client, null, objIndexPull(sid), sid),
     ]);
     const room = indexResult?.rooms.find((r) => r.id === roomId);
     return { spaceName: spaceName ?? null, roomName: room?.name ?? null, roomKind: room?.kind };

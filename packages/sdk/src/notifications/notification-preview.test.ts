@@ -137,3 +137,39 @@ describe('loadLatestMessagePreview — known enc room', () => {
     expect(preview).toContain('hello');
   });
 });
+
+// ── Explicit spaceId override (ticket rooms have no embedded space in their id) ──
+
+describe('loadLatestMessagePreview — explicit spaceId', () => {
+  // spaceIdFromRoomId('ticket-deadbeef') === 'ticket-deadbeef' (a bogus, non-existent space).
+  const TICKET_ID = 'ticket-deadbeef';
+
+  it('uses the passed spaceId (not the lossy room-id derivation) for a ticket room', async () => {
+    mockReadIndexRooms.mockResolvedValue({
+      rooms: [{ id: TICKET_ID, spaceId: 'sp-desk', access: 'invite', enc: true, kind: 'channel' }],
+      categories: [],
+    });
+    const enc = { decrypt: vi.fn(async (d: unknown) => d) };
+    mockBuildNodeAccess.mockResolvedValue({ client: { pull: async () => [] }, encryptor: enc });
+    mockPullAndFold.mockResolvedValue({
+      data: { messages: [makeMsg('u2', 'ticket reply')], reactions: [], edits: [], pins: [] },
+      items: [],
+    });
+    mockReadPseudo.mockResolvedValue('Requester');
+
+    const preview = await loadLatestMessagePreview(SESSION, TICKET_ID, 'sp-desk');
+
+    expect(preview).toContain('ticket reply');
+    // The desk space the event carried — NOT 'ticket-deadbeef'.
+    expect(mockGetSpaceClient).toHaveBeenCalledWith('sp-desk', SESSION);
+    expect(mockBuildNodeAccess).toHaveBeenCalledWith(SESSION, 'sp-desk', TICKET_ID, { enc: true });
+  });
+
+  it('without an explicit spaceId, falls back to the (lossy) room-id derivation', async () => {
+    mockReadIndexRooms.mockResolvedValue({ rooms: [], categories: [] });
+    await loadLatestMessagePreview(SESSION, TICKET_ID);
+    // Back-compat: derives 'ticket-deadbeef' from the id — which is exactly why the
+    // explicit spaceId arg exists (the resolver would otherwise open a bogus space).
+    expect(mockGetSpaceClient).toHaveBeenCalledWith('ticket-deadbeef', SESSION);
+  });
+});

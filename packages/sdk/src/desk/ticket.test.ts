@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ObjectNode } from '../domain/types';
-import { defaultTicketMeta, isTicketNode, ticketOf, withTicket, ticketMetaForIndex, clampField, TICKET_TITLE_MAX } from './ticket';
+import { defaultTicketMeta, isTicketNode, isTicketRoomId, ticketOf, withTicket, ticketMetaForIndex, clampField, TICKET_TITLE_MAX } from './ticket';
 
 const baseNode = (overrides: Partial<ObjectNode> = {}): ObjectNode => ({
   id: 'ticket-001',
@@ -114,5 +114,17 @@ describe('isTicketNode', () => {
   it('returns false for non-ticket nodes', () => {
     expect(isTicketNode(baseNode({ type: 'room' }))).toBe(false);
     expect(isTicketNode(baseNode({ type: 'automation' }))).toBe(false);
+  });
+});
+
+describe('isTicketRoomId', () => {
+  it('returns true for a ticket room id', () => {
+    expect(isTicketRoomId('ticket-deadbeef')).toBe(true);
+  });
+
+  it('returns false for space / DM / public room ids (which DO embed a space)', () => {
+    expect(isTicketRoomId('sp-abc-general')).toBe(false);
+    expect(isTicketRoomId('dm-abc-dm')).toBe(false);
+    expect(isTicketRoomId('psp-abc-room')).toBe(false);
   });
 });

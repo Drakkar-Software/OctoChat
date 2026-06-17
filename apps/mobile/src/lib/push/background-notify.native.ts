@@ -150,12 +150,15 @@ export async function handleBackgroundPush(data: PushData): Promise<void> {
     // link caps so a public room can authorize its plaintext pull (owned public spaces
     // use the account cap, no entry needed).
     await hydrateSpaceAccessStore(userId, {}, {});
-    const preview = await loadLatestMessagePreview(session, roomId).catch(() => null);
+    // Pass the payload's `spaceId` (computed above) so the resolvers don't re-derive it
+    // from the room id — that derivation is wrong for `ticket-<hex>` ids (no embedded
+    // space) and would drop the decrypted upgrade + title for ticket notifications.
+    const preview = await loadLatestMessagePreview(session, roomId, spaceId).catch(() => null);
     if (!preview) return; // couldn't decrypt → leave the generic placeholder
 
     // Resolve the "Space › #room" title from the plaintext registry. Best-effort: a
     // failed/slow lookup degrades to the bare app name — never gate the preview on it.
-    const labels = await loadNotificationLabels(session, roomId).catch(() => null);
+    const labels = await loadNotificationLabels(session, roomId, spaceId).catch(() => null);
     const title = notificationTitle(labels?.spaceName, labels?.roomName, labels?.roomKind);
     await displayRealContent(title, preview, roomId, spaceId, data);
   } catch {

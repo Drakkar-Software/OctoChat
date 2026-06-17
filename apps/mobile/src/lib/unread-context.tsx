@@ -39,7 +39,7 @@ import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
 import { useSpacesContext } from './spaces-context';
 import { kvGet, kvSet } from '@drakkar.software/octochat-sdk';
-import { isDmInboxRoomId, isDmSpaceId } from '@drakkar.software/octochat-sdk';
+import { isDmInboxRoomId, isDmSpaceId, isTicketRoomId } from '@drakkar.software/octochat-sdk';
 import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 import { buildAuthHeaders } from '@drakkar.software/octochat-sdk';
 import { dispatchRoomChange, emitSseStatus } from './room-events-bus';
@@ -269,6 +269,11 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
         const pruned = Object.fromEntries(
           Object.entries(initial).filter(([roomId]) => {
             if (isDmInboxRoomId(roomId)) return false; // carrier — never a real room
+            // Ticket rooms (`ticket-<hex>`) are exempt: their id has NO embedded space, so
+            // `spaceIdFromRoomId` returns the id itself (never in `live`) and the prune would
+            // wipe persisted ticket unread on every restart. A ticket isn't "left" either —
+            // its count clears on read. (Same posture as DMs below.)
+            if (isTicketRoomId(roomId)) return true;
             const sp = spaceIdFromRoomId(roomId);
             // DM rooms are exempt from the left-space prune: the `dms` map isn't in
             // `spaceIds` yet on a cold start (the primed-spaces fast path carries no
@@ -334,7 +339,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
           // Skipped when the room (or its whole space) is muted — the sync mute cache
           // reads correctly inside this long-lived SSE closure (no stale React state).
           if (!isMuted(e.roomId, e.spaceId ?? spaceIdFromRoomId(e.roomId))) {
-            void notifyRoomChange(session, e.roomId, {
+            void notifyRoomChange(session, e.roomId, e.spaceId, {
               ensure: ensureRef.current,
               setActiveId: setActiveIdRef.current,
             });

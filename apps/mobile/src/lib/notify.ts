@@ -95,13 +95,18 @@ export function notifyNewMessage(roomId: string, body = GENERIC_BODY, options: N
 export async function notifyRoomChange(
   session: Session | null,
   roomId: string,
+  spaceId: string | undefined,
   nav?: OpenRoomFromNotificationDeps,
 ): Promise<void> {
   const settings = getNotificationSettings();
   if (!settings.enabled) return;
+  // Prefer the event's space id; deriving it from the room id is wrong for `ticket-<hex>`
+  // (and any non-`sp-`/`dm-`) ids — those have no embedded space (see spaceIdFromRoomId),
+  // so without this the mute check, title lookup and preview all resolve a bogus space.
+  const sid = spaceId ?? spaceIdFromRoomId(roomId);
   // Silenced when the room (or its whole space) is muted. The SSE callback already
   // gates this, but the check here keeps the module self-contained for any caller.
-  if (isMuted(roomId, spaceIdFromRoomId(roomId))) return;
+  if (isMuted(roomId, sid)) return;
   // Bail before the (async) preview fetch when no toast could be shown anyway.
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   if (typeof document !== 'undefined' && document.hasFocus()) return;
@@ -112,7 +117,7 @@ export async function notifyRoomChange(
   // the title carries them even when `preview` is off and the body stays generic.
   let title: string | undefined;
   if (nav) {
-    const entry = await nav.ensure(spaceIdFromRoomId(roomId)).catch(() => null);
+    const entry = await nav.ensure(sid).catch(() => null);
     if (entry) {
       const room = entry.rooms.find((r) => r.id === roomId);
       title = notificationTitle(entry.name, room?.name ?? null, room?.kind);
@@ -121,7 +126,7 @@ export async function notifyRoomChange(
 
   let body = GENERIC_BODY;
   if (settings.preview && session) {
-    const preview = await loadLatestMessagePreview(session, roomId).catch(() => null);
+    const preview = await loadLatestMessagePreview(session, roomId, sid).catch(() => null);
     if (preview) body = preview;
   }
   notifyNewMessage(roomId, body, { silent: !settings.sound, soundName: settings.soundName, nav, title });

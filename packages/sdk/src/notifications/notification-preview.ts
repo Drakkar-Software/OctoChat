@@ -56,13 +56,20 @@ async function latestSenderLine(
   return null;
 }
 
-export async function loadLatestMessagePreview(session: Session, roomId: string): Promise<string | null> {
-  const spaceId = spaceIdFromRoomId(roomId);
+export async function loadLatestMessagePreview(
+  session: Session,
+  roomId: string,
+  spaceId?: string,
+): Promise<string | null> {
+  // Prefer the caller-supplied space id (the SSE event / FCM payload carries it). Deriving
+  // the space from the room id is LOSSY: it returns a bogus space for `ticket-<hex>` ids
+  // (no embedded space), which would fail every read here. See spaceIdFromRoomId.
+  const sid = spaceId ?? spaceIdFromRoomId(roomId);
 
   try {
     // Read the object index (always plaintext) to determine the room's access tier.
-    const spaceClient = getSpaceClient(spaceId, session);
-    const rooms = (await readIndexRooms(spaceClient, null, objIndexPull(spaceId), spaceId))?.rooms ?? [];
+    const spaceClient = getSpaceClient(sid, session);
+    const rooms = (await readIndexRooms(spaceClient, null, objIndexPull(sid), sid))?.rooms ?? [];
     const room = rooms.find((r) => r.id === roomId);
 
     // Route by access tier: public → streampub; invite+enc:false → streaminv; else → streamchat.
@@ -83,13 +90,13 @@ export async function loadLatestMessagePreview(session: Session, roomId: string)
       // If it returns null (public/invite room with no keyring — unlikely for a push target,
       // but safe), we continue with enc=null and fanOut of sealed blobs → null preview →
       // the generic "New message" banner. Mirrors cross-room.ts which always probes the keyring.
-      const access = await buildNodeAccess(session, spaceId, roomId, { enc: true }).catch(() => null);
+      const access = await buildNodeAccess(session, sid, roomId, { enc: true }).catch(() => null);
       if (access) {
         client = access.client;
         enc = access.encryptor;
       }
     } else if (room.enc) {
-      const access = await buildNodeAccess(session, spaceId, roomId, { enc: true }).catch(() => null);
+      const access = await buildNodeAccess(session, sid, roomId, { enc: true }).catch(() => null);
       if (!access) return null;
       client = access.client;
       enc = access.encryptor;

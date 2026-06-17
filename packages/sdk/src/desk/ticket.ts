@@ -79,6 +79,19 @@ export function isTicketNode(node: ObjectNode): boolean {
   return node.type === 'ticket';
 }
 
+/** Ticket room-id prefix — the type tag on `ticket-<hex>` ids minted by the orchestrator. */
+export const TICKET_ROOM_PREFIX = 'ticket-';
+
+/**
+ * True for a ticket ROOM id (`ticket-<hex>`). Unlike `sp-`/`dm-` room ids, a ticket id has
+ * NO embedded space segment, so `spaceIdFromRoomId` can't recover its host space from it.
+ * Callers that key off the host space (unread prune, notification resolution) must treat
+ * ticket ids specially — pass the space explicitly rather than deriving it.
+ */
+export function isTicketRoomId(roomId: string): boolean {
+  return roomId.startsWith(TICKET_ROOM_PREFIX);
+}
+
 /** Build the initial `TicketMeta` for a newly created ticket. Title + requester are clamped
  *  (length/control-char bounds) — they may be attacker-controlled (e.g. a public webhook). */
 export function defaultTicketMeta(opts: { title: string; requester: string; priority?: TicketPriority }): TicketMeta {
