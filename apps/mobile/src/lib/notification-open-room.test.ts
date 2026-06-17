@@ -34,7 +34,7 @@ describe('openRoomFromNotification', () => {
     expect(deps.ensure).toHaveBeenCalledWith('sp-abc');
     expect(router.push).toHaveBeenCalledWith({
       pathname: '/room/[id]',
-      params: { id: 'sp-abc-general', name: 'general', kind: 'channel' },
+      params: { id: 'sp-abc-general', name: 'general', kind: 'channel', spaceId: 'sp-abc' },
     });
   });
 
@@ -44,7 +44,7 @@ describe('openRoomFromNotification', () => {
     expect(deps.setActiveId).toHaveBeenCalledWith('sp-abc');
     expect(router.push).toHaveBeenCalledWith({
       pathname: '/room/[id]',
-      params: { id: 'sp-abc-general', name: 'general', kind: 'channel' },
+      params: { id: 'sp-abc-general', name: 'general', kind: 'channel', spaceId: 'sp-abc' },
     });
   });
 
@@ -53,26 +53,39 @@ describe('openRoomFromNotification', () => {
     await openRoomFromNotification({ spaceId: 'sp-abc', docId: 'sp-abc-general' }, deps);
     expect(router.push).toHaveBeenCalledWith({
       pathname: '/room/[id]',
-      params: { id: 'sp-abc-general', name: 'general', kind: 'channel' },
+      params: { id: 'sp-abc-general', name: 'general', kind: 'channel', spaceId: 'sp-abc' },
     });
   });
 
-  it('falls back to opening by bare id when the registry does not know the room', async () => {
+  it('falls back to opening by bare id — WITH the space id — when the registry does not know the room', async () => {
     const deps = makeDeps();
     await openRoomFromNotification({ spaceId: 'sp-abc', roomId: 'sp-abc-mystery' }, deps);
     expect(deps.setActiveId).toHaveBeenCalledWith('sp-abc');
     expect(router.push).toHaveBeenCalledWith({
       pathname: '/room/[id]',
-      params: { id: 'sp-abc-mystery' },
+      params: { id: 'sp-abc-mystery', spaceId: 'sp-abc' },
     });
   });
 
-  it('falls back to bare id when the registry read rejects', async () => {
+  it('threads the carried space id for a TICKET (whose ticket-<hex> id has no embedded space)', async () => {
+    // A ticket lives outside the rooms registry, so it never resolves to a name/kind — but the
+    // room screen MUST still get the real space (it cannot derive one from a ticket id). The push
+    // payload carries spaceId; pass it straight through so the ticket opens on the right path.
+    const deps = makeDeps();
+    await openRoomFromNotification({ spaceId: 'sp-real99', roomId: 'ticket-deadbeef' }, deps);
+    expect(deps.setActiveId).toHaveBeenCalledWith('sp-real99');
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/room/[id]',
+      params: { id: 'ticket-deadbeef', spaceId: 'sp-real99' },
+    });
+  });
+
+  it('falls back to bare id — WITH the derived space id — when the registry read rejects', async () => {
     const deps = makeDeps({ ensure: vi.fn(async () => { throw new Error('offline'); }) });
     await openRoomFromNotification({ roomId: 'sp-abc-general' }, deps);
     expect(router.push).toHaveBeenCalledWith({
       pathname: '/room/[id]',
-      params: { id: 'sp-abc-general' },
+      params: { id: 'sp-abc-general', spaceId: 'sp-abc' },
     });
   });
 

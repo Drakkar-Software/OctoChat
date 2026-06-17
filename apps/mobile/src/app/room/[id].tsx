@@ -14,10 +14,11 @@ import { useMessageEditing } from '@/lib/use-message-editing';
 import { useHardwareBack } from '@/lib/use-hardware-back';
 import { composeSend } from '@/lib/compose-send';
 import { useRoom } from '@/lib/use-room';
+import { resolveRoomSpaceId, resolveRoomAccess } from '@/lib/room-route';
 import { useRoomSend } from '@/lib/use-room-send';
 import { useUnread } from '@/lib/unread-context';
-import { spaceIdFromRoomId, kvSet } from '@drakkar.software/octochat-sdk';
-import type { NodeAccess, RoomKind, StoredMsg } from '@drakkar.software/octochat-sdk';
+import { kvSet } from '@drakkar.software/octochat-sdk';
+import type { RoomKind, StoredMsg } from '@drakkar.software/octochat-sdk';
 import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 import { buildSuggestionMessages } from '@drakkar.software/octochat-sdk';
 import { makeEmptyConversationStore } from '@/lib/use-conversation-data';
@@ -51,10 +52,9 @@ export default function RoomScreen() {
   const params = useLocalSearchParams<{ id: string; name?: string; kind?: string; spaceId?: string; access?: string; enc?: string }>();
   const id = params.id;
   const name = params.name ?? id;
-  // A ticket id (`ticket-<hex>`) embeds no space segment, so spaceIdFromRoomId can't recover
-  // its space — the ticket list passes `spaceId` explicitly. Normal room ids (`sp-<rand>-…`)
-  // carry it, so the derivation is the fallback when no param is present.
-  const spaceId = params.spaceId ?? spaceIdFromRoomId(id);
+  // A ticket id (`ticket-<hex>`) embeds no space; the ticket list passes `spaceId` as a param.
+  // Normal `sp-<rand>-…` room ids embed it (the fallback). See resolveRoomSpaceId.
+  const spaceId = resolveRoomSpaceId(params, id);
   const { session } = useSession();
   const { markRoomRead, lastReadAt, hydrated } = useUnread();
   // `kind` drives the title/icon + automated-room behaviour, so it MUST be authoritative.
@@ -65,13 +65,11 @@ export default function RoomScreen() {
   const { owner, rooms, loading: registryLoading, loaded: registryLoaded } = useRoomsRegistry(spaceId);
   const registryRoom = rooms.find((r) => r.id === id) ?? null;
   const kind = (registryRoom?.kind ?? params.kind ?? 'channel') as RoomKind;
-  // Tickets live OUTSIDE the rooms registry (a separate shelf), so registryRoom is null for
-  // them and their access tier can't be resolved from there — the ticket list passes
-  // `access`/`enc` as params. Normal rooms resolve from the registry; the params are only the
-  // fallback. Without the correct `access: 'invite'`, the open path can't reach the per-node
-  // objinvlog stream (and the owner self-heal in useRoomOpen never runs).
-  const access = registryRoom?.access ?? (params.access as NodeAccess | undefined);
-  const enc = registryRoom?.enc ?? (params.enc === '1' ? true : params.enc === '0' ? false : undefined);
+  // Tickets live OUTSIDE the rooms registry, so registryRoom is null for them and their access
+  // tier can't be resolved there — the ticket list passes `access`/`enc` as params (fallback).
+  // Without the correct `access: 'invite'`, the open path can't reach the per-node objinvlog
+  // stream (and the owner self-heal in useRoomOpen never runs). See resolveRoomAccess.
+  const { access, enc } = resolveRoomAccess(params, registryRoom);
   // Every room is an append-only log now — one hook for all kinds. An automated room
   // additionally has a runner attached (driven below) + its own settings sheet.
   const isAutomated = kind === 'automated';

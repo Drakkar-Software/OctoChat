@@ -10,6 +10,7 @@
   "scripts": {
     "start:ticket": "tsx src/ticket.ts",
     "start:request": "tsx src/request.ts",
+    "start:seed-ticket": "tsx src/seed-ticket.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

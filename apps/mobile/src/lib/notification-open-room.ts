@@ -47,8 +47,13 @@ export async function openRoomFromNotification(
   const room = entry?.rooms.find((r) => r.id === roomId);
   router.push({
     pathname: '/room/[id]',
-    // Resolved → real name/kind (correct title; opens via the single useRoom).
-    // Unresolved → still open by id (degrades to the prior behavior, never worse).
-    params: room ? { id: room.id, name: room.name, kind: room.kind } : { id: roomId },
+    // ALWAYS thread `spaceId` so the room screen lands on the right space without re-deriving
+    // it from the room id — which is wrong for `ticket-<hex>` ids (no embedded space). This
+    // requires the push payload to carry `spaceId` for a ticket; a bare ticket id can't recover
+    // its space. Resolved → real name/kind (correct title). Unresolved (e.g. a ticket, which
+    // lives outside the rooms registry) → still open by id, now with the correct spaceId.
+    params: room
+      ? { id: room.id, name: room.name, kind: room.kind, ...(spaceId ? { spaceId } : {}) }
+      : { id: roomId, ...(spaceId ? { spaceId } : {}) },
   });
 }

@@ -13,15 +13,8 @@ import {
 } from '@drakkar.software/octochat-sdk';
 import { kvSet } from '@drakkar.software/octochat-sdk';
 import { reportReachability } from './connectivity';
-import {
-  streamRoomPull,
-  streamRoomPush,
-  streamPubRoomPull,
-  streamPubRoomPush,
-  objInvLogPull,
-  objInvLogPush,
-  spaceIdFromRoomId,
-} from '@drakkar.software/octochat-sdk';
+import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
+import { resolveRoomLogPaths } from './room-route';
 import {
   loadAttachment as loadAttachmentDoc,
   uploadAttachment as uploadAttachmentDoc,
@@ -101,31 +94,22 @@ export function useRoom(roomId: string, opts: { enabled?: boolean; access?: Node
   // reads the latest without re-subscribing every callback.
   const cursorRef = useRef<{ id: string; cursor: AppendLogCursor } | null>(null);
 
-  // Per-node path routing: public rooms → streampub (anonymous read / member write);
-  // invite-plaintext rooms → streaminv (cap-gated); everything else → streamchat.
+  // Per-node path routing (see resolveRoomLogPaths): public → streampub; invite (OctoDesk
+  // tickets, plaintext OR E2EE) → objinvlog addressed with the EXPLICIT spaceId; else streamchat.
   const route = useMemo(() => {
     if (!session) return null;
-    if (access === 'public') {
-      return { pull: streamPubRoomPull(roomId), push: streamPubRoomPush(roomId), canWrite: true };
-    }
+    const paths = resolveRoomLogPaths(access, spaceId, roomId);
     if (access === 'invite') {
-      // Invite-stream rooms (OctoDesk tickets) live in objinvlog whether plaintext OR E2EE —
-      // for enc tickets the bytes are sealed client-side with the per-node keyring (the
-      // encryptor comes from use-room-open-flow), but the log is still the cap-gated invite
-      // stream, NOT the space-tier objlog.
-      // Derive write permission from the stored access entry. Prefer the per-node entry
-      // (set when invited to a specific node) over the space-wide entry, matching the
-      // SDK's own nodeEntry ?? spaceEntry precedence in getNodeAccess / buildNodeAccess.
-      // A link-kind entry carries an explicit `write` flag; a member-kind entry always has
-      // write access.
+      // Invite streams are cap-gated — derive write permission from the stored access entry,
+      // preferring the per-node entry over the space-wide one (matches the SDK's nodeEntry ??
+      // spaceEntry precedence). A link entry carries an explicit `write` flag; a member entry
+      // always has write; no entry → optimistic (the server is the real gate).
       const entry = getNodeAccessEntry(spaceId, roomId) ?? getSpaceAccessEntry(spaceId);
       const canWrite = !entry || entry.kind === 'member' || (entry.kind === 'link' && entry.write);
-      // objInvLog*(spaceId, roomId) — pass spaceId explicitly; streamInvRoom*(roomId) would
-      // re-derive it from the room id, which is wrong for ticket ids (no embedded space).
-      return { pull: objInvLogPull(spaceId, roomId), push: objInvLogPush(spaceId, roomId), canWrite };
+      return { ...paths, canWrite };
     }
-    return { pull: streamRoomPull(roomId), push: streamRoomPush(roomId), canWrite: true };
-  }, [session, access, enc, roomId, spaceId]);
+    return { ...paths, canWrite: true };
+  }, [session, access, roomId, spaceId]);
 
   // Merge a DECRYPTED batch into the store's {messages,reactions,edits}, appending onto
   // what the store already holds and de-duping by id. Skip the write entirely when nothing

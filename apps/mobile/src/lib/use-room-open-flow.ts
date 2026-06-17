@@ -68,27 +68,43 @@ export function useRoomOpen(opts: {
     (async () => {
       try {
         // The space owner can self-heal missing per-node access (a keyring OR an objinvlog
-        // cap) because it is the cap issuer; non-owners use the soft read path. Computed once
-        // here so BOTH the plaintext-invite branch and the E2EE branch below can use it.
+        // cap) because it is the cap issuer; non-owners use the soft read path.
         const isOwner = owner !== undefined && owner !== null && owner === session.userId;
-        if (!enc) {
-          // Plaintext room: no encryptor. Invite streams (objinvlog) are cap-gated and NOT
-          // reachable by the space cap — present the per-node stream cap via getNodeStreamClient.
-          // Public/space streams use the synchronous space client.
-          let plainClient: StarfishClient;
-          if (access === 'invite') {
-            // objinvlog admits ONLY an owner-issued (delegated) cap or a narrow per-node cap —
-            // the broad owner device cap is NOT honoured. getNodeStreamClient returns a working
-            // cap only if a per-node entry is stored in THIS device's KV (saved at ticket
-            // creation). When the caller IS the space owner but has no such entry — a different
-            // device, or a ticket created elsewhere (e.g. by a desk bot) — re-mint the owner's
-            // per-node objinvlog cap: the owner is the cap issuer, so this is always possible
-            // and idempotent (mirrors the keyring self-heal in the E2EE branch below).
-            if (isOwner) await ensureDeskTicketStreamAccess(session, spaceId, roomId);
-            plainClient = getNodeStreamClient(spaceId, roomId, session) as unknown as StarfishClient;
-          } else {
-            plainClient = getSpaceClient(spaceId, session) as unknown as StarfishClient;
+
+        // Invite rooms (OctoDesk tickets): the message LOG always lives in `objinvlog`,
+        // reachable ONLY via the per-node STREAM cap — never the keyring/content client
+        // getNodeAccess returns (that cap covers `objinv`, a DIFFERENT collection). So the
+        // client is ALWAYS the stream client, for plaintext AND E2EE; only the encryptor
+        // differs: none for plaintext, the per-node keyring for E2EE. The owner self-heals its
+        // per-node objinvlog cap (it is the cap issuer, so this always succeeds and is
+        // idempotent); non-owners use the cap stored at invite-accept. getNodeStreamClient
+        // falls back to the broad device cap when no per-node entry exists — and that cap is
+        // NOT honoured for objinvlog — which is exactly why the owner self-heal is required.
+        if (access === 'invite') {
+          if (isOwner) await ensureDeskTicketStreamAccess(session, spaceId, roomId);
+          let inviteEncryptor: Encryptor | null = null;
+          if (enc) {
+            // E2EE ticket — open the per-node keyring for the encryptor only (the client stays
+            // the stream client). Owner mints/ensures the keyring (getNodeAccess); everyone else
+            // builds it softly from the stored keyring cap (null → no access → throw).
+            const handle = isOwner
+              ? await getNodeAccess(spaceId, roomId, { access, enc: true }, session, { owner, members: [] })
+              : await buildNodeAccess(session, spaceId, roomId, { access, enc: true });
+            if (!handle) throw new SpaceAccessError(`No access to room ${roomId}.`);
+            inviteEncryptor = handle.encryptor as unknown as Encryptor;
           }
+          const streamClient = getNodeStreamClient(spaceId, roomId, session) as unknown as StarfishClient;
+          if (!cancelled) {
+            setEncryptor(inviteEncryptor);
+            setClient(streamClient);
+            finishOpening();
+          }
+          return;
+        }
+
+        if (!enc) {
+          // Plaintext public/space room: no encryptor, synchronous space client.
+          const plainClient = getSpaceClient(spaceId, session) as unknown as StarfishClient;
           if (!cancelled) {
             setEncryptor(null);
             setClient(plainClient);
@@ -96,13 +112,12 @@ export function useRoomOpen(opts: {
           }
           return;
         }
-        // E2EE room: open the keyring (cached per space; offline from pull cache). For an
-        // invite+enc node (E2EE ticket) the SDK opens the PER-NODE keyring; for space-tier enc
-        // it opens the space-wide keyring — passing `access` selects which.
-        // When the caller is the known owner, use the minting path (getNodeAccess) so a space
-        // created before Fix A self-heals on first open — the owner's chatClient has space:owner
-        // permission and ownerEnsureKeyring is idempotent. For all other callers, use the soft
-        // path (buildNodeAccess) which returns null instead of throwing when access is unavailable.
+        // E2EE space/private room: open the space-wide keyring (cached per space; offline from
+        // the pull cache). When the caller is the known owner, use the minting path
+        // (getNodeAccess) so a space created before Fix A self-heals on first open — the owner's
+        // chatClient has space:owner permission and ownerEnsureKeyring is idempotent. For all
+        // other callers, use the soft path (buildNodeAccess) which returns null instead of
+        // throwing when access is unavailable.
         let nodeAccess: { client: unknown; encryptor: unknown } | null;
         if (isOwner) {
           const handle = await getNodeAccess(spaceId, roomId, { access, enc: true }, session, {
