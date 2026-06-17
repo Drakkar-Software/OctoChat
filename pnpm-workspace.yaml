@@ -1,6 +1,8 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+  # OctoDesk examples — included so `pnpm typecheck` covers them
+  - 'examples/create-ticket/ts'
 
 # React Native / Metro resolve dependencies best with a flat node_modules.
 # See https://docs.expo.dev/guides/monorepos/

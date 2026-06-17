@@ -28,15 +28,12 @@
 import { createInterface } from 'node:readline';
 import { join } from 'node:path';
 
-import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
-
 // The headless OctoChat core. Imported by relative path to its BUILT entry
 // (`dist/index.js`). Rebuild if stale:
 //   pnpm --filter @drakkar.software/octochat-sdk build
 import {
   SpaceAccessError,
   assignTicket,
-  buildSession,
   configureKv,
   configureOctoChat,
   createSpace,
@@ -44,8 +41,11 @@ import {
   createTicketNode,
   decodeSpaceInviteLink,
   defaultTicketMeta,
+  deriveSession,
   ensureProfileKeys,
+  generateSeedWords,
   getSpaceClient,
+  isValidSeed,
   joinSpaceByLink,
   loadAttachment,
   openEncryptor,
@@ -57,7 +57,6 @@ import {
   streamRoomPull,
   streamRoomPush,
   uploadAttachment,
-  userIdFromEdPub,
   type AttachmentRef,
   type ByteSealer,
   type Session,
@@ -80,6 +79,11 @@ const SPACE_INVITE_LINK = process.env.SPACE_INVITE_LINK?.trim() || '';
 const SPACE_NAME = process.env.SPACE_NAME?.trim() || 'Drakkar Support';
 const AGENT_NAME = process.env.AGENT_NAME?.trim() || 'Support Bot';
 const TICKET_ORIGIN = process.env.TICKET_ORIGIN?.trim() || 'https://desk.drakkar.software';
+/** Optional BIP-39 seed phrase (space-separated words). When set the agent identity is
+ *  derived deterministically — the same userId across runs. Set this to your OctoChat
+ *  account's seed to view the created space and ticket as the space owner in the app.
+ *  Leave unset to auto-generate a fresh seed (printed so you can import it). */
+const AGENT_SEED_RAW = process.env.AGENT_SEED?.trim() || '';
 
 /** How often to poll the ticket room for new messages (ms). */
 const POLL_INTERVAL_MS = 10_000;
@@ -93,18 +97,33 @@ const ONE_PX_PNG_B64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 const screenshotBytes = (): Uint8Array => new Uint8Array(Buffer.from(ONE_PX_PNG_B64, 'base64'));
 
-/** Create a session for a fresh identity and wait until its profile keys are readable. */
+/** Resolve the BIP-39 seed for the agent identity.
+ *  Uses `AGENT_SEED` if set (validates it), otherwise auto-generates and prints one. */
+function resolveAgentSeed(): string[] {
+  if (AGENT_SEED_RAW) {
+    const words = AGENT_SEED_RAW.split(/\s+/);
+    if (!isValidSeed(words)) throw new Error('AGENT_SEED is not a valid BIP-39 seed phrase');
+    return words;
+  }
+  const words = generateSeedWords();
+  console.log('[ticket] seed     (no AGENT_SEED set — generated a fresh one)');
+  console.log(`[ticket] seed     ${words.join(' ')}`);
+  console.log('[ticket] seed     ↑ set AGENT_SEED to this phrase to reuse the same identity');
+  console.log('[ticket] seed     ↑ import it into OctoChat to view the ticket as the space owner');
+  return words;
+}
+
+/** Derive a session for the agent identity and wait until its profile keys are readable. */
 async function newUser(name: string): Promise<Session> {
-  const keys = generateDeviceKeys();
-  const userId = await userIdFromEdPub(keys.edPub);
-  const session = await buildSession({ userId, keys }, name);
-  await ensureProfileKeys(session.accountClient, userId, keys).catch((e: unknown) => {
+  const seed = resolveAgentSeed();
+  const session = await deriveSession(seed, name);
+  await ensureProfileKeys(session.accountClient, session.userId, session.keys).catch((e: unknown) => {
     if ((e as Error)?.message !== 'hash_mismatch') throw e;
   });
   const pollInterval = 150;
   const maxPolls = Math.ceil(PROFILE_PUBLISH_TIMEOUT_MS / pollInterval);
   for (let i = 0; i < maxPolls; i++) {
-    if (await readPeerKeys(userId)) return session;
+    if (await readPeerKeys(session.userId)) return session;
     if (i > 0 && i % 20 === 0)
       console.log(
         `[ticket] …waiting for ${name}'s keys to read back (${i * pollInterval}ms / ${PROFILE_PUBLISH_TIMEOUT_MS}ms)`,
@@ -183,8 +202,7 @@ async function main(): Promise<void> {
       agent,
       spaceId,
       ticketId,
-      TICKET_TITLE,
-      defaultTicketMeta({ requester: TICKET_REQUESTER, priority: 'high' }),
+      defaultTicketMeta({ title: TICKET_TITLE, requester: TICKET_REQUESTER, priority: 'high' }),
       false,
     );
     console.log(`[ticket] created  ticket ${ticketId}  (member mode — no requester invite link)`);

@@ -98,6 +98,45 @@ their `…/dm#…` profile link — both parties must be valid identities.
 This example creates a ticket as a **bot/agent session** (the pattern for an
 OctoDesk automation or webhook handler). No pre-existing user link is needed.
 
+## Viewing the ticket in OctoChat
+
+The example creates a ticket in whichever space the agent identity owns or is a member
+of. To view it in OctoChat you need two preconditions:
+
+1. **Active variant with `tickets` enabled** — use `octopulse` or `octodesk` (not the
+   default `octochat` variant, which only enables channels/DMs/threads).
+2. **Matching server + namespace** — the example's `STARFISH_URL` / `STARFISH_NAMESPACE`
+   must match the app's `EXPO_PUBLIC_STARFISH_URL` / namespace.
+
+Then choose a path:
+
+**Owner path (recommended) — set `AGENT_SEED` to your app account's seed phrase:**
+The agent derives the *same* identity as your app. The new "Drakkar Support" space is
+created *by you*, so you see it (and the ticket) as the space owner in OctoChat with no
+extra steps.
+
+```bash
+AGENT_SEED="word1 word2 ... word24" \
+STARFISH_URL=http://localhost:8787 \
+  node_modules/.bin/tsx examples/create-ticket/ts/src/ticket.ts
+```
+
+If you omit `AGENT_SEED`, a fresh seed is generated and **printed**. Copy those words,
+import them into OctoChat (Add account → enter seed phrase), and the "Drakkar Support"
+space + ticket will appear.
+
+**Member path — pass a space invite link from your own OctoChat space:**
+The agent joins *your* existing OctoDesk space as a member and creates the ticket there.
+The ticket appears in the `TicketList` section of your sidebar (no requester invite link
+is generated in this mode — the space owner would call `createNodeInviteLink` separately
+to grant the requester access).
+
+```bash
+SPACE_INVITE_LINK="https://…/join#<token>" \
+STARFISH_URL=http://localhost:8787 \
+  node_modules/.bin/tsx examples/create-ticket/ts/src/ticket.ts
+```
+
 ## Configure
 
 Place your `.env` file at `examples/create-ticket/.env` (next to `.env.example`):
@@ -115,6 +154,7 @@ cp examples/create-ticket/.env.example examples/create-ticket/.env
 | `SPACE_NAME` | `Drakkar Support` | Name of the new space (only used when `SPACE_INVITE_LINK` is empty). |
 | `AGENT_NAME` | `Support Bot` | Display name of the agent identity. |
 | `TICKET_ORIGIN` | `https://desk.drakkar.software` | Scheme+host for the requester invite link URL (owner path only). |
+| `AGENT_SEED` | *(empty — auto-generate)* | BIP-39 seed phrase (space-separated words). When set, the agent derives a deterministic identity — the same userId across runs. Set this to your OctoChat account's seed to own the created space and view its tickets in the app. When unset, a fresh 24-word seed is generated and printed. |
 
 ## Run — TypeScript (direct-create flow)
 
@@ -189,11 +229,15 @@ Typecheck: `node_modules/.bin/tsc -p examples/create-ticket/ts/tsconfig.json`.
 
 ## What you'll see
 
-**Owner path** (new space, full `createTicket`):
+**Owner path** (new space, full `createTicket`, no `AGENT_SEED` set):
 
 ```
 [ticket] OctoDesk create-ticket example
 [ticket] server   http://127.0.0.1:8799  (local, no namespace)
+[ticket] seed     (no AGENT_SEED set — generated a fresh one)
+[ticket] seed     abandon ability able about above absent absorb abstract absurd abuse access accident ...
+[ticket] seed     ↑ set AGENT_SEED to this phrase to reuse the same identity
+[ticket] seed     ↑ import it into OctoChat to view the ticket as the space owner
 [ticket] agent    "Support Bot" (a3f1c8d2…)
 [ticket] space    "Drakkar Support" created → space-7e4b9c0f…
 [ticket] created  ticket ticket-2d8e1a7b…
