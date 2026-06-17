@@ -103,8 +103,9 @@ OctoDesk automation or webhook handler). No pre-existing user link is needed.
 The example creates a ticket in whichever space the agent identity owns or is a member
 of. To view it in OctoChat you need two preconditions:
 
-1. **Active variant with `tickets` enabled** — use `octopulse` or `octodesk` (not the
-   default `octochat` variant, which only enables channels/DMs/threads).
+1. **Active variant with `tickets` enabled** — `octopulse` (full feature set) and
+   `octodesk` (tickets/automations/threads, no channels) both include `tickets`.
+   The default `octochat` variant does not.
 2. **Matching server + namespace** — the example's `STARFISH_URL` / `STARFISH_NAMESPACE`
    must match the app's `EXPO_PUBLIC_STARFISH_URL` / namespace.
 
