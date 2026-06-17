@@ -74,9 +74,6 @@ export { objPubName, objPubPull, objPubPush } from '@drakkar.software/octospaces
 // ── Invite-only plaintext node content (objinv) ───────────────────────────────
 export { objInvName, objInvPull, objInvPush } from '@drakkar.software/octospaces-sdk';
 
-// ── Attachments (attachments) ─────────────────────────────────────────────────
-export { attachmentName, attachmentPull, attachmentPush } from '@drakkar.software/octospaces-sdk';
-
 // ── Profile + registries ──────────────────────────────────────────────────────
 export { profilePull, profilePush, spacesPull, spacesPush } from '@drakkar.software/octospaces-sdk';
 // NOTE: spaceAccessPull/Push are also exported by octospaces-sdk under those names;

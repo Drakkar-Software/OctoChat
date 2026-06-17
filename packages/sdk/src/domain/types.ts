@@ -21,12 +21,12 @@ export type {
 import type {
   ID,
   SealedBlob,
-  AttachmentRef,
   NodeAccess,
   ObjectContentKind,
   PresenceStatus,
   VerificationLevel,
 } from '@drakkar.software/octospaces-sdk';
+import type { AttachmentRef } from '../starfish/attachments.js';
 
 export interface User {
   id: ID;

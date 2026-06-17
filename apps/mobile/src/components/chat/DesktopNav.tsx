@@ -125,7 +125,7 @@ export function DesktopNav() {
             threads={activeThreads}
             onOpenRoom={openRoom}
             onOpenThread={openThread}
-            onOpenThreads={hasThreads ? () => router.push('/threads') : undefined}
+            onOpenThreads={() => router.push('/threads')}
             threadsActive={threadsActive}
             onOpenPinned={hasPins ? () => router.push({ pathname: '/pinned/[id]', params: { id: space.id } }) : undefined}
             pinnedActive={pinnedActive}

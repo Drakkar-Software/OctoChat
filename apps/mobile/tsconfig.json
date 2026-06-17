@@ -16,7 +16,7 @@
         "../../packages/sdk/src/index.ts"
       ],
       "@drakkar.software/octochat-sdk/platform": [
-        "../../packages/sdk/src/platform/index.ts"
+        "../../packages/sdk/src/platform/index.native.ts"
       ]
     }
   },

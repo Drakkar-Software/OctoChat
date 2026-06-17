@@ -1,8 +1,20 @@
 /**
- * Module augmentation — adds the native exports from `@drakkar.software/octospaces-platform-sdk`
- * that TypeScript cannot see when `moduleResolution: Bundler` resolves the web barrel (index.d.ts).
- * Metro resolves index.native.js at runtime, which exports these correctly.
- * Remove this file once octospaces-platform-sdk@0.1.1 (exports fix) is installed.
+ * Module augmentation — provides `createVaultStorageNative` to TypeScript when
+ * `packages/sdk` typechecks (`moduleResolution: Bundler`, no `customConditions`).
+ * In that pass, `@drakkar.software/octospaces-platform-sdk` resolves to the web
+ * barrel (`index.d.ts`) which only exports `createVaultStorage`. `index.native.ts`
+ * (this SDK's native platform barrel) imports `createVaultStorageNative`, so without
+ * this shim the SDK typecheck fails on that import.
+ *
+ * Note: `apps/mobile` typechecks with `customConditions: ['react-native']` (from
+ * expo/tsconfig.base) and resolves `octochat-sdk/platform` to `index.native.ts` via
+ * its tsconfig.json `paths` alias. Under that condition, platform-sdk 0.1.1+ resolves
+ * to `index.native.d.ts` which declares `createVaultStorageNative` natively — so the
+ * shim is not needed (and not included) for that compilation pass.
+ *
+ * This shim must remain for the `packages/sdk` typecheck pass (no react-native
+ * condition). It would only be removable if packages/sdk added `customConditions:
+ * ['react-native']`, but that would break the parallel web barrel (`index.ts`) check.
  */
 export type {};
 
