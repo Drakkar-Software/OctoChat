@@ -84,7 +84,7 @@ export function usePendingRequests(spaceId: string | null): PendingRequestsHook 
         setBusyId(null);
       }
     },
-    [session, spaceId, removeLocal],
+    [session, spaceId, removeLocal, refreshSpaces],
   );
 
   const decline = useCallback(

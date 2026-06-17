@@ -1,5 +1,32 @@
 # OctoChat Changelog
 
+## mobile 1.14.1 / sdk 0.3.2 — 2026-06-17 · post-review bug fixes
+
+### Bug fixes
+
+- **`claimGrantedNodes` malformed bundle** (`requester.ts`): JSON.parse failure no longer
+  orphans a grant whose caps are already stored — falls back to `nodeId` as display name and
+  still pushes the grant to `claimed[]`.
+- **`makeNodeCreateHandler` empty nodeType** (`intake.ts`): removed the `!nodeType` fallback
+  that silently created a ticket for requests with a missing/empty `nodeType` field; unknown
+  types now throw (and are caught per-request so the rest of the batch is unaffected).
+- **`makeNodeCreateHandler` outside try/catch** (`intake.ts`): moved inside the per-request
+  try block so an unknown `nodeType` skips that single request rather than aborting the entire
+  reconcile loop.
+- **`SharedRoomList` not updating after accept** (`use-pending-requests.ts`): `accept` now
+  calls `refreshSpaces()` in addition to `dispatchRoomChange` — `useObjects` does not react
+  to room-change events, only to SSE/focus.
+- **Double-submission window** (`use-resource-request.ts`): `claimPending()` is now awaited
+  inside the submit try-block (with an 8 s timeout) so `busy` stays true until the claim
+  completes; `busyRef` used as the sync guard to avoid recreating the callback on every state
+  toggle.
+- **`refreshSpaces` missing from `accept` deps** (`use-pending-requests.ts`): added to the
+  `useCallback` dep array to prevent a stale closure if SpacesContext ever adds deps beyond
+  `session`.
+- **Tests** (`requester.test.ts`, `intake.test.ts`): 12 new test cases covering the above
+  paths (malformed bundle, non-string nodeName, corrupt-grant skipping, nodeType routing for
+  room/unknown/empty, best-effort isolation, auto-reply suppression for rooms).
+
 ## mobile 1.14.0 / sdk 0.3.1 — 2026-06-17 · shared rooms (request-link)
 
 ### New — request-link shared rooms

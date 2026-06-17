@@ -100,9 +100,13 @@ export function useResourceRequest(): UseResourceRequestReturn {
         };
         await submitTicketRequest(session, submitOpts.requestLink, ticketOpts);
       }
-      // Poll for the grant-back immediately; keep busy=true until claim completes
-      // so the submit button stays disabled and double-submission is prevented.
-      await claimPending();
+      // Poll for the grant-back immediately; keep busy=true until claim completes so the
+      // submit button stays disabled during the round-trip. Race against a timeout so a
+      // hung scanResourceGrants (post-submit network drop) doesn't freeze the button.
+      await Promise.race([
+        claimPending(),
+        new Promise<void>((resolve) => setTimeout(resolve, 8_000)),
+      ]);
       return null;
     } catch (e) {
       return String((e as Error)?.message ?? e);
