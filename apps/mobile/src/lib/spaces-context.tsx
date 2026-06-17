@@ -26,6 +26,7 @@ import type { DmMap, Space } from '@drakkar.software/octochat-sdk';
 
 import { createSpace as createSpaceDoc, onSpaceMeta, readSpaces, reorderSpaces as reorderSpacesDoc } from '@drakkar.software/octochat-sdk';
 import { healDmMap, isDmSpaceId, reconcileDmInbox, reconcileTicketRequests } from '@drakkar.software/octochat-sdk';
+import { isSharedRoomId, isTicketRoomId, localSpaceAccessEntries } from '@drakkar.software/octochat-sdk';
 import { consumePrimedSpaces } from './spaces-prime';
 import { hydrateMutes } from '@drakkar.software/octochat-sdk';
 import { flushReadsNow, hydrateReads } from '@drakkar.software/octochat-sdk';
@@ -37,8 +38,9 @@ import { useSession } from './session-context';
 
 interface SpacesContextValue {
   /** The identity's spaces, WITHOUT the unread overlay (added in `useSpaces`). DM
-   *  spaces (`dm-` prefix) are excluded — they surface in the Direct Messages section
-   *  (see `useDmMap`/`use-dms`), never as a space rail. */
+   *  spaces (`dm-` prefix) and per-node grant spaces (`shared-` / `ticket-` prefixes)
+   *  are excluded — DMs surface in the Direct Messages section, grants surface in the
+   *  "Shared rooms" section (see `useDmMap`/`use-dms` and `useGuestRooms`). */
   spaces: Space[];
   /** Peer userId → shared DM-space id. Drives the Direct Messages section. */
   dms: DmMap;
@@ -49,6 +51,13 @@ interface SpacesContextValue {
    *  `addJoinedSpaceWithCap` on both sides of the DM. Available immediately from
    *  the primed snapshot (no async gap). */
   dmSpaceIds: string[];
+  /** Synthetic per-node grant spaces (`shared-` / `ticket-` prefixed) the user holds
+   *  as a requester — kept out of the rail; `useGuestRooms` surfaces them. */
+  guestSpaces: Space[];
+  /** The owner's real space ids for all per-node grants — needed to subscribe to the
+   *  correct SSE streams (objinvlog lives under the owner's space, not the synthetic
+   *  `shared-<hex>` space id). Used by `UnreadProvider` to widen the SSE candidate set. */
+  guestOwnerSpaceIds: string[];
   activeId: string | null;
   setActiveId: (id: string | null) => void;
   loading: boolean;
@@ -63,8 +72,36 @@ interface SpacesContextValue {
   moveSpace: (spaceId: string, dir: -1 | 1) => void;
 }
 
-/** Drop DM spaces — they never belong in the space rail / switcher. */
-const railSpaces = (list: Space[]): Space[] => list.filter((s) => !isDmSpaceId(s.id));
+/** True for per-node grant spaces (shared rooms + requester-side ticket rooms).
+ *  These synthetic Space records are injected by `claimGrantedNodes` / `acceptNodeInvite`
+ *  and must never appear in the space rail — they surface in the "Shared rooms" section. */
+function isGuestSpaceId(id: string): boolean {
+  return isSharedRoomId(id) || isTicketRoomId(id);
+}
+
+/**
+ * Scan the in-memory per-node access store to derive the OWNER'S real space ids for
+ * all shared-room / ticket grants the requester holds.  These are the candidate space
+ * ids for the SSE subscription — the objinvlog stream lives under the owner's space, not
+ * the synthetic `shared-<hex>` space.  The store is always populated by the time
+ * `SpacesProvider` calls `refresh()` (session setup hydrates it at boot).
+ */
+function guestOwnerSpaceIdsFromStore(): string[] {
+  const ids = new Set<string>();
+  for (const key of Object.keys(localSpaceAccessEntries())) {
+    const colon = key.indexOf(':');
+    if (colon < 0) continue;
+    const nodeId = key.slice(colon + 1);
+    if (isSharedRoomId(nodeId) || isTicketRoomId(nodeId)) {
+      ids.add(key.slice(0, colon));
+    }
+  }
+  return [...ids];
+}
+
+/** Drop DM spaces AND per-node grant spaces — neither belongs in the space rail / switcher. */
+const railSpaces = (list: Space[]): Space[] =>
+  list.filter((s) => !isDmSpaceId(s.id) && !isGuestSpaceId(s.id));
 
 /** Desk builds (the `tickets` feature) auto-handle inbound ticket requests per space settings. */
 const DESK_INTAKE = activeVariant.features.includes('tickets');
@@ -77,6 +114,8 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [dms, setDms] = useState<DmMap>({});
   const [dmSpaceIds, setDmSpaceIds] = useState<string[]>([]);
+  const [guestSpaces, setGuestSpaces] = useState<Space[]>([]);
+  const [guestOwnerSpaceIds, setGuestOwnerSpaceIds] = useState<string[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -90,6 +129,9 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     // unlike the lossy `dms` peer-index. Expose them for the SSE+FCM subscription
     // (see UnreadProvider) independently of the `dms` map.
     setDmSpaceIds(list.filter((s) => isDmSpaceId(s.id)).map((s) => s.id));
+    // Per-node grant spaces (shared rooms + ticket rooms held as a requester).
+    setGuestSpaces(list.filter((s) => isGuestSpaceId(s.id)));
+    setGuestOwnerSpaceIds(guestOwnerSpaceIdsFromStore());
     // Derive DMs from the durable `dm-` spaces, not just the lossy `dms` index, so a DM
     // survives a clobbered/missing map entry and re-syncs across same-seed devices.
     setDms(dmMap);
@@ -143,6 +185,8 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       setSpaces([]);
       setDms({});
       setDmSpaceIds([]);
+      setGuestSpaces([]);
+      setGuestOwnerSpaceIds([]);
       setActiveId(null);
       setLoading(false);
       return;
@@ -164,6 +208,8 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       // timing as rooms). Without this, dmSpaceIds stays [] until refresh() below
       // completes, creating a window where DM messages arrive unsubscribed.
       setDmSpaceIds(primed.filter((s) => isDmSpaceId(s.id)).map((s) => s.id));
+      setGuestSpaces(primed.filter((s) => isGuestSpaceId(s.id)));
+      setGuestOwnerSpaceIds(guestOwnerSpaceIdsFromStore());
       setActiveId((prev) => prev ?? rail[0]?.id ?? null);
       setLoading(false);
       // …but the prime only carries the spaces array, NOT the `dms` map — so the
@@ -277,8 +323,8 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<SpacesContextValue>(
-    () => ({ spaces, dms, dmSpaceIds, activeId, setActiveId, loading, refresh, createSpace, reorderSpaces, moveSpace }),
-    [spaces, dms, dmSpaceIds, activeId, loading, refresh, createSpace, reorderSpaces, moveSpace],
+    () => ({ spaces, dms, dmSpaceIds, guestSpaces, guestOwnerSpaceIds, activeId, setActiveId, loading, refresh, createSpace, reorderSpaces, moveSpace }),
+    [spaces, dms, dmSpaceIds, guestSpaces, guestOwnerSpaceIds, activeId, loading, refresh, createSpace, reorderSpaces, moveSpace],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

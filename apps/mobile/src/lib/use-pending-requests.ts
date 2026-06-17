@@ -11,7 +11,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import {
   listPendingTicketRequests,
-  acceptTicketRequest,
+  acceptNodeRequest,
   declineTicketRequest,
   type PendingRequest,
 } from '@drakkar.software/octochat-sdk';
@@ -70,7 +70,7 @@ export function usePendingRequests(spaceId: string | null): PendingRequestsHook 
       setBusyId(p.req.reqId);
       setError(null);
       try {
-        await acceptTicketRequest(session, p);
+        await acceptNodeRequest(session, p);
         removeLocal(p.req.reqId);
         dispatchRoomChange(spaceId); // repaint the Tickets shelf with the new node
       } catch (e) {

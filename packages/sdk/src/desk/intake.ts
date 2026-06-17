@@ -26,7 +26,7 @@ import { randomId } from '../domain/ids';
 import type { Session } from '../starfish/identity';
 import { objInvLogPush } from '../starfish/paths';
 import { readIntakeConfig, type IntakeConfig } from './intake-config';
-import { makeTicketCreateHandler } from './orchestrator';
+import { makeTicketCreateHandler, makeRoomCreateHandler } from './orchestrator';
 
 /** The fallback first reply when auto-reply has no fixed text and no AI engine is available. */
 export const DEFAULT_INTAKE_REPLY =
@@ -81,7 +81,6 @@ export async function reconcileTicketRequests(
   }
   if (pending.length === 0) return false;
 
-  const create = makeTicketCreateHandler();
   const cfgBySpace = new Map<string, IntakeConfig | null>(); // null = unreadable / not ours → skip
   let changed = false;
 
@@ -97,10 +96,13 @@ export async function reconcileTicketRequests(
     const cfg = cfgBySpace.get(spaceId) ?? null;
     if (!cfg || cfg.mode === 'manual') continue; // manual → handled by the Requests UI
 
+    // Route to the appropriate node creator by request type.
+    const create = makeNodeCreateHandler(p.req.nodeType, cfg);
+
     try {
       const { nodeId } = await acceptResourceRequest(session, p, { create });
       changed = true;
-      if (cfg.mode === 'auto-reply') {
+      if (cfg.mode === 'auto-reply' && p.req.nodeType !== 'room') {
         const text = await composeIntakeReply(cfg, p.req);
         const env = { t: 'msg', e: { id: randomId(), authorId: session.userId, ts: Date.now(), text } };
         // The owner holds the per-node objinvlog cap (established at ticket creation). The ticket
@@ -122,14 +124,32 @@ export async function listPendingTicketRequests(session: Session, spaceId: strin
   return scanResourceRequests(session, new Set([spaceId]));
 }
 
-/** Accept a single pending request → create the ticket (the manual-mode counterpart of the
- *  reconcile's auto-accept). Returns the created node. */
-export async function acceptTicketRequest(
+/**
+ * Pick a node-create handler for `acceptResourceRequest` based on `nodeType`.
+ *   `'room'`   → shared invite room (isolated, cap-gated channel)
+ *   `'ticket'` → OctoDesk ticket node
+ *   anything else → throws so unknown types are surfaced, not silently misclassified
+ * `cfg` is passed so per-space settings (e.g. enc toggle in Phase 5) can be read here.
+ */
+function makeNodeCreateHandler(nodeType: string, cfg: IntakeConfig) {
+  if (nodeType === 'room') return makeRoomCreateHandler({ enc: (cfg as { enc?: boolean }).enc ?? false });
+  if (nodeType === 'ticket' || !nodeType) return makeTicketCreateHandler();
+  throw new Error(`Unknown request nodeType: ${JSON.stringify(nodeType)}`);
+}
+
+/** Accept a single pending request → create the appropriate node (ticket or shared room)
+ *  based on `pending.req.nodeType`. The manual-mode counterpart of the reconcile loop.
+ *  Returns the created node's spaceId + nodeId. */
+export async function acceptNodeRequest(
   session: Session,
   pending: PendingRequest,
 ): Promise<{ spaceId: string; nodeId: string }> {
-  return acceptResourceRequest(session, pending, { create: makeTicketCreateHandler() });
+  const create = makeNodeCreateHandler(pending.req.nodeType, { mode: 'manual', replyKind: 'fixed', replyText: '' });
+  return acceptResourceRequest(session, pending, { create });
 }
+
+/** @deprecated Use {@link acceptNodeRequest} — handles both ticket and room requests. */
+export const acceptTicketRequest = acceptNodeRequest;
 
 /** Decline a pending request (seals a rejection to the requester; the owner may also just ignore it). */
 export async function declineTicketRequest(

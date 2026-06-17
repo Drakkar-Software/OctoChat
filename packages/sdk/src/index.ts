@@ -137,10 +137,12 @@ export * from './automations/providers/index';
 // ── desk/ — OctoDesk sub-app: ticket model + orchestrator ─────────────────────
 export * from './desk/ticket';
 export * from './desk/ticket-info';
+export * from './desk/shared-room';
 export * from './desk/registry-write';
 export * from './desk/orchestrator';
 export * from './desk/intake-config';
 export * from './desk/intake';
+export * from './desk/requester';
 
 // ── domain/capabilities — variant capability registry ─────────────────────────
 export * from './domain/capabilities';

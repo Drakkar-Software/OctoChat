@@ -27,6 +27,8 @@ import { SpaceTabHeader } from '@/components/chat/SpaceTabHeader';
 import { useFeature } from '@/lib/use-feature';
 import { TicketList } from '@/components/desk/TicketList';
 import { RequestsShelf } from '@/components/desk/RequestsShelf';
+import { SharedRoomList } from '@/components/desk/SharedRoomList';
+import { GuestRoomSection } from '@/components/desk/GuestRoomSection';
 
 /**
  * Chat bottom tab — the space's rooms, threads and pins. One of the three mode
@@ -126,6 +128,8 @@ export default function RoomsScreen() {
         // — give it a floor so the no-DMs case still centers.
         <View style={styles.dmHome}>
           <DmList dms={dms} onOpen={openDm} />
+          {/* Shared rooms + tickets the user was granted as a requester (no space membership). */}
+          <GuestRoomSection userId={session.userId} />
         </View>
       ) : (
         <>
@@ -183,11 +187,12 @@ export default function RoomsScreen() {
               ) : null}
             </>
           ) : null}
-          {/* Ticket rooms — capability-gated inside TicketList, independent of channel
-              count so that OctoDesk spaces (channels not enabled) always render it. */}
+          {/* Shared rooms + ticket rooms — capability-gated inside their respective lists,
+              independent of channel count so OctoDesk-only spaces always render them. */}
           {(activeId ?? space?.id) ? (
             <>
               <RequestsShelf spaceId={activeId ?? space?.id ?? ''} userId={session.userId} />
+              <SharedRoomList spaceId={activeId ?? space?.id ?? ''} userId={session.userId} />
               <TicketList spaceId={activeId ?? space?.id ?? ''} userId={session.userId} />
             </>
           ) : null}

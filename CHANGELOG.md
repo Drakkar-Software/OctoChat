@@ -1,5 +1,71 @@
 # OctoChat Changelog
 
+## mobile 1.14.0 / sdk 0.3.1 — 2026-06-17 · shared rooms (request-link)
+
+### New — request-link shared rooms
+
+**SDK (`packages/sdk`)**
+- `desk/shared-room.ts`: `SHARED_ROOM_PREFIX = 'shared-'`, `isSharedRoomId()` predicate.
+- `desk/registry-write.ts`: `createSharedRoomNodeWithReqId()` (creates `type:'room' access:'invite'`
+  node with `meta.reqId` dedup stamp); `ensureDeskTicketStreamAccess` renamed to
+  `ensureDeskNodeStreamAccess` (deprecated alias kept).
+- `desk/orchestrator.ts`: `makeRoomCreateHandler()` — factory for `acceptResourceRequest({ create })`
+  that creates isolated shared-room nodes. Title sanitization via `clampField()` (consistent with
+  `makeTicketCreateHandler`).
+- `desk/intake.ts`: `makeNodeCreateHandler()` routes accept by `req.nodeType` (`'room'` →
+  `makeRoomCreateHandler`, `'ticket'` → `makeTicketCreateHandler`, unknown → throws). Auto-reply
+  gated on `nodeType !== 'room'` (bot reply only applies to support queues, not shared rooms).
+  `acceptNodeRequest()` replaces `acceptTicketRequest()` (deprecated alias kept); handles both
+  tickets and rooms based on nodeType.
+- `desk/requester.ts`: `submitRoomRequest()`, `submitTicketRequest()`, `claimGrantedNodes()`,
+  `getRequesterSharedRoomsForSpace()`, `nodeIdsForSpace()` — full requester-side lifecycle.
+- Re-exports: `./desk/shared-room` and `./desk/requester` added to `src/index.ts`.
+
+**App (`apps/mobile`)**
+- `app/request.tsx`: landing screen for `…/request?s=<spaceId>#<token>` — pick "Private room" or
+  "Support ticket", name it, send the request; auto-navigates to the room when the grant is claimed.
+- `lib/use-request-link.ts`: decode + async-verify identity token, reconstruct request link,
+  derive owner display info — extracted from `request.tsx` per CLAUDE.md rules 3+4.
+- `lib/use-resource-request.ts`: submit + claim lifecycle; calls `SpacesProvider.refresh()` on
+  successful claim so the guest room appears immediately without a navigation round-trip.
+- `lib/use-guest-rooms.ts`: REQUESTER — lists synthetic `shared-*/ticket-*` Space records with
+  `ownerSpaceId` (recovered from access store) and `enc` (derived from keyring entry presence).
+- `lib/use-shared-rooms.ts`: OWNER — projects `type:'room' access:'invite'` nodes from the space
+  object index into a collapsible shelf.
+- `components/desk/GuestRoomSection.tsx`: collapsible "Shared rooms" shelf for the requester in
+  DM home view; forwards `enc` correctly.
+- `components/desk/SharedRoomList.tsx`: collapsible "Shared rooms" shelf for the owner alongside
+  TicketList.
+- `components/desk/RequestRow.tsx`: shows "Room request" / "Ticket request" label per `nodeType`.
+- `lib/spaces-context.tsx`: `guestSpaces` + `guestOwnerSpaceIds` in context; `railSpaces` filters
+  out `shared-*/ticket-*` synthetic spaces.
+- `lib/unread-context.tsx`: `guestOwnerSpaceIds` added to SSE subscription candidate set;
+  `isSharedRoomId` exempted from the left-space unread prune.
+- `app/(tabs)/rooms/index.tsx`, `components/chat/DesktopRoomSidebar.tsx`: mount
+  `GuestRoomSection` (DM home) and `SharedRoomList` (space sidebar).
+- `lib/use-pending-requests.ts`: migrated to `acceptNodeRequest`.
+
+### Bug fixes
+
+- **`makeRoomCreateHandler` title clamp**: replaced inline regex (which was correct but duplicated
+  `clampField` logic) with `clampField(req.title, TICKET_TITLE_MAX)` for consistency.
+- **Auto-reply skips shared rooms**: `reconcileTicketRequests` no longer posts an intake-reply bot
+  message for `nodeType:'room'` requests — shared rooms are not support queues.
+- **nodeType allowlist**: unknown `nodeType` values now throw instead of silently creating a ticket,
+  surfacing backend/schema mismatches early.
+- **`_cfg` unused param**: renamed to `cfg` in `makeNodeCreateHandler` (reads `cfg.enc` for
+  Phase 5 E2EE readiness; no underscore suppression).
+- **`guestOwnerSpaceIds` reactivity**: `claimGrantedNodes` now calls `SpacesProvider.refresh()`
+  on new grants, so the SSE subscription updates immediately instead of waiting for navigation.
+- **`enc` forwarded from `GuestRoomEntry`**: `GuestRoomSection` reads `entry.enc` (derived from
+  the keyring access store) instead of hardcoding `'0'`, preparing for Phase 5 E2EE shared rooms.
+- **Test mock**: `vi.mock('./orchestrator')` in `intake.test.ts` now stubs `makeRoomCreateHandler`
+  alongside `makeTicketCreateHandler` so the `nodeType:'room'` code path is testable.
+- **Dead interface surface**: removed `lastReqId`, `lastSpaceId`, `claimPending` from
+  `UseResourceRequestReturn` (unused by all consumers).
+- **`acceptTicketRequest` renamed** to `acceptNodeRequest` (handles both tickets and rooms);
+  `use-pending-requests.ts` migrated.
+
 ## octochat-sdk 0.3.0 — 2026-06-16 · variant system + OctoDesk
 
 ### New

@@ -19,6 +19,8 @@ import { Txt } from '@/components/ui/Txt';
 
 import { TicketList } from '@/components/desk/TicketList';
 import { RequestsShelf } from '@/components/desk/RequestsShelf';
+import { SharedRoomList } from '@/components/desk/SharedRoomList';
+import { GuestRoomSection } from '@/components/desk/GuestRoomSection';
 import { AgentsPanel } from './AgentsPanel';
 import { ChannelListSkeleton } from './ChannelListSkeleton';
 import { DmList } from './DmList';
@@ -164,6 +166,8 @@ export function DesktopRoomSidebar({
           onOpen={(dm) => onOpenRoom({ id: dm.roomId, spaceId: dm.spaceId, category: '', name: dm.name, kind: 'dm' })}
           onOpenThread={onOpenThread}
         />
+        {/* Shared rooms + tickets the user holds as a requester (no space membership). */}
+        <GuestRoomSection userId={userId} />
       </Sidebar>
     );
   }
@@ -282,11 +286,12 @@ export function DesktopRoomSidebar({
                 onCreateCategory={onCreateCategory}
               />
             )}
-            {/* Ticket rooms — capability-gated + empty-gated inside TicketList,
-                independent of channels so OctoDesk-only spaces always show it. */}
+            {/* Shared rooms + ticket rooms — capability-gated + empty-gated inside their
+                respective lists; independent of channels so OctoDesk-only spaces always show them. */}
             {space?.id ? (
               <>
                 <RequestsShelf spaceId={space.id} userId={userId} />
+                <SharedRoomList spaceId={space.id} userId={userId} />
                 <TicketList spaceId={space.id} userId={userId} />
               </>
             ) : null}

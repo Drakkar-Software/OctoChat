@@ -10,7 +10,10 @@ vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => ({
   getNodeStreamClient: vi.fn(),
 }));
 vi.mock('./intake-config', () => ({ readIntakeConfig: vi.fn() }));
-vi.mock('./orchestrator', () => ({ makeTicketCreateHandler: vi.fn(() => vi.fn()) }));
+vi.mock('./orchestrator', () => ({
+  makeTicketCreateHandler: vi.fn(() => vi.fn()),
+  makeRoomCreateHandler: vi.fn(() => vi.fn()),
+}));
 vi.mock('../ai/engine-port', () => ({ isLlmConfigured: vi.fn(() => false), runLlm: vi.fn() }));
 
 import {

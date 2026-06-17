@@ -1,6 +1,6 @@
 /**
  * Low-level desk mutations on the unified object index.
- * Mirrors the `automations/registry-write.ts` pattern for ticket nodes.
+ * Mirrors the `automations/registry-write.ts` pattern for ticket and shared-room nodes.
  */
 import { nodeStreamScope, saveNodeStreamAccessEntry, updateObjectIndex } from '@drakkar.software/octospaces-sdk';
 import { mintMemberCap } from '@drakkar.software/starfish-sharing';
@@ -16,13 +16,14 @@ const asLocal = (nodes: import('@drakkar.software/octospaces-sdk').ObjectNode[])
   nodes as unknown as ObjectNode[];
 
 /**
- * Establish (or refresh) the desk session's read/write access to a ticket's per-node
- * `objinvlog` (invite-stream) log, so the desk can reconcile the ticket conversation.
- * Ticket nodes are written directly via `updateObjectIndex` (not octospaces `createNode`),
- * so this access has to be set up explicitly. It is auto-called at ticket creation, and is
- * **idempotent** — call it again before reading a ticket whose per-node stream entry may
- * have been lost (e.g. a fresh desk process, or — in a single-process demo — after an
- * invitee's `acceptNodeInvite` overwrote the shared `${spaceId}:${nodeId}:stream` entry).
+ * Establish (or refresh) the desk session's read/write access to a desk node's per-node
+ * `objinvlog` (invite-stream) log, so the desk can reconcile the conversation. Applies to
+ * both ticket nodes and shared-room nodes (any `access:'invite'` node created via
+ * `updateObjectIndex` rather than octospaces `createNode`).
+ *
+ * **Idempotent** — call again before reading a node whose per-node stream entry may have
+ * been lost (e.g. a fresh desk process, or after an invitee's `acceptNodeInvite` overwrote
+ * the shared `${spaceId}:${nodeId}:stream` entry).
  *
  * `objinvlog` admits ONLY caps that synthesize a `delegated:<ownerId>:objinvlog` role —
  * i.e. MEMBER caps ISSUED BY the owner — OR a member cap whose narrow `scope.paths` cover
@@ -31,10 +32,10 @@ const asLocal = (nodes: import('@drakkar.software/octospaces-sdk').ObjectNode[])
  * throwaway ephemeral subject it controls and stores the ephemeral signing key — the same
  * per-node "link" access pattern `createNodeInviteLink` uses.
  */
-export async function ensureDeskTicketStreamAccess(
+export async function ensureDeskNodeStreamAccess(
   session: Session,
   spaceId: string,
-  ticketId: string,
+  nodeId: string,
 ): Promise<void> {
   const ek = generateDeviceKeys();
   const ekUserId = await userIdFromEdPub(ek.edPub);
@@ -43,10 +44,16 @@ export async function ensureDeskTicketStreamAccess(
     session.keys.edPub,
     { edPubHex: ek.edPub, kemPubHex: ek.kemPub, userIdHex: ekUserId },
     'objinvlog',
-    nodeStreamScope(spaceId, ticketId, true),
+    nodeStreamScope(spaceId, nodeId, true),
   );
-  saveNodeStreamAccessEntry(spaceId, ticketId, { kind: 'link', cap, key: ek.edPriv, write: true });
+  saveNodeStreamAccessEntry(spaceId, nodeId, { kind: 'link', cap, key: ek.edPriv, write: true });
 }
+
+/**
+ * @deprecated Renamed to {@link ensureDeskNodeStreamAccess} — applies to all desk invite
+ * nodes, not just tickets. This alias is kept for callers that haven't migrated yet.
+ */
+export const ensureDeskTicketStreamAccess = ensureDeskNodeStreamAccess;
 
 /**
  * Append a new ticket node to the object index.
@@ -80,7 +87,7 @@ export async function createTicketNode(
       now,
     ).nodes as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
   });
-  await ensureDeskTicketStreamAccess(session, spaceId, ticketId);
+  await ensureDeskNodeStreamAccess(session, spaceId, ticketId);
 }
 
 /**
@@ -112,7 +119,41 @@ export async function createTicketNodeWithReqId(
       now,
     ).nodes as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
   });
-  await ensureDeskTicketStreamAccess(session, spaceId, ticketId);
+  await ensureDeskNodeStreamAccess(session, spaceId, ticketId);
+}
+
+/**
+ * Append a new shared-room node (`type:'room' access:'invite'`) to the object index and
+ * stamp `meta.reqId` for dedup. Used by `makeRoomCreateHandler` so `scanResourceRequests`
+ * can skip re-delivered requests (checks `node.meta?.reqId === req.reqId`).
+ *
+ * Unlike normal channels (which default to `access:'space'`), a shared room is isolated to
+ * its specific requester — the owner grants the requester a per-node cap, never a space cap.
+ */
+export async function createSharedRoomNodeWithReqId(
+  session: Session,
+  spaceId: string,
+  roomId: string,
+  title: string,
+  enc: boolean,
+  reqId: string,
+): Promise<void> {
+  await updateObjectIndex(session, spaceId, (raw, now) => {
+    const next = asLocal(raw);
+    return addObject(
+      next,
+      {
+        type: 'room',
+        id: roomId,
+        title,
+        access: 'invite',
+        enc,
+        meta: { reqId },
+      },
+      now,
+    ).nodes as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
+  });
+  await ensureDeskNodeStreamAccess(session, spaceId, roomId);
 }
 
 /**

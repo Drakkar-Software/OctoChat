@@ -36,6 +36,10 @@ export function RequestRow({ entry, busy, onAccept, onDecline }: RequestRowProps
         </View>
       </View>
 
+      {/* Show request type so the owner knows whether to expect a room or ticket node. */}
+      <Txt variant="micro" mono tone="inkFaint">
+        {req.nodeType === 'room' ? 'Room request' : 'Ticket request'}
+      </Txt>
       <Txt variant="body" weight="medium" numberOfLines={2}>
         {req.title}
       </Txt>

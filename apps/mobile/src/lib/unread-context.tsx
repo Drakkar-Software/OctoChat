@@ -39,7 +39,7 @@ import { useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
 import { useSpacesContext } from './spaces-context';
 import { kvGet, kvSet } from '@drakkar.software/octochat-sdk';
-import { isDmInboxRoomId, isDmSpaceId, isTicketRoomId } from '@drakkar.software/octochat-sdk';
+import { isDmInboxRoomId, isDmSpaceId, isSharedRoomId, isTicketRoomId } from '@drakkar.software/octochat-sdk';
 import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 import { buildAuthHeaders } from '@drakkar.software/octochat-sdk';
 import { dispatchRoomChange, emitSseStatus } from './room-events-bus';
@@ -111,7 +111,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   // the shared SpacesProvider (which sits above this one), NOT via useSpaces():
   // that hook overlays unread state and would create a circular dep. The provider
   // already refreshes on navigation, so a join/create propagates here for free.
-  const { spaces, dms, dmSpaceIds, setActiveId } = useSpacesContext();
+  const { spaces, dms, dmSpaceIds, guestOwnerSpaceIds, setActiveId } = useSpacesContext();
   // DM spaces are kept out of the visible `spaces` list (no rail tile — see
   // starfish/dm.ts), but their rooms still need the live SSE stream + unread
   // aggregation like any other room. Union DM space ids into the candidate set
@@ -130,8 +130,8 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   // space, so an open DM never live-pulls a peer's message and DM unread is
   // pruned on hydrate (the prune below drops rooms whose space isn't in this set).
   const spaceIds = useMemo(
-    () => [...new Set([...spaces.map((s) => s.id), ...dmSpaceIds, ...Object.values(dms)])],
-    [spaces, dmSpaceIds, dms],
+    () => [...new Set([...spaces.map((s) => s.id), ...dmSpaceIds, ...Object.values(dms), ...guestOwnerSpaceIds])],
+    [spaces, dmSpaceIds, dms, guestOwnerSpaceIds],
   );
 
   // Deps for resolving a clicked toast's room name/kind + focusing its space (web/
@@ -274,6 +274,8 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
             // wipe persisted ticket unread on every restart. A ticket isn't "left" either —
             // its count clears on read. (Same posture as DMs below.)
             if (isTicketRoomId(roomId)) return true;
+            // Shared rooms (`shared-<hex>`) are exempt for the same reason: no embedded space.
+            if (isSharedRoomId(roomId)) return true;
             const sp = spaceIdFromRoomId(roomId);
             // DM rooms are exempt from the left-space prune: the `dms` map isn't in
             // `spaceIds` yet on a cold start (the primed-spaces fast path carries no

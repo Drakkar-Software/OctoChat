@@ -22,9 +22,10 @@ import { randomId } from '../domain/ids';
 import type { Session } from '../starfish/identity';
 import type { ID } from '../domain/types';
 import type { TicketPriority, TicketStatus } from './ticket';
-import { defaultTicketMeta } from './ticket';
-import { createTicketNode, createTicketNodeWithReqId, patchTicketMeta } from './registry-write';
+import { clampField, defaultTicketMeta, TICKET_TITLE_MAX } from './ticket';
+import { createTicketNode, createTicketNodeWithReqId, createSharedRoomNodeWithReqId, patchTicketMeta } from './registry-write';
 import { writeSealedTicketInfo } from './ticket-info';
+import { SHARED_ROOM_PREFIX } from './shared-room';
 
 /**
  * Create a new ticket room and return a one-time invite link for the requester.
@@ -178,5 +179,28 @@ export function makeTicketCreateHandler(): (
     // correctly skips re-delivered requests. (Resource-request tickets are plaintext.)
     await createTicketNodeWithReqId(session, req.spaceId, ticketId, ticketMeta, false, req.reqId);
     return { nodeId: ticketId };
+  };
+}
+
+/**
+ * Factory: returns a `create` callback for use with `acceptResourceRequest({ create })`.
+ *
+ * The callback interprets a `ResourceRequest` with `nodeType:'room'` and creates an
+ * isolated `type:'room' access:'invite'` node — the requester reaches only this one room,
+ * never the space index or other channels. The `enc` option controls encryption: `false`
+ * (default) is cap-gated plaintext; `true` requires a per-node keyring (Phase 5).
+ *
+ * Stamps `meta.reqId` for idempotency; titles are length/control-char clamped.
+ */
+export function makeRoomCreateHandler(opts: { enc?: boolean } = {}): (
+  session: Session,
+  req: ResourceRequest,
+) => Promise<{ nodeId: string }> {
+  const enc = opts.enc ?? false;
+  return async (session: Session, req: ResourceRequest) => {
+    const roomId = `${SHARED_ROOM_PREFIX}${randomId()}`;
+    const title = clampField(req.title, TICKET_TITLE_MAX);
+    await createSharedRoomNodeWithReqId(session, req.spaceId, roomId, title, enc, req.reqId);
+    return { nodeId: roomId };
   };
 }
