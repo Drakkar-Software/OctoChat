@@ -96,10 +96,10 @@ export async function reconcileTicketRequests(
     const cfg = cfgBySpace.get(spaceId) ?? null;
     if (!cfg || cfg.mode === 'manual') continue; // manual → handled by the Requests UI
 
-    // Route to the appropriate node creator by request type.
-    const create = makeNodeCreateHandler(p.req.nodeType, cfg);
-
     try {
+      // Route to the appropriate node creator by request type (inside try so an unknown
+      // nodeType skips this request without aborting the rest of the batch).
+      const create = makeNodeCreateHandler(p.req.nodeType, cfg);
       const { nodeId } = await acceptResourceRequest(session, p, { create });
       changed = true;
       if (cfg.mode === 'auto-reply' && p.req.nodeType !== 'room') {
@@ -133,7 +133,7 @@ export async function listPendingTicketRequests(session: Session, spaceId: strin
  */
 function makeNodeCreateHandler(nodeType: string, cfg: IntakeConfig) {
   if (nodeType === 'room') return makeRoomCreateHandler({ enc: (cfg as { enc?: boolean }).enc ?? false });
-  if (nodeType === 'ticket' || !nodeType) return makeTicketCreateHandler();
+  if (nodeType === 'ticket') return makeTicketCreateHandler();
   throw new Error(`Unknown request nodeType: ${JSON.stringify(nodeType)}`);
 }
 

@@ -2,8 +2,9 @@
  * Hook for the requester-facing side of the resource-request flow (shared rooms + tickets).
  *
  * Wraps `submitRoomRequest` / `submitTicketRequest` / `claimGrantedNodes` from the SDK
- * and tracks submission state, pending reqIds (persisted to KV so the claim poll survives
- * an app restart), and newly-claimed grants.
+ * and tracks submission state, pending reqIds (in-memory; acceptResourceGrant and
+ * addJoinedSpace are idempotent so re-processing on restart is safe), and newly-claimed
+ * grants.
  *
  * All business logic lives here; `app/request.tsx` only reads route params and calls these.
  */
@@ -48,6 +49,7 @@ export interface UseResourceRequestReturn {
 export function useResourceRequest(): UseResourceRequestReturn {
   const { session } = useSession();
   const { refresh } = useSpacesContext();
+  const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [claimed, setClaimed] = useState<ResourceGrant[]>([]);
   const seenReqIds = useRef<Set<string>>(new Set());
@@ -77,7 +79,9 @@ export function useResourceRequest(): UseResourceRequestReturn {
 
   const submit = useCallback(async (submitOpts: SubmitRequestOpts): Promise<string | null> => {
     if (!session) return 'Sign in first.';
-    if (busy) return null;
+    // Use a ref guard instead of state to avoid recreating this callback on every busy toggle.
+    if (busyRef.current) return null;
+    busyRef.current = true;
     setBusy(true);
     try {
       if (submitOpts.type === 'room') {
@@ -96,15 +100,17 @@ export function useResourceRequest(): UseResourceRequestReturn {
         };
         await submitTicketRequest(session, submitOpts.requestLink, ticketOpts);
       }
-      // Start polling for the grant-back immediately after submitting.
-      void claimPending();
+      // Poll for the grant-back immediately; keep busy=true until claim completes
+      // so the submit button stays disabled and double-submission is prevented.
+      await claimPending();
       return null;
     } catch (e) {
       return String((e as Error)?.message ?? e);
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
-  }, [session, busy, claimPending]);
+  }, [session, claimPending]);
 
   return { submit, busy, claimed };
 }

@@ -202,9 +202,13 @@ export async function claimGrantedNodes(
       // Space into `_spaces.spaces` (unlike `joinNodeByLink` which does). Do it here
       // so the granted node appears in the app's guest-rooms section after a refresh.
       // The node name comes from the bundle JSON that was already verified by acceptResourceGrant.
-      const nodeName: string =
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (JSON.parse(grant.bundle) as { nodeName?: string }).nodeName ?? grant.nodeId;
+      let nodeName = grant.nodeId;
+      try {
+        const bundle = JSON.parse(grant.bundle) as { nodeName?: unknown };
+        if (typeof bundle?.nodeName === 'string' && bundle.nodeName) nodeName = bundle.nodeName;
+      } catch {
+        // Malformed bundle — caps are already stored; fall back to nodeId as display name.
+      }
       await addJoinedSpace(
         session.spacesRegistryClient,
         session.userId,

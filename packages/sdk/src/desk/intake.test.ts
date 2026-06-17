@@ -174,4 +174,59 @@ describe('listPendingTicketRequests / declineTicketRequest', () => {
     await acceptTicketRequest(session, p);
     expect(acceptResourceRequest).toHaveBeenCalledWith(session, p, expect.objectContaining({ create: expect.any(Function) }));
   });
+
+  it('acceptNodeRequest with nodeType:room routes to makeRoomCreateHandler', async () => {
+    const { makeRoomCreateHandler } = await import('./orchestrator');
+    const p = { req: { reqId: 'r', spaceId: 'sp-1', title: 'T', message: '', nodeType: 'room', requester: { userId: 'u' } }, senderEdPub: 'ed' } as never;
+    await (await import('./intake')).acceptNodeRequest(session, p);
+    expect(makeRoomCreateHandler).toHaveBeenCalled();
+  });
+
+  it('acceptNodeRequest with empty nodeType throws instead of silently creating a ticket', async () => {
+    const p = { req: { reqId: 'r', spaceId: 'sp-1', title: 'T', message: '', nodeType: '', requester: { userId: 'u' } }, senderEdPub: 'ed' } as never;
+    await expect((await import('./intake')).acceptNodeRequest(session, p)).rejects.toThrow('Unknown request nodeType');
+  });
+});
+
+describe('reconcileTicketRequests — nodeType routing', () => {
+  const roomReq = (id: string) =>
+    ({ req: { reqId: id, spaceId: 'sp-1', title: 'T', message: '', nodeType: 'room', requester: { userId: 'u' } }, senderEdPub: 'ed' }) as never;
+  const unknownReq = (id: string) =>
+    ({ req: { reqId: id, spaceId: 'sp-1', title: 'T', message: '', nodeType: 'survey', requester: { userId: 'u' } }, senderEdPub: 'ed' }) as never;
+  const missingTypeReq = (id: string) =>
+    ({ req: { reqId: id, spaceId: 'sp-1', title: 'T', message: '', nodeType: '', requester: { userId: 'u' } }, senderEdPub: 'ed' }) as never;
+
+  beforeEach(() => {
+    vi.mocked(readIntakeConfig).mockResolvedValue({ mode: 'auto-accept', replyKind: 'fixed', replyText: '' });
+  });
+
+  it('nodeType:room routes to makeRoomCreateHandler', async () => {
+    const { makeRoomCreateHandler } = await import('./orchestrator');
+    vi.mocked(scanResourceRequests).mockResolvedValue([roomReq('r1')]);
+    await reconcileTicketRequests(session, new Set(['sp-1']));
+    expect(makeRoomCreateHandler).toHaveBeenCalled();
+  });
+
+  it('unknown nodeType skips that request (best-effort) without aborting others in the batch', async () => {
+    vi.mocked(scanResourceRequests).mockResolvedValue([unknownReq('r1'), pendingReq('r2')]);
+    expect(await reconcileTicketRequests(session, new Set(['sp-1']))).toBe(true);
+    // r2 (ticket) is accepted; r1 (unknown) is skipped
+    expect(acceptResourceRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('empty nodeType skips that request (best-effort) without aborting others', async () => {
+    vi.mocked(scanResourceRequests).mockResolvedValue([missingTypeReq('r1'), pendingReq('r2')]);
+    expect(await reconcileTicketRequests(session, new Set(['sp-1']))).toBe(true);
+    expect(acceptResourceRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('auto-reply is NOT sent for nodeType:room requests', async () => {
+    vi.mocked(readIntakeConfig).mockResolvedValue({ mode: 'auto-reply', replyKind: 'fixed', replyText: 'hi' });
+    vi.mocked(scanResourceRequests).mockResolvedValue([roomReq('r1')]);
+    const append = vi.fn();
+    vi.mocked(getNodeStreamClient).mockReturnValue({ append } as never);
+    await reconcileTicketRequests(session, new Set(['sp-1']));
+    expect(acceptResourceRequest).toHaveBeenCalledTimes(1);
+    expect(append).not.toHaveBeenCalled();
+  });
 });

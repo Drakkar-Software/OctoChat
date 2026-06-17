@@ -3,23 +3,46 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   localSpaceAccessEntries: vi.fn(() => ({})),
+  scanResourceGrants: vi.fn(() => Promise.resolve([])),
+  acceptResourceGrant: vi.fn(() => Promise.resolve()),
+  addJoinedSpace: vi.fn(() => Promise.resolve()),
+  buildSpace: vi.fn((id: string, name: string) => ({ id, name })),
 }));
 
 vi.mock('./ticket-info', () => ({
   readSealedTicketInfo: vi.fn(),
 }));
 
-import { getRequesterTicketForSpace } from './requester';
-import { localSpaceAccessEntries } from '@drakkar.software/octospaces-sdk';
+import { getRequesterTicketForSpace, claimGrantedNodes } from './requester';
+import {
+  localSpaceAccessEntries,
+  scanResourceGrants,
+  acceptResourceGrant,
+  addJoinedSpace,
+  buildSpace,
+} from '@drakkar.software/octospaces-sdk';
 import { readSealedTicketInfo } from './ticket-info';
 import type { Session } from '../starfish/identity';
+import type { ResourceGrant } from '@drakkar.software/octospaces-sdk';
 
-const session = { userId: 'u1' } as unknown as Session;
+const session = { userId: 'u1', spacesRegistryClient: {} } as unknown as Session;
 const member = { kind: 'member', cap: 'c' } as const;
+
+const makeGrant = (nodeId: string, bundle: object | string): ResourceGrant =>
+  ({
+    reqId: `req-${nodeId}`,
+    nodeId,
+    spaceId: 'sp-1',
+    bundle: typeof bundle === 'string' ? bundle : JSON.stringify(bundle),
+  }) as unknown as ResourceGrant;
 
 beforeEach(() => {
   vi.mocked(localSpaceAccessEntries).mockReset().mockReturnValue({});
   vi.mocked(readSealedTicketInfo).mockReset().mockResolvedValue(null);
+  vi.mocked(scanResourceGrants).mockReset().mockResolvedValue([]);
+  vi.mocked(acceptResourceGrant).mockReset().mockResolvedValue(undefined);
+  vi.mocked(addJoinedSpace).mockReset().mockResolvedValue(undefined);
+  vi.mocked(buildSpace).mockReset().mockImplementation((id, name) => ({ id, name }) as never);
 });
 
 describe('getRequesterTicketForSpace', () => {
@@ -104,5 +127,76 @@ describe('getRequesterTicketForSpace', () => {
       'sp-12:ticket-abc': member, // different space; prefix "sp-1" must not match across the colon
     } as never);
     expect(await getRequesterTicketForSpace(session, 'sp-1')).toBeNull();
+  });
+});
+
+describe('claimGrantedNodes', () => {
+  it('returns empty array when inbox has no grants', async () => {
+    vi.mocked(scanResourceGrants).mockResolvedValue([]);
+    expect(await claimGrantedNodes(session)).toEqual([]);
+    expect(acceptResourceGrant).not.toHaveBeenCalled();
+  });
+
+  it('claims a grant and injects the synthetic Space using nodeName from bundle', async () => {
+    const grant = makeGrant('shared-abc', { nodeName: 'Design room' });
+    vi.mocked(scanResourceGrants).mockResolvedValue([grant]);
+    const result = await claimGrantedNodes(session);
+    expect(acceptResourceGrant).toHaveBeenCalledWith(session, grant);
+    expect(buildSpace).toHaveBeenCalledWith('shared-abc', 'Design room');
+    expect(addJoinedSpace).toHaveBeenCalledTimes(1);
+    expect(result).toEqual([grant]);
+  });
+
+  it('falls back to nodeId when bundle JSON is malformed — grant still claimed', async () => {
+    const grant = makeGrant('shared-xyz', 'not-json{{{{');
+    vi.mocked(scanResourceGrants).mockResolvedValue([grant]);
+    const result = await claimGrantedNodes(session);
+    // acceptResourceGrant still called (caps stored)
+    expect(acceptResourceGrant).toHaveBeenCalledWith(session, grant);
+    // buildSpace falls back to nodeId
+    expect(buildSpace).toHaveBeenCalledWith('shared-xyz', 'shared-xyz');
+    expect(addJoinedSpace).toHaveBeenCalledTimes(1);
+    expect(result).toEqual([grant]);
+  });
+
+  it('falls back to nodeId when nodeName in bundle is not a string', async () => {
+    const grant = makeGrant('shared-num', { nodeName: 42 });
+    vi.mocked(scanResourceGrants).mockResolvedValue([grant]);
+    await claimGrantedNodes(session);
+    expect(buildSpace).toHaveBeenCalledWith('shared-num', 'shared-num');
+  });
+
+  it('falls back to nodeId when nodeName in bundle is absent', async () => {
+    const grant = makeGrant('shared-empty', {});
+    vi.mocked(scanResourceGrants).mockResolvedValue([grant]);
+    await claimGrantedNodes(session);
+    expect(buildSpace).toHaveBeenCalledWith('shared-empty', 'shared-empty');
+  });
+
+  it('skips a corrupt grant (acceptResourceGrant throws) without blocking others', async () => {
+    const bad = makeGrant('shared-bad', { nodeName: 'bad' });
+    const good = makeGrant('shared-good', { nodeName: 'good' });
+    vi.mocked(scanResourceGrants).mockResolvedValue([bad, good]);
+    vi.mocked(acceptResourceGrant)
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValue(undefined);
+    const result = await claimGrantedNodes(session);
+    expect(acceptResourceGrant).toHaveBeenCalledTimes(2);
+    expect(result).toEqual([good]);
+  });
+
+  it('passes seenReqIds to scanResourceGrants for dedup', async () => {
+    const seen = new Set(['req-shared-old']);
+    await claimGrantedNodes(session, { seenReqIds: seen });
+    expect(scanResourceGrants).toHaveBeenCalledWith(session, { seenReqIds: seen });
+  });
+
+  it('addJoinedSpace failure does not prevent the grant from being counted as claimed', async () => {
+    const grant = makeGrant('shared-offline', { nodeName: 'Offline room' });
+    vi.mocked(scanResourceGrants).mockResolvedValue([grant]);
+    vi.mocked(addJoinedSpace).mockRejectedValue(new Error('offline'));
+    const result = await claimGrantedNodes(session);
+    // Grant is still returned (caps stored, synthetic space will re-hydrate later)
+    expect(result).toEqual([grant]);
   });
 });

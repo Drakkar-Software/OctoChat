@@ -18,6 +18,7 @@ import {
 
 import { dispatchRoomChange } from './room-events-bus';
 import { useSession } from './session-context';
+import { useSpacesContext } from './spaces-context';
 
 export interface PendingRequestsHook {
   pending: PendingRequest[];
@@ -33,6 +34,7 @@ export interface PendingRequestsHook {
 
 export function usePendingRequests(spaceId: string | null): PendingRequestsHook {
   const { session } = useSession();
+  const { refresh: refreshSpaces } = useSpacesContext();
   const [pending, setPending] = useState<PendingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -72,7 +74,10 @@ export function usePendingRequests(spaceId: string | null): PendingRequestsHook 
       try {
         await acceptNodeRequest(session, p);
         removeLocal(p.req.reqId);
-        dispatchRoomChange(spaceId); // repaint the Tickets shelf with the new node
+        dispatchRoomChange(spaceId);
+        // Refresh the object index so SharedRoomList / TicketList update immediately
+        // (useObjects does not subscribe to dispatchRoomChange — it only reacts to SSE/focus).
+        void refreshSpaces();
       } catch (e) {
         setError(String((e as Error)?.message ?? e));
       } finally {
