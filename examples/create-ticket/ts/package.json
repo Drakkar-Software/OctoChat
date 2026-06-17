@@ -8,7 +8,7 @@
     "node": ">=20.12"
   },
   "scripts": {
-    "start": "tsx src/ticket.ts",
+    "start": "tsx src/request.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

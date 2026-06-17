@@ -84,6 +84,11 @@ const TICKET_ORIGIN = process.env.TICKET_ORIGIN?.trim() || 'https://desk.drakkar
  *  account's seed to view the created space and ticket as the space owner in the app.
  *  Leave unset to auto-generate a fresh seed (printed so you can import it). */
 const AGENT_SEED_RAW = process.env.AGENT_SEED?.trim() || '';
+/** Shared namespace for the `user/{userId}/_spaces` joined-space list — must match the
+ *  app's `EXPO_PUBLIC_SHARED_SPACES_NAMESPACE`. Defaults to `STARFISH_NAMESPACE` so the
+ *  example "just works" against the deployed `octospaces` config where both are equal.
+ *  Set explicitly if your app uses a distinct shared-spaces namespace. */
+const SHARED_NS = process.env.SHARED_SPACES_NAMESPACE?.trim() || NAMESPACE;
 
 /** How often to poll the ticket room for new messages (ms). */
 const POLL_INTERVAL_MS = 10_000;
@@ -143,7 +148,11 @@ function formatMsg(m: StoredMsg, agentId: string, agentName: string): string {
 }
 
 async function main(): Promise<void> {
-  configureOctoChat({ syncBase: SERVER, ...(NAMESPACE ? { syncNamespace: NAMESPACE } : {}) });
+  configureOctoChat({
+    syncBase: SERVER,
+    ...(NAMESPACE ? { syncNamespace: NAMESPACE } : {}),
+    ...(SHARED_NS ? { sharedSpacesNamespace: SHARED_NS } : {}),
+  });
   const mem = new Map<string, string>();
   configureKv({
     get: async (k) => mem.get(k) ?? null,

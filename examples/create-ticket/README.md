@@ -108,6 +108,12 @@ of. To view it in OctoChat you need two preconditions:
    The default `octochat` variant does not.
 2. **Matching server + namespace** — the example's `STARFISH_URL` / `STARFISH_NAMESPACE`
    must match the app's `EXPO_PUBLIC_STARFISH_URL` / namespace.
+3. **Matching shared-spaces namespace** — the owner's joined-space list (`user/{userId}/_spaces`)
+   lives in a silo keyed by `SHARED_SPACES_NAMESPACE`. The example defaults this to
+   `STARFISH_NAMESPACE` (which matches the all-`octospaces` deployed config). If your app
+   sets `EXPO_PUBLIC_SHARED_SPACES_NAMESPACE` to a *different* value, set
+   `SHARED_SPACES_NAMESPACE` to the same value when running the example — otherwise the
+   created space won't appear in the app's sidebar even with the correct identity.
 
 Then choose a path:
 
@@ -117,12 +123,12 @@ created *by you*, so you see it (and the ticket) as the space owner in OctoChat 
 extra steps.
 
 ```bash
-AGENT_SEED="word1 word2 ... word24" \
+AGENT_SEED="word1 word2 ... word12" \
 STARFISH_URL=http://localhost:8787 \
   node_modules/.bin/tsx examples/create-ticket/ts/src/ticket.ts
 ```
 
-If you omit `AGENT_SEED`, a fresh seed is generated and **printed**. Copy those words,
+If you omit `AGENT_SEED`, a fresh **12-word** seed is generated and **printed**. Copy those words,
 import them into OctoChat (Add account → enter seed phrase), and the "Drakkar Support"
 space + ticket will appear.
 
@@ -155,7 +161,8 @@ cp examples/create-ticket/.env.example examples/create-ticket/.env
 | `SPACE_NAME` | `Drakkar Support` | Name of the new space (only used when `SPACE_INVITE_LINK` is empty). |
 | `AGENT_NAME` | `Support Bot` | Display name of the agent identity. |
 | `TICKET_ORIGIN` | `https://desk.drakkar.software` | Scheme+host for the requester invite link URL (owner path only). |
-| `AGENT_SEED` | *(empty — auto-generate)* | BIP-39 seed phrase (space-separated words). When set, the agent derives a deterministic identity — the same userId across runs. Set this to your OctoChat account's seed to own the created space and view its tickets in the app. When unset, a fresh 24-word seed is generated and printed. |
+| `AGENT_SEED` | *(empty — auto-generate)* | BIP-39 seed phrase (space-separated words). When set, the agent derives a deterministic identity — the same userId across runs. Set this to your OctoChat account's seed to own the created space and view its tickets in the app. When unset, a fresh **12-word** seed is generated and printed. |
+| `SHARED_SPACES_NAMESPACE` | *(same as `STARFISH_NAMESPACE`)* | Bare namespace name for the `user/{userId}/_spaces` joined-space list — must match the app's `EXPO_PUBLIC_SHARED_SPACES_NAMESPACE`. Defaults to `STARFISH_NAMESPACE`. Only set this if your app uses a distinct shared-spaces namespace; otherwise the space won't appear in the app's sidebar even with the correct identity. |
 
 ## Run — TypeScript (direct-create flow)
 
