@@ -41,7 +41,7 @@
   },
   "dependencies": {
     "@drakkar.software/octospaces-platform-sdk": "0.1.1",
-    "@drakkar.software/octospaces-sdk": "0.13.1",
+    "@drakkar.software/octospaces-sdk": "0.13.2",
     "@drakkar.software/starfish-client": "3.0.0-alpha.27",
     "@drakkar.software/starfish-identities": "3.0.0-alpha.27",
     "@drakkar.software/starfish-keyring": "3.0.0-alpha.27",
