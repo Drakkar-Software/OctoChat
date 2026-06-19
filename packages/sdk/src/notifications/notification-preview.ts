@@ -19,7 +19,8 @@ import { resolveEdit, type StoredMsg } from '../format/message-view';
 import { readPseudo } from '../starfish/client';
 import type { Session } from '../starfish/identity';
 import { readIndexRooms } from '../starfish/object-index';
-import { objIndexPull, spaceIdFromRoomId, streamInvRoomPull, streamPubRoomPull, streamRoomPull } from '../starfish/paths';
+import { objIndexPull, spaceIdFromRoomId } from '../starfish/paths';
+import { roomStreamPull } from '../messaging/room-paths';
 import { pullAndFold } from '../messaging/stream-log';
 import type { MessageEditEvent } from '../domain/types';
 
@@ -73,14 +74,10 @@ export async function loadLatestMessagePreview(
     const room = rooms.find((r) => r.id === roomId);
 
     // Route by access tier: public → streampub; invite+enc:false → streaminv; else → streamchat.
+    // `room` is undefined on an index miss → roomStreamPull falls through to streamchat.
     let client: StarfishClient = spaceClient;
     let enc: Encryptor | null = null;
-    const pullPath =
-      room?.access === 'public'
-        ? streamPubRoomPull(roomId)
-        : room?.access === 'invite' && !room?.enc
-          ? streamInvRoomPull(roomId)
-          : streamRoomPull(roomId);
+    const pullPath = roomStreamPull(room, roomId);
 
     if (room === undefined) {
       // Index miss (cold start / index lag — fresh device, first notification after install).

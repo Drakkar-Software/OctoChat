@@ -16,7 +16,8 @@ import { buildNodeAccess, getSpaceClient } from '@drakkar.software/octospaces-sd
 
 import type { Session } from '../starfish/identity';
 import { readIndexRooms } from '../starfish/object-index';
-import { objIndexPull, streamInvRoomPull, streamPubRoomPull, streamRoomPull } from '../starfish/paths';
+import { objIndexPull } from '../starfish/paths';
+import { roomStreamPull } from './room-paths';
 import { readSpaceAccess } from '../starfish/registry';
 import type { StoredMsg } from '../format/message-view';
 import { fanOut, pullAndFold, type StreamData } from './stream-log';
@@ -39,14 +40,6 @@ export interface CrossRoomThread {
 const foldRoomLog = (client: StarfishClient, enc: Encryptor | null, pullPath: string): Promise<StreamData> =>
   pullAndFold(client, enc, pullPath).then((r) => r.data).catch(() => fanOut([]));
 
-/** Resolve the stream pull path for a room based on its access tier.
- *  public → streampub; invite+enc:false → streaminv; else → streamchat. */
-function roomPullPath(room: Room): string {
-  if (room.access === 'public') return streamPubRoomPull(room.id);
-  if (room.access === 'invite' && !room.enc) return streamInvRoomPull(room.id);
-  return streamRoomPull(room.id);
-}
-
 /** Soft-open a room's per-node access (enc rooms get a decryptor; plaintext → null;
  *  a never-opened room → fall back to the space client) and fold its whole log. */
 function foldRoom(
@@ -57,7 +50,7 @@ function foldRoom(
 ): Promise<StreamData> {
   return buildNodeAccess(session, spaceId, room.id, { enc: room.enc })
     .catch(() => null)
-    .then((access) => foldRoomLog(access?.client ?? fallbackClient, access?.encryptor ?? null, roomPullPath(room)));
+    .then((access) => foldRoomLog(access?.client ?? fallbackClient, access?.encryptor ?? null, roomStreamPull(room, room.id)));
 }
 
 /** Open the space client, list its rooms (index is always plaintext — no encryptor),

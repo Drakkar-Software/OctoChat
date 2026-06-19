@@ -22,10 +22,11 @@ import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-clien
 import { resolveEdit, type StoredMsg } from '../format/message-view';
 import type { Session } from '../starfish/identity';
 import { readIndexRooms } from '../starfish/object-index';
-import { objIndexPull, streamInvRoomPull, streamPubRoomPull, streamRoomPull } from '../starfish/paths';
+import { objIndexPull } from '../starfish/paths';
+import { roomStreamPull } from '../messaging/room-paths';
 import { pullAndFold } from '../messaging/stream-log';
 import { buildThreadDigest } from '../messaging/threads';
-import type { MessageEditEvent, Room } from '../domain/types';
+import type { MessageEditEvent } from '../domain/types';
 
 export interface SpaceStats {
   /** Rooms/channels in the space (from the index). */
@@ -75,14 +76,6 @@ function accumulate(stats: SpaceStats, log: RoomLog, selfId: string): void {
   stats.threads += buildThreadDigest(log.messages, log.edits, 0, selfId, Number.MAX_SAFE_INTEGER).length;
 }
 
-/** Pull path for a room based on its access tier.
- *  public → streampub; invite+enc:false → streaminv; else → streamchat. */
-function roomPullPath(room: Room): string {
-  if (room.access === 'public') return streamPubRoomPull(room.id);
-  if (room.access === 'invite' && !room.enc) return streamInvRoomPull(room.id);
-  return streamRoomPull(room.id);
-}
-
 /**
  * Compute the size + content stats for a space. A snapshot: one pull per room,
  * so cost scales with the space. Failures per room set `partial` and are skipped
@@ -100,7 +93,7 @@ export async function loadSpaceStats(session: Session, spaceId: string): Promise
     try {
       // Soft-open per-room access: enc rooms get a decryptor; plaintext get null.
       const access = await buildNodeAccess(session, spaceId, room.id, { enc: room.enc }).catch(() => null);
-      accumulate(stats, await roomLog(access?.client ?? client, access?.encryptor ?? null, roomPullPath(room)), session.userId);
+      accumulate(stats, await roomLog(access?.client ?? client, access?.encryptor ?? null, roomStreamPull(room, room.id)), session.userId);
     } catch {
       stats.partial = true; // room unreadable — totals undercount
     }
