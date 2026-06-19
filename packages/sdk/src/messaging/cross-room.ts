@@ -47,23 +47,36 @@ function roomPullPath(room: Room): string {
   return streamRoomPull(room.id);
 }
 
-export async function loadAllMessages(session: Session, spaceId: string): Promise<CrossRoomMessage[]> {
-  const out: CrossRoomMessage[] = [];
-  const client = getSpaceClient(spaceId, session);
-  // Object index is always plaintext (enc: none) — no encryptor needed.
-  const rooms = (await readIndexRooms(client, null, objIndexPull(spaceId), spaceId))?.rooms ?? [];
+/** Soft-open a room's per-node access (enc rooms get a decryptor; plaintext → null;
+ *  a never-opened room → fall back to the space client) and fold its whole log. */
+function foldRoom(
+  session: Session,
+  spaceId: string,
+  fallbackClient: StarfishClient,
+  room: Room,
+): Promise<StreamData> {
+  return buildNodeAccess(session, spaceId, room.id, { enc: room.enc })
+    .catch(() => null)
+    .then((access) => foldRoomLog(access?.client ?? fallbackClient, access?.encryptor ?? null, roomPullPath(room)));
+}
 
-  for (const room of rooms) {
-    // Soft-open per-room access: enc rooms get a decryptor; plaintext rooms get null.
-    const access = await buildNodeAccess(session, spaceId, room.id, { enc: room.enc }).catch(() => null);
-    const { messages } = await foldRoomLog(
-      access?.client ?? client,
-      access?.encryptor ?? null,
-      roomPullPath(room),
-    );
-    for (const m of messages) out.push({ room, msg: m });
-  }
+/** Open the space client, list its rooms (index is always plaintext — no encryptor),
+ *  fold each room's log, and flat-map `collect` across them. The shared scaffold behind
+ *  the cross-room sweeps; only the per-room projection differs. */
+async function forEachSpaceRoom<T>(
+  session: Session,
+  spaceId: string,
+  collect: (room: Room, log: StreamData) => T[],
+): Promise<T[]> {
+  const client = getSpaceClient(spaceId, session);
+  const rooms = (await readIndexRooms(client, null, objIndexPull(spaceId), spaceId))?.rooms ?? [];
+  const out: T[] = [];
+  for (const room of rooms) out.push(...collect(room, await foldRoom(session, spaceId, client, room)));
   return out;
+}
+
+export async function loadAllMessages(session: Session, spaceId: string): Promise<CrossRoomMessage[]> {
+  return forEachSpaceRoom(session, spaceId, (room, { messages }) => messages.map((msg) => ({ room, msg })));
 }
 
 /**
@@ -79,21 +92,12 @@ export async function loadAllThreads(
   spaceId: string,
   readBefore: (roomId: string) => number,
 ): Promise<CrossRoomThread[]> {
-  const client = getSpaceClient(spaceId, session);
-  const rooms = (await readIndexRooms(client, null, objIndexPull(spaceId), spaceId))?.rooms ?? [];
-
-  const out: CrossRoomThread[] = [];
-  for (const room of rooms) {
-    const access = await buildNodeAccess(session, spaceId, room.id, { enc: room.enc }).catch(() => null);
-    const { messages, edits } = await foldRoomLog(
-      access?.client ?? client,
-      access?.encryptor ?? null,
-      roomPullPath(room),
-    );
+  const out = await forEachSpaceRoom(session, spaceId, (room, { messages, edits }) =>
     // No per-room cap: the tab lists every thread, not the sidebar's top few.
-    const digest = buildThreadDigest(messages, edits, readBefore(room.id), session.userId, Number.MAX_SAFE_INTEGER);
-    for (const thread of digest) out.push({ room, thread });
-  }
+    buildThreadDigest(messages, edits, readBefore(room.id), session.userId, Number.MAX_SAFE_INTEGER).map(
+      (thread) => ({ room, thread }),
+    ),
+  );
   return out.sort((a, b) => b.thread.lastActivityTs - a.thread.lastActivityTs);
 }
 
@@ -129,9 +133,6 @@ export async function loadAllPins(session: Session, spaceId: string): Promise<Cr
   };
 
   const rooms = (await readIndexRooms(client, null, objIndexPull(spaceId), spaceId))?.rooms ?? [];
-  for (const room of rooms) {
-    const access = await buildNodeAccess(session, spaceId, room.id, { enc: room.enc }).catch(() => null);
-    collect(room, await foldRoomLog(access?.client ?? client, access?.encryptor ?? null, roomPullPath(room)));
-  }
+  for (const room of rooms) collect(room, await foldRoom(session, spaceId, client, room));
   return out.sort((a, b) => b.pinnedTs - a.pinnedTs).map(({ room, msg }) => ({ room, msg }));
 }
