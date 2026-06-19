@@ -27,5 +27,12 @@ onlyBuiltDependencies:
 # export `module.exports = LRUCache` that `new LRU()` needs. v9+ switched to a
 # named-only `{ LRUCache }` export which breaks `const LRU = require('lru-cache')`.
 # This drops the yallist@4 requirement entirely, leaving just tar's yallist@5.
+# packages/sdk pins `@drakkar.software/octospaces-sdk` at its coordinated target
+# version (a feature-branch release that is not yet published to npm). Until that
+# version is published, override to the latest PUBLISHED line so the workspace stays
+# installable — the public API is byte-identical across these versions. Mirrors the
+# same override in OctoVault's root package.json. Drop/raise this once the target
+# version is on npm.
 overrides:
   "hosted-git-info@4>lru-cache": "^7.18.3"
+  "@drakkar.software/octospaces-sdk": "0.13.0"
