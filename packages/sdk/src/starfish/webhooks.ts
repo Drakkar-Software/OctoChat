@@ -19,7 +19,7 @@ import { StarfishHttpError } from '@drakkar.software/starfish-client';
 import { ed25519 } from '@noble/curves/ed25519.js';
 
 import { randomId } from '../domain/ids';
-import { spaceWebhooksPull, spaceWebhooksPush } from './paths';
+import { bytesToHex, spaceWebhooksPull, spaceWebhooksPush } from './paths';
 
 /** Header the external caller sends the raw token in. */
 export const WEBHOOK_TOKEN_HEADER = 'X-Webhook-Token';
@@ -79,21 +79,15 @@ export interface CreatedWebhook {
 
 const ENC = new TextEncoder();
 
-function toHex(bytes: Uint8Array): string {
-  let hex = '';
-  for (const b of bytes) hex += b.toString(16).padStart(2, '0');
-  return hex;
-}
-
 /** SHA-256 of a UTF-8 string → lowercase hex. Shared shape with the server verifier. */
 export async function webhookTokenHash(token: string): Promise<string> {
   const digest = await globalThis.crypto.subtle.digest('SHA-256', ENC.encode(token));
-  return toHex(new Uint8Array(digest));
+  return bytesToHex(new Uint8Array(digest));
 }
 
 /** A fresh 256-bit bearer token (hex). */
 function randomToken(): string {
-  return toHex(globalThis.crypto.getRandomValues(new Uint8Array(32)));
+  return bytesToHex(globalThis.crypto.getRandomValues(new Uint8Array(32)));
 }
 
 /** Domain-separation tag for deriving the per-webhook SIGNING key from the token.
@@ -113,7 +107,7 @@ async function deriveSignerSeed(token: string): Promise<Uint8Array> {
 /** The public half of {@link deriveSignerSeed} (hex) — stored in the registry so a
  *  sealed-room reader can pin it as the required sealer, and to identify the author. */
 export async function deriveWebhookSignerPubHex(token: string): Promise<string> {
-  return toHex(ed25519.getPublicKey(await deriveSignerSeed(token)));
+  return bytesToHex(ed25519.getPublicKey(await deriveSignerSeed(token)));
 }
 
 async function readWebhooksDoc(

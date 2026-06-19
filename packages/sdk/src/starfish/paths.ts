@@ -143,6 +143,10 @@ const OWNER_CHAT_COLLECTIONS = [...CHAT_COLLECTIONS, 'objowner'];
 
 // ── Cap scopes ────────────────────────────────────────────────────────────────
 
+/** The read/write/list op set for a member cap — write tier adds `write`. */
+const opsForAccess = (canWrite: boolean): ('read' | 'write' | 'list')[] =>
+  canWrite ? ['read', 'list', 'write'] : ['read', 'list'];
+
 /** Full owner/device access to every space the identity owns. */
 export function ownerScope(): ScopePreset {
   return {
@@ -159,9 +163,8 @@ export function ownerScope(): ScopePreset {
  * for those. One cap covers current AND future rooms.
  */
 export function spaceMemberScope(spaceId: string, canWrite: boolean): ScopePreset {
-  const ops: ('read' | 'write' | 'list')[] = canWrite ? ['read', 'list', 'write'] : ['read', 'list'];
   return {
-    ops,
+    ops: opsForAccess(canWrite),
     collections: CHAT_COLLECTIONS,
     paths: [`spaces/${spaceId}/**`],
   };
@@ -174,9 +177,8 @@ export function spaceMemberScope(spaceId: string, canWrite: boolean): ScopePrese
  * content. The two scopes are unioned into the single invite cap bundle.
  */
 export function nodeRoomScope(spaceId: string, roomId: string, canWrite: boolean): ScopePreset {
-  const ops: ('read' | 'write' | 'list')[] = canWrite ? ['read', 'list', 'write'] : ['read', 'list'];
   return {
-    ops,
+    ops: opsForAccess(canWrite),
     collections: ['objinvlog'],
     paths: [`spaces/${spaceId}/objects/n/${roomId}/**`],
   };

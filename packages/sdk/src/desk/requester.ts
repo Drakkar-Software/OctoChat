@@ -53,11 +53,6 @@ function nodeIdsForSpace(spaceId: string, predicate: (id: string) => boolean): s
   return ids.sort();
 }
 
-/** @deprecated Use {@link nodeIdsForSpace} instead. Kept for backward compat with tests. */
-function ticketNodeIdsForSpace(spaceId: string): string[] {
-  return nodeIdsForSpace(spaceId, isTicketRoomId);
-}
-
 /**
  * REQUESTER: resolve this requester's single existing ticket in a space, or null if none.
  *
@@ -69,7 +64,7 @@ export async function getRequesterTicketForSpace(
   session: Session,
   spaceId: string,
 ): Promise<RequesterTicket | null> {
-  const ids = ticketNodeIdsForSpace(spaceId);
+  const ids = nodeIdsForSpace(spaceId, isTicketRoomId);
   if (ids.length === 0) return null;
   const nodeId = ids[0];
   const info = await readSealedTicketInfo(session, spaceId, nodeId).catch(() => null);
@@ -129,6 +124,31 @@ export interface SubmitTicketRequestOpts extends SubmitNodeRequestBaseOpts {
 }
 
 /**
+ * Decode a request link, seal a `nodeType` request to the owner's KEM key and append it
+ * anonymously to their inbox — no space membership needed. Returns a `reqId` the caller can
+ * save to poll for fulfilment via {@link claimGrantedNodes}. Backs both submit wrappers below;
+ * `extraMeta` carries any node-type-specific request metadata (e.g. a ticket's `priority`).
+ */
+async function submitNodeRequest(
+  session: Session,
+  requestLink: string,
+  nodeType: 'room' | 'ticket',
+  opts: SubmitRoomRequestOpts | SubmitTicketRequestOpts,
+  extraMeta?: Record<string, unknown>,
+): Promise<{ reqId: string; spaceId: string }> {
+  const { identity, spaceId } = decodeRequestLink(requestLink);
+  if (!spaceId) throw new Error('Request link is missing the target space id (?s=…).');
+  const { reqId } = await submitResourceRequest(session, identity, {
+    spaceId,
+    nodeType,
+    title: clampField(opts.title, TICKET_TITLE_MAX),
+    meta: { requester: clampField(opts.requester, TICKET_REQUESTER_MAX), ...extraMeta },
+    message: opts.message,
+  });
+  return { reqId, spaceId };
+}
+
+/**
  * File a request for a **private shared room** into a space the requester is NOT a member of.
  *
  * Decodes the request link URL, verifies the owner's identity binding online, seals the request
@@ -138,45 +158,24 @@ export interface SubmitTicketRequestOpts extends SubmitNodeRequestBaseOpts {
  * @param session     The requester's own authenticated session.
  * @param requestLink The full request link URL (`…/request?s=<spaceId>#<token>`).
  */
-export async function submitRoomRequest(
+export function submitRoomRequest(
   session: Session,
   requestLink: string,
   opts: SubmitRoomRequestOpts,
 ): Promise<{ reqId: string; spaceId: string }> {
-  const { identity, spaceId } = decodeRequestLink(requestLink);
-  if (!spaceId) throw new Error('Request link is missing the target space id (?s=…).');
-  const { reqId } = await submitResourceRequest(session, identity, {
-    spaceId,
-    nodeType: 'room',
-    title: clampField(opts.title, TICKET_TITLE_MAX),
-    meta: { requester: clampField(opts.requester, TICKET_REQUESTER_MAX) },
-    message: opts.message,
-  });
-  return { reqId, spaceId };
+  return submitNodeRequest(session, requestLink, 'room', opts);
 }
 
 /**
  * File a **support-ticket** request into a space the requester is NOT a member of.
  * Mirrors {@link submitRoomRequest} but sets `nodeType:'ticket'` and forwards `priority`.
  */
-export async function submitTicketRequest(
+export function submitTicketRequest(
   session: Session,
   requestLink: string,
   opts: SubmitTicketRequestOpts,
 ): Promise<{ reqId: string; spaceId: string }> {
-  const { identity, spaceId } = decodeRequestLink(requestLink);
-  if (!spaceId) throw new Error('Request link is missing the target space id (?s=…).');
-  const { reqId } = await submitResourceRequest(session, identity, {
-    spaceId,
-    nodeType: 'ticket',
-    title: clampField(opts.title, TICKET_TITLE_MAX),
-    meta: {
-      requester: clampField(opts.requester, TICKET_REQUESTER_MAX),
-      ...(opts.priority ? { priority: opts.priority } : {}),
-    },
-    message: opts.message,
-  });
-  return { reqId, spaceId };
+  return submitNodeRequest(session, requestLink, 'ticket', opts, opts.priority ? { priority: opts.priority } : undefined);
 }
 
 // ── Claim helper ────────────────────────────────────────────────────────────────
