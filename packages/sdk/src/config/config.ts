@@ -18,7 +18,12 @@ import {
 
 /** OctoChat's config extends the shared spaces config directly — all sync, namespace,
  *  events-URL, and web-origin options are inherited from {@link OctoSpacesConfig}. */
-export interface OctoChatConfig extends OctoSpacesConfig {}
+export interface OctoChatConfig extends OctoSpacesConfig {
+  /** Public web origin for building invite/share links (right-trim trailing slashes
+   *  via `getWebBase`). octospaces dropped its unused `webBase` config field in 0.13.x
+   *  ("consumers define their own"), so OctoChat owns it here. */
+  webBase?: string;
+}
 
 export { getSharedSpacesNamespace };
 
