@@ -1,5 +1,40 @@
 # OctoChat Changelog
 
+## mobile 1.14.3 / sdk 0.3.8 — 2026-06-21 · octospaces 0.16 migration
+
+### Bug fixes
+
+- **Unread marks threw on room open** (`lib/unread-context.tsx`): octospaces-sdk 0.16.0
+  renamed `ReadPrefs.rooms` → `nodes`; `unread-context` still read `.rooms`, so
+  `getReadPrefs().rooms` was `undefined` and `Object.entries()` threw when navigating to
+  `/rooms` — both directly and via the `setNodeReadAt → emit → reconcileReads` listener.
+
+### SDK changes (0.3.4 → 0.3.8)
+
+- **0.3.8 – octospaces-sdk 0.16.0 migration** (`starfish/paths.ts`, `starfish/registry.ts`,
+  `domain/ids.ts`, `domain/types.ts`, `messaging/mutes.ts`, `messaging/reads.ts`):
+  octospaces 0.16 de-chatted its generic SDK surface (node-oriented names) and extracted
+  DM/quick-reactions behind a generic `extra` passthrough. OctoChat preserves its room-named
+  API via aliases and reimplements `updateDmsDoc` / `updateArchivedDmsDoc` /
+  `setDmMapping` / `updateQuickReactionsDoc` over `updateSpacesExtraField`; `readSpaces`
+  re-flattens `extra.{dms,archivedDms,quickReactions}`. `session.chatClient/chatCap` →
+  `contentClient/contentCap`. Mutes/reads store methods renamed; `MutePrefs/ReadPrefs`
+  `.rooms` field → `.nodes`.
+- **0.3.7 – octospaces-sdk 0.15.1 pin**: micro-module folds and dead export removal in
+  octospaces; no OctoChat code changes.
+- **0.3.6 – octospaces-sdk 0.14.3 pin** (`domain/octochat-config.ts`): move off the
+  published-0.13.0 workspace floor; declare OctoChat's own `webBase?: string`
+  (octospaces removed its inherited field in 0.13.x).
+- **0.3.5 – room pull-path resolver** (`messaging/room-paths.ts`): extract
+  `roomStreamPull(room, roomId)` from the three callers that hand-rolled identical tier
+  routing (`cross-room.ts`, `space-stats.ts`, `notification-preview.ts`); public surface
+  unchanged. Pin octospaces-sdk 0.13.4.
+- **0.3.4 – internal refactor + octospaces-sdk 0.13.3 pin** (`messaging/cross-room.ts`,
+  `desk/requester.ts`, `starfish/webhooks.ts`, `starfish/paths.ts`): extract
+  `foldRoom` / `forEachSpaceRoom`, fold `submitRoomRequest` / `submitTicketRequest` →
+  `submitNodeRequest`, dedup `toHex` → `bytesToHex` and `opsForAccess`. Octospaces-sdk
+  stepped through 0.13.1 → 0.13.2 → 0.13.3 (internal rounds, API identical).
+
 ## mobile 1.14.2 / sdk 0.3.3 — 2026-06-17 · DM + ticket live notifications
 
 ### Bug fixes
