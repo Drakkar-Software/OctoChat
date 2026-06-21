@@ -34,4 +34,4 @@ onlyBuiltDependencies:
 # Keep it in lockstep with the packages/sdk pin. Mirrors OctoVault's root override.
 overrides:
   "hosted-git-info@4>lru-cache": "^7.18.3"
-  "@drakkar.software/octospaces-sdk": "0.14.3"
+  "@drakkar.software/octospaces-sdk": "0.15.1"
