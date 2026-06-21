@@ -225,7 +225,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       // assume caught up"; a message that landed between the two devices' read times is
       // dropped from the count (accepted approximation — see the feature plan).
       const reconcileReads = () => {
-        const next = getReadPrefs().rooms;
+        const next = getReadPrefs().nodes;
         const prev = lastReadRef.current;
         const mirror = { ...prev };
         const counts = { ...mapRef.current };
