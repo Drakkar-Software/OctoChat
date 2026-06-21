@@ -138,7 +138,7 @@ export async function handleBackgroundPush(data: PushData): Promise<void> {
     // FCM ordering means the generic placeholder may already be on screen — hence
     // best-effort. (A muted space's own topic-drop is the reliable native layer.)
     const muted = await loadMutesFromKv(userId);
-    if (isMuteActive(muted.rooms[roomId]) || isMuteActive(muted.spaces[spaceId])) {
+    if (isMuteActive(muted.nodes[roomId]) || isMuteActive(muted.spaces[spaceId])) {
       await cancelPlaceholder(roomId);
       return;
     }

@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { randomId, roomSlug } from './ids';
-import { randomId as sdkRandomId, roomSlug as sdkRoomSlug } from '@drakkar.software/octospaces-sdk';
+import { randomId as sdkRandomId, slugify as sdkRoomSlug } from '@drakkar.software/octospaces-sdk';
 
 describe('randomId', () => {
   it('returns a 32-char lowercase hex string', () => {
@@ -48,11 +48,11 @@ describe('roomSlug', () => {
     expect(roomSlug(long).length).toBe(40);
   });
 
-  it('falls back to "room" for empty or all-special input', () => {
-    expect(roomSlug('')).toBe('room');
-    expect(roomSlug('   ')).toBe('room');
-    expect(roomSlug('日本語')).toBe('room');
-    expect(roomSlug('---')).toBe('room');
+  it('falls back to "item" for empty or all-special input', () => {
+    expect(roomSlug('')).toBe('item');
+    expect(roomSlug('   ')).toBe('item');
+    expect(roomSlug('日本語')).toBe('item');
+    expect(roomSlug('---')).toBe('item');
   });
 
   it('handles normal room names', () => {

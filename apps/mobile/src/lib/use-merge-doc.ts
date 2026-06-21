@@ -95,7 +95,7 @@ export function useMergeDoc(opts: MergeDocOptions): MergeDocResult {
     // is bound to an ephemeral bearer key (entry.key), NOT the account ed key.
     // resolveMemberAuth picks the right key automatically.
     const entry = getSpaceAccessEntry(spaceId);
-    const { cap, signKey } = resolveMemberAuth(entry, session.chatCap, session.keys.edPriv);
+    const { cap, signKey } = resolveMemberAuth(entry, session.contentCap, session.keys.edPriv);
     const docPaths = getPaths();
     return {
       ...base,

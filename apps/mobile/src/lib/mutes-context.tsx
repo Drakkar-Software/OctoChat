@@ -42,7 +42,7 @@ export function MutesProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<MutesValue>(
     () => ({
-      isRoomMuted: (roomId) => isMuteActive(prefs.rooms[roomId]),
+      isRoomMuted: (roomId) => isMuteActive(prefs.nodes[roomId]),
       isSpaceMuted: (spaceId) => isMuteActive(prefs.spaces[spaceId]),
       setRoomMuted: (roomId, muted) => {
         if (session) void setRoomMute(session, roomId, muted);

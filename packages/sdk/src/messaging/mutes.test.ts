@@ -39,18 +39,18 @@ describe('setRoomMute / isRoomMuted', () => {
 
 describe('hydrateMutes', () => {
   it('applies server prefs to an empty cache', async () => {
-    await hydrateMutes('u', { rooms: { r2: true }, spaces: {} });
+    await hydrateMutes('u', { nodes: { r2: true }, spaces: {} });
     expect(isRoomMuted('r2')).toBe(true);
     expect(getMutePrefs().spaces).toEqual({});
   });
 
   it('writes under the octochat.mutes.* key (KV namespace lock-in)', async () => {
-    await hydrateMutes('u', { rooms: { r1: true }, spaces: {} });
+    await hydrateMutes('u', { nodes: { r1: true }, spaces: {} });
     expect(store.has('octochat.mutes.u')).toBe(true);
   });
 
   it('skips emit when prefs are unchanged (no spurious re-renders)', async () => {
-    const prefs = { rooms: { r1: true }, spaces: {} };
+    const prefs = { nodes: { r1: true }, spaces: {} };
     await hydrateMutes('u', prefs);
     const snapshot = getMutePrefs();
     await hydrateMutes('u', prefs);
@@ -60,10 +60,10 @@ describe('hydrateMutes', () => {
 
 describe('loadMutesFromKv', () => {
   it('reads back prefs written by hydrateMutes', async () => {
-    await hydrateMutes('u', { rooms: { r1: true }, spaces: { s1: true } });
+    await hydrateMutes('u', { nodes: { r1: true }, spaces: { s1: true } });
     resetMutes();
     const prefs = await loadMutesFromKv('u');
-    expect(prefs.rooms['r1']).toBe(true);
+    expect(prefs.nodes['r1']).toBe(true);
     expect(prefs.spaces['s1']).toBe(true);
   });
 });

@@ -351,7 +351,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
           spaces: spaceIds,
           // Auth headers built fresh on each connect/reconnect (new nonce + timestamp).
           authHeaders: (method, pathAndQuery) =>
-            buildAuthHeaders(session.chatCap, session.keys.edPriv, method, pathAndQuery),
+            buildAuthHeaders(session.contentCap, session.keys.edPriv, method, pathAndQuery),
           onStatus: emitSseStatus,
         },
       );

@@ -115,7 +115,7 @@ export function useRoomOpen(opts: {
         // E2EE space/private room: open the space-wide keyring (cached per space; offline from
         // the pull cache). When the caller is the known owner, use the minting path
         // (getNodeAccess) so a space created before Fix A self-heals on first open — the owner's
-        // chatClient has space:owner permission and ownerEnsureKeyring is idempotent. For all
+        // contentClient has space:owner permission and ownerEnsureKeyring is idempotent. For all
         // other callers, use the soft path (buildNodeAccess) which returns null instead of
         // throwing when access is unavailable.
         let nodeAccess: { client: unknown; encryptor: unknown } | null;

@@ -48,7 +48,7 @@ function makeSession(overrides?: Partial<Session>): Session {
       kemPub: 'kempub-owner',
       kemPriv: 'kempriv-owner',
     },
-    chatClient: {} as never,
+    contentClient: {} as never,
     accountClient: {} as never,
     spacesRegistryClient: {} as never,
     ...overrides,

@@ -27,7 +27,7 @@ function makeSession(): Session {
   return {
     userId: 'u-owner',
     keys: {} as never,
-    chatClient: {} as never,
+    contentClient: {} as never,
     accountClient: {} as never,
     spacesRegistryClient: {} as never,
   } as Session;

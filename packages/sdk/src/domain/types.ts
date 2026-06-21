@@ -8,8 +8,6 @@ export type {
   VerificationLevel,
   CapMap,
   PubAccessMap,
-  DmMap,
-  ArchivedDms,
   MuteValue,
   MutePrefs,
   ReadValue,
@@ -17,6 +15,15 @@ export type {
   Space,
   ObjectContentKind,
 } from '@drakkar.software/octospaces-sdk';
+
+/** Maps a DM peer's userId → the private DM-space id shared with them. OctoChat-owned
+ *  since octospaces 0.16 extracted the DM surface out of the generic SDK; the data lives
+ *  in the user's `_spaces` doc under `extra.dms` (see `starfish/spaces-extra.ts`). */
+export type DmMap = Record<string, string>;
+
+/** The set of DM-space ids the user has archived (hidden from the DM list). OctoChat-owned;
+ *  stored in the `_spaces` doc under `extra.archivedDms`. */
+export type ArchivedDms = Record<string, true>;
 
 import type {
   ID,

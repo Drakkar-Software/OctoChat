@@ -61,7 +61,7 @@ function sessionWith(client: ReturnType<typeof fakeAccessClient>, userId = 'me')
     userId,
     name: 'Me',
     keys: { edPub: 'ed-pub', edPriv: 'ed-priv', kemPub: 'kem-pub', kemPriv: 'kem-priv' },
-    chatClient: client,
+    contentClient: client,
     accountClient: client,
     spacesRegistryClient: client,
   } as unknown as Session;

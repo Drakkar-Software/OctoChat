@@ -32,7 +32,7 @@ import {
   OBJECT_COLLECTIONS,
   objOwnerName, objOwnerPull, objOwnerPush,
   inboxName, inboxPull, inboxPush,
-  spaceIdFromRoomId,
+  spaceIdFromNodeId,
 } from '@drakkar.software/octospaces-sdk';
 
 /**
@@ -42,14 +42,16 @@ import {
  */
 const pull = (rest: string) => `/pull/${rest}`;
 
-/** A room id is `sp-<rand>-<name>`; the space is its first two `-` segments. */
-export { spaceIdFromRoomId };
+/** A room id is `sp-<rand>-<name>`; the space is its first two `-` segments.
+ *  (octospaces 0.16 renamed this `spaceIdFromNodeId`; OctoChat keeps its room name.) */
+export { spaceIdFromNodeId as spaceIdFromRoomId };
 
-// ── Room-scoped stream path shortcuts (re-exported from octospaces-sdk) ──────
+// ── Room-scoped stream path shortcuts (re-exported from octospaces-sdk 0.16
+//    `streamNode*`, aliased back to OctoChat's room vocabulary) ──────────────
 export {
-  streamRoomName, streamRoomPull, streamRoomPush,
-  streamPubRoomName, streamPubRoomPull, streamPubRoomPush,
-  streamInvRoomName, streamInvRoomPull, streamInvRoomPush,
+  streamNodeName as streamRoomName, streamNodePull as streamRoomPull, streamNodePush as streamRoomPush,
+  streamPubNodeName as streamPubRoomName, streamPubNodePull as streamPubRoomPull, streamPubNodePush as streamPubRoomPush,
+  streamInvNodeName as streamInvRoomName, streamInvNodePull as streamInvRoomPull, streamInvNodePush as streamInvRoomPush,
 } from '@drakkar.software/octospaces-sdk';
 
 // ── Webhook registry (objowner at _webhooks node) ─────────────────────────────

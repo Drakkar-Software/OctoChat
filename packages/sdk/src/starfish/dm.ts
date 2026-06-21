@@ -49,7 +49,7 @@ export async function createDmSpaceCore(session: Session, peerPseudo: string, pe
   const roomId = dmRoomId(spaceId);
   // Seed the space keyring (owner = this session) — required so E2EE DM messages can
   // be encrypted. The DM room itself is an append-only log (the `streamchat` collection).
-  await ownerEnsureKeyring(session.chatClient, session.keys, keyringPull(spaceId), keyringPush(spaceId), ownerTrustedAdders(session));
+  await ownerEnsureKeyring(session.contentClient, session.keys, keyringPull(spaceId), keyringPush(spaceId), ownerTrustedAdders(session));
   // Claim ownership AND seed the peer into the roster in ONE owner write. The /events SSE
   // proxy + FCM bridge authorize a space purely from `_access.{owner,members}` (the strict
   // no-TOFU enricher — caps are ignored there), so a DM whose peer is missing from this
@@ -57,11 +57,11 @@ export async function createDmSpaceCore(session: Session, peerPseudo: string, pe
   // Writing `members` here — instead of the later read-modify-write `addSpaceMember` inside
   // `inviteToSpace` — avoids a read-after-write race that could drop the peer; that
   // addSpaceMember then no-ops. `healDmRosters` repairs DMs created before this seeding.
-  await writeSpaceAccess(session.chatClient, spaceId, session.userId, peerUserId ? [peerUserId] : [], null, { name: peerPseudo });
+  await writeSpaceAccess(session.contentClient, spaceId, session.userId, peerUserId ? [peerUserId] : [], null, { name: peerPseudo });
   // enc:true: DM messages are sealed with the space keyring (streamchat); the client
   // must open the encryptor to decrypt them. access is 'space' (default — DM-space
   // members only), so no explicit access field is needed.
-  await pushIndexSeed(session.chatClient, spaceId, [{ id: roomId, name: peerPseudo, kind: 'dm', category: DEFAULT_CATEGORY, enc: true }]);
+  await pushIndexSeed(session.contentClient, spaceId, [{ id: roomId, name: peerPseudo, kind: 'dm', category: DEFAULT_CATEGORY, enc: true }]);
   return { spaceId, roomId };
 }
 
@@ -193,7 +193,7 @@ export async function healDmMap(session: Session, rawSpaces: Space[], dmMap: DmM
 export async function healDmRosters(session: Session, dms: DmMap): Promise<void> {
   for (const [peerUserId, spaceId] of Object.entries(dms)) {
     if (!isDmSpaceId(spaceId)) continue;
-    await addSpaceMember(session.chatClient, spaceId, session.userId, peerUserId).catch(() => {});
+    await addSpaceMember(session.contentClient, spaceId, session.userId, peerUserId).catch(() => {});
   }
 }
 

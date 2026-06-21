@@ -47,7 +47,7 @@ function makeSession(userId = 'alice') {
   return {
     userId,
     accountClient: fakeClient(),
-    chatClient: fakeClient(),
+    contentClient: fakeClient(),
     spacesRegistryClient: fakeClient(),
     keys: { edPub: 'ed-pub', edPriv: 'ed-priv', kemPub: 'kem-pub', kemPriv: 'kem-priv' },
   } as never;
@@ -88,7 +88,7 @@ describe('createSpace', () => {
     expect(vi.mocked(ownerEnsureKeyring)).toHaveBeenCalledTimes(1);
     // Signature: (client, keys, pullPath, pushPath, trustedAdders)
     expect(vi.mocked(ownerEnsureKeyring)).toHaveBeenCalledWith(
-      (session as never as { chatClient: unknown }).chatClient,
+      (session as never as { contentClient: unknown }).contentClient,
       (session as never as { keys: unknown }).keys,
       expect.stringContaining('_keyring'),
       expect.stringContaining('_keyring'),

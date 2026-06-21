@@ -27,7 +27,7 @@ describe('hydrateReads', () => {
   it('max-merges the server copy with kv and the legacy lastread map (highest wins)', async () => {
     store.set('octochat.reads.u', JSON.stringify({ rooms: { r1: 100, r2: 50 } }));
     store.set('octochat.lastread.u', JSON.stringify({ r2: 80, r3: 10 })); // legacy = bare map
-    await hydrateReads('u', { rooms: { r1: 90, r4: 5 } });
+    await hydrateReads('u', { nodes: { r1: 90, r4: 5 } });
     expect(getRoomReadAt('r1')).toBe(100); // kv 100 beats server 90
     expect(getRoomReadAt('r2')).toBe(80); // legacy 80 beats kv 50
     expect(getRoomReadAt('r3')).toBe(10);
@@ -36,7 +36,7 @@ describe('hydrateReads', () => {
 
   it('does not roll back an un-flushed in-memory mark on a stale server read', async () => {
     setRoomReadAt(SESSION, 'r1', 500); // optimistic local mark, not yet flushed
-    await hydrateReads('u', { rooms: { r1: 100 } }); // server still behind
+    await hydrateReads('u', { nodes: { r1: 100 } }); // server still behind
     expect(getRoomReadAt('r1')).toBe(500);
   });
 });
