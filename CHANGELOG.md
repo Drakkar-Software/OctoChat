@@ -1,5 +1,22 @@
 # OctoChat Changelog
 
+## sdk 0.3.10 — 2026-06-22 · DM kemSig fix
+
+### SDK changes (0.3.9 → 0.3.10)
+
+- **0.3.10 – DM request `kemSig` propagation** (`starfish/dm-keys.ts`,
+  `starfish/dm-link.ts`, `starfish/dm.ts`): octospaces-sdk 0.20 hardened
+  `parseJoinRequest` to require a `kemSig` field (Ed25519 sig of `kemPub` by
+  `edPriv`, binding the KEM key to the signing key). OctoChat's DM flow
+  hand-builds the peer's join-request from their *public* keys — this field was
+  never produced for the sender's own key, so it already exists in the published
+  profile (`PublicProfile.kemSig`) and in the `IdentityLink` token, but was
+  silently dropped before building `requestJson`. Fix: `PeerKeys` and `DmPeer`
+  now carry `kemSig`; both `requestJson` construction sites (`createOrOpenDm`
+  and `createOrOpenDmViaInbox`) include it. `readPeerKeys` returns `null` for
+  profiles missing `kemSig` (peer self-heals on next root sign-in), so the UI
+  correctly shows "can't message yet" instead of crashing on invite.
+
 ## sdk 0.3.9 — 2026-06-22 · ticket-info 400 fix
 
 ### SDK changes (0.3.8 → 0.3.9)

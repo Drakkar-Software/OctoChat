@@ -28,6 +28,7 @@ vi.mock('../config/config', () => ({
 
 import { decodeIdentityLink, myIdentityLink, verifyIdentityLinkKeys, type IdentityLink } from '@drakkar.software/octospaces-sdk';
 import { createDmSpaceCore } from './dm';
+import { inviteToSpace } from './members';
 import {
   createDmViaLink,
   resolveLinkOwner,
@@ -65,12 +66,13 @@ beforeEach(() => {
 });
 
 describe('resolveLinkOwner', () => {
-  it('returns the trusted peer for a well-formed token', async () => {
+  it('returns the trusted peer for a well-formed token (including kemSig)', async () => {
     const { token } = await mintToken();
     expect(await resolveLinkOwner(token)).toEqual({
       userId: token.ownerId,
       edPub: token.edPub,
       kemPub: token.kemPub,
+      kemSig: token.kemSig,
     });
     expect(verifyIdentityLinkKeys).toHaveBeenCalledWith(token); // live cross-check is run
   });
@@ -112,6 +114,13 @@ describe('createDmViaLink', () => {
     const { token } = await mintToken();
     const ref = await createDmViaLink(session, token, 'Alice');
     expect(ref).toEqual({ spaceId: 'dm-new', roomId: 'dm-dm-new-dm' });
+
+    // Regression guard: inviteToSpace must receive a requestJson that includes kemSig so that
+    // parseJoinRequest (octospaces-sdk) does not reject it as "kemSig is missing or invalid".
+    const requestJson = vi.mocked(inviteToSpace).mock.calls[0]?.[2] as string;
+    const req = JSON.parse(requestJson) as { edPub?: string; kemPub?: string; userId?: string; kemSig?: string };
+    expect(typeof req.kemSig).toBe('string');
+    expect(req.kemSig).toBe(token.kemSig);
 
     const [url, init] = vi.mocked(fetch).mock.calls[0]! as unknown as [string, RequestInit];
     expect(url).toBe(`https://sync.test/push/inbox/${token.ownerId}/${dmInboxShard()}`);

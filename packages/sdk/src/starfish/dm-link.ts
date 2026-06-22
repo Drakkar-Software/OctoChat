@@ -47,6 +47,8 @@ export interface DmPeer {
   userId: string;
   edPub: string;
   kemPub: string;
+  /** Ed25519 signature of `kemPub` by the peer's `edPriv` — required by `parseJoinRequest`. */
+  kemSig: string;
 }
 
 /**
@@ -62,7 +64,7 @@ export async function resolveLinkOwner(token: IdentityLink): Promise<DmPeer> {
     throw new Error('That identity link is malformed or its signature does not verify.');
   }
   await verifyIdentityLinkKeys(token); // throws if the live profile has different keys
-  return { userId: token.ownerId, edPub: token.edPub, kemPub: token.kemPub };
+  return { userId: token.ownerId, edPub: token.edPub, kemPub: token.kemPub, kemSig: token.kemSig };
 }
 
 /**
@@ -86,7 +88,7 @@ export async function createOrOpenDmViaInbox(session: Session, peer: DmPeer, own
   // roster + member cap). The bundle is named after the VISITOR — the peer pseudo from the owner's
   // side of the DM.
   const ref = await createDmSpaceCore(session, ownerPseudo, peer.userId);
-  const requestJson = JSON.stringify({ edPub: peer.edPub, kemPub: peer.kemPub, userId: peer.userId });
+  const requestJson = JSON.stringify({ edPub: peer.edPub, kemPub: peer.kemPub, userId: peer.userId, kemSig: peer.kemSig });
   const inviteJson = await inviteToSpace(session, ref.spaceId, requestJson, true, session.name);
   // Deliver: seal to the owner (same blob a carrier would hold) and append it to their
   // current-month inbox shard with an anonymous signed POST (the collection is public-write; an

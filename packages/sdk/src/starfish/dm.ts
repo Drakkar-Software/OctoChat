@@ -130,7 +130,7 @@ export async function createOrOpenDm(
   // Reuse the whole space-invite flow (keyring recipient + roster + member cap). It
   // builds the same SpaceInvite JSON acceptSpaceInvite consumes, reading the space name
   // we just stored for the bundle.
-  const requestJson = JSON.stringify({ edPub: peerKeys.edPub, kemPub: peerKeys.kemPub, userId: peerUserId });
+  const requestJson = JSON.stringify({ edPub: peerKeys.edPub, kemPub: peerKeys.kemPub, userId: peerUserId, kemSig: peerKeys.kemSig });
   const inviteJson = await inviteToSpace(session, ref.spaceId, requestJson, true);
   await setDmMapping(session.spacesRegistryClient, session.userId, peerUserId, ref.spaceId);
   // Deliver: seal the invite to the peer and append it to the shared space's carrier.
