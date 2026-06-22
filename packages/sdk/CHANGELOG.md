@@ -1,5 +1,21 @@
 # Changelog — @drakkar.software/octochat-sdk
 
+## 0.5.3 (2026-06-22)
+
+### Fixed
+
+- **Owner locked out of their own encrypted-ticket room** (`desk/registry-write.ts`,
+  `apps/mobile/src/lib/use-room-open-flow.ts`): after accepting an encrypted ticket request, the
+  space owner received "You're not a recipient of this node's keyring" when trying to open the
+  resulting room. Root cause: `getNodeAccess`'s `invite+enc` branch resolves `trustedAdders` from
+  `reg.owner`, which is the owner's **userId** (`sha256(edPub)[0:32]`, 32 hex). Keyring entries
+  record `addedBy` as the owner's **edPub** (64 hex). Since `userId !== edPub`, every keyring entry
+  was silently skipped by `createKeyringEncryptor`'s trust check — even though the owner had
+  correctly seeded the keyring with its own key during accept. Fixed by opening the per-node keyring
+  via a new `ensureDeskNodeKeyring` helper (wrapping `ownerEnsureNodeKeyring`) which uses
+  `ownerTrustedAdders(session)` = `[ownerEdPub, selfEdPub]` — the correct edPub-based trust
+  anchors. The requester and all non-owner paths are unchanged.
+
 ## 0.5.2 (2026-06-22)
 
 ### Fixed

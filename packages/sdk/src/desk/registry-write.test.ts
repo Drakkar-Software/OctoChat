@@ -1,10 +1,12 @@
 /**
- * Tests for the owner's per-node objinvlog self-heal (`ensureDeskTicketStreamAccess`) and that
- * ticket creation establishes it. `objinvlog` admits ONLY an owner-issued (delegated) cap or a
- * narrow per-node cap — the broad owner DEVICE cap is not honoured — and the owner cannot mint a
- * member cap to ITSELF (`sub === iss` is rejected). So the owner mints one to a throwaway
- * EPHEMERAL subject it controls and stores the ephemeral signing key (the createNodeInviteLink
- * pattern). These tests pin that exact shape.
+ * Tests for the owner's per-node self-heal helpers:
+ *  - `ensureDeskTicketStreamAccess` / `ensureDeskNodeStreamAccess` — objinvlog stream cap
+ *  - `ensureDeskNodeKeyring` — per-node keyring open via ownerEnsureNodeKeyring
+ * and that ticket creation establishes the stream cap. `objinvlog` admits ONLY an
+ * owner-issued (delegated) cap or a narrow per-node cap — the broad owner DEVICE cap is not
+ * honoured — and the owner cannot mint a member cap to ITSELF (`sub === iss` is rejected). So
+ * the owner mints one to a throwaway EPHEMERAL subject it controls and stores the ephemeral
+ * signing key (the createNodeInviteLink pattern). These tests pin that exact shape.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -20,11 +22,12 @@ vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => ({
   })),
 }));
 
-// saveNodeStreamAccessEntry and updateObjectIndex moved to starfish-spaces.
+// saveNodeStreamAccessEntry, updateObjectIndex and ownerEnsureNodeKeyring moved to starfish-spaces.
 vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   saveNodeStreamAccessEntry: vi.fn(),
   updateObjectIndex: vi.fn(async () => undefined),
+  ownerEnsureNodeKeyring: vi.fn(async () => ({ __encryptor: true })),
 }));
 
 vi.mock('@drakkar.software/starfish-sharing', () => ({
@@ -42,10 +45,10 @@ vi.mock('@drakkar.software/starfish-identities', () => ({
   })),
 }));
 
-import { ensureDeskTicketStreamAccess, createTicketNode } from './registry-write';
+import { ensureDeskTicketStreamAccess, ensureDeskNodeKeyring, createTicketNode } from './registry-write';
 import { defaultTicketMeta } from './ticket';
 import { nodeStreamScope } from '@drakkar.software/octospaces-sdk';
-import { saveNodeStreamAccessEntry } from '@drakkar.software/starfish-spaces';
+import { saveNodeStreamAccessEntry, ownerEnsureNodeKeyring } from '@drakkar.software/starfish-spaces';
 import { mintMemberCap } from '@drakkar.software/starfish-sharing';
 import type { Session } from '../starfish/identity';
 
@@ -102,5 +105,28 @@ describe('createTicketNode', () => {
       'ticket-xyz',
       expect.objectContaining({ kind: 'link', write: true }),
     );
+  });
+});
+
+describe('ensureDeskNodeKeyring', () => {
+  it('delegates to ownerEnsureNodeKeyring with the session, spaceId, and nodeId', async () => {
+    await ensureDeskNodeKeyring(session, 'sp-1', 'ticket-abc');
+    expect(ownerEnsureNodeKeyring).toHaveBeenCalledTimes(1);
+    expect(ownerEnsureNodeKeyring).toHaveBeenCalledWith(session, 'sp-1', 'ticket-abc');
+  });
+
+  it('returns the encryptor from ownerEnsureNodeKeyring', async () => {
+    const result = await ensureDeskNodeKeyring(session, 'sp-1', 'ticket-abc');
+    expect(result).toEqual({ __encryptor: true });
+  });
+
+  // This test pins the key contract of the bug fix: ensureDeskNodeKeyring must NOT pass any
+  // reg-owner-derived argument — ownerEnsureNodeKeyring uses ownerTrustedAdders(session)
+  // internally (edPub-based), not a userId string. Any extra argument here would reintroduce
+  // the userId-vs-edPub trust mismatch.
+  it('passes no extra trustedAdders argument (lets ownerEnsureNodeKeyring use ownerTrustedAdders)', async () => {
+    await ensureDeskNodeKeyring(session, 'sp-2', 'ticket-def');
+    const call = vi.mocked(ownerEnsureNodeKeyring).mock.calls[0]!;
+    expect(call).toHaveLength(3); // exactly (session, spaceId, nodeId)
   });
 });

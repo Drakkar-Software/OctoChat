@@ -1,5 +1,18 @@
 # OctoChat Changelog
 
+## sdk 0.5.3 — 2026-06-22 · encrypted-ticket owner fix
+
+### SDK changes (0.5.2 → 0.5.3)
+
+- **Fix: owner locked out of their own encrypted-ticket room** — after accepting an encrypted
+  ticket request, the space owner received "Couldn't open room — You're not a recipient of this
+  node's keyring" on every open attempt. Root cause: the per-node-keyring open path resolved
+  `trustedAdders` from `reg.owner` (a **userId**, 32 hex) but keyring entries record `addedBy`
+  as an **edPub** (64 hex); the mismatch caused every entry to be silently discarded by the
+  trust check. Fixed via a new `ensureDeskNodeKeyring` SDK helper that uses
+  `ownerEnsureNodeKeyring` directly (correct edPub trust anchors). The requester and all
+  non-owner paths are unchanged.
+
 ## sdk 0.4.3 — 2026-06-22 · ticket send fix + description as first message
 
 ### SDK changes (0.4.2 → 0.4.3)
