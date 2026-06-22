@@ -29,7 +29,8 @@ import {
   verifyIdentityLinkBinding,
   verifyIdentityLinkKeys,
   type IdentityLink,
-} from '@drakkar.software/octospaces-sdk';
+} from '@drakkar.software/starfish-spaces';
+import { userIdFromEdPub } from '@drakkar.software/octospaces-sdk';
 
 import { sealToRecipient } from './account-seal';
 import { postSignedAppend } from '../automations/append';
@@ -52,18 +53,25 @@ export interface DmPeer {
 }
 
 /**
- * Verify a received identity link and return the trusted peer keys. The ONE verification path
- * shared by every link consumer (and equivalent to what `submitResourceRequest` does internally):
- *   1. `verifyIdentityLinkBinding` — OFFLINE: `ownerId === sha256(edPub)` AND `kemSig` valid.
- *   2. `verifyIdentityLinkKeys`    — cross-check against the owner's published profile when
- *      reachable (throws on mismatch; proceeds on the embedded keys when unreachable).
- * Throws on any failure; otherwise returns `{ userId, edPub, kemPub }` safe to seal to.
+ * Standalone offline binding check — works WITHOUT a session (anonymous / pre-login callers).
+ * Verifies `ownerId === sha256(edPub)` AND `kemSig` is a valid Ed25519 signature of `kemPub`.
+ * Does NOT cross-check against the live profile (see `resolveLinkOwner` for that).
  */
-export async function resolveLinkOwner(token: IdentityLink): Promise<DmPeer> {
-  if (!(await verifyIdentityLinkBinding(token))) {
+export async function verifyLinkBinding(token: IdentityLink): Promise<boolean> {
+  try {
+    // Shim: verifyIdentityLinkBinding only reads session.userIdFromEdPub.
+    // userIdFromEdPub from octospaces-sdk is the standalone Web-Crypto implementation.
+    return verifyIdentityLinkBinding(token, { userIdFromEdPub } as unknown as Session);
+  } catch {
+    return false;
+  }
+}
+
+export async function resolveLinkOwner(token: IdentityLink, session: Session): Promise<DmPeer> {
+  if (!(await verifyIdentityLinkBinding(token, session))) {
     throw new Error('That identity link is malformed or its signature does not verify.');
   }
-  await verifyIdentityLinkKeys(token); // throws if the live profile has different keys
+  await verifyIdentityLinkKeys(token, session); // throws if the live profile has different keys
   return { userId: token.ownerId, edPub: token.edPub, kemPub: token.kemPub, kemSig: token.kemSig };
 }
 
@@ -80,7 +88,7 @@ export async function createOrOpenDmViaInbox(session: Session, peer: DmPeer, own
   if (peer.userId === session.userId) throw new Error('This is your own link.');
   // Dedup against fresh server state (covers a DM created on another device or via a shared-space
   // carrier) — the twin of createOrOpenDm's short-circuit.
-  const { dms } = await readSpaces(session.spacesRegistryClient, session.userId);
+  const { dms } = await readSpaces(session.spacesRegistryClient, session);
   const existing = dms[peer.userId];
   if (existing) return { spaceId: existing, roomId: dmRoomId(existing) };
 
@@ -101,8 +109,8 @@ export async function createOrOpenDmViaInbox(session: Session, peer: DmPeer, own
     failurePrefix: 'DM invite delivery',
   });
   // Delivery succeeded — only now surface the space on this account.
-  await addJoinedSpace(session.spacesRegistryClient, session.userId, dmSpaceRecord(ref.spaceId, ownerPseudo));
-  await setDmMapping(session.spacesRegistryClient, session.userId, peer.userId, ref.spaceId);
+  await addJoinedSpace(session.spacesRegistryClient, session, dmSpaceRecord(ref.spaceId, ownerPseudo));
+  await setDmMapping(session.spacesRegistryClient, session, peer.userId, ref.spaceId);
   return ref;
 }
 
@@ -113,7 +121,7 @@ export async function createOrOpenDmViaInbox(session: Session, peer: DmPeer, own
  */
 export async function createDmViaLink(session: Session, token: IdentityLink, ownerPseudo: string): Promise<DmRef> {
   if (token.ownerId === session.userId) throw new Error('This is your own link.');
-  const peer = await resolveLinkOwner(token);
+  const peer = await resolveLinkOwner(token, session);
   return createOrOpenDmViaInbox(session, peer, ownerPseudo);
 }
 

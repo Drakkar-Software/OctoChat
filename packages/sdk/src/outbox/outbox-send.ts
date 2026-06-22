@@ -11,7 +11,7 @@
  * message carries the entry's own `id`/`ts`, so it lands in the room store under
  * the same id the pending bubble used (dedup-by-id ⇒ no duplicate).
  */
-import { getSpaceClient, getNodeStreamClient } from '@drakkar.software/octospaces-sdk';
+import { getSpaceClient, getNodeStreamClient } from '@drakkar.software/starfish-spaces';
 import { buildNodeAccessShared } from '../starfish/node-access-cache';
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 

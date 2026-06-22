@@ -3,14 +3,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * Unit tests for loadSpaceStats. All rooms now live in a plaintext object index;
  * access/enc per node (not per space). Mocks cover the three external boundaries:
- * 1. getSpaceClient + buildNodeAccess (octospaces-sdk) — auth + keyring
+ * 1. getSpaceClient (starfish-spaces) + buildNodeAccessShared (node-access-cache) — auth + keyring
  * 2. readIndexRooms (object-index) — room list with access/enc flags
  * 3. pullAndFold (stream-log) — the actual log fold
  * resolveEdit and buildThreadDigest have their own suites; stubs isolate stats arithmetic.
  */
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => {
   const actual = await importOriginal();
-  return { ...(actual as object), getSpaceClient: vi.fn(() => ({})), buildNodeAccess: vi.fn() };
+  return { ...(actual as object), getSpaceClient: vi.fn(() => ({})) };
+});
+vi.mock('../starfish/node-access-cache', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...(actual as object), buildNodeAccessShared: vi.fn() };
 });
 vi.mock('../starfish/object-index', () => ({ readIndexRooms: vi.fn() }));
 vi.mock('../messaging/stream-log', () => ({ pullAndFold: vi.fn(), fanOut: vi.fn(() => ({ messages: [], edits: [], pins: [] })) }));
@@ -18,8 +22,8 @@ vi.mock('../format/message-view', () => ({ resolveEdit: vi.fn() }));
 vi.mock('../messaging/threads', () => ({ buildThreadDigest: vi.fn(() => []) }));
 
 import { loadSpaceStats } from './space-stats';
-import { buildNodeAccess, getSpaceClient } from '@drakkar.software/octospaces-sdk';
-import { clearBuildNodeAccessCache } from '../starfish/node-access-cache';
+import { getSpaceClient } from '@drakkar.software/starfish-spaces';
+import { buildNodeAccessShared } from '../starfish/node-access-cache';
 import { readIndexRooms } from '../starfish/object-index';
 import { pullAndFold } from '../messaging/stream-log';
 import { resolveEdit } from '../format/message-view';
@@ -28,7 +32,7 @@ import type { StoredMsg } from '../format/message-view';
 import type { Room } from '../domain/types';
 
 const mockGetSpaceClient = vi.mocked(getSpaceClient);
-const mockBuildNodeAccess = vi.mocked(buildNodeAccess);
+const mockBuildNodeAccessShared = vi.mocked(buildNodeAccessShared);
 const mockReadIndexRooms = vi.mocked(readIndexRooms);
 const mockPullAndFold = vi.mocked(pullAndFold);
 const mockResolveEdit = vi.mocked(resolveEdit);
@@ -50,10 +54,9 @@ function makeFoldResult(messages: StoredMsg[], items: unknown[] = []) {
 beforeEach(() => {
   vi.clearAllMocks();
   mockGetSpaceClient.mockReturnValue(FAKE_CLIENT);
-  mockBuildNodeAccess.mockResolvedValue(null); // default: no enc access
+  mockBuildNodeAccessShared.mockResolvedValue(null); // default: no enc access
   mockResolveEdit.mockReturnValue(undefined);
   mockBuildThreadDigest.mockReturnValue([]);
-  clearBuildNodeAccessCache();
 });
 
 describe('loadSpaceStats — plaintext (enc: false) rooms', () => {
@@ -81,8 +84,8 @@ describe('loadSpaceStats — plaintext (enc: false) rooms', () => {
       bytes: JSON.stringify(items).length + 500 + 1000,
       partial: false,
     });
-    // plaintext room: buildNodeAccess called but returns null → null encryptor
-    expect(mockBuildNodeAccess).toHaveBeenCalled();
+    // plaintext room: buildNodeAccessShared called but returns null → null encryptor
+    expect(mockBuildNodeAccessShared).toHaveBeenCalled();
   });
 
   it('treats an empty room (no log yet) as zero, not an error', async () => {
@@ -96,10 +99,10 @@ describe('loadSpaceStats — plaintext (enc: false) rooms', () => {
 });
 
 describe('loadSpaceStats — encrypted (enc: true) rooms', () => {
-  it('opens keyring via buildNodeAccess and decrypts the room log', async () => {
+  it('opens keyring via buildNodeAccessShared and decrypts the room log', async () => {
     const encClient = {} as never;
     const encryptor = {} as never;
-    mockBuildNodeAccess.mockResolvedValue({ client: encClient, encryptor });
+    mockBuildNodeAccessShared.mockResolvedValue({ client: encClient, encryptor });
     const messages = [msg('m1'), msg('m2')];
     const items = [{}, {}];
     mockReadIndexRooms.mockResolvedValue({
@@ -131,7 +134,7 @@ describe('loadSpaceStats — public rooms', () => {
 
     expect(stats.messages).toBe(2);
     expect(stats.rooms).toBe(1);
-    // Public room with enc:false → buildNodeAccess returns null → null encryptor
+    // Public room with enc:false → buildNodeAccessShared returns null → null encryptor
     const [, encArg, pathArg] = mockPullAndFold.mock.calls[0];
     expect(encArg).toBeNull();
     expect(pathArg).toContain('pub/'); // streamPubRoomPull path

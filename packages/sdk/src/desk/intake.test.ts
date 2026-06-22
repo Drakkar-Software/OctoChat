@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock the octospaces-sdk surface intake.ts uses (keep the rest real so ../starfish/paths —
-// which re-exports objInvLogPush from octospaces-sdk — still resolves a real path string).
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => ({
+// Mock the starfish-spaces surface intake.ts uses (acceptResourceRequest, rejectResourceRequest,
+// scanResourceRequests, getNodeStreamClient all moved to starfish-spaces in 0.25).
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   scanResourceRequests: vi.fn(),
   acceptResourceRequest: vi.fn(),
@@ -36,13 +36,13 @@ import {
   acceptResourceRequest,
   rejectResourceRequest,
   getNodeStreamClient,
-} from '@drakkar.software/octospaces-sdk';
+} from '@drakkar.software/starfish-spaces';
 import { readSpaces, setRequestDeclined } from '../starfish/registry';
 import { readIntakeConfig, type IntakeConfig } from './intake-config';
 import { isLlmConfigured, runLlm } from '../ai/engine-port';
-import type { Session } from '../starfish/identity';
+import { makeMockSession } from '../test-utils/mock-session';
 
-const session = { userId: 'owner', keys: {} } as unknown as Session;
+const session = makeMockSession({ userId: 'owner' });
 const pendingReq = (id: string, message = 'hello') =>
   ({ req: { reqId: id, spaceId: 'sp-1', title: 'T', message, nodeType: 'ticket', requester: { userId: 'u' } }, senderEdPub: 'ed' }) as never;
 /** Extract the message text from an `append(path, body)` call. */
@@ -208,7 +208,7 @@ describe('listPendingTicketRequests / declineTicketRequest', () => {
     const p = pendingReq('r');
     await declineTicketRequest(session, p, 'spam');
     expect(rejectResourceRequest).toHaveBeenCalledWith(session, p, 'spam');
-    expect(setRequestDeclined).toHaveBeenCalledWith(session.spacesRegistryClient, session.userId, 'r');
+    expect(setRequestDeclined).toHaveBeenCalledWith(session.spacesRegistryClient, session, 'r');
   });
 
   it('accept delegates to acceptResourceRequest with the ticket create handler', async () => {

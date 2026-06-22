@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/theme';
-import type { Space } from '@drakkar.software/octochat-sdk';
+import type { SpaceView } from '@/lib/spaces-context';
 import { DM_HOME_NAME } from '@/lib/dm-home';
 import { useTheme } from '@/lib/use-theme';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -13,7 +13,7 @@ import { Txt } from '@/components/ui/Txt';
 import { ListRow } from './ListRow';
 
 interface SpacePickerProps {
-  spaces: Space[];
+  spaces: SpaceView[];
   /** The active selection (a space id, or the DM-home sentinel). */
   activeId: string;
   isDmHome?: boolean;
@@ -112,8 +112,8 @@ export function SpacePicker({
               ) : null}
               <View style={showMoveControls ? styles.editRowContent : undefined}>
                 <ListRow
-                  avatarLabel={s.short}
-                  avatarImage={s.image}
+                  avatarLabel={s.short ?? s.name.slice(0, 2).toUpperCase()}
+                  avatarImage={s.image ?? undefined}
                   label={s.name}
                   active={!isDmHome && s.id === activeId}
                   unread={s.unread}

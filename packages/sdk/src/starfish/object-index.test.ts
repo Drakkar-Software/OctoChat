@@ -4,14 +4,14 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@drakkar.software/octospaces-sdk')>();
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@drakkar.software/starfish-spaces')>();
   return { ...actual, getSpaceClient: vi.fn() };
 });
 
-import { getSpaceClient } from '@drakkar.software/octospaces-sdk';
+import { getSpaceClient } from '@drakkar.software/starfish-spaces';
 import { readIndexRooms, pushIndexSeed, seedSpaceObjectIndex, readPrivateSpaceRooms } from './object-index';
-import type { Session } from './identity';
+import { makeMockSession } from '../test-utils/mock-session';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -21,16 +21,6 @@ function makeClient(overrides?: Record<string, unknown>) {
     push: vi.fn(),
     ...overrides,
   };
-}
-
-function makeSession(): Session {
-  return {
-    userId: 'u-owner',
-    keys: {} as never,
-    contentClient: {} as never,
-    accountClient: {} as never,
-    spacesRegistryClient: {} as never,
-  } as Session;
 }
 
 /** Build a minimal ObjectNode-shaped room entry (type:'room', as seedIndexNodes produces). */
@@ -120,7 +110,7 @@ describe('seedSpaceObjectIndex', () => {
       push: vi.fn().mockResolvedValue(undefined),
     });
     vi.mocked(getSpaceClient).mockReturnValue(fakeClient as never);
-    const session = makeSession();
+    const session = makeMockSession();
     await seedSpaceObjectIndex(session, 'sp-abc', [{ id: 'sp-abc-general', name: 'general', kind: 'channel', category: 'Channels', enc: true }]);
     expect(getSpaceClient).toHaveBeenCalledWith('sp-abc', session);
     expect(fakeClient.push).toHaveBeenCalledOnce();
@@ -132,7 +122,7 @@ describe('seedSpaceObjectIndex', () => {
 describe('readPrivateSpaceRooms', () => {
   it('returns [] on any error (graceful degradation)', async () => {
     vi.mocked(getSpaceClient).mockImplementation(() => { throw new Error('no access'); });
-    const session = makeSession();
+    const session = makeMockSession();
     const rooms = await readPrivateSpaceRooms(session, 'sp-abc');
     expect(rooms).toEqual([]);
   });
@@ -142,7 +132,7 @@ describe('readPrivateSpaceRooms', () => {
       pull: vi.fn().mockResolvedValue({ data: { objects: [] }, hash: null }),
     });
     vi.mocked(getSpaceClient).mockReturnValue(fakeClient as never);
-    const session = makeSession();
+    const session = makeMockSession();
     const rooms = await readPrivateSpaceRooms(session, 'sp-abc');
     expect(rooms).toEqual([]);
   });

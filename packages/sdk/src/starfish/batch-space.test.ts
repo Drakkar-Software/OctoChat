@@ -16,7 +16,7 @@ const mockBatchPull = vi.fn();
 const mockGetSpaceClient = vi.fn(() => ({ batchPull: mockBatchPull }));
 const mockReadSpaceAccess = vi.fn();
 
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...(actual as object),
@@ -31,9 +31,9 @@ vi.mock('./object-index', () => ({
 }));
 
 import { batchPullSpaceData } from './batch-space';
-import type { Session } from './identity';
+import { makeMockSession } from '../test-utils/mock-session';
 
-const SESSION = { userId: 'u1' } as unknown as Session;
+const SESSION = makeMockSession({ userId: 'u1' });
 const SPACE_ID = 'sp-test';
 
 function makeBatchResult(regData: Record<string, unknown> | null, regHash: string | null, idxData: Record<string, unknown> | null) {

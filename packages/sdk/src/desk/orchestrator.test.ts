@@ -1,12 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock the octospaces-sdk surface the orchestrator uses + the registry-write helpers, so
+// Mock the starfish-spaces surface the orchestrator uses + the registry-write helpers, so
 // these tests focus on the desk orchestration logic (isolation flags, E2EE keyring grants).
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => ({
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   createNodeInviteLink: vi.fn(async () => ({ link: 'https://x/join#tok', token: {} })),
   addNodeKeyringRecipient: vi.fn(async () => undefined),
   removeNodeKeyringRecipient: vi.fn(async () => ({ newEpoch: 2 })),
+}));
+
+vi.mock('../starfish/client', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   readProfile: vi.fn(async () => ({ kemPub: 'assignee-kem', pseudo: null, avatar: null, edPub: 'assignee-ed' })),
 }));
 
@@ -21,12 +25,13 @@ vi.mock('./ticket-info', () => ({
 }));
 
 import { createTicket, assignTicket, patchTicketStatus, revokeTicketAgent } from './orchestrator';
-import { createNodeInviteLink, addNodeKeyringRecipient, removeNodeKeyringRecipient, readProfile } from '@drakkar.software/octospaces-sdk';
+import { createNodeInviteLink, addNodeKeyringRecipient, removeNodeKeyringRecipient } from '@drakkar.software/starfish-spaces';
+import { readProfile } from '../starfish/client';
 import { patchTicketMeta } from './registry-write';
 import { writeSealedTicketInfo } from './ticket-info';
-import type { Session } from '../starfish/identity';
+import { makeMockSession } from '../test-utils/mock-session';
 
-const session = { userId: 'owner', keys: {} } as unknown as Session;
+const session = makeMockSession({ userId: 'owner' });
 
 describe('createTicket — isolation', () => {
   beforeEach(() => {

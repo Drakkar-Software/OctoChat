@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 
-import type { Space } from '@drakkar.software/octochat-sdk';
-
+import type { SpaceView } from './spaces-context';
 import { useSpacesContext } from './spaces-context';
 import { useUnread } from './unread-context';
 
@@ -17,7 +16,7 @@ export function useSpaces() {
   const { spaces, activeId, setActiveId, loading, createSpace, reorderSpaces, moveSpace } = useSpacesContext();
   const { unreadBySpace } = useUnread();
 
-  const spacesWithUnread = useMemo<Space[]>(
+  const spacesWithUnread = useMemo<SpaceView[]>(
     () => spaces.map((s) => ({ ...s, unread: unreadBySpace[s.id] ?? 0 })),
     [spaces, unreadBySpace],
   );

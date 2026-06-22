@@ -1,5 +1,26 @@
 # Changelog — @drakkar.software/octochat-sdk
 
+## 0.5.0 (2026-06-22)
+
+### Breaking
+
+- **Bumped `@drakkar.software/octospaces-sdk` 0.22 → 0.25** and added `@drakkar.software/starfish-spaces 3.0.0-alpha.32` as a new dependency.
+- **`Space` type is now lean**: `{ id, name, members }` — `short`, `image`, `unread` are removed from the domain type. The app-layer `SpaceView` type (`spaces-context.tsx`) extends it with these display fields.
+- **All registry function signatures changed** from `(client, userId, ...)` to `(client, session, ...)`: `readSpaces`, `writeSpaces`, `writeSpaceAccess`, `readSpaceAccess`, `addJoinedSpace`, `addJoinedSpaceWithCap`, `addSpaceMember`, `reorderSpaces`, `removeJoinedSpace`, `updateDmsDoc`, `updateArchivedDmsDoc`, `updateQuickReactionsDoc`, `updateDeclinedRequestsDoc`, `updateOutgoingRequestsDoc`, `setRequestDeclined`, `setOutgoingRequestRefused`, `recordOutgoingRequest`, `setDmMapping`.
+- **`writeSpaces` drops the `hash` parameter** — CAS is handled internally.
+- **`verifyIdentityLinkBinding`/`verifyIdentityLinkKeys`** now require `session` as 2nd argument.
+- **`resolveLinkOwner`** now requires `session` as 2nd argument.
+- **`deriveSession`** now takes `string[]` (array of BIP-39 words) instead of a single string.
+- **Starfish package bumps**: `starfish-{client,identities,keyring,sharing,queuing,projection}` → alpha.31; `starfish-protocol` → alpha.32.
+
+### Added
+
+- **`verifyLinkBinding(token)`** — standalone offline identity binding check that does NOT require a session. For anonymous/pre-login use (request link screen).
+- **`pullCache()` shim** wrapping `createKvPullCache` from `starfish-client` (keeps `PULL_CACHE_MAX_AGE_MS` stable at 30 days).
+- **`fetchWithTimeout(ms?)` shim** wrapping `createTimeoutFetch` from `starfish-client/fetch` (keeps `CONNECT_TIMEOUT_MS = 12_000`).
+- **`rootIdentityOf`** re-exported from `octospaces-sdk`.
+- **`mutes` and `reads`** fields re-added to the `readSpaces` return (extracted from `extra.mutes` / `extra.reads`).
+
 ## 0.4.5 (2026-06-22)
 
 ### Fixed

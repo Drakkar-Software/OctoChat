@@ -3,8 +3,8 @@ import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 
 // Mock the SDK's openEncryptor so we can drive it from client.ts's wrapper deterministically.
 const sdkOpenEncryptor = vi.fn();
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
-  const orig = await importOriginal<typeof import('@drakkar.software/octospaces-sdk')>();
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('@drakkar.software/starfish-spaces')>();
   return { ...orig, openEncryptor: (...args: unknown[]) => sdkOpenEncryptor(...args), buildEncryptor: async (...args: unknown[]) => sdkOpenEncryptor(...args).catch(() => null) };
 });
 

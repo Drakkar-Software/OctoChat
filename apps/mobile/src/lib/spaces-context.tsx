@@ -24,6 +24,16 @@ import { usePathname } from 'expo-router';
 
 import type { DmMap, Space } from '@drakkar.software/octochat-sdk';
 
+/**
+ * View-layer extension of the lean SDK `Space` (which only carries `id`, `name`,
+ * `members`). The extra fields are optional and seeded by the view layer:
+ *   - `short`  — 2-char monogram, seeded from `name` at load time, overridden by SpaceMeta.
+ *   - `image`  — avatar URL, set by SpaceMeta when available.
+ *   - `unread` — ephemeral overlay from UnreadProvider via `useSpaces`.
+ * Keeping these out of the SDK type allows the wire format to stay lean.
+ */
+export type SpaceView = Space & { short?: string; image?: string | null; unread?: number };
+
 import { createSpace as createSpaceDoc, onSpaceMeta, readSpaces, reorderSpaces as reorderSpacesDoc } from '@drakkar.software/octochat-sdk';
 import { healDmMap, healDmRosters, isDmSpaceId, reconcileDmInbox, reconcileTicketRequests } from '@drakkar.software/octochat-sdk';
 import { isSharedRoomId, isTicketRoomId, localSpaceAccessEntries } from '@drakkar.software/octochat-sdk';
@@ -41,7 +51,7 @@ interface SpacesContextValue {
    *  spaces (`dm-` prefix) and per-node grant spaces (`shared-` / `ticket-` prefixes)
    *  are excluded — DMs surface in the Direct Messages section, grants surface in the
    *  "Shared rooms" section (see `useDmMap`/`use-dms` and `useGuestRooms`). */
-  spaces: Space[];
+  spaces: SpaceView[];
   /** Peer userId → shared DM-space id. Drives the Direct Messages section. */
   dms: DmMap;
   /** The `dm-` space ids from the DURABLE joined-spaces list (same source as
@@ -53,7 +63,7 @@ interface SpacesContextValue {
   dmSpaceIds: string[];
   /** Synthetic per-node grant spaces (`shared-` / `ticket-` prefixed) the user holds
    *  as a requester — kept out of the rail; `useGuestRooms` surfaces them. */
-  guestSpaces: Space[];
+  guestSpaces: SpaceView[];
   /** The owner's real space ids for all per-node grants — needed to subscribe to the
    *  correct SSE streams (objinvlog lives under the owner's space, not the synthetic
    *  `shared-<hex>` space id). Used by `UnreadProvider` to widen the SSE candidate set. */
@@ -62,7 +72,7 @@ interface SpacesContextValue {
   setActiveId: (id: string | null) => void;
   loading: boolean;
   refresh: () => Promise<void>;
-  createSpace: (name: string, type?: 'private' | 'public') => Promise<Space | null>;
+  createSpace: (name: string, type?: 'private' | 'public') => Promise<SpaceView | null>;
   /** Persist a new rail order (an explicit list of rail space ids). Reorders the local
    *  list optimistically, then writes it to the synced doc so it follows the user across
    *  devices; re-reads to recover if the write fails. */
@@ -99,9 +109,15 @@ function guestOwnerSpaceIdsFromStore(): string[] {
   return [...ids];
 }
 
-/** Drop DM spaces AND per-node grant spaces — neither belongs in the space rail / switcher. */
-const railSpaces = (list: Space[]): Space[] =>
-  list.filter((s) => !isDmSpaceId(s.id) && !isGuestSpaceId(s.id));
+/** Drop DM spaces AND per-node grant spaces — neither belongs in the space rail / switcher.
+ *  Seeds the `short` monogram so the rail renders immediately before SpaceMeta arrives. */
+const railSpaces = (list: Space[]): SpaceView[] =>
+  list
+    .filter((s) => !isDmSpaceId(s.id) && !isGuestSpaceId(s.id))
+    .map((s) => ({ ...s, short: s.name.slice(0, 2).toUpperCase() }));
+
+/** Widen a raw SDK Space with a seeded monogram. */
+const toSpaceView = (s: Space): SpaceView => ({ ...s, short: s.name.slice(0, 2).toUpperCase() });
 
 /** Desk builds (the `tickets` feature) auto-handle inbound ticket requests per space settings. */
 const DESK_INTAKE = activeVariant.features.includes('tickets');
@@ -111,10 +127,10 @@ const Ctx = createContext<SpacesContextValue | null>(null);
 export function SpacesProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
   const pathname = usePathname();
-  const [spaces, setSpaces] = useState<Space[]>([]);
+  const [spaces, setSpaces] = useState<SpaceView[]>([]);
   const [dms, setDms] = useState<DmMap>({});
   const [dmSpaceIds, setDmSpaceIds] = useState<string[]>([]);
-  const [guestSpaces, setGuestSpaces] = useState<Space[]>([]);
+  const [guestSpaces, setGuestSpaces] = useState<SpaceView[]>([]);
   const [guestOwnerSpaceIds, setGuestOwnerSpaceIds] = useState<string[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -130,7 +146,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
    *  foreground, space create/reorder, and post-primed-snapshot background sync. */
   const refresh = useCallback(async () => {
     if (!session) return;
-    const { spaces: list, mutes, reads, archivedDms, dms: dmMap } = await readSpaces(session.spacesRegistryClient, session.userId);
+    const { spaces: list, mutes, reads, archivedDms, dms: dmMap } = await readSpaces(session.spacesRegistryClient, session);
     const rail = railSpaces(list);
     setSpaces(rail);
     // The durable joined-spaces list is the reliable source for DM space ids — DM
@@ -139,7 +155,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     // (see UnreadProvider) independently of the `dms` map.
     setDmSpaceIds(list.filter((s) => isDmSpaceId(s.id)).map((s) => s.id));
     // Per-node grant spaces (shared rooms + ticket rooms held as a requester).
-    setGuestSpaces(list.filter((s) => isGuestSpaceId(s.id)));
+    setGuestSpaces(list.filter((s) => isGuestSpaceId(s.id)).map(toSpaceView));
     setGuestOwnerSpaceIds(guestOwnerSpaceIdsFromStore());
     // Derive DMs from the durable `dm-` spaces, not just the lossy `dms` index, so a DM
     // survives a clobbered/missing map entry and re-syncs across same-seed devices.
@@ -172,7 +188,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       void reconcileDmInbox(session, rail)
         .then(async (changed) => {
           if (!changed) return;
-          const next = await readSpaces(session.spacesRegistryClient, session.userId);
+          const next = await readSpaces(session.spacesRegistryClient, session);
           const healed = await healDmMap(session, next.spaces, next.dms);
           setDms(healed);
           // A freshly-accepted DM must land its peer in `_access.members` too (see above).
@@ -200,11 +216,11 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
    *  current without triggering the expensive per-space/per-DM cascade. */
   const refreshLight = useCallback(async () => {
     if (!session) return;
-    const { spaces: list, mutes, reads, archivedDms, dms: dmMap } = await readSpaces(session.spacesRegistryClient, session.userId);
+    const { spaces: list, mutes, reads, archivedDms, dms: dmMap } = await readSpaces(session.spacesRegistryClient, session);
     const rail = railSpaces(list);
     setSpaces(rail);
     setDmSpaceIds(list.filter((s) => isDmSpaceId(s.id)).map((s) => s.id));
-    setGuestSpaces(list.filter((s) => isGuestSpaceId(s.id)));
+    setGuestSpaces(list.filter((s) => isGuestSpaceId(s.id)).map(toSpaceView));
     setGuestOwnerSpaceIds(guestOwnerSpaceIdsFromStore());
     setDms(dmMap);
     setActiveId((prev) => prev ?? rail[0]?.id ?? null);
@@ -345,7 +361,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
         [...list].sort((a, b) => (order.get(a.id) ?? Infinity) - (order.get(b.id) ?? Infinity));
       setSpaces((prev) => reordered(prev));
       try {
-        await reorderSpacesDoc(session.spacesRegistryClient, session.userId, orderedRailIds);
+        await reorderSpacesDoc(session.spacesRegistryClient, session, orderedRailIds);
       } catch {
         // Write failed — re-read the authoritative doc so the rail can't drift from the
         // server (e.g. a stuck optimistic order the next device never sees).

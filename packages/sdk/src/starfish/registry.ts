@@ -17,24 +17,25 @@ import {
   writeSpaceAccess,
   writeSpaces,
   ownerEnsureKeyring,
-  randomId,
-} from '@drakkar.software/octospaces-sdk';
+} from '@drakkar.software/starfish-spaces';
+import { randomId } from '@drakkar.software/octospaces-sdk';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { ArchivedDms, DeclinedRequests, DmMap, OutgoingRequest, OutgoingRequests, Room, Space } from '../domain/types';
+import type { ArchivedDms, DeclinedRequests, DmMap, MutePrefs, OutgoingRequest, OutgoingRequests, ReadPrefs, Room, Space } from '../domain/types';
 import type { Session } from './identity';
 import { ownerTrustedAdders } from './identity';
 import { DEFAULT_CATEGORY } from './objects';
 import { seedSpaceObjectIndex } from './object-index';
 import { keyringPull, keyringPush } from './paths';
 
-export type { SpaceMeta, SpaceMetaUpdate } from '@drakkar.software/octospaces-sdk';
+export type { SpaceMeta, SpaceMetaUpdate } from '@drakkar.software/starfish-spaces';
 
+// updateMutesDoc / updateReadsDoc were removed from octospaces-sdk 0.23+.
+// They are NOT re-exported here; callers should use updateSpacesExtraField directly.
 export {
   // Spaces list + caps RMW
   updateSpacesDoc,
-  updateMutesDoc,
-  updateReadsDoc,
+  updateSpacesExtraField,
   writeSpaces,
   reorderSpaces,
   // Space access record
@@ -49,7 +50,7 @@ export {
   reconcileSpaceMeta,
   onSpaceMeta,
   broadcastSpaceMeta,
-} from '@drakkar.software/octospaces-sdk';
+} from '@drakkar.software/starfish-spaces';
 
 // ── DM + quick-reactions registry surface (OctoChat-owned since octospaces 0.16) ──
 // octospaces 0.16 extracted the DM/quick-reactions doc helpers out of the generic SDK,
@@ -91,11 +92,25 @@ const coerceOutgoingRequests = (v: unknown): OutgoingRequests => {
   }
   return out;
 };
+const coerceMutes = (v: unknown): MutePrefs => {
+  const r = asRecord(v);
+  const nodes: MutePrefs['nodes'] = {};
+  for (const [k, val] of Object.entries(asRecord(r.nodes))) if (val !== undefined) nodes[k] = val as MutePrefs['nodes'][string];
+  const spaces: MutePrefs['spaces'] = {};
+  for (const [k, val] of Object.entries(asRecord(r.spaces))) if (val !== undefined) spaces[k] = val as MutePrefs['spaces'][string];
+  return { nodes, spaces };
+};
+const coerceReads = (v: unknown): ReadPrefs => {
+  const r = asRecord(v);
+  const nodes: ReadPrefs['nodes'] = {};
+  for (const [k, val] of Object.entries(asRecord(r.nodes))) if (typeof val === 'number') nodes[k] = val;
+  return { nodes };
+};
 
 /** {@link readSpacesCore} with the OctoChat-owned `extra` fields re-flattened onto the
  *  result (back-compat with pre-0.16 call sites that read `.dms`/`.archivedDms`/`.quickReactions`). */
-export async function readSpaces(client: StarfishClient, userId: string) {
-  const doc = await readSpacesCore(client, userId);
+export async function readSpaces(client: StarfishClient, session: Session) {
+  const doc = await readSpacesCore(client, session);
   const extra = doc.extra ?? {};
   return {
     ...doc,
@@ -104,45 +119,47 @@ export async function readSpaces(client: StarfishClient, userId: string) {
     quickReactions: coerceQuickReactions(extra.quickReactions),
     declinedRequests: coerceDeclinedRequests(extra.declinedRequests),
     outgoingRequests: coerceOutgoingRequests(extra.outgoingRequests),
+    mutes: coerceMutes(extra.mutes),
+    reads: coerceReads(extra.reads),
   };
 }
 
-export function updateDmsDoc(client: StarfishClient, userId: string, mutator: (cur: DmMap) => DmMap | null): Promise<void> {
-  return updateSpacesExtraField<DmMap>(client, userId, 'dms', (cur) => mutator(coerceDms(cur)));
+export function updateDmsDoc(client: StarfishClient, session: Session, mutator: (cur: DmMap) => DmMap | null): Promise<void> {
+  return updateSpacesExtraField<DmMap>(client, session, 'dms', (cur) => mutator(coerceDms(cur)));
 }
 
-export function updateArchivedDmsDoc(client: StarfishClient, userId: string, mutator: (cur: ArchivedDms) => ArchivedDms | null): Promise<void> {
-  return updateSpacesExtraField<ArchivedDms>(client, userId, 'archivedDms', (cur) => mutator(coerceArchivedDms(cur)));
+export function updateArchivedDmsDoc(client: StarfishClient, session: Session, mutator: (cur: ArchivedDms) => ArchivedDms | null): Promise<void> {
+  return updateSpacesExtraField<ArchivedDms>(client, session, 'archivedDms', (cur) => mutator(coerceArchivedDms(cur)));
 }
 
-export function updateQuickReactionsDoc(client: StarfishClient, userId: string, mutator: (cur: string[]) => string[] | null): Promise<void> {
-  return updateSpacesExtraField<string[]>(client, userId, 'quickReactions', (cur) => mutator(coerceQuickReactions(cur)));
+export function updateQuickReactionsDoc(client: StarfishClient, session: Session, mutator: (cur: string[]) => string[] | null): Promise<void> {
+  return updateSpacesExtraField<string[]>(client, session, 'quickReactions', (cur) => mutator(coerceQuickReactions(cur)));
 }
 
-export function updateDeclinedRequestsDoc(client: StarfishClient, userId: string, mutator: (cur: DeclinedRequests) => DeclinedRequests | null): Promise<void> {
-  return updateSpacesExtraField<DeclinedRequests>(client, userId, 'declinedRequests', (cur) => mutator(coerceDeclinedRequests(cur)));
+export function updateDeclinedRequestsDoc(client: StarfishClient, session: Session, mutator: (cur: DeclinedRequests) => DeclinedRequests | null): Promise<void> {
+  return updateSpacesExtraField<DeclinedRequests>(client, session, 'declinedRequests', (cur) => mutator(coerceDeclinedRequests(cur)));
 }
 
 /** Mark a resource-request id as declined by the owner — idempotent (no write when already present).
  *  Persisted in the `_spaces` doc under `extra.declinedRequests` so subsequent calls to
  *  `listPendingTicketRequests` filter it out, even after refresh or on other devices. */
-export function setRequestDeclined(client: StarfishClient, userId: string, reqId: string): Promise<void> {
-  return updateDeclinedRequestsDoc(client, userId, (cur) => (cur[reqId] ? null : { ...cur, [reqId]: true }));
+export function setRequestDeclined(client: StarfishClient, session: Session, reqId: string): Promise<void> {
+  return updateDeclinedRequestsDoc(client, session, (cur) => (cur[reqId] ? null : { ...cur, [reqId]: true }));
 }
 
-export function updateOutgoingRequestsDoc(client: StarfishClient, userId: string, mutator: (cur: OutgoingRequests) => OutgoingRequests | null): Promise<void> {
-  return updateSpacesExtraField<OutgoingRequests>(client, userId, 'outgoingRequests', (cur) => mutator(coerceOutgoingRequests(cur)));
+export function updateOutgoingRequestsDoc(client: StarfishClient, session: Session, mutator: (cur: OutgoingRequests) => OutgoingRequests | null): Promise<void> {
+  return updateSpacesExtraField<OutgoingRequests>(client, session, 'outgoingRequests', (cur) => mutator(coerceOutgoingRequests(cur)));
 }
 
 /** Record a newly-filed resource request (status: 'pending') in the requester's `_spaces` doc.
  *  Idempotent — skips the write if an entry for the same reqId already exists. */
 export function recordOutgoingRequest(
   client: StarfishClient,
-  userId: string,
+  session: Session,
   reqId: string,
   info: Omit<OutgoingRequest, 'status'>,
 ): Promise<void> {
-  return updateOutgoingRequestsDoc(client, userId, (cur) =>
+  return updateOutgoingRequestsDoc(client, session, (cur) =>
     cur[reqId] ? null : { ...cur, [reqId]: { ...info, status: 'pending' } },
   );
 }
@@ -150,16 +167,16 @@ export function recordOutgoingRequest(
 /** Mark an outgoing request as refused by the owner — idempotent (no write when already refused).
  *  Persisted in the `_spaces` doc under `extra.outgoingRequests` so the declined state survives
  *  refresh and app restart, and propagates to other devices. */
-export function setOutgoingRequestRefused(client: StarfishClient, userId: string, reqId: string): Promise<void> {
-  return updateOutgoingRequestsDoc(client, userId, (cur) => {
+export function setOutgoingRequestRefused(client: StarfishClient, session: Session, reqId: string): Promise<void> {
+  return updateOutgoingRequestsDoc(client, session, (cur) => {
     const entry = cur[reqId];
     if (!entry || entry.status === 'refused') return null;
     return { ...cur, [reqId]: { ...entry, status: 'refused' } };
   });
 }
 
-export function setDmMapping(client: StarfishClient, userId: string, peerUserId: string, spaceId: string): Promise<void> {
-  return updateDmsDoc(client, userId, (cur) => (cur[peerUserId] === spaceId ? null : { ...cur, [peerUserId]: spaceId }));
+export function setDmMapping(client: StarfishClient, session: Session, peerUserId: string, spaceId: string): Promise<void> {
+  return updateDmsDoc(client, session, (cur) => (cur[peerUserId] === spaceId ? null : { ...cur, [peerUserId]: spaceId }));
 }
 
 // Re-export so existing `import { DEFAULT_CATEGORY } from './registry'` consumers keep working.
@@ -197,13 +214,13 @@ export function normalizeCategories(rooms: Room[], stored: unknown): string[] {
  */
 export async function createSpace(session: Session, name: string): Promise<Space> {
   const { accountClient, spacesRegistryClient, userId } = session;
-  const { spaces, hash } = await readSpaces(spacesRegistryClient, userId);
+  const { spaces } = await readSpaces(spacesRegistryClient, session);
   const trimmed = name.trim() || 'New Space';
   const id = `sp-${randomId()}`;
-  const space: Space = { id, name: trimmed, short: trimmed.slice(0, 2).toUpperCase(), members: 1 };
-  await writeSpaceAccess(accountClient, id, userId, [], null, { name: trimmed });
+  const space: Space = { id, name: trimmed, members: 1 };
+  await writeSpaceAccess(accountClient, id, userId, [], null, session, { name: trimmed });
   await ownerEnsureKeyring(session.contentClient, session.keys, keyringPull(id), keyringPush(id), ownerTrustedAdders(session));
   await seedSpaceObjectIndex(session, id, [{ id: `${id}-general`, name: 'general', kind: 'channel', category: DEFAULT_CATEGORY, enc: true }]);
-  await writeSpaces(spacesRegistryClient, userId, [...spaces, space], hash);
+  await writeSpaces(spacesRegistryClient, session, [...spaces, space]);
   return space;
 }

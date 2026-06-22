@@ -40,7 +40,9 @@ import type {
   RoleEnricher,
 } from "@drakkar.software/starfish-server";
 
-import { SPACE_MEMBER_ROLE } from "./space-role.js";
+// SPACE_MEMBER_ROLE was the sole export used from space-role.ts; define inline
+// so events.ts has no dependency on the now-obsolete space-role module.
+const SPACE_MEMBER_ROLE = 'space:member';
 
 const WHISTLERS_INTERNAL_URL =
   process.env.WHISTLERS_INTERNAL_URL ?? "http://localhost:8080/events";

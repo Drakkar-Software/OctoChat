@@ -18,6 +18,11 @@ vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => ({
     nodeId,
     write,
   })),
+}));
+
+// saveNodeStreamAccessEntry and updateObjectIndex moved to starfish-spaces.
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   saveNodeStreamAccessEntry: vi.fn(),
   updateObjectIndex: vi.fn(async () => undefined),
 }));
@@ -39,7 +44,8 @@ vi.mock('@drakkar.software/starfish-identities', () => ({
 
 import { ensureDeskTicketStreamAccess, createTicketNode } from './registry-write';
 import { defaultTicketMeta } from './ticket';
-import { nodeStreamScope, saveNodeStreamAccessEntry } from '@drakkar.software/octospaces-sdk';
+import { nodeStreamScope } from '@drakkar.software/octospaces-sdk';
+import { saveNodeStreamAccessEntry } from '@drakkar.software/starfish-spaces';
 import { mintMemberCap } from '@drakkar.software/starfish-sharing';
 import type { Session } from '../starfish/identity';
 

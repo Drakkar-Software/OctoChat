@@ -2,7 +2,8 @@
  * Low-level desk mutations on the unified object index.
  * Mirrors the `automations/registry-write.ts` pattern for ticket and shared-room nodes.
  */
-import { nodeStreamScope, saveNodeStreamAccessEntry, updateObjectIndex } from '@drakkar.software/octospaces-sdk';
+import { saveNodeStreamAccessEntry, updateObjectIndex } from '@drakkar.software/starfish-spaces';
+import { nodeStreamScope } from '@drakkar.software/octospaces-sdk';
 import { mintMemberCap } from '@drakkar.software/starfish-sharing';
 import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 import { addObject } from '../starfish/objects';

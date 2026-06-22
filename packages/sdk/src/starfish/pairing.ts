@@ -40,7 +40,7 @@ export async function startDevicePairing(session: Session, pin: string): Promise
       // The entire block is best-effort: if readSpaces fails (network error) we log
       // and return — pairing must succeed regardless of keyring grants.
       try {
-        const { spaces, caps } = await readSpaces(session.spacesRegistryClient, session.userId);
+        const { spaces, caps } = await readSpaces(session.spacesRegistryClient, session);
         const ownedSpaces = spaces.filter(s => !caps[s.id]); // joined spaces have a member cap
         await Promise.all(
           ownedSpaces.map(space =>

@@ -4,10 +4,10 @@ import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 // Mock the heavy orchestration deps (space creation, invite, registry writes, runtime config) so
 // dm-link's own logic — verification delegation, ordering, request-link wrapping — is what's under
 // test. Crypto (hashing, sealing, author proofs, kemSig) stays REAL; delivery is intercepted at
-// `fetch`. The identity-token encode/decode/binding live in octospaces-sdk (tested there) — keep
+// `fetch`. The identity-token encode/decode/binding live in starfish-spaces (tested there) — keep
 // them real (importOriginal); only the live-profile cross-check (`verifyIdentityLinkKeys`) is
 // stubbed so resolveLinkOwner's success/failure is deterministic without a network profile read.
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => ({
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   verifyIdentityLinkKeys: vi.fn(async () => undefined),
 }));
@@ -26,7 +26,7 @@ vi.mock('../config/config', () => ({
   getSyncNamespace: () => undefined,
 }));
 
-import { decodeIdentityLink, myIdentityLink, verifyIdentityLinkKeys, type IdentityLink } from '@drakkar.software/octospaces-sdk';
+import { decodeIdentityLink, myIdentityLink, verifyIdentityLinkKeys, type IdentityLink } from '@drakkar.software/starfish-spaces';
 import { createDmSpaceCore } from './dm';
 import { inviteToSpace } from './members';
 import {
@@ -42,7 +42,16 @@ import { addJoinedSpace, readSpaces, setDmMapping } from './registry';
 async function sess(name = 'tester'): Promise<Session> {
   const keys = generateDeviceKeys();
   const userId = await userIdFromEdPub(keys.edPub);
-  return { userId, name, keys, ownerEdPub: keys.edPub, accountClient: {}, spacesRegistryClient: {} } as unknown as Session;
+  return {
+    userId,
+    name,
+    keys,
+    ownerEdPub: keys.edPub,
+    accountClient: {},
+    spacesRegistryClient: {},
+    // userIdFromEdPub is required by resolveLinkOwner (new in Session 0.25)
+    userIdFromEdPub: async (pub: string) => userIdFromEdPub(pub),
+  } as unknown as Session;
 }
 
 /** A WELL-FORMED v:2 identity token for a real identity (ownerId derived from edPub, valid kemSig).
@@ -67,26 +76,29 @@ beforeEach(() => {
 
 describe('resolveLinkOwner', () => {
   it('returns the trusted peer for a well-formed token (including kemSig)', async () => {
+    const session = await sess();
     const { token } = await mintToken();
-    expect(await resolveLinkOwner(token)).toEqual({
+    expect(await resolveLinkOwner(token, session)).toEqual({
       userId: token.ownerId,
       edPub: token.edPub,
       kemPub: token.kemPub,
       kemSig: token.kemSig,
     });
-    expect(verifyIdentityLinkKeys).toHaveBeenCalledWith(token); // live cross-check is run
+    expect(verifyIdentityLinkKeys).toHaveBeenCalledWith(token, session); // live cross-check is run
   });
 
   it('rejects a token whose ownerId is not the hash of its edPub (tampered routing)', async () => {
+    const session = await sess();
     const { token } = await mintToken();
     const tampered = { ...token, ownerId: await userIdFromEdPub('f'.repeat(64)) };
-    await expect(resolveLinkOwner(tampered)).rejects.toThrow(/malformed|verify/i);
+    await expect(resolveLinkOwner(tampered, session)).rejects.toThrow(/malformed|verify/i);
   });
 
   it('propagates a live-profile key mismatch (kem swap caught by the cross-check)', async () => {
+    const session = await sess();
     const { token } = await mintToken();
     vi.mocked(verifyIdentityLinkKeys).mockRejectedValueOnce(new Error("doesn't match the owner's published identity keys"));
-    await expect(resolveLinkOwner(token)).rejects.toThrow(/published identity keys/);
+    await expect(resolveLinkOwner(token, session)).rejects.toThrow(/published identity keys/);
   });
 });
 
@@ -116,7 +128,7 @@ describe('createDmViaLink', () => {
     expect(ref).toEqual({ spaceId: 'dm-new', roomId: 'dm-dm-new-dm' });
 
     // Regression guard: inviteToSpace must receive a requestJson that includes kemSig so that
-    // parseJoinRequest (octospaces-sdk) does not reject it as "kemSig is missing or invalid".
+    // parseJoinRequest (starfish-spaces) does not reject it as "kemSig is missing or invalid".
     const requestJson = vi.mocked(inviteToSpace).mock.calls[0]?.[2] as string;
     const req = JSON.parse(requestJson) as { edPub?: string; kemPub?: string; userId?: string; kemSig?: string };
     expect(typeof req.kemSig).toBe('string');
@@ -130,7 +142,7 @@ describe('createDmViaLink', () => {
     expect(body.authorPubkey).toBe(session.keys.edPub); // signed with the SENDER's key
     expect(body.authorSignature).toBeTruthy();
     expect(vi.mocked(addJoinedSpace)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(setDmMapping)).toHaveBeenCalledWith(session.spacesRegistryClient, session.userId, token.ownerId, 'dm-new');
+    expect(vi.mocked(setDmMapping)).toHaveBeenCalledWith(session.spacesRegistryClient, session, token.ownerId, 'dm-new');
   });
 
   it('registers nothing when delivery fails (no ghost DM)', async () => {

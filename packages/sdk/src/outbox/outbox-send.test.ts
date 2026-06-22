@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...(actual as object),
@@ -15,13 +15,13 @@ const mockAppend = vi.fn(async () => undefined);
 const mockClient = { append: mockAppend };
 
 import { sendQueued } from './outbox-send';
-import { buildNodeAccess, getSpaceClient } from '@drakkar.software/octospaces-sdk';
+import { buildNodeAccess, getSpaceClient } from '@drakkar.software/starfish-spaces';
 import { clearBuildNodeAccessCache } from '../starfish/node-access-cache';
 import { readIndexRooms } from '../starfish/object-index';
 import type { OutboxMessage } from './outbox-types';
-import type { Session } from '../starfish/identity';
+import { makeMockSession } from '../test-utils/mock-session';
 
-const SESSION = { userId: 'u1' } as unknown as Session;
+const SESSION = makeMockSession({ userId: 'u1' });
 
 const entry = (over: Partial<OutboxMessage> = {}): OutboxMessage => ({
   id: 'msg-1',

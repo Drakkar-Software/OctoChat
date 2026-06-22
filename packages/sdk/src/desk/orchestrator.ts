@@ -16,8 +16,9 @@
  * with `acceptResourceRequest({ create })` so an OctoDesk bot can accept sealed
  * resource requests and create properly-typed ticket nodes with `TicketMeta`.
  */
-import { createNodeInviteLink, addNodeKeyringRecipient, removeNodeKeyringRecipient, readProfile } from '@drakkar.software/octospaces-sdk';
-import type { ResourceRequest } from '@drakkar.software/octospaces-sdk';
+import { createNodeInviteLink, addNodeKeyringRecipient, removeNodeKeyringRecipient } from '@drakkar.software/starfish-spaces';
+import type { ResourceRequest } from '@drakkar.software/starfish-spaces';
+import { readProfile } from '../starfish/client';
 import { randomId } from '../domain/ids';
 import type { Session } from '../starfish/identity';
 import type { ID } from '../domain/types';

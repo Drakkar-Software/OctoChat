@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 
-import type { Space } from '@drakkar.software/octochat-sdk';
+import type { SpaceView } from '@/lib/spaces-context';
 import { SpacesRail } from '@drakkar.software/octospaces-ui';
 import type { RailIconName, RailSpace } from '@drakkar.software/octospaces-ui';
 
@@ -40,7 +40,7 @@ const RAIL_ICON: Record<RailIconName, IconName> = {
 // ── Props (unchanged from before — DesktopNav is untouched) ───────────────────
 
 interface DesktopSpacesRailProps {
-  spaces: Space[];
+  spaces: SpaceView[];
   activeId: string | null;
   onSelect?: (id: string) => void;
   onAdd?: () => void;
@@ -77,11 +77,11 @@ export function DesktopSpacesRail({
   const { isSpaceMuted } = useMutes();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Map domain Space[] → structural RailSpace[] (mute comes from context).
+  // Map domain SpaceView[] → structural RailSpace[] (mute comes from context).
   const railSpaces: RailSpace[] = spaces.map((s) => ({
     id: s.id,
-    short: s.short,
-    image: s.image,
+    short: s.short ?? s.name.slice(0, 2).toUpperCase(),
+    image: s.image ?? undefined,
     unread: s.unread,
     muted: isSpaceMuted(s.id),
   }));

@@ -17,7 +17,7 @@
  *   spaceregistry → spaces/{spaceId}/_access
  *   objindex      → spaces/{spaceId}/objects/_index
  */
-import { getSpaceClient, readSpaceAccess } from '@drakkar.software/octospaces-sdk';
+import { getSpaceClient, readSpaceAccess } from '@drakkar.software/starfish-spaces';
 import type { Session } from '@drakkar.software/octospaces-sdk';
 import { StarfishHttpError } from '@drakkar.software/starfish-client';
 import type { BatchPullEntry } from '@drakkar.software/starfish-client';
@@ -93,7 +93,7 @@ export async function batchPullSpaceData(
     if (err instanceof StarfishHttpError && err.status === 429) throw err;
     // Fallback: concurrent individual pulls (Phase 3c-1 approach, for servers without batch support).
     const [registry, idx] = await Promise.all([
-      readSpaceAccess(client, spaceId),
+      readSpaceAccess(client, spaceId, session),
       readIndexRooms(client, null, objIndexPull(spaceId), spaceId),
     ]);
     return { registry, index: idx };

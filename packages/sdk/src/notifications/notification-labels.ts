@@ -9,7 +9,7 @@
  * failure; a missing room in the index yields a null roomName and the caller falls back to
  * the bare app-name title.
  */
-import { getSpaceClient } from '@drakkar.software/octospaces-sdk';
+import { getSpaceClient } from '@drakkar.software/starfish-spaces';
 import type { Session } from '../starfish/identity';
 import { readIndexRooms } from '../starfish/object-index';
 import { objIndexPull, spaceIdFromRoomId } from '../starfish/paths';
@@ -35,7 +35,7 @@ export async function loadNotificationLabels(
   try {
     const client = getSpaceClient(sid, session);
     const [{ name: spaceName }, indexResult] = await Promise.all([
-      readSpaceAccess(client, sid),
+      readSpaceAccess(client, sid, session),
       readIndexRooms(client, null, objIndexPull(sid), sid),
     ]);
     const room = indexResult?.rooms.find((r) => r.id === roomId);

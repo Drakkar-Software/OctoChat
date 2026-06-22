@@ -23,8 +23,8 @@ import {
   acceptResourceGrant,
   addJoinedSpace,
   buildSpace,
-} from '@drakkar.software/octospaces-sdk';
-import type { ResourceGrant, ResourceReject } from '@drakkar.software/octospaces-sdk';
+} from '@drakkar.software/starfish-spaces';
+import type { ResourceGrant, ResourceReject } from '@drakkar.software/starfish-spaces';
 
 import { readSpaces, recordOutgoingRequest, setOutgoingRequestRefused } from '../starfish/registry';
 import type { OutgoingRequest } from '../domain/types';
@@ -151,7 +151,7 @@ async function submitNodeRequest(
   });
   // Persist the outgoing request so the requester can track its status (pending → refused)
   // across restarts and devices, via the `_spaces` doc `extra.outgoingRequests` field.
-  await recordOutgoingRequest(session.spacesRegistryClient, session.userId, reqId, {
+  await recordOutgoingRequest(session.spacesRegistryClient, session, reqId, {
     spaceId,
     nodeType,
     title: clampField(opts.title, TICKET_TITLE_MAX),
@@ -219,7 +219,7 @@ export async function claimRejectedRequests(
   const claimed: ResourceReject[] = [];
   for (const reject of rejects) {
     try {
-      await setOutgoingRequestRefused(session.spacesRegistryClient, session.userId, reject.reqId);
+      await setOutgoingRequestRefused(session.spacesRegistryClient, session, reject.reqId);
       claimed.push(reject);
     } catch {
       // best-effort; a failed registry write must not block other rejections
@@ -237,7 +237,7 @@ export async function getOutgoingRequestsForSpace(
   session: Session,
   spaceId: string,
 ): Promise<Array<{ reqId: string } & OutgoingRequest>> {
-  const { outgoingRequests } = await readSpaces(session.spacesRegistryClient, session.userId);
+  const { outgoingRequests } = await readSpaces(session.spacesRegistryClient, session);
   return Object.entries(outgoingRequests)
     .filter(([, r]) => r.spaceId === spaceId)
     .map(([reqId, r]) => ({ reqId, ...r }))
@@ -266,7 +266,7 @@ export async function claimGrantedNodes(
       }
       await addJoinedSpace(
         session.spacesRegistryClient,
-        session.userId,
+        session,
         buildSpace(grant.nodeId, nodeName),
       ).catch(() => {
         // Space injection is best-effort: the caps are already stored; if the spaces

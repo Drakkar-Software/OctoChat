@@ -19,7 +19,7 @@ import {
   scanResourceRequests,
   type PendingRequest,
   type ResourceRequest,
-} from '@drakkar.software/octospaces-sdk';
+} from '@drakkar.software/starfish-spaces';
 
 import { isLlmConfigured, runLlm } from '../ai/engine-port';
 import { randomId } from '../domain/ids';
@@ -177,7 +177,7 @@ export async function reconcileTicketRequests(
 export async function listPendingTicketRequests(session: Session, spaceId: string): Promise<PendingRequest[]> {
   const [all, { declinedRequests }] = await Promise.all([
     scanResourceRequests(session, new Set([spaceId])),
-    readSpaces(session.spacesRegistryClient, session.userId),
+    readSpaces(session.spacesRegistryClient, session),
   ]);
   return all.filter((p) => !declinedRequests[p.req.reqId]);
 }
@@ -243,5 +243,5 @@ export async function declineTicketRequest(
   reason?: string,
 ): Promise<void> {
   await rejectResourceRequest(session, pending, reason);
-  await setRequestDeclined(session.spacesRegistryClient, session.userId, pending.req.reqId);
+  await setRequestDeclined(session.spacesRegistryClient, session, pending.req.reqId);
 }

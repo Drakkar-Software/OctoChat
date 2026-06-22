@@ -7,6 +7,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureKv } from '../config/adapters';
+import { makeMockSession } from '../test-utils/mock-session';
 
 // ── Mocks (must come before the module import) ──────────────────────────────────
 
@@ -20,7 +21,7 @@ let fakePull: FakePull = async () => [];
 const mockGetSpaceClient = vi.fn(() => ({
   pull: (...args: Parameters<FakePull>) => fakePull(...args),
 }));
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => {
   const actual = await importOriginal();
   return { ...(actual as object), getSpaceClient: (...args: unknown[]) => mockGetSpaceClient(...args) };
 });
@@ -42,7 +43,7 @@ configureKv({
   remove: async (k) => { mem.delete(k); },
 });
 
-const SESSION = { userId: 'u1', keys: { edPriv: '' } } as never;
+const SESSION = makeMockSession({ userId: 'u1' });
 const DM_SPACE = 'dm-aabbccdd';
 const DM_ROOM = 'dm-aabbccdd-dm';
 

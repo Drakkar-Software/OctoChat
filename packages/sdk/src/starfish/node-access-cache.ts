@@ -32,7 +32,7 @@
  * Call {@link clearBuildNodeAccessCache} on account switch / sign-out alongside
  * {@link clearNodeAccessCache} and `clearPseudoCache`.
  */
-import { buildNodeAccess } from '@drakkar.software/octospaces-sdk';
+import { buildNodeAccess } from '@drakkar.software/starfish-spaces';
 import type { NodeAccess, Session } from '@drakkar.software/octospaces-sdk';
 
 type NodeAccessResult = Awaited<ReturnType<typeof buildNodeAccess>>;

@@ -12,7 +12,7 @@
  *   space/invite + enc:false → `streamRoomPull` (member-gated plaintext)
  */
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
-import { getSpaceClient } from '@drakkar.software/octospaces-sdk';
+import { getSpaceClient } from '@drakkar.software/starfish-spaces';
 import { buildNodeAccessShared } from '../starfish/node-access-cache';
 
 import type { Session } from '../starfish/identity';
@@ -107,7 +107,7 @@ export async function loadAllPins(session: Session, spaceId: string): Promise<Cr
   const client = getSpaceClient(spaceId, session);
 
   // `owner` (the only pin authority) lives in the `_access` registry.
-  const { owner } = await readSpaceAccess(client, spaceId);
+  const { owner } = await readSpaceAccess(client, spaceId, session);
   if (!owner) return [];
 
   // Fold a room's folded log → its pinned messages (latest owner event per id wins, `pin` ⇒ included).

@@ -55,9 +55,9 @@ export * from './starfish/client';
 // from the `private baseUrl` field across duplicate package copies/symlinks).
 export { AppendLogCursor } from '@drakkar.software/starfish-client';
 export * from './starfish/pairing';
-export { sessionFromPersisted, activeAccountOf } from '@drakkar.software/octospaces-sdk';
+export { sessionFromPersisted, activeAccountOf, rootIdentityOf } from '@drakkar.software/octospaces-sdk';
 export { cacheProfile, loadCachedProfile } from '@drakkar.software/octospaces-sdk';
-export { pullCache, PULL_CACHE_MAX_AGE_MS } from '@drakkar.software/octospaces-sdk';
+export * from './starfish/pull-cache';
 export * from './starfish/node-access-cache';
 export * from './starfish/batch-space';
 export * from './starfish/registry';
@@ -149,9 +149,8 @@ export * from './desk/requester';
 // ── domain/capabilities — variant capability registry ─────────────────────────
 export * from './domain/capabilities';
 
-// ── octospaces-sdk — new generic utilities (0.4.3) ─────────────────────────────
-// These were extracted into the shared SDK; re-exported here so OctoChat code
-// imports from '@drakkar.software/octochat-sdk' without knowing the origin.
+// ── octospaces-sdk — residual generic utilities ────────────────────────────────
+// Symbols still owned by octospaces-sdk after the 0.23 spaces-domain extraction.
 export {
   // search-match — quick-find title ranker
   matchTitle,
@@ -170,6 +169,16 @@ export {
   // invite-preview — classify an invite string before joining
   previewInvite,
   type InvitePreview,
+  // anonymous signed append (appendToInbox stays here; postAnonymousAppend removed in 0.24)
+  appendToInbox,
+  AppendHttpError,
+  // SpaceInviteLinkToken / NodeInviteLinkToken still bridged via octospaces-sdk (invite-preview)
+  type SpaceInviteLinkToken,
+  type NodeInviteLinkToken,
+} from '@drakkar.software/octospaces-sdk';
+
+// ── starfish-spaces — spaces domain (moved from octospaces-sdk 0.23) ──────────
+export {
   // per-node access model
   type NodeAccess,
   getNodeAccess,
@@ -198,7 +207,6 @@ export {
   // space-wide invite links
   createSpaceInviteLink,
   decodeSpaceInviteLink,
-  type SpaceInviteLinkToken,
   // joining spaces via link
   joinSpaceByLink,
   // hard access-denial error (thrown by getNodeAccess / openEncryptor)
@@ -214,16 +222,11 @@ export {
   joinNodeByLink,
   type CreateNodeInput,
   type NodeInviteBundle,
-  type NodeInviteLinkToken,
   // inbox helpers (shard rotation + authenticated read)
   inboxShard,
   inboxShards,
   pullInbox,
   type InboxElement,
-  // anonymous signed append
-  appendToInbox,
-  postAnonymousAppend,
-  AppendHttpError,
   // pure-identity link tokens (no cap/credential — safe to publish)
   encodeIdentityLink,
   decodeIdentityLink,
@@ -245,4 +248,4 @@ export {
   type PendingRequest,
   type AcceptResult,
   type SubmitResourceRequestOptions,
-} from '@drakkar.software/octospaces-sdk';
+} from '@drakkar.software/starfish-spaces';

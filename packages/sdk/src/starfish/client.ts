@@ -1,44 +1,104 @@
 /**
  * Starfish client construction + room keyring/encryptor helpers.
  *
- * Most helpers (makeClient, capProviderFor, profile R/W, auth headers) are
- * thin re-exports from @drakkar.software/octospaces-sdk — they use the same
- * configureOctoSpaces / configureKv setup OctoChat wires at boot.
+ * Profile read/write functions are thin wrappers that inject the global
+ * connection config (baseUrl, namespace via the octospaces-sdk residual
+ * `getSyncBase()` / `getSyncNamespace()`) into the new starfish-spaces API,
+ * preserving the old single-argument call signature used throughout the app.
  *
  * openEncryptor / buildEncryptor are OctoChat-flavored wrappers: they take a
- * `spaceId` string and construct the keyring pull path internally, so callers
- * in members.ts don't need to import keyringPull separately.
+ * `spaceId` string and construct the keyring pull path internally.
+ *
+ * makeClient is re-exported as an alias for the renamed makeSpaceClient.
  */
 import type { Encryptor } from '@drakkar.software/starfish-client';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
 import {
+  makeSpaceClient,
+  capProviderFor,
   openEncryptor as _openEncryptor,
   buildEncryptor as _buildEncryptor,
-} from '@drakkar.software/octospaces-sdk';
-import type { DeviceKeys } from '@drakkar.software/octospaces-sdk';
+  ownerEnsureKeyring,
+  readProfile as _readProfile,
+  readProfiles as _readProfiles,
+  writeProfile as _writeProfile,
+  ensurePseudo as _ensurePseudo,
+  ensureProfileKeys as _ensureProfileKeys,
+  buildAuthHeaders,
+  defaultSpaceLayout,
+} from '@drakkar.software/starfish-spaces';
+import type { DeviceKeys, PublicProfile, SpaceLayout } from '@drakkar.software/starfish-spaces';
+import { getSyncBase, getSyncNamespace, profilePull, profilePush } from '@drakkar.software/octospaces-sdk';
 
 import { keyringPull } from './paths';
 
-export type { DeviceKeys, PublicProfile } from '@drakkar.software/octospaces-sdk';
+export type { DeviceKeys, PublicProfile };
+export { capProviderFor, ownerEnsureKeyring, buildAuthHeaders };
 
-export {
-  capProviderFor,
-  makeClient,
-  ownerEnsureKeyring,
-  readProfile,
-  readPseudo,
-  readProfiles,
-  writeProfile,
-  writePseudo,
-  ensureProfileKeys,
-  buildAuthHeaders,
-  ensurePseudo,
-} from '@drakkar.software/octospaces-sdk';
+/** makeClient wrapper — renamed to makeSpaceClient in starfish-spaces; injects connection globals so
+ *  callers keep the old 2-arg ergonomics: makeClient(cap, edPrivHex). */
+export function makeClient(cap: unknown, devEdPrivHex: string): StarfishClient {
+  return makeSpaceClient(cap, devEdPrivHex, { baseUrl: getSyncBase(), namespace: getSyncNamespace() ?? '' });
+}
+
+/**
+ * Build a SpaceLayout that uses the octospaces-sdk namespace-aware profile
+ * path helpers so profile reads/writes land on the correct server path.
+ */
+function octoLayout(): SpaceLayout {
+  return { ...defaultSpaceLayout, profilePull, profilePush };
+}
+
+/** Read a user's public profile (pseudo, avatar, public keys). Injects globals. */
+export async function readProfile(userId: string): Promise<PublicProfile> {
+  return _readProfile(userId, { baseUrl: getSyncBase(), layout: octoLayout() });
+}
+
+/** Read just the pseudo of a user (convenience for notification formatting). */
+export async function readPseudo(userId: string): Promise<string | null> {
+  return readProfile(userId).then((p) => p.pseudo ?? null).catch(() => null);
+}
+
+/** Read multiple users' profiles in batched round-trips. Injects globals. */
+export async function readProfiles(ids: string[]): Promise<Map<string, PublicProfile>> {
+  return _readProfiles(ids, {
+    baseUrl: getSyncBase(),
+    namespace: getSyncNamespace() ?? '',
+    layout: octoLayout(),
+  });
+}
+
+/** Merge a patch into the caller's own profile doc. Injects the layout. */
+export async function writeProfile(
+  client: StarfishClient,
+  userId: string,
+  patch: { pseudo?: string; avatar?: string | null; edPub?: string; kemPub?: string; kemSig?: string },
+): Promise<void> {
+  return _writeProfile(client, userId, octoLayout(), patch);
+}
+
+/** Seed the caller's profile pseudo only when none exists yet. Injects the layout. */
+export async function ensurePseudo(
+  client: StarfishClient,
+  userId: string,
+  fallback: string,
+): Promise<string> {
+  return _ensurePseudo(client, userId, octoLayout(), fallback);
+}
+
+/** Publish this identity's Ed + KEM keys in its profile (one-time, idempotent). Injects the layout. */
+export async function ensureProfileKeys(
+  client: StarfishClient,
+  userId: string,
+  keys: { edPub: string; kemPub: string; edPriv: string },
+): Promise<void> {
+  return _ensureProfileKeys(client, userId, octoLayout(), keys);
+}
 
 /**
  * Open a space's decryptor by spaceId, throwing a descriptive error per failure mode.
- * Wraps octospaces-sdk's path-based openEncryptor using keyringPull(spaceId).
+ * Wraps starfish-spaces' path-based openEncryptor using keyringPull(spaceId).
  */
 export async function openEncryptor(
   client: StarfishClient,

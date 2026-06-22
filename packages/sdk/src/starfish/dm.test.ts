@@ -7,14 +7,14 @@
  *   1. createDmSpaceCore SEEDS the peer into the roster at creation (no read-modify-write race).
  *   2. healDmRosters REPAIRS pre-existing DMs (owner-only, idempotent, best-effort).
  *
- * The real `addSpaceMember`/`readSpaceAccess`/`writeSpaceAccess` (octospaces-sdk, re-exported
+ * The real `addSpaceMember`/`readSpaceAccess`/`writeSpaceAccess` (starfish-spaces, re-exported
  * via ./registry) run against an in-memory fake StarfishClient so the asserted `_access`
  * roster is the genuine end-to-end outcome — only the keyring/index side effects are stubbed.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Keep registry / dm-ids / identity REAL; stub only the irrelevant side effects.
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => ({
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   ownerEnsureKeyring: vi.fn(async () => undefined),
   getSpaceClient: vi.fn(() => ({})),
@@ -23,6 +23,7 @@ vi.mock('./object-index', () => ({ pushIndexSeed: vi.fn(async () => undefined), 
 
 import { createDmSpaceCore, healDmRosters } from './dm';
 import { isDmSpaceId } from './dm-ids';
+import { makeMockSession } from '../test-utils/mock-session';
 import type { Session } from './identity';
 
 interface AccessDoc {
@@ -57,14 +58,12 @@ function fakeAccessClient(seed: Record<string, AccessDoc> = {}) {
 }
 
 function sessionWith(client: ReturnType<typeof fakeAccessClient>, userId = 'me'): Session {
-  return {
+  return makeMockSession({
     userId,
-    name: 'Me',
-    keys: { edPub: 'ed-pub', edPriv: 'ed-priv', kemPub: 'kem-pub', kemPriv: 'kem-priv' },
-    contentClient: client,
-    accountClient: client,
-    spacesRegistryClient: client,
-  } as unknown as Session;
+    contentClient: client as unknown as Session['contentClient'],
+    accountClient: client as unknown as Session['accountClient'],
+    spacesRegistryClient: client as unknown as Session['spacesRegistryClient'],
+  });
 }
 
 beforeEach(() => vi.clearAllMocks());

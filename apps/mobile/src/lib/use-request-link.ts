@@ -10,7 +10,7 @@ import { Platform } from 'react-native';
 
 import {
   decodeIdentityLink,
-  verifyIdentityLinkBinding,
+  verifyLinkBinding,
   type IdentityLink,
 } from '@drakkar.software/octochat-sdk';
 import { useInviteFragment } from '@/lib/use-invite-link';
@@ -48,7 +48,7 @@ export function useRequestLink(spaceId: string | undefined): RequestLinkInfo {
     if (!token) return;
     let cancelled = false;
     setVerified(null);
-    void verifyIdentityLinkBinding(token).then((ok) => {
+    void verifyLinkBinding(token).then((ok) => {
       if (!cancelled) setVerified(ok);
     });
     return () => { cancelled = true; };

@@ -151,7 +151,7 @@ async function hydrateCapsFor(session: Session): Promise<void> {
   // prime SpacesProvider with the list; neither then re-reads the identical doc. Pass
   // the seed-authenticated accountClient (readSpaces degrades to empty on failure,
   // which leaves the local cap cache intact).
-  const { spaces, caps, mutes, reads, quickReactions, archivedDms, pubAccess } = await readSpaces(session.spacesRegistryClient, session.userId);
+  const { spaces, caps, mutes, reads, quickReactions, archivedDms, pubAccess } = await readSpaces(session.spacesRegistryClient, session);
   // Recover any space-access entries that are local-only back to the server, and
   // pull any server-only entries into the local cache (e.g. a join made on another
   // device). Best-effort — a failed recovery leaves the local cache intact.

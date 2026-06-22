@@ -63,8 +63,8 @@ export function SpaceSwitcher() {
     ...spaces.map((s) => ({
       id: s.id,
       name: s.name,
-      short: s.short,
-      image: s.image,
+      short: s.short ?? s.name.slice(0, 2).toUpperCase(),
+      image: s.image ?? undefined,
       unread: s.unread,
     })),
   ];

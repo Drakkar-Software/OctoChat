@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...(actual as object),
@@ -8,11 +8,11 @@ vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
   };
 });
 
-import { buildNodeAccess } from '@drakkar.software/octospaces-sdk';
+import { buildNodeAccess } from '@drakkar.software/starfish-spaces';
 import { buildNodeAccessShared, clearBuildNodeAccessCache } from './node-access-cache';
-import type { Session } from '@drakkar.software/octospaces-sdk';
+import { makeMockSession } from '../test-utils/mock-session';
 
-const session = { userId: 'u1' } as unknown as Session;
+const session = makeMockSession({ userId: 'u1' });
 const handle = { client: {}, encryptor: {} };
 
 beforeEach(() => {
@@ -107,7 +107,7 @@ describe('buildNodeAccessShared — result cache', () => {
 
   it('uses separate cache keys for different userIds', async () => {
     vi.mocked(buildNodeAccess).mockResolvedValue(handle as never);
-    const s2 = { userId: 'u2' } as unknown as Session;
+    const s2 = makeMockSession({ userId: 'u2' });
     await buildNodeAccessShared(session, 'sp-1', 'r-1', { enc: true });
     await buildNodeAccessShared(s2, 'sp-1', 'r-1', { enc: true });
     expect(vi.mocked(buildNodeAccess)).toHaveBeenCalledTimes(2);

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // stubbing the two side-effects: secret load and the space client append call.
 const mockAppend = vi.fn(async () => undefined);
 vi.mock('./secrets', () => ({ loadAutomationSecrets: vi.fn(async () => ({})) }));
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...(actual as object),

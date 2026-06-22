@@ -3,14 +3,14 @@
  *
  * All space list / caps / access-record functions (readSpaces, updateSpacesDoc,
  * readSpaceAccess, writeSpaceAccess, etc.) are now thin re-exports from
- * @drakkar.software/octospaces-sdk, which has its own test suite. This file
+ * @drakkar.software/starfish-spaces, which has its own test suite. This file
  * only tests OctoChat-specific behavior: createSpace (keyring mint + seed order).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Stub the SDK — we need to intercept ownerEnsureKeyring and a few registry
+// Stub starfish-spaces — we need to intercept ownerEnsureKeyring and the registry
 // functions that createSpace imports and calls.
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...(actual as object),
@@ -35,23 +35,10 @@ vi.mock('./object-index', () => ({
   seedSpaceObjectIndex: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { ownerEnsureKeyring, readSpaces, writeSpaceAccess, writeSpaces } from '@drakkar.software/octospaces-sdk';
+import { ownerEnsureKeyring, readSpaces as readSpacesCore, writeSpaceAccess, writeSpaces } from '@drakkar.software/starfish-spaces';
+import { makeMockSession } from '../test-utils/mock-session';
 import { seedSpaceObjectIndex } from './object-index';
 import { createSpace } from './registry';
-
-function fakeClient() {
-  return { pull: vi.fn(), push: vi.fn() } as never;
-}
-
-function makeSession(userId = 'alice') {
-  return {
-    userId,
-    accountClient: fakeClient(),
-    contentClient: fakeClient(),
-    spacesRegistryClient: fakeClient(),
-    keys: { edPub: 'ed-pub', edPriv: 'ed-priv', kemPub: 'kem-pub', kemPriv: 'kem-priv' },
-  } as never;
-}
 
 // ── createSpace regression tests ──────────────────────────────────────────────
 //
@@ -64,32 +51,32 @@ describe('createSpace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(ownerEnsureKeyring).mockResolvedValue({} as never);
-    vi.mocked(readSpaces).mockResolvedValue({ spaces: [], caps: {}, dms: {}, hash: 'h-spaces' } as never);
+    vi.mocked(readSpacesCore).mockResolvedValue({ spaces: [], caps: {}, dms: {}, hash: 'h-spaces' } as never);
     vi.mocked(writeSpaceAccess).mockResolvedValue(undefined);
     vi.mocked(writeSpaces).mockResolvedValue(undefined);
     vi.mocked(seedSpaceObjectIndex).mockResolvedValue(undefined);
   });
 
   it('returns a Space with id, name, short, and members:1', async () => {
-    const space = await createSpace(makeSession(), 'My Test Space');
-    expect(space).toMatchObject({ name: 'My Test Space', short: 'MY', members: 1 });
+    const space = await createSpace(makeMockSession({ userId: 'alice' }), 'My Test Space');
+    expect(space).toMatchObject({ name: 'My Test Space', members: 1 });
     expect(typeof space.id).toBe('string');
     expect(space.id.startsWith('sp-')).toBe(true);
   });
 
   it('trims the name and defaults to "New Space" when blank', async () => {
-    const space = await createSpace(makeSession(), '   ');
+    const space = await createSpace(makeMockSession({ userId: 'alice' }), '   ');
     expect(space.name).toBe('New Space');
   });
 
   it('FIX A: calls ownerEnsureKeyring to mint the space keyring on createSpace', async () => {
-    const session = makeSession();
+    const session = makeMockSession({ userId: 'alice' });
     await createSpace(session, 'Enc Space');
     expect(vi.mocked(ownerEnsureKeyring)).toHaveBeenCalledTimes(1);
     // Signature: (client, keys, pullPath, pushPath, trustedAdders)
     expect(vi.mocked(ownerEnsureKeyring)).toHaveBeenCalledWith(
-      (session as never as { contentClient: unknown }).contentClient,
-      (session as never as { keys: unknown }).keys,
+      session.contentClient,
+      session.keys,
       expect.stringContaining('_keyring'),
       expect.stringContaining('_keyring'),
       expect.any(Array),
@@ -101,12 +88,12 @@ describe('createSpace', () => {
     vi.mocked(writeSpaceAccess).mockImplementation(async () => { callOrder.push('writeSpaceAccess'); });
     vi.mocked(ownerEnsureKeyring).mockImplementation(async () => { callOrder.push('ownerEnsureKeyring'); return {} as never; });
     vi.mocked(seedSpaceObjectIndex).mockImplementation(async () => { callOrder.push('seedSpaceObjectIndex'); });
-    await createSpace(makeSession(), 'Order Test');
+    await createSpace(makeMockSession({ userId: 'alice' }), 'Order Test');
     expect(callOrder).toEqual(['writeSpaceAccess', 'ownerEnsureKeyring', 'seedSpaceObjectIndex']);
   });
 
   it('seeds the object index with a general channel that has enc:true', async () => {
-    await createSpace(makeSession(), 'Enc Space');
+    await createSpace(makeMockSession({ userId: 'alice' }), 'Enc Space');
     expect(vi.mocked(seedSpaceObjectIndex)).toHaveBeenCalledTimes(1);
     const [, , nodes] = vi.mocked(seedSpaceObjectIndex).mock.calls[0] as [unknown, string, Array<{ name: string; enc?: boolean }>];
     const general = nodes.find((n) => n.name === 'general');
@@ -116,13 +103,13 @@ describe('createSpace', () => {
 
   it('propagates a keyring-mint failure without calling writeSpaces (crash-safety)', async () => {
     vi.mocked(ownerEnsureKeyring).mockRejectedValueOnce(new Error('keyring write failed'));
-    await expect(createSpace(makeSession(), 'Bad Space')).rejects.toThrow('keyring write failed');
+    await expect(createSpace(makeMockSession({ userId: 'alice' }), 'Bad Space')).rejects.toThrow('keyring write failed');
     expect(vi.mocked(writeSpaces)).not.toHaveBeenCalled();
   });
 
   it('idempotent: ownerEnsureKeyring is called for each createSpace invocation', async () => {
-    const session = makeSession();
-    vi.mocked(readSpaces).mockResolvedValue({ spaces: [], caps: {}, dms: {}, hash: null } as never);
+    const session = makeMockSession({ userId: 'alice' });
+    vi.mocked(readSpacesCore).mockResolvedValue({ spaces: [], caps: {}, dms: {}, hash: null } as never);
     await createSpace(session, 'Space One');
     await createSpace(session, 'Space Two');
     expect(vi.mocked(ownerEnsureKeyring)).toHaveBeenCalledTimes(2);

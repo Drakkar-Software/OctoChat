@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => ({
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   localSpaceAccessEntries: vi.fn(() => ({})),
   submitResourceRequest: vi.fn(() => Promise.resolve({ reqId: 'req-test-1' })),
@@ -46,11 +46,11 @@ import {
   acceptResourceGrant,
   addJoinedSpace,
   buildSpace,
-} from '@drakkar.software/octospaces-sdk';
+} from '@drakkar.software/starfish-spaces';
 import { readSpaces, recordOutgoingRequest, setOutgoingRequestRefused } from '../starfish/registry';
 import { readSealedTicketInfo } from './ticket-info';
 import type { Session } from '../starfish/identity';
-import type { ResourceGrant, ResourceReject } from '@drakkar.software/octospaces-sdk';
+import type { ResourceGrant, ResourceReject } from '@drakkar.software/starfish-spaces';
 
 const session = { userId: 'u1', spacesRegistryClient: {} } as unknown as Session;
 const member = { kind: 'member', cap: 'c' } as const;
@@ -242,7 +242,7 @@ describe('submitTicketRequest / submitRoomRequest → recordOutgoingRequest', ()
     });
     expect(recordOutgoingRequest).toHaveBeenCalledWith(
       session.spacesRegistryClient,
-      session.userId,
+      session,
       'req-ticket-1',
       expect.objectContaining({ spaceId: 'sp-1', nodeType: 'ticket', title: 'Login fails' }),
     );
@@ -256,7 +256,7 @@ describe('submitTicketRequest / submitRoomRequest → recordOutgoingRequest', ()
     });
     expect(recordOutgoingRequest).toHaveBeenCalledWith(
       session.spacesRegistryClient,
-      session.userId,
+      session,
       'req-room-1',
       expect.objectContaining({ spaceId: 'sp-1', nodeType: 'room', title: 'Design room' }),
     );
@@ -283,7 +283,7 @@ describe('claimRejectedRequests', () => {
     const result = await claimRejectedRequests(session);
     expect(setOutgoingRequestRefused).toHaveBeenCalledWith(
       session.spacesRegistryClient,
-      session.userId,
+      session,
       'req-1',
     );
     expect(result).toEqual([reject]);

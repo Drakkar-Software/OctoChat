@@ -17,7 +17,7 @@ import type { StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { DmMap, Space } from '../domain/types';
 
-import { getSpaceClient, ownerEnsureKeyring } from '@drakkar.software/octospaces-sdk';
+import { getSpaceClient, ownerEnsureKeyring } from '@drakkar.software/starfish-spaces';
 import { keyringPull, keyringPush } from './paths';
 import { acceptSpaceInvite, inviteToSpace } from './members';
 import { dmRoomId, dmWinner, isDmSpaceId, newDmSpaceId } from './dm-ids';
@@ -57,7 +57,7 @@ export async function createDmSpaceCore(session: Session, peerPseudo: string, pe
   // Writing `members` here — instead of the later read-modify-write `addSpaceMember` inside
   // `inviteToSpace` — avoids a read-after-write race that could drop the peer; that
   // addSpaceMember then no-ops. `healDmRosters` repairs DMs created before this seeding.
-  await writeSpaceAccess(session.contentClient, spaceId, session.userId, peerUserId ? [peerUserId] : [], null, { name: peerPseudo });
+  await writeSpaceAccess(session.contentClient, spaceId, session.userId, peerUserId ? [peerUserId] : [], null, session, { name: peerPseudo });
   // enc:true: DM messages are sealed with the space keyring (streamchat); the client
   // must open the encryptor to decrypt them. access is 'space' (default — DM-space
   // members only), so no explicit access field is needed.
@@ -69,7 +69,7 @@ export async function createDmSpaceCore(session: Session, peerPseudo: string, pe
  *  out of the rail by isDmSpaceId). The stored name is cosmetic — the DM list always
  *  derives the peer's pseudo per viewer. */
 export function dmSpaceRecord(spaceId: string, peerPseudo: string): Space {
-  return { id: spaceId, name: peerPseudo, short: peerPseudo.slice(0, 2).toUpperCase(), members: 2 };
+  return { id: spaceId, name: peerPseudo, members: 2 };
 }
 
 /** Create a private DM space owned by this session: seed its keyring + the single
@@ -78,7 +78,7 @@ export function dmSpaceRecord(spaceId: string, peerPseudo: string): Space {
  *  cap are added via {@link inviteToSpace}. */
 async function createDmSpace(session: Session, peerPseudo: string, peerUserId: string): Promise<DmRef> {
   const ref = await createDmSpaceCore(session, peerPseudo, peerUserId);
-  await addJoinedSpace(session.spacesRegistryClient, session.userId, dmSpaceRecord(ref.spaceId, peerPseudo));
+  await addJoinedSpace(session.spacesRegistryClient, session, dmSpaceRecord(ref.spaceId, peerPseudo));
   return ref;
 }
 
@@ -97,7 +97,7 @@ export async function findSharedSpaceWith(
   for (const s of knownSpaces) {
     if (isDmSpaceId(s.id)) continue;
     try {
-      const { owner, members } = await readSpaceAccess(session.accountClient, s.id);
+      const { owner, members } = await readSpaceAccess(session.accountClient, s.id, session);
       const roster = new Set<string>([owner ?? '', ...members].filter(Boolean));
       if (roster.has(me) && roster.has(peerUserId)) return s.id;
     } catch {
@@ -122,7 +122,7 @@ export async function createOrOpenDm(
   sharedSpaceId: string,
 ): Promise<DmRef> {
   // Dedup against fresh server state (covers a DM created on another device).
-  const { dms } = await readSpaces(session.spacesRegistryClient, session.userId);
+  const { dms } = await readSpaces(session.spacesRegistryClient, session);
   const existing = dms[peerUserId];
   if (existing) return { spaceId: existing, roomId: dmRoomId(existing) };
 
@@ -132,7 +132,7 @@ export async function createOrOpenDm(
   // we just stored for the bundle.
   const requestJson = JSON.stringify({ edPub: peerKeys.edPub, kemPub: peerKeys.kemPub, userId: peerUserId, kemSig: peerKeys.kemSig });
   const inviteJson = await inviteToSpace(session, ref.spaceId, requestJson, true);
-  await setDmMapping(session.spacesRegistryClient, session.userId, peerUserId, ref.spaceId);
+  await setDmMapping(session.spacesRegistryClient, session, peerUserId, ref.spaceId);
   // Deliver: seal the invite to the peer and append it to the shared space's carrier.
   const client = getSpaceClient(sharedSpaceId, session);
   await appendDmInvite(session, client, sharedSpaceId, peerKeys.kemPub, inviteJson);
@@ -162,13 +162,13 @@ export async function healDmMap(session: Session, rawSpaces: Space[], dmMap: DmM
   const healed: DmMap = { ...dmMap };
   for (const s of orphans) {
     try {
-      const { owner, members } = await readSpaceAccess(session.accountClient, s.id);
+      const { owner, members } = await readSpaceAccess(session.accountClient, s.id, session);
       // Owner is the creator; members holds the other side. The peer is whichever
       // roster entry isn't us (works from both the creator's and the invitee's view).
       const peer = [owner ?? '', ...members].find((u) => u && u !== session.userId);
       if (!peer || healed[peer]) continue; // unknown peer, or peer already mapped — skip
       healed[peer] = s.id;
-      void setDmMapping(session.spacesRegistryClient, session.userId, peer, s.id).catch(() => {});
+      void setDmMapping(session.spacesRegistryClient, session, peer, s.id).catch(() => {});
     } catch {
       /* unreadable dm space — skip, try again next refresh */
     }
@@ -193,7 +193,7 @@ export async function healDmMap(session: Session, rawSpaces: Space[], dmMap: DmM
 export async function healDmRosters(session: Session, dms: DmMap): Promise<void> {
   for (const [peerUserId, spaceId] of Object.entries(dms)) {
     if (!isDmSpaceId(spaceId)) continue;
-    await addSpaceMember(session.contentClient, spaceId, session.userId, peerUserId).catch(() => {});
+    await addSpaceMember(session.contentClient, spaceId, session.userId, peerUserId, session).catch(() => {});
   }
 }
 
@@ -218,7 +218,7 @@ async function acceptScannedInvites(
     // can read it before fully accepting.
     let peerUserId: string | null;
     try {
-      peerUserId = (await readSpaceAccess(session.accountClient, inv.spaceId)).owner;
+      peerUserId = (await readSpaceAccess(session.accountClient, inv.spaceId, session)).owner;
     } catch {
       continue;
     }
@@ -231,7 +231,7 @@ async function acceptScannedInvites(
       continue; // not actually bound to us / keyring not shared — skip
     }
     if (dms[peerUserId] !== inv.spaceId) {
-      await setDmMapping(session.spacesRegistryClient, session.userId, peerUserId, inv.spaceId);
+      await setDmMapping(session.spacesRegistryClient, session, peerUserId, inv.spaceId);
       dms[peerUserId] = inv.spaceId; // reflect locally so a later invite in this run dedups
       accepted.add(inv.spaceId);
       changed = true;
@@ -252,7 +252,7 @@ async function acceptScannedInvites(
  * un-acceptable invite is skipped, never fatal.
  */
 export async function reconcileDmInbox(session: Session, knownSpaces: Space[]): Promise<boolean> {
-  const { dms, caps } = await readSpaces(session.spacesRegistryClient, session.userId);
+  const { dms, caps } = await readSpaces(session.spacesRegistryClient, session);
   // Skip invites for spaces we've already joined (mapped, or holding a member cap).
   const accepted = new Set<string>([...Object.values(dms), ...Object.keys(caps)]);
   let changed = false;

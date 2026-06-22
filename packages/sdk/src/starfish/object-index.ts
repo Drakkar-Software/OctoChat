@@ -9,10 +9,10 @@
  * `createSpace`/`createDmSpace` write at space creation.
  */
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
-import { getSpaceClient } from '@drakkar.software/octospaces-sdk';
+import { getSpaceClient } from '@drakkar.software/starfish-spaces';
 
-// Generic index helpers (no room-category projection) — re-exported from octospaces-sdk.
-export { updateObjectIndex, readObjectTree } from '@drakkar.software/octospaces-sdk';
+// Generic index helpers (no room-category projection) — re-exported from starfish-spaces.
+export { updateObjectIndex, readObjectTree } from '@drakkar.software/starfish-spaces';
 
 import type { ObjectNode, Room } from '../domain/types';
 

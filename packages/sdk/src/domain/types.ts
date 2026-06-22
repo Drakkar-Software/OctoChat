@@ -1,7 +1,8 @@
 /** Domain model for OctoChat — the chat-domain types shared by the SDK and any UI. */
 
-// Shared scaffolding re-exported from octospaces-sdk so downstream consumers get
-// them from one place. OctoChat-specific types follow below.
+// Shared scaffolding re-exported so downstream consumers get them from one place.
+// Space moved to starfish-spaces in 0.23; residual types remain in octospaces-sdk.
+export type { Space } from '@drakkar.software/starfish-spaces';
 export type {
   ID,
   PresenceStatus,
@@ -12,7 +13,6 @@ export type {
   MutePrefs,
   ReadValue,
   ReadPrefs,
-  Space,
   ObjectContentKind,
 } from '@drakkar.software/octospaces-sdk';
 

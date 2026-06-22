@@ -3,14 +3,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockAppend = vi.fn(async () => undefined);
 const mockPull = vi.fn(async () => [] as unknown[]);
 
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => ({
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   buildNodeAccess: vi.fn(),
   getNodeStreamClient: vi.fn(() => ({ append: mockAppend, pull: mockPull })),
 }));
 
 import { writeSealedTicketInfo, readSealedTicketInfo } from './ticket-info';
-import { buildNodeAccess } from '@drakkar.software/octospaces-sdk';
+import { buildNodeAccess } from '@drakkar.software/starfish-spaces';
 import { clearBuildNodeAccessCache } from '../starfish/node-access-cache';
 import type { Session } from '../starfish/identity';
 

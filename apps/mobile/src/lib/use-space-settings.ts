@@ -32,13 +32,13 @@ export function useSpaceSettings(spaceId: string) {
   const refresh = useCallback(async () => {
     if (!session) return;
     const spaceClient = getSpaceClient(spaceId, session);
-    const { owner, members: roster, name: sharedName, image: sharedImage } = await readSpaceAccess(spaceClient, spaceId);
-    const { spaces } = await readSpaces(session.spacesRegistryClient, session.userId);
+    const { owner, members: roster, name: sharedName, image: sharedImage } = await readSpaceAccess(spaceClient, spaceId, session);
+    const { spaces } = await readSpaces(session.spacesRegistryClient, session);
     const local = spaces.find((s) => s.id === spaceId);
     setOwnerId(owner);
     setMembers(roster);
     setName(sharedName ?? local?.name ?? '');
-    setImage(sharedImage ?? local?.image ?? null);
+    setImage(sharedImage ?? null);
   }, [session, spaceId]);
 
   useEffect(() => {
@@ -108,17 +108,17 @@ export function useSpaceSettings(spaceId: string) {
     setSaving(true);
     try {
       const spaceClient = getSpaceClient(spaceId, session);
-      const { owner, members: roster, hash } = await readSpaceAccess(spaceClient, spaceId);
-      await writeSpaceAccess(spaceClient, spaceId, owner ?? session.userId, roster, hash, {
+      const { owner, members: roster, hash } = await readSpaceAccess(spaceClient, spaceId, session);
+      await writeSpaceAccess(spaceClient, spaceId, owner ?? session.userId, roster, hash, session, {
         name: nextName,
         image: nextImage,
       });
       const short = nextName.slice(0, 2).toUpperCase();
-      const { spaces, hash: spacesHash } = await readSpaces(session.spacesRegistryClient, session.userId);
+      const { spaces } = await readSpaces(session.spacesRegistryClient, session);
       const next = spaces.map((s) =>
         s.id === spaceId ? { ...s, name: nextName, short, image: nextImage ?? undefined } : s,
       );
-      await writeSpaces(session.spacesRegistryClient, session.userId, next, spacesHash);
+      await writeSpaces(session.spacesRegistryClient, session, next);
       broadcastSpaceMeta(spaceId, { name: nextName, short, image: nextImage ?? undefined });
       setName(nextName);
       setImage(nextImage);
@@ -153,7 +153,7 @@ export function useSpaceSettings(spaceId: string) {
   /** Drop the space from your own list + forget its durable credential. */
   const leave = useCallback(async () => {
     if (!session) return;
-    await removeJoinedSpace(session.spacesRegistryClient, session.userId, spaceId);
+    await removeJoinedSpace(session.spacesRegistryClient, session, spaceId);
     removeSpaceAccessEntry(spaceId);
   }, [session, spaceId]);
 
@@ -162,11 +162,11 @@ export function useSpaceSettings(spaceId: string) {
     async (memberUserId: string) => {
       if (!session) return;
       const spaceClient = getSpaceClient(spaceId, session);
-      const { owner, members: roster, name: n, image: img, hash } = await readSpaceAccess(spaceClient, spaceId);
+      const { owner, members: roster, name: n, image: img, hash } = await readSpaceAccess(spaceClient, spaceId, session);
       if (!roster.includes(memberUserId)) return; // idempotent
       await writeSpaceAccess(
         spaceClient, spaceId, owner ?? session.userId,
-        roster.filter((m) => m !== memberUserId), hash,
+        roster.filter((m) => m !== memberUserId), hash, session,
         { name: n, image: img },
       );
       await refresh();

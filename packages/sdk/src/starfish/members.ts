@@ -6,11 +6,11 @@
  * "ask the owner to re-invite" instead of silently succeeding without decryption access.
  * It also uses `session.spacesRegistryClient` for the `_spaces` doc write.
  */
-export type { JoinRequest } from '@drakkar.software/octospaces-sdk';
-export { makeJoinRequest, inviteToSpace, addDeviceToSpaceKeyring } from '@drakkar.software/octospaces-sdk';
+export type { JoinRequest } from '@drakkar.software/starfish-spaces';
+export { makeJoinRequest, inviteToSpace, addDeviceToSpaceKeyring } from '@drakkar.software/starfish-spaces';
 
 import type { Space } from '../domain/types';
-import { addJoinedSpaceWithCap, saveSpaceAccessEntry } from '@drakkar.software/octospaces-sdk';
+import { addJoinedSpaceWithCap, saveSpaceAccessEntry } from '@drakkar.software/starfish-spaces';
 import { buildEncryptor, makeClient } from './client';
 import type { Session } from './identity';
 
@@ -42,12 +42,12 @@ export async function acceptSpaceInvite(session: Session, inviteJson: string): P
   if (!enc) throw new Error("Accepted, but you're not in the space keyring yet — ask the owner to re-invite.");
   const capJson = JSON.stringify(cap);
   const name = inv.spaceName?.trim() || `space-${spaceId.slice(-6)}`;
-  const space: Space = { id: spaceId, name, short: name.slice(0, 2).toUpperCase(), members: 1 };
+  const space: Space = { id: spaceId, name, members: 1 };
   // Persist the joined space AND its cap together in the user's own `_spaces` doc FIRST
   // (the durable source of truth — re-hydrates on a fresh device, so it self-heals with
   // no owner re-invite). Only mirror into the in-memory cache once that write succeeds,
   // so a failed push never leaves a "joined locally, not on the server" state.
-  await addJoinedSpaceWithCap(session.spacesRegistryClient, session.userId, space, capJson);
+  await addJoinedSpaceWithCap(session.spacesRegistryClient, session, space, capJson);
   saveSpaceAccessEntry(spaceId, { kind: 'member', cap: capJson });
   return space;
 }

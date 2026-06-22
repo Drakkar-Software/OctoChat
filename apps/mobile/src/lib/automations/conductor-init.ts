@@ -204,7 +204,7 @@ export function syncAutomationTasks(session: Session): Promise<void> {
 async function reconcile(session: Session): Promise<void> {
   const desired = new Map<string, TaskDefinition>();
   try {
-    const { spaces } = await readSpaces(session.spacesRegistryClient, session.userId);
+    const { spaces } = await readSpaces(session.spacesRegistryClient, session);
     for (const space of spaces) {
       try {
         // Public OR owned-private; a private space this device can't open reads as no rooms,

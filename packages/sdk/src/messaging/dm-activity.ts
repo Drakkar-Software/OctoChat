@@ -27,7 +27,7 @@ import type { AppendElement } from '@drakkar.software/starfish-client';
 
 import { kvGet, kvSet } from '../config/adapters';
 import { dmRoomId } from '../starfish/dm-ids';
-import { getSpaceClient } from '@drakkar.software/octospaces-sdk';
+import { getSpaceClient } from '@drakkar.software/starfish-spaces';
 import { streamRoomPull } from '../starfish/paths';
 import { loadStreamLog } from './stream-log';
 import type { Session } from '../starfish/identity';

@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // ── Mocks ────────────────────────────────────────────────────────────────────────
 
 const mockGetSpaceClient = vi.fn((spaceId: string) => ({ __space: spaceId }));
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => {
   const actual = await importOriginal();
   return { ...(actual as object), getSpaceClient: (...a: unknown[]) => mockGetSpaceClient(...a) };
 });

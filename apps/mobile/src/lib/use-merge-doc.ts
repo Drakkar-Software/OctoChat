@@ -6,7 +6,7 @@ import { SYNC_BASE, SYNC_NAMESPACE } from './octochat-config';
 import { capProviderFor } from '@drakkar.software/octochat-sdk';
 import { fetchWithTimeout } from '@drakkar.software/octochat-sdk';
 import { reportReachability } from './connectivity';
-import { getSpaceAccessEntry } from '@drakkar.software/octospaces-sdk';
+import { getSpaceAccessEntry } from '@drakkar.software/starfish-spaces';
 import { pullCache, PULL_CACHE_MAX_AGE_MS } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useRoomOpen } from './use-room-open-flow';

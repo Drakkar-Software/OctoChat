@@ -169,15 +169,15 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
     // idempotent (first writer wins; if another device beats us, re-read settles it).
     if (owner === null && hash === null) {
       try {
-        await writeSpaceAccess(spaceClient, spaceId, s.userId, [], null, { name: name ?? undefined, image: image ?? undefined });
+        await writeSpaceAccess(spaceClient, spaceId, s.userId, [], null, s, { name: name ?? undefined, image: image ?? undefined });
         owner = s.userId;
       } catch {
         // Race or auth failure: re-read to get whoever won TOFU
-        const rr = await readSpaceAccess(spaceClient, spaceId).catch(() => null);
+        const rr = await readSpaceAccess(spaceClient, spaceId, s).catch(() => null);
         if (rr) { owner = rr.owner; members = rr.members; name = rr.name; image = rr.image; hash = rr.hash; }
       }
     }
-    void reconcileSpaceMeta(s.spacesRegistryClient, s.userId, spaceId, { name, image }, spacesRef.current).catch(() => {});
+    void reconcileSpaceMeta(s.spacesRegistryClient, s, spaceId, { name, image }, spacesRef.current).catch(() => {});
     return { rooms: (idx?.rooms ?? []) as Room[], owner, members, name, image, categories: idx?.categories ?? [], hash, loading: false, loaded: true };
   }, []);
 

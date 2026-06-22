@@ -1,14 +1,22 @@
 /**
  * Parity tests for OctoChat thin re-export barrels.
  *
- * These files contain no local logic — they re-export from octospaces-sdk.
- * These tests pin the exported names and any critical constants so a future SDK
- * change that drops or renames an export fails loudly here rather than silently
- * at the app call sites.
+ * These files contain no local logic — they re-export from octospaces-sdk or
+ * starfish-spaces. These tests pin the exported names and any critical constants
+ * so a future SDK change that drops or renames an export fails loudly here
+ * rather than silently at the app call sites.
+ *
+ * NOTE (0.25 migration): Several symbols moved from octospaces-sdk → starfish-spaces:
+ * - sealToSelf / unsealFromSelf / sealToRecipient / unsealFromRecipient
+ * - buildSession / buildLinkedSession / ownerTrustedAdders / generateSeedWords / isValidSeed / fingerprintFromUserId
+ * - SpaceAccessError
+ * fetchWithTimeout / CONNECT_TIMEOUT_MS were removed from octospaces-sdk in 0.24
+ * and are now locally reimplemented in fetch-timeout.ts via createTimeoutFetch.
  */
 import { describe, expect, it } from 'vitest';
 
 import * as sdk from '@drakkar.software/octospaces-sdk';
+import * as spaces from '@drakkar.software/starfish-spaces';
 
 // ── account-seal ──────────────────────────────────────────────────────────────
 import * as accountSeal from './account-seal';
@@ -21,9 +29,9 @@ describe('account-seal re-exports', () => {
     expect(typeof accountSeal.unsealFromRecipient).toBe('function');
   });
 
-  it('is parity with octospaces-sdk (same function references)', () => {
-    expect(accountSeal.sealToSelf).toBe(sdk.sealToSelf);
-    expect(accountSeal.unsealFromSelf).toBe(sdk.unsealFromSelf);
+  it('is parity with starfish-spaces (same function references)', () => {
+    expect(accountSeal.sealToSelf).toBe(spaces.sealToSelf);
+    expect(accountSeal.unsealFromSelf).toBe(spaces.unsealFromSelf);
   });
 });
 
@@ -56,9 +64,14 @@ describe('identity re-exports', () => {
     expect(typeof identity.fingerprintFromUserId).toBe('function');
   });
 
-  it('is parity with octospaces-sdk', () => {
-    expect(identity.buildSession).toBe(sdk.buildSession);
-    expect(identity.generateSeedWords).toBe(sdk.generateSeedWords);
+  it('is parity with starfish-spaces for pass-through re-exports', () => {
+    // generateSeedWords / isValidSeed / ownerTrustedAdders are direct re-exports
+    expect(identity.generateSeedWords).toBe(spaces.generateSeedWords);
+    expect(identity.ownerTrustedAdders).toBe(spaces.ownerTrustedAdders);
+    // buildSession / buildLinkedSession are OctoChat wrappers (inject clientOpts),
+    // not the same reference — just verify they exist and are functions.
+    expect(typeof identity.buildSession).toBe('function');
+    expect(typeof identity.buildLinkedSession).toBe('function');
   });
 });
 
@@ -66,15 +79,16 @@ describe('identity re-exports', () => {
 import { SpaceAccessError } from './space-access-error';
 
 describe('space-access-error re-exports', () => {
-  it('SpaceAccessError is the same class as the SDK export', () => {
-    expect(SpaceAccessError).toBe(sdk.SpaceAccessError);
+  it('SpaceAccessError is the same class as the starfish-spaces export', () => {
+    expect(SpaceAccessError).toBe(spaces.SpaceAccessError);
   });
 
   it('instanceof works across the re-export boundary', () => {
-    const err = new SpaceAccessError('test');
+    // SpaceAccessError constructor in 0.25: (spaceId, nodeId?, message?)
+    const err = new SpaceAccessError('sp-test');
     expect(err).toBeInstanceOf(SpaceAccessError);
-    expect(err).toBeInstanceOf(sdk.SpaceAccessError);
-    expect(err.message).toBe('test');
+    expect(err).toBeInstanceOf(spaces.SpaceAccessError);
+    expect(err.message).toContain('sp-test');
   });
 });
 
@@ -88,8 +102,9 @@ describe('fetch-timeout re-exports', () => {
     expect(fetchTimeout.CONNECT_TIMEOUT_MS).toBeGreaterThan(0);
   });
 
-  it('is parity with octospaces-sdk', () => {
-    expect(fetchTimeout.fetchWithTimeout).toBe(sdk.fetchWithTimeout);
-    expect(fetchTimeout.CONNECT_TIMEOUT_MS).toBe(sdk.CONNECT_TIMEOUT_MS);
+  // fetchWithTimeout was removed from octospaces-sdk in 0.24 and is now locally
+  // reimplemented via createTimeoutFetch — no parity check against the removed export.
+  it('fetchWithTimeout returns a function (the timeout-wrapped fetch)', () => {
+    expect(typeof fetchTimeout.fetchWithTimeout()).toBe('function');
   });
 });

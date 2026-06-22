@@ -18,8 +18,9 @@ import { config } from "./config.js";
 import { projections } from "./projections.js";
 import { createNatsQueue } from "./queue.js";
 import { createFileRevocationStore } from "./revocation-store.js";
-import { makeSpaceRoleEnricher } from "./space-role.js";
+// makeSpaceRoleEnricher retired — replaced by createSpacesRoleEnricher from starfish-spaces (see below).
 import { createWebhookRoute } from "./webhook.js";
+import { createSpacesRoleEnricher, createSpacesDirectoryServerPlugin } from "@drakkar.software/starfish-spaces";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const DATA_DIR = process.env.STARFISH_DATA_DIR ?? "./data";
@@ -95,22 +96,28 @@ const queuing = createQueuingServerPlugin({
 // Space-membership enricher: synthesizes `space:owner` / `space:member` from
 // the access record at `spaces/{spaceId}/_access`. Shared between the sync router
 // (collection-level gating) and the /events proxy (membership validation).
-// (pubspaceEnricher retired — per-node access:'public' replaces the pubspace model.)
-const spaceEnricher = makeSpaceRoleEnricher(store);
+// createSpacesRoleEnricher (starfish-spaces) replaces the hand-rolled makeSpaceRoleEnricher.
+const spaceEnricher = createSpacesRoleEnricher(store);
 
-// Maintains the public-space directory at `_index/spaces/public`: its `afterWrite`
-// hook fires on each `objindex` write and upserts spaces that contain public nodes
-// (see projections.ts). Writes in-process against the same `store`, so the
-// `spaceindex` collection is `pullOnly`.
+// Maintains the public-space directory at `_index/spaces/public` (legacy projection,
+// read by explore-spaces.ts) AND the new `_index/objects/public` directory written by
+// createSpacesDirectoryServerPlugin. Both coexist for backward compatibility.
 const projection = createProjectionServerPlugin({ store, projections });
+
+// The canonical spaces directory plugin: writes public-node metadata to
+// `_index/objects/public` on each objindex write. Complements the legacy projection.
+const spacesDirectory = createSpacesDirectoryServerPlugin({
+  getString: (k) => store.getString(k),
+  putString: (k, v) => store.put(k, v),
+});
 
 const syncRouter = createSyncRouter({
   store,
   config,
   roleResolver,
-  // Grants `space:owner` / `space:member` from the access record (space-role.ts).
+  // Grants `space:owner` / `space:member` from the access record.
   roleEnricher: spaceEnricher,
-  plugins: [queuing, projection],
+  plugins: [queuing, projection, spacesDirectory],
 });
 
 await saveConfig(store, config);

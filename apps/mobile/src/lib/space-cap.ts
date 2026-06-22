@@ -1,4 +1,4 @@
-import type { SpaceAccessEntry } from '@drakkar.software/octospaces-sdk';
+import type { SpaceAccessEntry } from '@drakkar.software/starfish-spaces';
 
 /**
  * Resolve BOTH the cap object AND the correct signing key from a

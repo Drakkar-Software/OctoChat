@@ -13,7 +13,7 @@ vi.mock('../starfish/object-index', () => ({
 
 const mockBuildNodeAccess = vi.fn(async () => null);
 const mockGetSpaceClient = vi.fn(() => ({ pull: async () => [] }));
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...(actual as object),

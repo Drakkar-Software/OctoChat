@@ -12,7 +12,7 @@
  * keyring yet, server unreachable, no recent text message) returns null so the caller
  * shows the generic "New message" banner instead.
  */
-import { getSpaceClient } from '@drakkar.software/octospaces-sdk';
+import { getSpaceClient } from '@drakkar.software/starfish-spaces';
 import { buildNodeAccessShared } from '../starfish/node-access-cache';
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 

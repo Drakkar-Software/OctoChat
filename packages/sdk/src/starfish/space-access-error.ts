@@ -1,1 +1,1 @@
-export { SpaceAccessError } from '@drakkar.software/octospaces-sdk';
+export { SpaceAccessError } from '@drakkar.software/starfish-spaces';

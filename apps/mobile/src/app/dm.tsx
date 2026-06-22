@@ -48,16 +48,16 @@ export default function DmLinkScreen() {
   // `null` = checking, `false` = bound to a forged id (treat as invalid).
   const [verified, setVerified] = useState<boolean | null>(null);
   useEffect(() => {
-    if (!token) return;
+    if (!token || !session) return;
     let cancelled = false;
     setVerified(null);
-    void verifyIdentityLinkBinding(token).then((ok) => {
+    void verifyIdentityLinkBinding(token, session).then((ok) => {
       if (!cancelled) setVerified(ok);
     });
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, session]);
 
   const ownerId = token?.ownerId ?? '';
   // Only fetch + show the profile once the binding is verified. The live pseudo

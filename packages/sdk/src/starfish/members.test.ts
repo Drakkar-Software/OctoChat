@@ -2,7 +2,7 @@
  * Tests for OctoChat-specific space membership behavior.
  *
  * `makeJoinRequest`, `inviteToSpace`, and `addDeviceToSpaceKeyring` are now re-exported
- * directly from @drakkar.software/octospaces-sdk and are tested in the SDK's own
+ * directly from @drakkar.software/starfish-spaces and are tested in the SDK's own
  * members.test.ts / members.keyring.test.ts. Only the OctoChat-specific overrides are
  * tested here:
  *
@@ -14,11 +14,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ── Mocks (hoisted) ───────────────────────────────────────────────────────────
 
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@drakkar.software/octospaces-sdk')>();
+vi.mock('@drakkar.software/starfish-spaces', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@drakkar.software/starfish-spaces')>();
   return {
     ...actual,
-    // acceptSpaceInvite calls addJoinedSpaceWithCap from the SDK directly
+    // acceptSpaceInvite calls addJoinedSpaceWithCap and saveSpaceAccessEntry from starfish-spaces
     addJoinedSpaceWithCap: vi.fn(),
     saveSpaceAccessEntry: vi.fn(),
   };
@@ -32,28 +32,10 @@ vi.mock('./client', () => ({
 // ── Imports (after mocks) ─────────────────────────────────────────────────────
 
 import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
-import { addJoinedSpaceWithCap, saveSpaceAccessEntry } from '@drakkar.software/octospaces-sdk';
+import { addJoinedSpaceWithCap, saveSpaceAccessEntry } from '@drakkar.software/starfish-spaces';
 import { buildEncryptor, makeClient } from './client';
 import { makeJoinRequest, acceptSpaceInvite, type JoinRequest } from './members';
-import type { Session } from './identity';
-
-// ── Shared test fixtures ──────────────────────────────────────────────────────
-
-function makeSession(overrides?: Partial<Session>): Session {
-  return {
-    userId: 'u-owner',
-    keys: {
-      edPub: 'edpub-owner',
-      edPriv: 'edpriv-owner',
-      kemPub: 'kempub-owner',
-      kemPriv: 'kempriv-owner',
-    },
-    contentClient: {} as never,
-    accountClient: {} as never,
-    spacesRegistryClient: {} as never,
-    ...overrides,
-  } as Session;
-}
+import { makeMockSession } from '../test-utils/mock-session';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -69,7 +51,7 @@ describe('makeJoinRequest', () => {
     // octospaces-sdk ≥0.13.0 (IdentityLink v:2) signs kemPub into a `kemSig`, so the
     // request keys must be real hex (hexToBytes/ed25519.sign run inside makeJoinRequest).
     const keys = generateDeviceKeys();
-    const session = makeSession({ userId: 'u-owner', keys });
+    const session = makeMockSession({ userId: 'u-owner', keys });
     const json = makeJoinRequest(session);
     const parsed = JSON.parse(json) as JoinRequest;
     expect(parsed.edPub).toBe(keys.edPub);
@@ -91,8 +73,8 @@ describe('acceptSpaceInvite', () => {
     });
   }
 
-  function makeInviteeSession(): Session {
-    return makeSession({ userId: 'u-invitee', keys: { edPub: 'edpub-invitee', edPriv: 'edpriv-invitee', kemPub: 'kempub-invitee', kemPriv: 'kempriv-invitee' } as never });
+  function makeInviteeSession() {
+    return makeMockSession({ userId: 'u-invitee', keys: { edPub: 'edpub-invitee', edPriv: 'edpriv-invitee', kemPub: 'kempub-invitee', kemPriv: 'kempriv-invitee' } as never });
   }
 
   it('rejects an invite with a missing spaceId', async () => {

@@ -5,7 +5,7 @@
  * go through the {@link updateObjectIndex} funnel (works for any space — the old public-only
  * restriction is lifted now that access is per-node, not per-space).
  */
-import { updateObjectIndex } from '@drakkar.software/octospaces-sdk';
+import { updateObjectIndex } from '@drakkar.software/starfish-spaces';
 import { addObject, archiveObject, categoryId, patchObject, roomKindToSubtype } from '../starfish/objects';
 import type { Session } from '../starfish/identity';
 import type { AutomationMeta, ObjectNode } from '../domain/types';

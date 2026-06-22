@@ -112,7 +112,7 @@ export async function setDmArchived(session: Session, spaceId: string, archived:
   // Sync to the durable `_spaces` doc.
   pending++;
   try {
-    await updateArchivedDmsDoc(session.spacesRegistryClient, session.userId, (cur) => {
+    await updateArchivedDmsDoc(session.spacesRegistryClient, session, (cur) => {
       const curArchived = cur[spaceId] === true;
       if (archived === curArchived) return null; // server already matches — no-op
       const n: ArchivedDms = { ...cur };

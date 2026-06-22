@@ -4,7 +4,7 @@
  * via the stored credential. Caller is responsible for writing back `lastRunAt`
  * / `lastError` to the registry — this function only reports the outcome.
  */
-import { getSpaceClient, getNodeStreamClient } from '@drakkar.software/octospaces-sdk';
+import { getSpaceClient, getNodeStreamClient } from '@drakkar.software/starfish-spaces';
 import { buildNodeAccessShared } from '../starfish/node-access-cache';
 
 import type { Room } from '../domain/types';

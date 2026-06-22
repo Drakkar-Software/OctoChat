@@ -86,8 +86,8 @@ export function useDmScan(): DmScan {
     setToken(decoded);
     setVerified(null);
     setPhase('confirm');
-    void verifyIdentityLinkBinding(decoded).then(setVerified);
-  }, []);
+    if (session) void verifyIdentityLinkBinding(decoded, session).then(setVerified);
+  }, [session]);
 
   // The link's embedded pseudo is only a display hint until the live profile
   // loads (the DM's crypto binds to the KEYS, not this string); fall back to the
