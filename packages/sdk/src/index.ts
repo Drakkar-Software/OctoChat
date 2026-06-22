@@ -186,6 +186,7 @@ export {
   getNodeAccessEntry,
   saveNodeAccessEntry,
   removeNodeAccessEntry,
+  getNodeKeyringAccessEntry,
   localSpaceAccessEntries,
   memberCapsFromStore,
   linkAccessFromStore,

@@ -1,5 +1,13 @@
 # Changelog — @drakkar.software/octochat-sdk
 
+## 0.4.1 (2026-06-22)
+
+### Added
+
+- Re-export `getNodeKeyringAccessEntry` from `@drakkar.software/octospaces-sdk` so consumers can
+  check for a stored per-node keyring cap before calling `buildNodeAccess`, avoiding a doomed
+  `_keyring` 403 on plaintext or pending nodes.
+
 ## 0.4.0 (2026-06-22)
 
 ### Added
