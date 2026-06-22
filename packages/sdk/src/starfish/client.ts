@@ -25,10 +25,11 @@ import {
   writeProfile as _writeProfile,
   ensurePseudo as _ensurePseudo,
   ensureProfileKeys as _ensureProfileKeys,
-  buildAuthHeaders,
   defaultSpaceLayout,
 } from '@drakkar.software/starfish-spaces';
 import type { DeviceKeys, PublicProfile, SpaceLayout } from '@drakkar.software/starfish-spaces';
+import { signRequest, stableStringify } from '@drakkar.software/starfish-protocol';
+import type { SignableMethod } from '@drakkar.software/starfish-protocol';
 import {
   getSyncBase,
   getSyncNamespace,
@@ -41,7 +42,46 @@ import {
 import { keyringPull } from './paths';
 
 export type { DeviceKeys, PublicProfile };
-export { capProviderFor, ownerEnsureKeyring, buildAuthHeaders };
+export { capProviderFor, ownerEnsureKeyring };
+
+/**
+ * Build cap-cert auth headers for a raw `fetch` outside the StarfishClient (e.g. `GET /events`).
+ * Signing host is derived from `getSyncBase()` so the server-side verifier agrees — same pin as
+ * the client's own REST requests (StarfishClient.signingHost).
+ *
+ * starfish-spaces re-exports its own `buildAuthHeaders` that hardcodes `host: ""`, which causes
+ * `verifyRequestSignature` to fail on deployed servers that bind host (events.ts:116,126). This
+ * local override restores the pre-`8f84d34` behavior: sign the REAL host.
+ */
+export async function buildAuthHeaders(
+  cap: unknown,
+  devEdPrivHex: string,
+  method: string,
+  pathAndQuery: string,
+): Promise<Record<string, string>> {
+  let host = '';
+  try {
+    host = new URL(getSyncBase()).host;
+  } catch { /* relative base — empty host, both sides agree */ }
+
+  const { sig, ts, nonce } = await signRequest(
+    { method: method as SignableMethod, pathAndQuery, host },
+    devEdPrivHex,
+  );
+
+  const capJson = stableStringify(cap as Record<string, unknown>);
+  const capB64 =
+    typeof btoa === 'function'
+      ? btoa(capJson)
+      : Buffer.from(capJson, 'utf-8').toString('base64');
+
+  return {
+    Authorization: `Cap ${capB64}`,
+    'X-Starfish-Sig': sig,
+    'X-Starfish-Ts': String(ts),
+    'X-Starfish-Nonce': nonce,
+  };
+}
 
 /** makeClient wrapper — renamed to makeSpaceClient in starfish-spaces; injects connection globals so
  *  callers keep the old 2-arg ergonomics: makeClient(cap, edPrivHex). */

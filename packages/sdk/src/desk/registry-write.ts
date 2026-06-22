@@ -2,7 +2,7 @@
  * Low-level desk mutations on the unified object index.
  * Mirrors the `automations/registry-write.ts` pattern for ticket and shared-room nodes.
  */
-import { saveNodeStreamAccessEntry, updateObjectIndex } from '@drakkar.software/starfish-spaces';
+import { saveNodeStreamAccessEntry, updateObjectIndex, ownerEnsureNodeKeyring } from '@drakkar.software/starfish-spaces';
 import { nodeStreamScope } from '@drakkar.software/octospaces-sdk';
 import { mintMemberCap } from '@drakkar.software/starfish-sharing';
 import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
@@ -55,6 +55,28 @@ export async function ensureDeskNodeStreamAccess(
  * nodes, not just tickets. This alias is kept for callers that haven't migrated yet.
  */
 export const ensureDeskTicketStreamAccess = ensureDeskNodeStreamAccess;
+
+/**
+ * Owner self-heal for a desk node's per-node keyring. Ensures the keyring exists (creating it
+ * with the owner's own key as the first recipient if missing) and returns an Encryptor built
+ * with `ownerTrustedAdders` — i.e. the owner's **edPub** — so the owner can always open the
+ * keyring it created. Mirrors {@link ensureDeskNodeStreamAccess} (the `objinvlog` stream-cap
+ * self-heal) for the keyring side.
+ *
+ * **Why this is required instead of {@link getNodeAccess}:** `getNodeAccess`'s `invite+enc`
+ * branch resolves `trustedAdders` from `reg.owner`, which is a **userId** (`sha256(edPub)[0:32]`).
+ * Keyring entries record `addedBy` as an **edPub** (64 hex). `userId !== edPub` → the trust
+ * check always fails → the owner is told "You're not a recipient of this node's keyring". This
+ * function bypasses that path and uses `ownerEnsureNodeKeyring` directly, which uses the correct
+ * `ownerTrustedAdders(session)` = `[ownerEdPub, selfEdPub]`.
+ */
+export function ensureDeskNodeKeyring(
+  session: Session,
+  spaceId: string,
+  nodeId: string,
+): ReturnType<typeof ownerEnsureNodeKeyring> {
+  return ownerEnsureNodeKeyring(session, spaceId, nodeId);
+}
 
 /**
  * Append a new ticket node to the object index.

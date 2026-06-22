@@ -61,7 +61,7 @@ export async function verifyLinkBinding(token: IdentityLink): Promise<boolean> {
   try {
     // Shim: verifyIdentityLinkBinding only reads session.userIdFromEdPub.
     // userIdFromEdPub from octospaces-sdk is the standalone Web-Crypto implementation.
-    return verifyIdentityLinkBinding(token, { userIdFromEdPub } as unknown as Session);
+    return await verifyIdentityLinkBinding(token, { userIdFromEdPub } as unknown as Session);
   } catch {
     return false;
   }

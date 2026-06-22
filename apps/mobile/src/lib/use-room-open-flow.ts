@@ -20,7 +20,7 @@ import { makeClient } from '@drakkar.software/octochat-sdk';
 // Derive StarfishClient from the SDK's `makeClient` to keep the nominal type consistent
 // across symlinked packages (see original comment in the file this replaced).
 type StarfishClient = ReturnType<typeof makeClient>;
-import { getSpaceClient, getNodeStreamClient, ensureDeskTicketStreamAccess, buildNodeAccessShared, getNodeAccess, SpaceAccessError } from '@drakkar.software/octochat-sdk';
+import { getSpaceClient, getNodeStreamClient, ensureDeskTicketStreamAccess, ensureDeskNodeKeyring, buildNodeAccessShared, getNodeAccess, SpaceAccessError } from '@drakkar.software/octochat-sdk';
 import type { NodeAccess } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useRoomOpenState } from './use-room-open';
@@ -85,13 +85,19 @@ export function useRoomOpen(opts: {
           let inviteEncryptor: Encryptor | null = null;
           if (enc) {
             // E2EE ticket — open the per-node keyring for the encryptor only (the client stays
-            // the stream client). Owner mints/ensures the keyring (getNodeAccess); everyone else
-            // builds it softly from the stored keyring cap (null → no access → throw).
-            const handle = isOwner
-              ? await getNodeAccess(spaceId, roomId, { access, enc: true }, session, { owner, members: [] })
-              : await buildNodeAccessShared(session, spaceId, roomId, { access, enc: true });
-            if (!handle) throw new SpaceAccessError(`No access to room ${roomId}.`);
-            inviteEncryptor = handle.encryptor as unknown as Encryptor;
+            // the stream client). Owner uses ensureDeskNodeKeyring (via ownerEnsureNodeKeyring)
+            // which builds the encryptor with ownerTrustedAdders (edPubs) and re-creates the
+            // keyring if missing — avoids the getNodeAccess invite+enc path that resolves
+            // trustedAdders from reg.owner (a userId, NOT an edPub) and therefore always fails
+            // the trust check against the keyring's addedBy (an edPub). Non-owners build softly
+            // from the stored keyring cap (null → no access → throw).
+            if (isOwner) {
+              inviteEncryptor = (await ensureDeskNodeKeyring(session, spaceId, roomId)) as unknown as Encryptor;
+            } else {
+              const handle = await buildNodeAccessShared(session, spaceId, roomId, { access, enc: true });
+              if (!handle) throw new SpaceAccessError(`No access to room ${roomId}.`);
+              inviteEncryptor = handle.encryptor as unknown as Encryptor;
+            }
           }
           const streamClient = getNodeStreamClient(spaceId, roomId, session) as unknown as StarfishClient;
           if (!cancelled) {

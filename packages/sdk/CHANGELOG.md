@@ -1,5 +1,25 @@
 # Changelog — @drakkar.software/octochat-sdk
 
+## 0.5.2 (2026-06-22)
+
+### Fixed
+
+- **`/events` 401 Unauthorized — events auth signature host mismatch** — the SSE live-update
+  stream (`GET /events?spaces=…`) returned 401 against all deployed servers. Root cause: the
+  "thin re-export" SDK refactor (`8f84d34`) replaced OctoChat's own `buildAuthHeaders` with
+  starfish-spaces' satellite version, which hardcodes `host: ""` in the per-request Ed25519
+  signature. The server's `verifyRequestSignature` binds to the real request host, so the
+  signature always mismatched. REST requests were unaffected (they go through
+  `StarfishClient.capRequestHeaders` which signs the real host). Restored the local
+  `buildAuthHeaders` in `packages/sdk/src/starfish/client.ts` that derives
+  `host = new URL(getSyncBase()).host`, matching both the server verifier and the pre-refactor
+  behavior.
+
+- **`verifyLinkBinding` missing `await`** — `dm-link.ts` returned a Promise from within a
+  `try/catch` without `await`, so the `catch` block could not intercept a rejection from
+  `verifyIdentityLinkBinding`. Added `await` for defense-in-depth (the rejection path is
+  unreachable in current usage but the fix prevents silent future breakage).
+
 ## 0.5.1 (2026-06-22)
 
 ### Fixed
