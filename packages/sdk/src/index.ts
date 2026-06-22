@@ -248,4 +248,6 @@ export {
   type PendingRequest,
   type AcceptResult,
   type SubmitResourceRequestOptions,
+  NodeAccessRevokedError,
 } from '@drakkar.software/starfish-spaces';
+export { StarfishHttpError } from '@drakkar.software/starfish-client';

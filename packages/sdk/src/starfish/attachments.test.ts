@@ -170,6 +170,29 @@ describe('uploadAttachment — plaintext (enc = null)', () => {
   });
 });
 
+// ── Node-scoped attachments (scope: 'node') ────────────────────────────────────
+
+describe('uploadAttachment with nodeId — node-scoped (objnodeblob)', () => {
+  // These two tests require octospaces-sdk 0.26.0 (nodeId threading in the blob store).
+  // Mark as todo until the publish chain is complete and node_modules is updated.
+  it.todo('stores under the node prefix and sets scope: "node" on the ref (needs octospaces-sdk 0.26.0)');
+  it.todo('round-trip: node-scoped upload + load returns original plaintext (needs octospaces-sdk 0.26.0)');
+
+  it.todo('loadAttachment routes to node path when ref.scope === "node", space path otherwise (needs octospaces-sdk 0.26.0)');
+
+  it('legacy ref without scope always routes to space-level path even with nodeId arg', async () => {
+    const client = makeFakeClient();
+    const legacyRef: AttachmentRef = { blobId: 'leg1', name: 'old.bin', mime: 'application/octet-stream', size: 5, kind: 'file' };
+    const spacePullPath = '/pull/spaces/sp-leg/objects/blobs/leg1';
+    client.blobs.set(spacePullPath, BYTES);
+    const loaded = await loadAttachment(client as never, null, 'sp-leg', legacyRef, 'some-node');
+    expect(loaded).toEqual(BYTES);
+    const [pullPath] = vi.mocked(client.pullBlob).mock.calls[0]!;
+    expect(pullPath).toContain('/objects/blobs/');
+    expect(pullPath).not.toContain('/objects/n/');
+  });
+});
+
 // ── Cross-path: sealed blobs cannot be served as plaintext and vice versa ─────
 
 describe('enc path integrity', () => {

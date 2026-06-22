@@ -25,9 +25,13 @@ export { attachmentKind } from '@drakkar.software/octospaces-sdk';
 export const MAX_ATTACHMENT_BYTES = MAX_OBJECT_BLOB_BYTES;
 
 /** Attachment reference stored on a message envelope.
- *  Extends `ObjectBlobRef` with the `kind` discriminant (image vs file). */
+ *  Extends `ObjectBlobRef` with the `kind` discriminant (image vs file).
+ *
+ *  `scope?: 'node'` marks blobs stored under the per-node prefix (`objnodeblob`).
+ *  Absent means the legacy space-level `objblob` tier (backward compatible). */
 export interface AttachmentRef extends ObjectBlobRef {
   kind: 'image' | 'file';
+  scope?: 'node';
 }
 
 export interface AttachmentStore {
@@ -38,12 +42,14 @@ export interface AttachmentStore {
     bytes: Uint8Array,
     name: string,
     mime: string,
+    nodeId?: string,
   ): Promise<AttachmentRef>;
   loadAttachment(
     client: StarfishClient,
     enc: ByteSealer | null,
     spaceId: string,
     ref: AttachmentRef,
+    nodeId?: string,
   ): Promise<Uint8Array>;
   clearAttachmentCache(): void;
 }
@@ -61,9 +67,10 @@ export async function uploadAttachment(
   bytes: Uint8Array,
   name: string,
   mime: string,
+  nodeId?: string,
 ): Promise<AttachmentRef> {
-  const ref = await _objStore.uploadObjectBlob(client, enc, spaceId, bytes, name, mime);
-  return { ...ref, kind: attachmentKind(mime) };
+  const ref = await _objStore.uploadObjectBlob(client, enc, spaceId, bytes, name, mime, nodeId);
+  return { ...ref, kind: attachmentKind(mime), ...(nodeId ? { scope: 'node' as const } : {}) };
 }
 
 export async function loadAttachment(
@@ -71,8 +78,10 @@ export async function loadAttachment(
   enc: ByteSealer | null,
   spaceId: string,
   ref: AttachmentRef,
+  nodeId?: string,
 ): Promise<Uint8Array> {
-  return _objStore.loadObjectBlob(client, enc, spaceId, ref);
+  const resolvedNodeId = ref.scope === 'node' ? nodeId : undefined;
+  return _objStore.loadObjectBlob(client, enc, spaceId, ref, resolvedNodeId);
 }
 
 export function clearAttachmentCache(): void {
