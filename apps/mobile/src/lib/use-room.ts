@@ -325,19 +325,22 @@ export function useRoom(roomId: string, opts: { enabled?: boolean; access?: Node
   // Attachments live in the `objblob` collection, keyed by SPACE (not room). For
   // encrypted (E2EE) rooms the encryptor seals the blob client-side; for plaintext
   // (public/unencrypted) rooms we pass null and bytes are stored raw.
+  // Invite (OctoDesk) rooms use the node-scoped `objnodeblob` collection so the
+  // requester's per-node cap authorises the upload/download — pass roomId as nodeId.
+  const attachmentNodeId = access === 'invite' ? roomId : undefined;
   const uploadAttachment = useCallback(
     async (bytes: Uint8Array, name: string, mime: string): Promise<AttachmentRef | null> => {
       if (!client) return null;
-      return uploadAttachmentDoc(client, encryptor ? (encryptor as unknown as ByteSealer) : null, spaceId, bytes, name, mime);
+      return uploadAttachmentDoc(client, encryptor ? (encryptor as unknown as ByteSealer) : null, spaceId, bytes, name, mime, attachmentNodeId);
     },
-    [client, encryptor, spaceId],
+    [client, encryptor, spaceId, attachmentNodeId],
   );
   const loadAttachment = useCallback(
     async (ref: AttachmentRef): Promise<Uint8Array | null> => {
       if (!client) return null;
-      return loadAttachmentDoc(client, encryptor ? (encryptor as unknown as ByteSealer) : null, spaceId, ref);
+      return loadAttachmentDoc(client, encryptor ? (encryptor as unknown as ByteSealer) : null, spaceId, ref, attachmentNodeId);
     },
-    [client, encryptor, spaceId],
+    [client, encryptor, spaceId, attachmentNodeId],
   );
 
   return {
