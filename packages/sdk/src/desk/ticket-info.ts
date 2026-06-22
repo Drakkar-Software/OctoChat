@@ -13,7 +13,8 @@
  *
  * Plaintext tickets do NOT use this — their title/requester live in the index `meta.ticket`.
  */
-import { buildNodeAccess, getNodeStreamClient, objInvLogPull, objInvLogPush } from '@drakkar.software/octospaces-sdk';
+import { getNodeStreamClient, objInvLogPull, objInvLogPush } from '@drakkar.software/octospaces-sdk';
+import { buildNodeAccessShared } from '../starfish/node-access-cache';
 
 import type { Session } from '../starfish/identity';
 import { clampField, TICKET_TITLE_MAX, TICKET_REQUESTER_MAX } from './ticket';
@@ -35,7 +36,7 @@ export async function writeSealedTicketInfo(
   ticketId: string,
   info: TicketInfo,
 ): Promise<void> {
-  const access = await buildNodeAccess(session, spaceId, ticketId, { access: 'invite', enc: true });
+  const access = await buildNodeAccessShared(session, spaceId, ticketId, { access: 'invite', enc: true });
   if (!access?.encryptor) throw new Error('No node keyring to seal ticket info');
   const clean: TicketInfo = {
     title: clampField(info.title, TICKET_TITLE_MAX),
@@ -55,12 +56,10 @@ export async function readSealedTicketInfo(
   spaceId: string,
   ticketId: string,
 ): Promise<TicketInfo | null> {
-  const access = await buildNodeAccess(session, spaceId, ticketId, { access: 'invite', enc: true });
+  const access = await buildNodeAccessShared(session, spaceId, ticketId, { access: 'invite', enc: true });
   if (!access?.encryptor) return null;
   const client = getNodeStreamClient(spaceId, ticketId, session);
-  const res = await client.pull(objInvLogPull(spaceId, ticketId)).catch(() => null);
-  const items = (res?.data as { items?: unknown[] } | undefined)?.items;
-  if (!Array.isArray(items)) return null;
+  const items = (await client.pull(objInvLogPull(spaceId, ticketId), { appendField: 'items', full: true }).catch(() => [])) as unknown[];
   for (const raw of items) {
     try {
       const dec = await (access.encryptor as unknown as Encryptor).decrypt(raw as Record<string, unknown>);

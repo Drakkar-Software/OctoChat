@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createUnionMerge } from '@drakkar.software/starfish-client';
-import { useSyncInit } from '@drakkar.software/starfish-client/zustand';
+import { useSharedSyncStore } from '@drakkar.software/starfish-client/zustand';
 
 import { SYNC_BASE, SYNC_NAMESPACE } from './octochat-config';
 import { capProviderFor } from '@drakkar.software/octochat-sdk';
 import { fetchWithTimeout } from '@drakkar.software/octochat-sdk';
+import { reportReachability } from './connectivity';
 import { getSpaceAccessEntry } from '@drakkar.software/octospaces-sdk';
 import { pullCache, PULL_CACHE_MAX_AGE_MS } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
@@ -90,6 +91,8 @@ export function useMergeDoc(opts: MergeDocOptions): MergeDocResult {
       fetch: fetchWithTimeout(),
       cache: pullCache(),
       cacheMaxAgeMs: PULL_CACHE_MAX_AGE_MS,
+      cacheFallbackStatuses: [429, 500, 502, 503, 504],
+      onRevalidated: () => reportReachability(true),
     };
     // Use the access entry cap + its signing key. For link-joined spaces the cap
     // is bound to an ephemeral bearer key (entry.key), NOT the account ed key.
@@ -110,7 +113,7 @@ export function useMergeDoc(opts: MergeDocOptions): MergeDocResult {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, session, client, encryptor, spaceId, enc, storeKey]);
 
-  const store = useSyncInit(config);
+  const store = useSharedSyncStore(config);
 
   const [doc, setDoc] = useState<Record<string, unknown> | null>(null);
   useEffect(() => {

@@ -16,7 +16,8 @@
  *  - `bytes` is APPROXIMATE: the JSON byte length of each room's stored doc plus the
  *    plaintext size of each attachment. It is NOT the server's on-disk figure.
  */
-import { buildNodeAccess, getSpaceClient } from '@drakkar.software/octospaces-sdk';
+import { getSpaceClient } from '@drakkar.software/octospaces-sdk';
+import { buildNodeAccessShared } from '../starfish/node-access-cache';
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
 import { resolveEdit, type StoredMsg } from '../format/message-view';
@@ -92,7 +93,7 @@ export async function loadSpaceStats(session: Session, spaceId: string): Promise
   for (const room of rooms) {
     try {
       // Soft-open per-room access: enc rooms get a decryptor; plaintext get null.
-      const access = await buildNodeAccess(session, spaceId, room.id, { enc: room.enc }).catch(() => null);
+      const access = await buildNodeAccessShared(session, spaceId, room.id, { enc: room.enc }).catch(() => null);
       accumulate(stats, await roomLog(access?.client ?? client, access?.encryptor ?? null, roomStreamPull(room, room.id)), session.userId);
     } catch {
       stats.partial = true; // room unreadable — totals undercount

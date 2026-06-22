@@ -20,7 +20,7 @@ import { hydrateArchivedDms, resetArchivedDms } from '@drakkar.software/octochat
 import { resetDmHeads } from '@drakkar.software/octochat-sdk';
 import { flushReadsNow, hydrateReads, resetReads } from '@drakkar.software/octochat-sdk';
 import { activeAccountOf, sessionFromPersisted } from '@drakkar.software/octochat-sdk';
-import { clearNodeAccessCache } from '@drakkar.software/octochat-sdk';
+import { clearNodeAccessCache, clearBuildNodeAccessCache } from '@drakkar.software/octochat-sdk';
 import { enrollPasskey, passkeyEnrollable } from '@drakkar.software/octochat-sdk/platform';
 import { activeVariant } from './variants';
 import {
@@ -37,6 +37,7 @@ import type { PersistedSession, SeedLock, UnlockMethod, Vault } from '@drakkar.s
 import { clearRoomEventsBus } from './room-events-bus';
 import { clearPrimedSpaces, primeSpaces } from './spaces-prime';
 import { clearPseudoCache, primeProfile } from './use-pseudos';
+import { clearSyncStoreRegistry } from '@drakkar.software/starfish-client/zustand';
 
 /** One row in the account switcher — enough to render and target a switch/logout. */
 export interface AccountSummary {
@@ -129,6 +130,8 @@ function resetAccountScopedState(): void {
   clearAttachmentCache();
   clearPseudoCache();
   clearNodeAccessCache();
+  clearBuildNodeAccessCache();
+  clearSyncStoreRegistry();
   clearPrimedSpaces();
   clearRoomEventsBus();
   // Flush any pending read marks before dropping them so a just-read room on the

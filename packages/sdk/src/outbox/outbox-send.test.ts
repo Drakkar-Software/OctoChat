@@ -16,6 +16,7 @@ const mockClient = { append: mockAppend };
 
 import { sendQueued } from './outbox-send';
 import { buildNodeAccess, getSpaceClient } from '@drakkar.software/octospaces-sdk';
+import { clearBuildNodeAccessCache } from '../starfish/node-access-cache';
 import { readIndexRooms } from '../starfish/object-index';
 import type { OutboxMessage } from './outbox-types';
 import type { Session } from '../starfish/identity';
@@ -44,6 +45,7 @@ beforeEach(() => {
   vi.mocked(mockAppend).mockClear();
   vi.mocked(readIndexRooms).mockResolvedValue(null);
   vi.mocked(buildNodeAccess).mockResolvedValue(null);
+  clearBuildNodeAccessCache();
 });
 
 describe('sendQueued — index unavailable', () => {

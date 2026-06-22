@@ -5,7 +5,7 @@
  *  - Plaintext room (`enc === false`): use {@link getSpaceClient} — no network call,
  *    resolves immediately from the cached member cap.
  *  - E2EE room (`enc === true`): open the space-wide keyring encryptor via
- *    {@link buildNodeAccess} (cached per space; offline from the SDK pull cache).
+ *    {@link buildNodeAccessShared} (in-flight + result cache per node; offline from the SDK pull cache).
  * Builds on {@link useRoomOpenState} for the opening/error/offline flags + reconnect.
  *
  * No room-doc seeding: every chat room is an append-only log that pulls as [] until its
@@ -20,7 +20,7 @@ import { makeClient } from '@drakkar.software/octochat-sdk';
 // Derive StarfishClient from the SDK's `makeClient` to keep the nominal type consistent
 // across symlinked packages (see original comment in the file this replaced).
 type StarfishClient = ReturnType<typeof makeClient>;
-import { getSpaceClient, getNodeStreamClient, ensureDeskTicketStreamAccess, buildNodeAccess, getNodeAccess, SpaceAccessError } from '@drakkar.software/octochat-sdk';
+import { getSpaceClient, getNodeStreamClient, ensureDeskTicketStreamAccess, buildNodeAccessShared, getNodeAccess, SpaceAccessError } from '@drakkar.software/octochat-sdk';
 import type { NodeAccess } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useRoomOpenState } from './use-room-open';
@@ -89,7 +89,7 @@ export function useRoomOpen(opts: {
             // builds it softly from the stored keyring cap (null → no access → throw).
             const handle = isOwner
               ? await getNodeAccess(spaceId, roomId, { access, enc: true }, session, { owner, members: [] })
-              : await buildNodeAccess(session, spaceId, roomId, { access, enc: true });
+              : await buildNodeAccessShared(session, spaceId, roomId, { access, enc: true });
             if (!handle) throw new SpaceAccessError(`No access to room ${roomId}.`);
             inviteEncryptor = handle.encryptor as unknown as Encryptor;
           }
@@ -112,11 +112,11 @@ export function useRoomOpen(opts: {
           }
           return;
         }
-        // E2EE space/private room: open the space-wide keyring (cached per space; offline from
-        // the pull cache). When the caller is the known owner, use the minting path
+        // E2EE space/private room: open the space-wide keyring (in-flight + result cache per node
+        // via buildNodeAccessShared; offline from the pull cache). When the caller is the known owner, use the minting path
         // (getNodeAccess) so a space created before Fix A self-heals on first open — the owner's
         // contentClient has space:owner permission and ownerEnsureKeyring is idempotent. For all
-        // other callers, use the soft path (buildNodeAccess) which returns null instead of
+        // other callers, use the shared soft path (buildNodeAccessShared) which returns null instead of
         // throwing when access is unavailable.
         let nodeAccess: { client: unknown; encryptor: unknown } | null;
         if (isOwner) {
@@ -126,7 +126,7 @@ export function useRoomOpen(opts: {
           });
           nodeAccess = { client: handle.client, encryptor: handle.encryptor };
         } else {
-          nodeAccess = await buildNodeAccess(session, spaceId, roomId, { access, enc: true });
+          nodeAccess = await buildNodeAccessShared(session, spaceId, roomId, { access, enc: true });
         }
         if (!nodeAccess) throw new SpaceAccessError(`No access to room ${roomId}.`);
         if (!cancelled) {

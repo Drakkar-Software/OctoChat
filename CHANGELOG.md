@@ -1,5 +1,16 @@
 # OctoChat Changelog
 
+## sdk 0.3.9 — 2026-06-22 · ticket-info 400 fix
+
+### SDK changes (0.3.8 → 0.3.9)
+
+- **0.3.9 – `readSealedTicketInfo` append-window fix** (`desk/ticket-info.ts`): the pull that
+  reads the sealed ticket-info header from the ticket's invite-log stream was missing the
+  required window option, causing the server to reject it with `400 pull_bound_required`. The
+  pull now passes `{ appendField: 'items', full: true }` (matching the `pullAndFold` /
+  `scanDmInbox` convention), unblocking the ticket title for all E2EE tickets. The result
+  extraction is updated to match the flat-array return of the `AppendPullOptions` overload.
+
 ## mobile 1.14.3 / sdk 0.3.8 — 2026-06-21 · octospaces 0.16 migration
 
 ### Bug fixes

@@ -12,7 +12,8 @@
  *   space/invite + enc:false → `streamRoomPull` (member-gated plaintext)
  */
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
-import { buildNodeAccess, getSpaceClient } from '@drakkar.software/octospaces-sdk';
+import { getSpaceClient } from '@drakkar.software/octospaces-sdk';
+import { buildNodeAccessShared } from '../starfish/node-access-cache';
 
 import type { Session } from '../starfish/identity';
 import { readIndexRooms } from '../starfish/object-index';
@@ -48,7 +49,7 @@ function foldRoom(
   fallbackClient: StarfishClient,
   room: Room,
 ): Promise<StreamData> {
-  return buildNodeAccess(session, spaceId, room.id, { enc: room.enc })
+  return buildNodeAccessShared(session, spaceId, room.id, { enc: room.enc })
     .catch(() => null)
     .then((access) => foldRoomLog(access?.client ?? fallbackClient, access?.encryptor ?? null, roomStreamPull(room, room.id)));
 }

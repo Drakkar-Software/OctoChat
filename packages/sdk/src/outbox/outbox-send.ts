@@ -11,7 +11,8 @@
  * message carries the entry's own `id`/`ts`, so it lands in the room store under
  * the same id the pending bubble used (dedup-by-id ⇒ no duplicate).
  */
-import { buildNodeAccess, getSpaceClient, getNodeStreamClient } from '@drakkar.software/octospaces-sdk';
+import { getSpaceClient, getNodeStreamClient } from '@drakkar.software/octospaces-sdk';
+import { buildNodeAccessShared } from '../starfish/node-access-cache';
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { Session } from '../starfish/identity';
@@ -41,7 +42,7 @@ async function resolveContext(
   if (room.enc) {
     // Pass `access` so the SDK opens the PER-NODE keyring for invite+enc (E2EE tickets)
     // instead of the space-wide keyring.
-    const access = await buildNodeAccess(session, entry.spaceId, entry.roomId, { access: room.access, enc: true });
+    const access = await buildNodeAccessShared(session, entry.spaceId, entry.roomId, { access: room.access, enc: true });
     if (!access) throw new Error('No keyring access for room');
     // An E2EE ticket (invite+enc) seals with the node keyring but its log lives in the
     // cap-gated invite stream (objinvlog) — append via the per-node stream cap client.

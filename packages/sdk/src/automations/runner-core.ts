@@ -4,7 +4,8 @@
  * via the stored credential. Caller is responsible for writing back `lastRunAt`
  * / `lastError` to the registry — this function only reports the outcome.
  */
-import { getSpaceClient, getNodeStreamClient, buildNodeAccess } from '@drakkar.software/octospaces-sdk';
+import { getSpaceClient, getNodeStreamClient } from '@drakkar.software/octospaces-sdk';
+import { buildNodeAccessShared } from '../starfish/node-access-cache';
 
 import type { Room } from '../domain/types';
 import type { Session } from '../starfish/identity';
@@ -57,7 +58,7 @@ export async function appendBotMessage(
   // is a keyring recipient — it created the ticket), then append the ciphertext to the
   // cap-gated invite stream (objinvlog). Without this the bot's reply would land in cleartext.
   if (room.access === 'invite' && room.enc) {
-    const access = await buildNodeAccess(session, room.spaceId, room.id, { access: 'invite', enc: true });
+    const access = await buildNodeAccessShared(session, room.spaceId, room.id, { access: 'invite', enc: true });
     if (!access) throw new Error('No keyring access for room');
     const body = access.encryptor
       ? await (access.encryptor as unknown as { encrypt: (d: Record<string, unknown>) => Promise<Record<string, unknown>> }).encrypt(env)

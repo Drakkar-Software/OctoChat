@@ -58,6 +58,8 @@ export * from './starfish/pairing';
 export { sessionFromPersisted, activeAccountOf } from '@drakkar.software/octospaces-sdk';
 export { cacheProfile, loadCachedProfile } from '@drakkar.software/octospaces-sdk';
 export { pullCache, PULL_CACHE_MAX_AGE_MS } from '@drakkar.software/octospaces-sdk';
+export * from './starfish/node-access-cache';
+export * from './starfish/batch-space';
 export * from './starfish/registry';
 export * from './starfish/members';
 // member-caps, space-encryptor, pubspace, pubspace-caps are REMOVED —

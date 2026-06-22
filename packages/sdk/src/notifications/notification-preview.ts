@@ -12,7 +12,8 @@
  * keyring yet, server unreachable, no recent text message) returns null so the caller
  * shows the generic "New message" banner instead.
  */
-import { buildNodeAccess, getSpaceClient } from '@drakkar.software/octospaces-sdk';
+import { getSpaceClient } from '@drakkar.software/octospaces-sdk';
+import { buildNodeAccessShared } from '../starfish/node-access-cache';
 import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
 import { resolveEdit, type StoredMsg } from '../format/message-view';
@@ -87,13 +88,13 @@ export async function loadLatestMessagePreview(
       // If it returns null (public/invite room with no keyring — unlikely for a push target,
       // but safe), we continue with enc=null and fanOut of sealed blobs → null preview →
       // the generic "New message" banner. Mirrors cross-room.ts which always probes the keyring.
-      const access = await buildNodeAccess(session, sid, roomId, { enc: true }).catch(() => null);
+      const access = await buildNodeAccessShared(session, sid, roomId, { enc: true }).catch(() => null);
       if (access) {
         client = access.client;
         enc = access.encryptor;
       }
     } else if (room.enc) {
-      const access = await buildNodeAccess(session, sid, roomId, { enc: true }).catch(() => null);
+      const access = await buildNodeAccessShared(session, sid, roomId, { enc: true }).catch(() => null);
       if (!access) return null;
       client = access.client;
       enc = access.encryptor;

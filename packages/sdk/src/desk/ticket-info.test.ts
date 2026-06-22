@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockAppend = vi.fn(async () => undefined);
-const mockPull = vi.fn(async () => ({ data: { items: [] } }));
+const mockPull = vi.fn(async () => [] as unknown[]);
 
 vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -11,6 +11,7 @@ vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => ({
 
 import { writeSealedTicketInfo, readSealedTicketInfo } from './ticket-info';
 import { buildNodeAccess } from '@drakkar.software/octospaces-sdk';
+import { clearBuildNodeAccessCache } from '../starfish/node-access-cache';
 import type { Session } from '../starfish/identity';
 
 const session = { userId: 'u1' } as unknown as Session;
@@ -22,9 +23,10 @@ const encryptor = {
 
 beforeEach(() => {
   mockAppend.mockClear();
-  mockPull.mockClear().mockResolvedValue({ data: { items: [] } });
+  mockPull.mockClear().mockResolvedValue([]);
   encryptor.encrypt.mockClear();
   vi.mocked(buildNodeAccess).mockResolvedValue({ client: {}, encryptor } as never);
+  clearBuildNodeAccessCache();
 });
 
 describe('writeSealedTicketInfo', () => {
@@ -44,9 +46,17 @@ describe('writeSealedTicketInfo', () => {
 });
 
 describe('readSealedTicketInfo', () => {
+  it('passes { appendField: "items", full: true } to client.pull (400 regression guard)', async () => {
+    await readSealedTicketInfo(session, 'sp-1', 'ticket-1');
+    expect(mockPull).toHaveBeenCalledWith(
+      expect.stringContaining('/n/'),
+      { appendField: 'items', full: true },
+    );
+  });
+
   it('finds and decrypts the ticket-info header from the stream', async () => {
     const sealed = { _ct: JSON.stringify({ t: 'ticket-info', e: { title: 'Subject', requester: 'a@b.c' } }) };
-    mockPull.mockResolvedValue({ data: { items: [sealed] } });
+    mockPull.mockResolvedValue([sealed]);
     const info = await readSealedTicketInfo(session, 'sp-1', 'ticket-1');
     expect(info).toEqual({ title: 'Subject', requester: 'a@b.c' });
   });
@@ -58,7 +68,7 @@ describe('readSealedTicketInfo', () => {
 
   it('returns null when no ticket-info header is present', async () => {
     const other = { _ct: JSON.stringify({ t: 'msg', e: { text: 'hi' } }) };
-    mockPull.mockResolvedValue({ data: { items: [other] } });
+    mockPull.mockResolvedValue([other]);
     expect(await readSealedTicketInfo(session, 'sp-1', 'ticket-1')).toBeNull();
   });
 });

@@ -21,6 +21,7 @@ vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => {
 
 import { hashContent } from './hash';
 import { tickRoom, type TickKind } from './runner-core';
+import { clearBuildNodeAccessCache } from '../starfish/node-access-cache';
 import type { AutomationProvider, RunResult } from './types';
 import type { Session } from '@drakkar.software/octochat-sdk';
 import type { AutomationMeta, Room } from '@drakkar.software/octochat-sdk';
@@ -65,7 +66,10 @@ const room = (over: Partial<AutomationMeta> = {}, roomOver: Partial<Room> = {}):
 const tick = (over: Partial<Parameters<typeof tickRoom>[0]> = {}) =>
   tickRoom({ session, room: room(), provider: provider(), trigger: 'scheduled', now: 5_000, ...over });
 
-beforeEach(() => mockAppend.mockClear());
+beforeEach(() => {
+  mockAppend.mockClear();
+  clearBuildNodeAccessCache();
+});
 
 describe('tickRoom content-hash gate', () => {
   it('skips the post when the fetched text matches lastFetchHash', async () => {

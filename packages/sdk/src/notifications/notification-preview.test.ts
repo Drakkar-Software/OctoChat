@@ -36,6 +36,7 @@ vi.mock('../messaging/stream-log', async (importOriginal) => {
 });
 
 import { loadLatestMessagePreview } from './notification-preview';
+import { clearBuildNodeAccessCache } from '../starfish/node-access-cache';
 import type { Session } from '../starfish/identity';
 
 const SESSION = { userId: 'u1', name: 'Alice' } as unknown as Session;
@@ -52,6 +53,7 @@ beforeEach(() => {
   mockGetSpaceClient.mockReset();
   mockReadPseudo.mockReset();
   mockPullAndFold.mockReset();
+  clearBuildNodeAccessCache();
 
   // Defaults: index returns no rooms; buildNodeAccess returns null; pseudo returns null.
   mockReadIndexRooms.mockResolvedValue(null);

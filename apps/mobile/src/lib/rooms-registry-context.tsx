@@ -35,8 +35,8 @@ import type { AutomationMeta, Room } from '@drakkar.software/octochat-sdk';
 
 import { kvGet, kvSet } from '@drakkar.software/octochat-sdk';
 import { readSpaceAccess, writeSpaceAccess, reconcileSpaceMeta } from '@drakkar.software/octochat-sdk';
-import { readIndexRooms, objIndexPull } from '@drakkar.software/octochat-sdk';
 import { getSpaceClient } from '@drakkar.software/octochat-sdk';
+import { batchPullSpaceData } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useSpacesContext } from './spaces-context';
 
@@ -149,8 +149,11 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
   const fetchEntry = useCallback(async (spaceId: string): Promise<RoomsRegistryEntry> => {
     const s = sessionRef.current;
     if (!s) return IDLE;
+    // Use a single batch request (_access + _index in one HTTP round-trip).
+    // Falls back to concurrent individual pulls on any error.
+    const { registry, index: idx } = await batchPullSpaceData(s, spaceId);
+    let { owner, members, name, image, hash } = registry;
     const spaceClient = getSpaceClient(spaceId, s);
-    let { owner, members, name, image, hash } = await readSpaceAccess(spaceClient, spaceId);
     // TOFU auto-claim: when no _access doc exists (owner=null, hash=null), the server
     // grants space:owner+member to any authenticated user (TOFU). Auto-claim ownership
     // so the space is usable after a migration or data wipe — the server write is
@@ -166,8 +169,7 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
       }
     }
     void reconcileSpaceMeta(s.spacesRegistryClient, s.userId, spaceId, { name, image }, spacesRef.current).catch(() => {});
-    const idx = await readIndexRooms(spaceClient, null, objIndexPull(spaceId), spaceId);
-    return { rooms: idx?.rooms ?? [], owner, members, name, image, categories: idx?.categories ?? [], hash, loading: false, loaded: true };
+    return { rooms: (idx?.rooms ?? []) as Room[], owner, members, name, image, categories: idx?.categories ?? [], hash, loading: false, loaded: true };
   }, []);
 
   // Run one read for a space, sharing the in-flight promise and publishing the

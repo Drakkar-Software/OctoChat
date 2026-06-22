@@ -19,6 +19,7 @@ vi.mock('../messaging/threads', () => ({ buildThreadDigest: vi.fn(() => []) }));
 
 import { loadSpaceStats } from './space-stats';
 import { buildNodeAccess, getSpaceClient } from '@drakkar.software/octospaces-sdk';
+import { clearBuildNodeAccessCache } from '../starfish/node-access-cache';
 import { readIndexRooms } from '../starfish/object-index';
 import { pullAndFold } from '../messaging/stream-log';
 import { resolveEdit } from '../format/message-view';
@@ -52,6 +53,7 @@ beforeEach(() => {
   mockBuildNodeAccess.mockResolvedValue(null); // default: no enc access
   mockResolveEdit.mockReturnValue(undefined);
   mockBuildThreadDigest.mockReturnValue([]);
+  clearBuildNodeAccessCache();
 });
 
 describe('loadSpaceStats — plaintext (enc: false) rooms', () => {
