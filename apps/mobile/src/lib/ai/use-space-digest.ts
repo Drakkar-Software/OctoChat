@@ -89,14 +89,11 @@ export function useSpaceDigest(spaceId: string | null): SpaceDigest {
       });
 
       // Filter to unread messages from other users, then shape for the prompt.
-      const items = all
-        .filter(
-          (x) =>
-            !!x.msg.text &&
-            x.msg.authorId !== session.userId &&
-            x.msg.ts > lastReadAt(x.room.id),
-        )
-        .map(shape);
+      const items = all.flatMap((x) =>
+        !!x.msg.text && x.msg.authorId !== session.userId && x.msg.ts > lastReadAt(x.room.id)
+          ? [shape(x)]
+          : [],
+      );
 
       if (items.length === 0) {
         if (!cancelled()) setStatus('empty');

@@ -56,7 +56,7 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
   const rise = useSharedValue(reduced ? 0 : SHEET_RISE);
   useEffect(() => {
     if (reduced) return;
-    rise.value = withSpring(0, motion.spring);
+    rise.set(withSpring(0, motion.spring));
   }, [reduced, rise]);
   const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: rise.value }] }));
 

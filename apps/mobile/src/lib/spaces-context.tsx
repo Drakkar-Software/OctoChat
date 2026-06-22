@@ -112,9 +112,11 @@ function guestOwnerSpaceIdsFromStore(): string[] {
 /** Drop DM spaces AND per-node grant spaces — neither belongs in the space rail / switcher.
  *  Seeds the `short` monogram so the rail renders immediately before SpaceMeta arrives. */
 const railSpaces = (list: Space[]): SpaceView[] =>
-  list
-    .filter((s) => !isDmSpaceId(s.id) && !isGuestSpaceId(s.id))
-    .map((s) => ({ ...s, short: s.name.slice(0, 2).toUpperCase() }));
+  list.flatMap((s) =>
+    !isDmSpaceId(s.id) && !isGuestSpaceId(s.id)
+      ? [{ ...s, short: s.name.slice(0, 2).toUpperCase() }]
+      : [],
+  );
 
 /** Widen a raw SDK Space with a seeded monogram. */
 const toSpaceView = (s: Space): SpaceView => ({ ...s, short: s.name.slice(0, 2).toUpperCase() });
@@ -153,9 +155,9 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     // spaces are persisted on both sides via addJoinedSpace/addJoinedSpaceWithCap,
     // unlike the lossy `dms` peer-index. Expose them for the SSE+FCM subscription
     // (see UnreadProvider) independently of the `dms` map.
-    setDmSpaceIds(list.filter((s) => isDmSpaceId(s.id)).map((s) => s.id));
+    setDmSpaceIds(list.flatMap((s) => isDmSpaceId(s.id) ? [s.id] : []));
     // Per-node grant spaces (shared rooms + ticket rooms held as a requester).
-    setGuestSpaces(list.filter((s) => isGuestSpaceId(s.id)).map(toSpaceView));
+    setGuestSpaces(list.flatMap((s) => isGuestSpaceId(s.id) ? [toSpaceView(s)] : []));
     setGuestOwnerSpaceIds(guestOwnerSpaceIdsFromStore());
     // Derive DMs from the durable `dm-` spaces, not just the lossy `dms` index, so a DM
     // survives a clobbered/missing map entry and re-syncs across same-seed devices.
@@ -219,8 +221,8 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     const { spaces: list, mutes, reads, archivedDms, dms: dmMap } = await readSpaces(session.spacesRegistryClient, session);
     const rail = railSpaces(list);
     setSpaces(rail);
-    setDmSpaceIds(list.filter((s) => isDmSpaceId(s.id)).map((s) => s.id));
-    setGuestSpaces(list.filter((s) => isGuestSpaceId(s.id)).map(toSpaceView));
+    setDmSpaceIds(list.flatMap((s) => isDmSpaceId(s.id) ? [s.id] : []));
+    setGuestSpaces(list.flatMap((s) => isGuestSpaceId(s.id) ? [toSpaceView(s)] : []));
     setGuestOwnerSpaceIds(guestOwnerSpaceIdsFromStore());
     setDms(dmMap);
     setActiveId((prev) => prev ?? rail[0]?.id ?? null);
@@ -260,7 +262,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       // immediately so the SSE + FCM subscription covers DMs on first paint (same
       // timing as rooms). Without this, dmSpaceIds stays [] until refresh() below
       // completes, creating a window where DM messages arrive unsubscribed.
-      setDmSpaceIds(primed.filter((s) => isDmSpaceId(s.id)).map((s) => s.id));
+      setDmSpaceIds(primed.flatMap((s) => isDmSpaceId(s.id) ? [s.id] : []));
       setGuestSpaces(primed.filter((s) => isGuestSpaceId(s.id)));
       setGuestOwnerSpaceIds(guestOwnerSpaceIdsFromStore());
       setActiveId((prev) => prev ?? rail[0]?.id ?? null);

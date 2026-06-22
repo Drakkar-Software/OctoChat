@@ -30,7 +30,7 @@ function Ring({ size, color, phase }: { size: number; color: string; phase: numb
   const reduced = useReducedMotion();
   useEffect(() => {
     if (reduced) return;
-    p.value = withRepeat(withTiming(1, { duration: motion.pulse, easing: Easing.out(Easing.quad) }), -1, false);
+    p.set(withRepeat(withTiming(1, { duration: motion.pulse, easing: Easing.out(Easing.quad) }), -1, false));
     return () => cancelAnimation(p);
   }, [p, reduced]);
 

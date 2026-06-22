@@ -33,7 +33,7 @@ export function HeroMark({ size = 128 }: HeroMarkProps) {
 
   useEffect(() => {
     if (reduced) return;
-    float.value = withRepeat(withTiming(1, { duration: motion.pulse, easing: Easing.inOut(Easing.sin) }), -1, true);
+    float.set(withRepeat(withTiming(1, { duration: motion.pulse, easing: Easing.inOut(Easing.sin) }), -1, true));
     return () => cancelAnimation(float);
   }, [float, reduced]);
 

@@ -42,14 +42,14 @@ function Dot({ color, delay }: { color: string; delay: number }) {
 
   useEffect(() => {
     if (reduced) return;
-    y.value = withDelay(
+    y.set(withDelay(
       delay,
       withRepeat(
         withTiming(-5, { duration: 320, easing: Easing.inOut(Easing.sin) }),
         -1,
         true,
       ),
-    );
+    ));
     return () => cancelAnimation(y);
   }, [y, delay, reduced]);
 

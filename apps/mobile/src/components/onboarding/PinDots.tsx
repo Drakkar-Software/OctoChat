@@ -39,12 +39,12 @@ function PinSlot({ on, shakeKey }: { on: boolean; shakeKey: unknown }) {
     if (on === prevOn.current) return;
     prevOn.current = on;
     if (reduced) {
-      pop.value = on ? 1 : 0;
+      pop.set(on ? 1 : 0);
     } else if (on) {
-      pop.value = 0;
-      pop.value = withSpring(1, motion.spring);
+      pop.set(0);
+      pop.set(withSpring(1, motion.spring));
     } else {
-      pop.value = withTiming(0, { duration: motion.fast });
+      pop.set(withTiming(0, { duration: motion.fast }));
     }
   }, [on, reduced, pop]);
 
@@ -54,7 +54,7 @@ function PinSlot({ on, shakeKey }: { on: boolean; shakeKey: unknown }) {
   // bump. Instead gate on a truthy trigger — falsy on the genuine first mount.
   useEffect(() => {
     if (reduced || !shakeKey) return;
-    flash.value = withSequence(withTiming(1, { duration: motion.fast }), withTiming(0, { duration: motion.base }));
+    flash.set(withSequence(withTiming(1, { duration: motion.fast }), withTiming(0, { duration: motion.base })));
   }, [shakeKey, reduced, flash]);
 
   const dotStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.value }], opacity: pop.value }));
@@ -90,12 +90,12 @@ export function PinDots({ length = 6, filled = 0, shake }: PinDotsProps) {
   // the shake counter is 0/undefined on first mount and ≥1 on a post-error remount.
   useEffect(() => {
     if (reduced || !shake) return;
-    shift.value = withSequence(
+    shift.set(withSequence(
       withTiming(-SHAKE_AMP, { duration: motion.fast / 2 }),
       withTiming(SHAKE_AMP, { duration: motion.fast }),
       withTiming(-SHAKE_AMP, { duration: motion.fast }),
       withTiming(0, { duration: motion.fast / 2 }),
-    );
+    ));
   }, [shake, reduced, shift]);
 
   const rowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shift.value }] }));

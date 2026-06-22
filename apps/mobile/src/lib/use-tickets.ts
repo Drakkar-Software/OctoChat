@@ -39,16 +39,15 @@ export function useTickets(spaceId: string | null): {
 
   const tickets = useMemo<TicketEntry[]>(
     () =>
-      nodes
-        .filter((n) => n.type === 'ticket')
-        .map((n) => {
-          const ticket = ticketOf(n) ?? { status: 'open', priority: 'medium', assigneeId: null, requester: '', title: '', slaDueAt: null };
-          // E2EE tickets strip title/requester from the index — show a placeholder in the
-          // list; participants see the real values on open (decrypted from the stream).
-          const title = n.enc ? ENCRYPTED_TICKET_TITLE : (ticket.title || n.title || 'Untitled ticket');
-          const requester = n.enc ? '' : ticket.requester;
-          return { node: n, ticket, title, requester, unread: unreadByRoom[n.id] ?? 0 };
-        }),
+      nodes.flatMap((n) => {
+        if (n.type !== 'ticket') return [];
+        const ticket = ticketOf(n) ?? { status: 'open', priority: 'medium', assigneeId: null, requester: '', title: '', slaDueAt: null };
+        // E2EE tickets strip title/requester from the index — show a placeholder in the
+        // list; participants see the real values on open (decrypted from the stream).
+        const title = n.enc ? ENCRYPTED_TICKET_TITLE : (ticket.title || n.title || 'Untitled ticket');
+        const requester = n.enc ? '' : ticket.requester;
+        return [{ node: n, ticket, title, requester, unread: unreadByRoom[n.id] ?? 0 }];
+      }),
     [nodes, unreadByRoom],
   );
 

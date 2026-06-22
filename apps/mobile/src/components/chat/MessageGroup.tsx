@@ -180,7 +180,7 @@ export function MessageGroup({
   // pointer) reveals it on a long-press, so it isn't pinned over every row.
   const [revealed, setRevealed] = useState(false);
   const showActions = Platform.OS === 'web' ? hovered : revealed;
-  const mine = new Set((message.reactions ?? []).filter((r) => r.mine).map((r) => r.emoji));
+  const mine = new Set((message.reactions ?? []).flatMap((r) => r.mine ? [r.emoji] : []));
   // A queued/sending (not-yet-failed) message reads as muted — it's not on the
   // server yet. A failed one stays full-opacity so its retry affordance is obvious.
   const dimmed = message.pending === 'queued' || message.pending === 'sending';

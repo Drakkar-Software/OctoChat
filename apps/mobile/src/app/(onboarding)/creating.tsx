@@ -81,10 +81,10 @@ export default function CreatingScreen() {
   // Tip rotation: fade out → swap → fade in
   useEffect(() => {
     const id = setInterval(() => {
-      tipOpacity.value = withSequence(
+      tipOpacity.set(withSequence(
         withTiming(0, { duration: 300, easing: Easing.out(Easing.ease) }),
         withTiming(1, { duration: 400, easing: Easing.in(Easing.ease) }),
-      );
+      ));
       setTimeout(() => setTipIndex((i) => (i + 1) % TIPS.length), 300);
     }, TIP_DURATION);
     return () => clearInterval(id);
@@ -92,19 +92,19 @@ export default function CreatingScreen() {
 
   // Octopus ambient pulse
   useEffect(() => {
-    octopusScale.value = withRepeat(
+    octopusScale.set(withRepeat(
       withSequence(
         withTiming(1.1, { duration: motion.pulse / 2, easing: Easing.inOut(Easing.ease) }),
         withTiming(1, { duration: motion.pulse / 2, easing: Easing.inOut(Easing.ease) }),
       ),
       -1,
-    );
+    ));
   }, [octopusScale]);
 
   // Progress bar width
   useEffect(() => {
     if (argon2 != null) {
-      progressWidth.value = withTiming(argon2, { duration: 500 });
+      progressWidth.set(withTiming(argon2, { duration: 500 }));
     }
   }, [argon2, progressWidth]);
 
@@ -155,7 +155,7 @@ export default function CreatingScreen() {
         <View
           style={[styles.track, { backgroundColor: colors.fill }]}
           onLayout={(e) => {
-            trackW.value = e.nativeEvent.layout.width;
+            trackW.set(e.nativeEvent.layout.width);
           }}
         >
           <Animated.View style={[styles.bar, { backgroundColor: colors.accent }, barStyle]} />

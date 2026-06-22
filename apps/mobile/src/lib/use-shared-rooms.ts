@@ -36,13 +36,11 @@ export function useSharedRooms(spaceId: string | null): {
 
   const rooms = useMemo<SharedRoomEntry[]>(
     () =>
-      nodes
-        .filter((n) => n.type === 'room' && n.access === 'invite' && isSharedRoomId(n.id))
-        .map((n) => ({
-          node: n,
-          title: n.title || 'Shared room',
-          unread: unreadByRoom[n.id] ?? 0,
-        })),
+      nodes.flatMap((n) =>
+        n.type === 'room' && n.access === 'invite' && isSharedRoomId(n.id)
+          ? [{ node: n, title: n.title || 'Shared room', unread: unreadByRoom[n.id] ?? 0 }]
+          : [],
+      ),
     [nodes, unreadByRoom],
   );
 

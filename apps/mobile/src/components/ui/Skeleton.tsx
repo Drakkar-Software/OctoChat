@@ -40,11 +40,11 @@ export function Skeleton({ width = '100%', height = 12, radius = radii.xs, shimm
   useEffect(() => {
     if (reduced) return;
     // Sweep travels one direction on a loop; the pulse yoyos.
-    p.value = withRepeat(
+    p.set(withRepeat(
       withTiming(1, { duration: motion.shimmer, easing: Easing.inOut(Easing.ease) }),
       -1,
       !shimmer,
-    );
+    ));
     return () => cancelAnimation(p);
   }, [p, reduced, shimmer]);
 
@@ -57,7 +57,7 @@ export function Skeleton({ width = '100%', height = 12, radius = radii.xs, shimm
 
   return (
     <Animated.View
-      onLayout={useShimmer ? (e) => (w.value = e.nativeEvent.layout.width) : undefined}
+      onLayout={useShimmer ? (e) => w.set(e.nativeEvent.layout.width) : undefined}
       style={[
         { width, height, borderRadius: radius, backgroundColor: colors.fillDeep },
         useShimmer && styles.clip,

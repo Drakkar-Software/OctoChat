@@ -43,7 +43,7 @@ export function EmptyState({ iconName, title, subtitle, children, hero = false, 
       mounted.current = true;
       return;
     }
-    pop.value = withSequence(withTiming(1.22, { duration: motion.fast }), withTiming(1, { duration: motion.base }));
+    pop.set(withSequence(withTiming(1.22, { duration: motion.fast }), withTiming(1, { duration: motion.base })));
   }, [iconName, pop]);
 
   const discStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.value * press.value }] }));
@@ -76,11 +76,11 @@ export function EmptyState({ iconName, title, subtitle, children, hero = false, 
             {...hoverProps}
             onPress={onIconPress}
             onPressIn={() => {
-              press.value = withTiming(0.92, { duration: motion.fast });
+              press.set(withTiming(0.92, { duration: motion.fast }));
               tapFeedback();
             }}
             onPressOut={() => {
-              press.value = withTiming(1, { duration: motion.fast });
+              press.set(withTiming(1, { duration: motion.fast }));
             }}
           >
             {disc}

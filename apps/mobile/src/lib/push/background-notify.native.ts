@@ -58,9 +58,11 @@ async function cancelPlaceholder(tag: string): Promise<void> {
   try {
     const displayed = await notifee.getDisplayedNotifications();
     await Promise.all(
-      displayed
-        .filter((d) => d.id && d.notification.android?.tag === tag)
-        .map((d) => notifee.cancelDisplayedNotification(d.id as string, tag)),
+      displayed.flatMap((d) =>
+        d.id && d.notification.android?.tag === tag
+          ? [notifee.cancelDisplayedNotification(d.id as string, tag)]
+          : [],
+      ),
     );
   } catch {
     /* best-effort — leave it to the OS if cancellation isn't available */

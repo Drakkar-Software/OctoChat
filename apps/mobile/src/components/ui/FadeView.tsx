@@ -32,7 +32,7 @@ function WebFadeView({ visible, duration, delay = 0, style, ...rest }: FadeViewP
 function NativeFadeView({ visible, duration, delay = 0, style, ...rest }: FadeViewProps) {
   const opacity = useSharedValue(visible ? 1 : 0);
   useEffect(() => {
-    opacity.value = withDelay(delay, withTiming(visible ? 1 : 0, { duration }));
+    opacity.set(withDelay(delay, withTiming(visible ? 1 : 0, { duration })));
   }, [visible, duration, delay, opacity]);
   const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
   return <Animated.View {...rest} style={[style, animatedStyle]} />;

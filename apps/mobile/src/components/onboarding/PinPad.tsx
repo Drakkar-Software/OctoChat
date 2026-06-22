@@ -29,11 +29,11 @@ function PinKey({ label, onPress }: { label: string; onPress: () => void }) {
       accessibilityLabel={isDelete ? 'Delete' : label}
       {...hoverProps}
       onPressIn={() => {
-        scale.value = withTiming(0.93, { duration: motion.fast });
+        scale.set(withTiming(0.93, { duration: motion.fast }));
         tapFeedback();
       }}
       onPressOut={() => {
-        scale.value = withTiming(1, { duration: motion.fast });
+        scale.set(withTiming(1, { duration: motion.fast }));
       }}
       onPress={onPress}
       style={[

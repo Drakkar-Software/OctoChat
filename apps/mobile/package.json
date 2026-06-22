@@ -12,7 +12,8 @@
     "update:preview": "eas update --environment preview --branch=preview",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "doctor": "npx react-doctor@latest --verbose"
   },
   "dependencies": {
     "@drakkar.software/expo-conductor": "0.4.1",
@@ -29,13 +30,10 @@
     "@expo/dom-webview": "~56.0.5",
     "@expo/vector-icons": "^15.1.1",
     "@legendapp/list": "3.0.3",
-    "@noble/curves": "^2.2.0",
-    "@noble/hashes": "^2.2.0",
     "@notifee/react-native": "^9.1.8",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-firebase/app": "^24.0.0",
     "@react-native-firebase/messaging": "^24.0.0",
-    "@scure/bip39": "^2.0.0",
     "expo": "~56.0.12",
     "expo-ai-kit": "0.5.0",
     "expo-background-task": "~56.0.19",

@@ -43,7 +43,7 @@ export function AutomationsView({ spaceId, header, inTabs = false }: Automations
   const [detail, setDetail] = useState<Room | null>(null);
 
   const automatedRooms = useMemo(
-    () => categories.flatMap((c) => c.rooms).filter((r) => r.kind === 'automated'),
+    () => categories.flatMap((c) => c.rooms.filter((r) => r.kind === 'automated')),
     [categories],
   );
 

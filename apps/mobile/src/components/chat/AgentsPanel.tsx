@@ -56,7 +56,7 @@ export function AgentsPanel({
   isOwner,
 }: AgentsPanelProps) {
   const agents = useMemo(
-    () => categories.flatMap((c) => c.rooms).filter((r) => r.kind === 'automated'),
+    () => categories.flatMap((c) => c.rooms.filter((r) => r.kind === 'automated')),
     [categories],
   );
   // Members (isOwner explicitly false) tap a row to inspect the agent rather than open the
@@ -148,7 +148,7 @@ export function AgentDetailSheet({
   const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: rise.value }] }));
   useEffect(() => {
     if (reduced) return;
-    rise.value = withSpring(0, motion.spring);
+    rise.set(withSpring(0, motion.spring));
   }, [reduced, rise]);
 
   return (

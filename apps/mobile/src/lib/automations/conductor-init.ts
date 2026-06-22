@@ -172,7 +172,7 @@ function taskDefFor(spaceId: string, roomId: string, a: AutomationMeta): TaskDef
 /** All currently-registered automation task ids (those owned by this module). */
 async function automationTaskIds(): Promise<string[]> {
   const tasks = await Conductor.getTasks();
-  return tasks.map((t) => t.id).filter((id) => id.startsWith(`${HANDLER}/`));
+  return tasks.flatMap((t) => t.id.startsWith(`${HANDLER}/`) ? [t.id] : []);
 }
 
 /**

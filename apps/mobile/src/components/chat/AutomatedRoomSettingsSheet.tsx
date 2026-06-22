@@ -83,7 +83,7 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
 
   useEffect(() => {
     if (reduced) return;
-    rise.value = withSpring(0, motion.spring);
+    rise.set(withSpring(0, motion.spring));
   }, [reduced, rise]);
 
   useEffect(() => {

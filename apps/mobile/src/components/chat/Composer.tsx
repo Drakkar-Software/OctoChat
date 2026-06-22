@@ -1,4 +1,4 @@
-import { useCallback, useState, type MutableRefObject } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { NativeSyntheticEvent, StyleProp, TextInputKeyPressEventData, TextStyle } from 'react-native';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -56,22 +56,17 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey, offline, s
   const [busy, setBusy] = useState(false);
   const [focused, setFocused] = useState(false);
   const reply = useReplySuggestion(suggestionContext, { text, focused, setText });
+  // Single ref shared by the paste listener and the emoji autocomplete.
+  const inputRef = useRef<TextInput | null>(null);
   // Web only: paste a clipboard image straight into the pending attachment slot.
-  const pasteRef = useImagePaste((file) => setPending(file));
+  useImagePaste(inputRef, (file) => setPending(file));
   // Web only: drop ANY file onto the room/thread screen → pending attachment.
   // Window-level; only active while a Composer is mounted, so navigating away
   // from the room tears the listener down.
   useFileDrop((file) => setPending(file));
   // `:shortcode:` emoji autocomplete — tracks the caret and swaps the typed token
   // for a glyph. Shares the same <TextInput> node as the paste listener.
-  const emoji = useEmojiAutocomplete(text, setText);
-  const setInputRef = useCallback(
-    (node: TextInput | null) => {
-      (pasteRef as MutableRefObject<TextInput | null>).current = node;
-      (emoji.inputRef as MutableRefObject<TextInput | null>).current = node;
-    },
-    [pasteRef, emoji.inputRef],
-  );
+  const emoji = useEmojiAutocomplete(inputRef, text, setText);
   const hasContent = text.trim().length > 0 || !!pending;
   // Offline with a file attached: text would queue fine, but the file can't — so
   // block the send (and surface a hint) until the connection is back.
@@ -215,7 +210,7 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey, offline, s
         >
           <IconButton name="plus" size={18} color={colors.inkSoft} accessibilityLabel="Attach a file" onPress={attach} />
           <TextInput
-            ref={setInputRef}
+            ref={inputRef}
             value={text}
             onChangeText={setText}
             onSelectionChange={emoji.onSelectionChange}

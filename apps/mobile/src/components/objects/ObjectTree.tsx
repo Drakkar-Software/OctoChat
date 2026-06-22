@@ -51,7 +51,7 @@ function ObjectTreeRow({ node, onOpen, collapsed, onToggle }: { node: ObjectTree
   const turn = useSharedValue(isCollapsed ? 0 : 1);
   useEffect(() => {
     const to = isCollapsed ? 0 : 1;
-    turn.value = reduced ? to : withTiming(to, { duration: motion.fast });
+    turn.set(reduced ? to : withTiming(to, { duration: motion.fast }));
   }, [isCollapsed, reduced, turn]);
   const chevStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.value * 90}deg` }] }));
 
@@ -123,7 +123,7 @@ function SubtreeReveal({ children }: { children: ReactNode }) {
   const opacity = useSharedValue(reduced ? 1 : 0);
   useEffect(() => {
     if (reduced) return;
-    opacity.value = withTiming(1, { duration: motion.base });
+    opacity.set(withTiming(1, { duration: motion.base }));
   }, [reduced, opacity]);
   const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
   return <Animated.View style={style}>{children}</Animated.View>;

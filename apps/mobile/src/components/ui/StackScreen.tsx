@@ -77,10 +77,10 @@ export function StackScreen({
       onScroll: (e) => {
         const y = e.contentOffset.y;
         const dy = y - lastY.value;
-        lastY.value = y;
+        lastY.set(y);
         // Near the top the header is always shown (no blank strip); below that,
         // accumulate scroll delta clamped to [-headerH, 0].
-        headerY.value = y <= headerH ? 0 : Math.min(0, Math.max(-headerH, headerY.value - dy));
+        headerY.set(y <= headerH ? 0 : Math.min(0, Math.max(-headerH, headerY.value - dy)));
       },
     },
     [headerH],

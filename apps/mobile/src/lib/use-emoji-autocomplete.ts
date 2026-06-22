@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { type RefObject, useCallback, useState } from 'react';
 import {
   Platform,
   type NativeSyntheticEvent,
@@ -24,8 +24,7 @@ type WebKeyEvent = NativeSyntheticEvent<TextInputKeyPressEventData> & { preventD
  * the composer's submit + edit-last shortcuts run; native has no key nav, so a
  * suggestion is chosen by tapping its row.
  */
-export function useEmojiAutocomplete(text: string, setText: (t: string) => void) {
-  const inputRef = useRef<TextInput>(null);
+export function useEmojiAutocomplete(inputRef: RefObject<TextInput | null>, text: string, setText: (t: string) => void) {
   const [caret, setCaret] = useState(0);
   const [active, setActive] = useState(0);
   // Escape collapses the popup without moving the caret; the next caret change
@@ -109,5 +108,5 @@ export function useEmojiAutocomplete(text: string, setText: (t: string) => void)
     [open, suggestions.length, choose],
   );
 
-  return { inputRef, suggestions, open, activeIndex, setActive, choose, onSelectionChange, onKeyPress };
+  return { suggestions, open, activeIndex, setActive, choose, onSelectionChange, onKeyPress };
 }

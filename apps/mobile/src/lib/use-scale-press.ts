@@ -28,12 +28,12 @@ export function useScalePress({ scaleTo = 0.97, fadeTo = 1 }: ScalePressOptions 
   }));
   const onPressIn = () => {
     // Crisp grab on press-in…
-    t.value = withTiming(1, { duration: motion.fast });
+    t.set(withTiming(1, { duration: motion.fast }));
     tapFeedback();
   };
   const onPressOut = () => {
     // …then a tactile spring back to rest (a touch of overshoot reads as physical).
-    t.value = withSpring(0, motion.spring);
+    t.set(withSpring(0, motion.spring));
   };
   return { t, animStyle, onPressIn, onPressOut };
 }

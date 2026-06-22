@@ -37,10 +37,10 @@ export function VerifiedSeal({ fingerprint, label = 'Verified' }: VerifiedSealPr
 
   useEffect(() => {
     if (reduced) return;
-    pop.value = withSequence(
+    pop.set(withSequence(
       withTiming(1.08, { duration: motion.base, easing: Easing.out(Easing.back(2)) }),
       withTiming(1, { duration: motion.base }),
-    );
+    ));
   }, [pop, reduced]);
 
   const discStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.value }] }));
