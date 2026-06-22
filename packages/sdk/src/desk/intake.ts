@@ -25,9 +25,11 @@ import { isLlmConfigured, runLlm } from '../ai/engine-port';
 import { randomId } from '../domain/ids';
 import type { Session } from '../starfish/identity';
 import { objInvLogPush } from '../starfish/paths';
+import { buildNodeAccessShared } from '../starfish/node-access-cache';
 import { readSpaces, setRequestDeclined } from '../starfish/registry';
-import { readIntakeConfig, type IntakeConfig } from './intake-config';
+import { readIntakeConfig, DEFAULT_INTAKE_CONFIG, type IntakeConfig } from './intake-config';
 import { makeTicketCreateHandler, makeRoomCreateHandler } from './orchestrator';
+import { writeSealedTicketInfo } from './ticket-info';
 
 /** The fallback first reply when auto-reply has no fixed text and no AI engine is available. */
 export const DEFAULT_INTAKE_REPLY =
@@ -101,17 +103,27 @@ export async function reconcileTicketRequests(
       // Route to the appropriate node creator by request type (inside try so an unknown
       // nodeType skips this request without aborting the rest of the batch).
       const create = makeNodeCreateHandler(p.req.nodeType, cfg);
-      const { nodeId } = await acceptResourceRequest(session, p, { create });
+      const enc = cfg.enc ?? false;
+      const { nodeId } = await acceptResourceRequest(session, p, { create, enc });
       changed = true;
+      // For E2EE tickets, seal the header AFTER accept — the per-node keyring is minted
+      // during accept's inviteToNode, so writeSealedTicketInfo must run after.
+      if (enc && p.req.nodeType === 'ticket') {
+        const requester = typeof p.req.meta?.requester === 'string' ? (p.req.meta.requester as string) : p.req.requester.userId;
+        await writeSealedTicketInfo(session, spaceId, nodeId, { title: p.req.title, requester });
+      }
       if (cfg.mode === 'auto-reply' && p.req.nodeType !== 'room') {
         const text = await composeIntakeReply(cfg, p.req);
         const env = { t: 'msg', e: { id: randomId(), authorId: session.userId, ts: Date.now(), text } };
-        // The owner holds the per-node objinvlog cap (established at ticket creation). The ticket
-        // is plaintext, so the reply is posted unsealed — where the app reads it.
-        await getNodeStreamClient(spaceId, nodeId, session).append(
-          objInvLogPush(spaceId, nodeId),
-          env as unknown as Record<string, unknown>,
-        );
+        let body: Record<string, unknown> = env as unknown as Record<string, unknown>;
+        if (enc) {
+          // E2EE ticket: seal the reply with the per-node keyring before appending.
+          // The desk owner is a keyring recipient (it minted the keyring in accept above).
+          const access = await buildNodeAccessShared(session, spaceId, nodeId, { access: 'invite', enc: true });
+          if (!access?.encryptor) throw new Error('No node keyring to seal auto-reply');
+          body = await (access.encryptor as { encrypt: (d: Record<string, unknown>) => Promise<Record<string, unknown>> }).encrypt(body);
+        }
+        await getNodeStreamClient(spaceId, nodeId, session).append(objInvLogPush(spaceId, nodeId), body);
       }
     } catch {
       // best-effort: a bad/failed request must not block the others
@@ -141,20 +153,28 @@ export async function listPendingTicketRequests(session: Session, spaceId: strin
  * `cfg` is passed so per-space settings (e.g. enc toggle in Phase 5) can be read here.
  */
 function makeNodeCreateHandler(nodeType: string, cfg: IntakeConfig) {
-  if (nodeType === 'room') return makeRoomCreateHandler({ enc: (cfg as { enc?: boolean }).enc ?? false });
-  if (nodeType === 'ticket') return makeTicketCreateHandler();
+  const enc = cfg.enc ?? false;
+  if (nodeType === 'room') return makeRoomCreateHandler({ enc });
+  if (nodeType === 'ticket') return makeTicketCreateHandler(enc);
   throw new Error(`Unknown request nodeType: ${JSON.stringify(nodeType)}`);
 }
 
 /** Accept a single pending request → create the appropriate node (ticket or shared room)
  *  based on `pending.req.nodeType`. The manual-mode counterpart of the reconcile loop.
- *  Returns the created node's spaceId + nodeId. */
+ *  Reads the space's IntakeConfig to honour the enc setting. Returns the created node's spaceId + nodeId. */
 export async function acceptNodeRequest(
   session: Session,
   pending: PendingRequest,
 ): Promise<{ spaceId: string; nodeId: string }> {
-  const create = makeNodeCreateHandler(pending.req.nodeType, { mode: 'manual', replyKind: 'fixed', replyText: '' });
-  return acceptResourceRequest(session, pending, { create });
+  const cfg = await readIntakeConfig(session, pending.req.spaceId).catch(() => DEFAULT_INTAKE_CONFIG);
+  const create = makeNodeCreateHandler(pending.req.nodeType, cfg);
+  const enc = cfg.enc ?? false;
+  const result = await acceptResourceRequest(session, pending, { create, enc });
+  if (enc && pending.req.nodeType === 'ticket') {
+    const requester = typeof pending.req.meta?.requester === 'string' ? (pending.req.meta.requester as string) : pending.req.requester.userId;
+    await writeSealedTicketInfo(session, pending.req.spaceId, result.nodeId, { title: pending.req.title, requester });
+  }
+  return result;
 }
 
 /** @deprecated Use {@link acceptNodeRequest} — handles both ticket and room requests. */

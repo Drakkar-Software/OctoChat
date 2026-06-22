@@ -161,7 +161,7 @@ export async function revokeTicketAgent(
  * }
  * ```
  */
-export function makeTicketCreateHandler(): (
+export function makeTicketCreateHandler(enc = false): (
   session: Session,
   req: ResourceRequest,
 ) => Promise<{ nodeId: string }> {
@@ -176,8 +176,9 @@ export function makeTicketCreateHandler(): (
     const ticketMeta = defaultTicketMeta({ title: req.title, requester, priority });
     // Create the ticket node with BOTH the TicketMeta sub-object AND meta.reqId so the
     // dedup check in scanResourceRequests (which tests node.meta?.reqId === req.reqId)
-    // correctly skips re-delivered requests. (Resource-request tickets are plaintext.)
-    await createTicketNodeWithReqId(session, req.spaceId, ticketId, ticketMeta, false, req.reqId);
+    // correctly skips re-delivered requests. When enc, title/requester are stripped from
+    // the plaintext index and sealed separately via writeSealedTicketInfo after accept.
+    await createTicketNodeWithReqId(session, req.spaceId, ticketId, ticketMeta, enc, req.reqId);
     return { nodeId: ticketId };
   };
 }

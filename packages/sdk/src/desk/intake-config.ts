@@ -25,10 +25,12 @@ export interface IntakeConfig {
   replyKind: IntakeReplyKind;
   /** The fixed first reply (used for `replyKind: 'fixed'`, or as the AI fallback). */
   replyText: string;
+  /** Whether incoming tickets are created as E2EE nodes with a per-node keyring. Default false. */
+  enc?: boolean;
 }
 
 /** Default: review every request by hand (the safe, no-surprises default). */
-export const DEFAULT_INTAKE_CONFIG: IntakeConfig = { mode: 'manual', replyKind: 'fixed', replyText: '' };
+export const DEFAULT_INTAKE_CONFIG: IntakeConfig = { mode: 'manual', replyKind: 'fixed', replyText: '', enc: false };
 
 /** Max length of the fixed reply message (keeps the owner doc small). */
 export const INTAKE_REPLY_MAX = 2000;
@@ -52,6 +54,7 @@ export function coerceIntakeConfig(raw: unknown): IntakeConfig {
         ? (r.replyKind as IntakeReplyKind)
         : DEFAULT_INTAKE_CONFIG.replyKind,
     replyText: typeof r.replyText === 'string' ? r.replyText.slice(0, INTAKE_REPLY_MAX) : DEFAULT_INTAKE_CONFIG.replyText,
+    enc: typeof r.enc === 'boolean' ? r.enc : false,
   };
 }
 

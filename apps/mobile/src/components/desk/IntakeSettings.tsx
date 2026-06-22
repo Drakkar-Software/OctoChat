@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
@@ -101,6 +101,26 @@ export function IntakeSettings({ spaceId }: { spaceId: string }) {
             })}
           </View>
 
+          <Divider />
+
+          <View style={styles.encRow}>
+            <View style={styles.optionText}>
+              <Txt variant="body" weight="medium">
+                End-to-end encrypt tickets
+              </Txt>
+              <Txt variant="caption" tone="inkMuted">
+                Messages are sealed with a per-ticket keyring — only you and the requester can read them.
+              </Txt>
+            </View>
+            <Switch
+              disabled={loading}
+              value={config.enc ?? false}
+              onValueChange={(v) => void save({ enc: v })}
+              trackColor={{ false: '#767577', true: colors.accentDesk }}
+              thumbColor="#ffffff"
+            />
+          </View>
+
           {config.mode === 'auto-reply' ? (
             <Reveal style={styles.replyBlock}>
               <Txt variant="micro" weight="semibold" mono uppercase tone="inkSoft">
@@ -167,4 +187,5 @@ const styles = StyleSheet.create({
   radioDot: { width: 8, height: 8, borderRadius: 4 },
   optionText: { flex: 1, gap: 2 },
   replyBlock: { gap: spacing.sm, marginTop: spacing.xs },
+  encRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 });
