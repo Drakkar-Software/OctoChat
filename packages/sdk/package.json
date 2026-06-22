@@ -1,6 +1,6 @@
 {
   "name": "@drakkar.software/octochat-sdk",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Headless, reusable OctoChat core — chat-domain logic (identity, encrypted Starfish sync, registry, spaces/rooms, messages, DMs, formatters) with no UI and no platform lock-in.",
   "license": "MIT",
   "type": "module",

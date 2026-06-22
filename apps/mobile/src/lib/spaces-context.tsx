@@ -244,13 +244,19 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   // device shows up in the persistent desktop shell, which never remounts. One
   // refresh for the whole app now, not one per mounted consumer. Skips the mount
   // run (the effect above already loads then) so first paint is a single fetch.
+  // Throttled: rapid navigation (or a re-render storm) can fire this effect many times
+  // per second; we only refresh once per 5 s to keep _index/_access reads bounded.
   const mountedRef = useRef(false);
+  const lastNavRefreshAt = useRef(0);
   useEffect(() => {
     if (!session) return;
     if (!mountedRef.current) {
       mountedRef.current = true;
       return;
     }
+    const now = Date.now();
+    if (now - lastNavRefreshAt.current < 5_000) return;
+    lastNavRefreshAt.current = now;
     void refresh().catch(() => {});
   }, [pathname, session, refresh]);
 

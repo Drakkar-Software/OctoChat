@@ -1,5 +1,22 @@
 # Changelog — @drakkar.software/octochat-sdk
 
+## 0.4.4 (2026-06-22)
+
+### Fixed
+
+- **Request storm: 429 amplifier in `batchPullSpaceData`** (`batch-space.ts`): when the batch
+  `/batch/pull` responded with HTTP 429, the catch block would immediately fire two more
+  individual pulls (`_access` + `_index`) with no back-off — tripling the request count exactly
+  when the server was overwhelmed. The fallback is now 429-aware: a 429 is rethrown so the
+  registry keeps its last-good cached entry; only genuine "batch not supported" failures (404,
+  501, network) fall back to the concurrent individual pulls as intended.
+- **Ticket intake robustness** (`intake.ts`): in `reconcileTicketRequests`, the description
+  post and the auto-reply shared a single try/catch — a 429 on the description silently dropped
+  both. Now each is in its own `try/catch` with a `console.warn` on failure, so a transient
+  network error never swallows both messages. Similarly, `acceptNodeRequest`'s description post
+  is now best-effort so a transient error can't fail the whole manual accept after the node is
+  already created.
+
 ## 0.4.3 (2026-06-22)
 
 ### Fixed

@@ -25,7 +25,7 @@ describe('coerceIntakeConfig', () => {
   });
 
   it('passes a valid config through', () => {
-    const cfg: IntakeConfig = { mode: 'auto-reply', replyKind: 'ai', replyText: 'hi' };
+    const cfg: IntakeConfig = { mode: 'auto-reply', replyKind: 'ai', replyText: 'hi', enc: false };
     expect(coerceIntakeConfig(cfg)).toEqual(cfg);
   });
 
@@ -70,7 +70,7 @@ describe('writeIntakeConfig', () => {
   it('pushes the doc to the intake path with the pulled hash (optimistic concurrency)', async () => {
     const pull: Pull = vi.fn(async () => ({ data: undefined, hash: 'h7' }));
     const push: Push = vi.fn(async () => undefined);
-    const cfg: IntakeConfig = { mode: 'auto-reply', replyKind: 'fixed', replyText: 'thanks' };
+    const cfg: IntakeConfig = { mode: 'auto-reply', replyKind: 'fixed', replyText: 'thanks', enc: false };
     await writeIntakeConfig(makeSession(pull, push), 'sp-1', cfg);
     expect(push).toHaveBeenCalledWith(spaceIntakePush('sp-1'), { v: 1, intake: cfg }, 'h7');
   });

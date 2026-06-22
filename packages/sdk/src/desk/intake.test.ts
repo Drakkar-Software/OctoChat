@@ -13,7 +13,10 @@ vi.mock('../starfish/registry', () => ({
   readSpaces: vi.fn(async () => ({ declinedRequests: {} })),
   setRequestDeclined: vi.fn(async () => undefined),
 }));
-vi.mock('./intake-config', () => ({ readIntakeConfig: vi.fn() }));
+vi.mock('./intake-config', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  readIntakeConfig: vi.fn(),
+}));
 vi.mock('./orchestrator', () => ({
   makeTicketCreateHandler: vi.fn(() => vi.fn()),
   makeRoomCreateHandler: vi.fn(() => vi.fn()),

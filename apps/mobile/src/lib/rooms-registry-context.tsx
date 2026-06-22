@@ -55,6 +55,12 @@ export interface RoomsRegistryEntry {
   loaded: boolean;
 }
 
+/** Minimum ms between successive refreshes of the same space's registry. Absorbs rapid
+ *  refresh() calls (navigation effects, post-mutation nudges) so a 429 storm can't
+ *  feed itself: a rate-limited fetch records its start time, and any refresh() call
+ *  within the cooldown window returns the last-good cached entry instead of re-fetching. */
+const FETCH_COOLDOWN_MS = 5_000;
+
 const PENDING: RoomsRegistryEntry = {
   rooms: [], owner: null, members: [], name: null, image: null, categories: [], hash: null, loading: true, loaded: false,
 };
@@ -125,6 +131,9 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
   const inflight = useRef(new Map<string, Promise<RoomsRegistryEntry>>());
   const listeners = useRef(new Map<string, Set<() => void>>());
   const refCounts = useRef(new Map<string, number>());
+  // Tracks when each space last started a network fetch (success or failure).
+  // Used by refresh() to enforce FETCH_COOLDOWN_MS between successive fetches.
+  const lastFetchAt = useRef(new Map<string, number>());
 
   // Latest session/spaces, read by the stable `fetchEntry` below so `ensure`'s
   // identity never churns (which would re-run every consumer's subscribe effect).
@@ -179,6 +188,7 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
   const runFetch = useCallback((spaceId: string): Promise<RoomsRegistryEntry> => {
     const pending = inflight.current.get(spaceId);
     if (pending) return pending;
+    lastFetchAt.current.set(spaceId, Date.now());
     const prev = entries.current.get(spaceId) ?? PENDING;
     entries.current.set(spaceId, { ...prev, loading: true });
     notify(spaceId);
@@ -213,6 +223,18 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
   }, [runFetch]);
 
   const refresh = useCallback((spaceId: string): Promise<RoomsRegistryEntry> => {
+    // Cooldown: if a fetch started within FETCH_COOLDOWN_MS, return the in-flight promise
+    // or the already-loaded entry instead of triggering another network hit. This is the
+    // primary backstop against 429 storms — a rate-limited fetch records its start time
+    // and subsequent refresh() calls within the window get served from cache.
+    const now = Date.now();
+    const lastAt = lastFetchAt.current.get(spaceId) ?? 0;
+    if (now - lastAt < FETCH_COOLDOWN_MS) {
+      const inFlight = inflight.current.get(spaceId);
+      if (inFlight) return inFlight;
+      const existing = entries.current.get(spaceId);
+      if (existing?.loaded) return Promise.resolve(existing);
+    }
     entries.current.delete(spaceId); // force a re-read even if already loaded
     return runFetch(spaceId);
   }, [runFetch]);
@@ -267,6 +289,7 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     entries.current.clear();
     inflight.current.clear();
+    lastFetchAt.current.clear();
     for (const spaceId of listeners.current.keys()) notify(spaceId);
   }, [userId, notify]);
 

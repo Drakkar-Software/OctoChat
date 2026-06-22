@@ -119,12 +119,13 @@ export async function reconcileTicketRequests(
     const cfg = cfgBySpace.get(spaceId) ?? null;
     if (!cfg || cfg.mode === 'manual') continue; // manual → handled by the Requests UI
 
+    // Route to the appropriate node creator by request type (inside try so an unknown
+    // nodeType skips this request without aborting the rest of the batch).
+    const enc = cfg.enc ?? false;
+    let nodeId!: string;
     try {
-      // Route to the appropriate node creator by request type (inside try so an unknown
-      // nodeType skips this request without aborting the rest of the batch).
       const create = makeNodeCreateHandler(p.req.nodeType, cfg);
-      const enc = cfg.enc ?? false;
-      const { nodeId } = await acceptResourceRequest(session, p, { create, enc });
+      ({ nodeId } = await acceptResourceRequest(session, p, { create, enc }));
       changed = true;
       // For E2EE tickets, seal the header AFTER accept — the per-node keyring is minted
       // during accept's inviteToNode, so writeSealedTicketInfo must run after.
@@ -132,17 +133,27 @@ export async function reconcileTicketRequests(
         const requester = typeof p.req.meta?.requester === 'string' ? (p.req.meta.requester as string) : p.req.requester.userId;
         await writeSealedTicketInfo(session, spaceId, nodeId, { title: p.req.title, requester });
       }
-      // Post the requester's description as the FIRST message in the ticket room.
-      const desc = (p.req.message ?? '').trim();
-      if (p.req.nodeType === 'ticket' && desc) {
+    } catch {
+      // best-effort: a bad/failed accept must not block the rest of the batch
+      continue;
+    }
+    // Post the requester's description as the FIRST message in the ticket room.
+    // Independent try/catch: a failed description post must not prevent the auto-reply.
+    const desc = (p.req.message ?? '').trim();
+    if (p.req.nodeType === 'ticket' && desc) {
+      try {
         await postTicketMessage(session, spaceId, nodeId, enc, {
           id: randomId(),
           authorId: p.req.requester.userId,
           ts: Date.now(),
           text: clampField(desc, TICKET_MESSAGE_MAX),
         });
+      } catch (err) {
+        console.warn('[OctoChat] ticket description post failed', err);
       }
-      if (cfg.mode === 'auto-reply' && p.req.nodeType !== 'room') {
+    }
+    if (cfg.mode === 'auto-reply' && p.req.nodeType !== 'room') {
+      try {
         const text = await composeIntakeReply(cfg, p.req);
         await postTicketMessage(session, spaceId, nodeId, enc, {
           id: randomId(),
@@ -150,9 +161,9 @@ export async function reconcileTicketRequests(
           ts: Date.now(),
           text,
         });
+      } catch (err) {
+        console.warn('[OctoChat] ticket auto-reply post failed', err);
       }
-    } catch {
-      // best-effort: a bad/failed request must not block the others
     }
   }
   return changed;
@@ -201,14 +212,20 @@ export async function acceptNodeRequest(
     await writeSealedTicketInfo(session, pending.req.spaceId, result.nodeId, { title: pending.req.title, requester });
   }
   // Post the requester's description as the first message in the new ticket room.
+  // Best-effort: the node is already created; a transient append failure (e.g. a 429
+  // during a request storm) must not fail the whole accept.
   const desc = (pending.req.message ?? '').trim();
   if (pending.req.nodeType === 'ticket' && desc) {
-    await postTicketMessage(session, pending.req.spaceId, result.nodeId, enc, {
-      id: randomId(),
-      authorId: pending.req.requester.userId,
-      ts: Date.now(),
-      text: clampField(desc, TICKET_MESSAGE_MAX),
-    });
+    try {
+      await postTicketMessage(session, pending.req.spaceId, result.nodeId, enc, {
+        id: randomId(),
+        authorId: pending.req.requester.userId,
+        ts: Date.now(),
+        text: clampField(desc, TICKET_MESSAGE_MAX),
+      });
+    } catch (err) {
+      console.warn('[OctoChat] ticket description post failed', err);
+    }
   }
   return result;
 }
