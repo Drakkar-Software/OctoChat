@@ -29,7 +29,14 @@ import {
   defaultSpaceLayout,
 } from '@drakkar.software/starfish-spaces';
 import type { DeviceKeys, PublicProfile, SpaceLayout } from '@drakkar.software/starfish-spaces';
-import { getSyncBase, getSyncNamespace, profilePull, profilePush } from '@drakkar.software/octospaces-sdk';
+import {
+  getSyncBase,
+  getSyncNamespace,
+  profilePull,
+  profilePush,
+  accountScope,
+  linkedDeviceScope,
+} from '@drakkar.software/octospaces-sdk';
 
 import { keyringPull } from './paths';
 
@@ -43,11 +50,19 @@ export function makeClient(cap: unknown, devEdPrivHex: string): StarfishClient {
 }
 
 /**
- * Build a SpaceLayout that uses the octospaces-sdk namespace-aware profile
- * path helpers so profile reads/writes land on the correct server path.
+ * Build the OctoChat SpaceLayout:
+ *  - namespace-aware profile paths (octospaces-sdk `profilePull`/`profilePush`)
+ *  - explicit-collection `accountScope`/`linkedDeviceScope` so the minted account
+ *    cap carries `collections: ["profile","devices","spaces","spaceregistry","inbox"]`
+ *    instead of `["*"]`. The Starfish server synthesises cap roles by literal concat
+ *    (`cap:read:<col>`); a wildcard `["*"]` produces `cap:read:*` which never matches
+ *    the `spaces` collection's required `cap:read:spaces` — causing a 403 on `_spaces`.
+ *
+ * This layout is installed module-wide via `configureSpaces({ layout: octoLayout() })`
+ * inside `configureOctoChat` so every session builder (fresh + restore) picks it up.
  */
-function octoLayout(): SpaceLayout {
-  return { ...defaultSpaceLayout, profilePull, profilePush };
+export function octoLayout(): SpaceLayout {
+  return { ...defaultSpaceLayout, profilePull, profilePush, accountScope, linkedDeviceScope };
 }
 
 /** Read a user's public profile (pseudo, avatar, public keys). Injects globals. */

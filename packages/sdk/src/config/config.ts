@@ -15,6 +15,8 @@ import {
   getSyncPrefix as _getSyncPrefix,
   getSharedSpacesNamespace,
 } from '@drakkar.software/octospaces-sdk';
+import { configureSpaces } from '@drakkar.software/starfish-spaces';
+import { octoLayout } from '../starfish/client';
 
 /** OctoChat's config extends the shared spaces config directly — all sync, namespace,
  *  events-URL, and web-origin options are inherited from {@link OctoSpacesConfig}. */
@@ -33,12 +35,18 @@ let _webBase = '';
 let _onServerReachable: (() => void) | undefined;
 
 /** Configure the SDK. Call once at app boot before any sync/identity API.
- *  Delegates to `configureOctoSpaces` from `@drakkar.software/octospaces-sdk`. */
+ *  Delegates to `configureOctoSpaces` from `@drakkar.software/octospaces-sdk`, then
+ *  installs the OctoChat space layout so every session builder (fresh + restore) mints
+ *  account/linked-device caps with explicit collections instead of `["*"]`. */
 export function configureOctoChat(config: OctoChatConfig): void {
   _eventsUrl = config.eventsUrl;
   _webBase = config.webBase ?? '';
   _onServerReachable = config.onServerReachable;
   configureOctoSpaces(config);
+  // Install the OctoChat layout module-wide. configureSpaces merges, so any kvAdapter
+  // already set by configureKv is preserved. This must run after configureOctoSpaces
+  // so `getSyncBase()`/`getSyncNamespace()` are ready when octoLayout() reads them.
+  configureSpaces({ layout: octoLayout() });
 }
 
 /** Starfish sync server base URL. */

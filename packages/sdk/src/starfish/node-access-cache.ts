@@ -33,7 +33,7 @@
  * {@link clearNodeAccessCache} and `clearPseudoCache`.
  */
 import { buildNodeAccess } from '@drakkar.software/starfish-spaces';
-import type { NodeAccess, Session } from '@drakkar.software/octospaces-sdk';
+import type { NodeAccess, Session } from '@drakkar.software/starfish-spaces';
 
 type NodeAccessResult = Awaited<ReturnType<typeof buildNodeAccess>>;
 

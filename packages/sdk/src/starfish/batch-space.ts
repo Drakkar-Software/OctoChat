@@ -18,7 +18,7 @@
  *   objindex      → spaces/{spaceId}/objects/_index
  */
 import { getSpaceClient, readSpaceAccess } from '@drakkar.software/starfish-spaces';
-import type { Session } from '@drakkar.software/octospaces-sdk';
+import type { Session } from '@drakkar.software/starfish-spaces';
 import { StarfishHttpError } from '@drakkar.software/starfish-client';
 import type { BatchPullEntry } from '@drakkar.software/starfish-client';
 import type { ObjectNode } from '../domain/types';

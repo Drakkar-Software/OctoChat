@@ -1,5 +1,36 @@
 # Changelog — @drakkar.software/octochat-sdk
 
+## 0.5.1 (2026-06-22)
+
+### Fixed
+
+- **`_spaces` registry 403 after octospaces-sdk 0.25 / starfish-spaces migration** — two
+  independent defects introduced by that migration:
+
+  1. **Wildcard account cap (the 403 root cause)**: `starfish-spaces`' default layout mints
+     the account/linked-device cap with `collections: ["*"]`, which the Starfish server's
+     literal `cap:read:<col>` role synthesis cannot match against `cap:read:spaces` — causing
+     a 403 on every `user/{userId}/_spaces` pull. `configureOctoChat` now installs the OctoChat
+     layout module-wide via `configureSpaces({ layout: octoLayout() })`, overriding
+     `accountScope`/`linkedDeviceScope` with octospaces-sdk's explicit-collection versions
+     (`["profile","devices","spaces","spaceregistry","inbox"]`). All session entry points
+     (fresh derivation and vault restore) now receive a cap that satisfies the server's
+     literal role check.
+
+  2. **Version skew — `octospaces-sdk@0.11.0` resolved instead of `0.25.0`**: the
+     `@drakkar.software/octospaces-platform-sdk@0.1.1` dependency hard-pinned
+     `octospaces-sdk@"0.11.0"`, which won the pnpm hoisting race over the declared `0.25.0`.
+     The pre-extraction 0.11.0 monolith's `sessionFromPersisted` returns the old Session shape
+     (`chatCap`/`chatClient`, no `layout`/`contentCap`/`contentClient`), breaking cold-start,
+     unlock, and account-switch restore paths. Bumped `octospaces-platform-sdk` to `0.3.0`,
+     which pins `octospaces-sdk@0.25.0` — now `sessionFromPersisted` is the new wrapper that
+     injects globals and returns the new Session shape.
+
+- **`Session` type import source in `batch-space.ts` and `node-access-cache.ts`**: these files
+  passed the `Session` value to starfish-spaces functions but imported the type from
+  `@drakkar.software/octospaces-sdk` (the pre-extraction 0.11.0 shape). Both now import
+  `Session` (and `NodeAccess`) from `@drakkar.software/starfish-spaces`.
+
 ## 0.5.0 (2026-06-22)
 
 ### Breaking

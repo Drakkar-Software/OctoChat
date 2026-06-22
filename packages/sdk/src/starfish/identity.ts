@@ -2,8 +2,12 @@
  * Identity bootstrap — thin wrappers that keep the old 2-arg call ergonomics
  * (`buildSession({userId,keys}, name?)`, `deriveSession(seedWords, name?)`,
  * `buildLinkedSession(linked, name?)`) while injecting the per-call `clientOpts`
- * required by starfish-spaces 0.25+.  The `sessionFromPersisted` / `activeAccountOf`
- * wrappers in octospaces-sdk (0.25 still exports them) use the same pattern.
+ * required by starfish-spaces 0.25+.
+ *
+ * `sessionFromPersisted` / `activeAccountOf` / `rootIdentityOf` are re-exported from
+ * octospaces-sdk at `index.ts:58` — in 0.25.0 they are thin wrappers that delegate to
+ * starfish-spaces and return the NEW Session shape (with `layout`, `contentCap`, etc.).
+ * No additional shimming is needed here.
  */
 import {
   buildSession as _buildSession,
@@ -19,7 +23,6 @@ import { getSyncBase, getSyncNamespace, getSharedSpacesNamespace } from '@drakka
 
 export type { Session, LinkedIdentity };
 export { ownerTrustedAdders, generateSeedWords, isValidSeed, fingerprintFromUserId };
-// rootIdentityOf is re-exported from octospaces-sdk in index.ts (wraps starfish-spaces with globals).
 
 /** Current global connection opts, injected into each session builder. */
 function clientOpts() {
