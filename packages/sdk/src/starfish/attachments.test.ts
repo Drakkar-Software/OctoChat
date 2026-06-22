@@ -173,12 +173,43 @@ describe('uploadAttachment — plaintext (enc = null)', () => {
 // ── Node-scoped attachments (scope: 'node') ────────────────────────────────────
 
 describe('uploadAttachment with nodeId — node-scoped (objnodeblob)', () => {
-  // These two tests require octospaces-sdk 0.26.0 (nodeId threading in the blob store).
-  // Mark as todo until the publish chain is complete and node_modules is updated.
-  it.todo('stores under the node prefix and sets scope: "node" on the ref (needs octospaces-sdk 0.26.0)');
-  it.todo('round-trip: node-scoped upload + load returns original plaintext (needs octospaces-sdk 0.26.0)');
+  it('stores under the node prefix and sets scope: "node" on the ref', async () => {
+    const client = makeFakeClient();
+    const ref = await uploadAttachment(client as never, fakeSealer, 'sp-n', BYTES, 'file.pdf', 'application/pdf', 'node-1');
+    const storedPath = [...client.blobs.keys()][0]!;
+    expect(storedPath).toContain('sp-n/objects/n/node-1/blobs/');
+    expect(storedPath).not.toContain('/objects/blobs/');
+    expect(ref.scope).toBe('node');
+    expect(ref.kind).toBe('file');
+  });
 
-  it.todo('loadAttachment routes to node path when ref.scope === "node", space path otherwise (needs octospaces-sdk 0.26.0)');
+  it('round-trip: node-scoped upload + load returns original plaintext', async () => {
+    const client = makeFakeClient();
+    const ref = await uploadAttachment(client as never, fakeSealer, 'sp-n', BYTES, 'f.bin', 'application/octet-stream', 'node-2');
+    clearAttachmentCache();
+    const pushPath = [...client.blobs.keys()][0]!;
+    client.blobs.set(pushPath.replace('/push/', '/pull/'), client.blobs.get(pushPath)!);
+    const loaded = await loadAttachment(client as never, fakeSealer, 'sp-n', ref, 'node-2');
+    expect(loaded).toEqual(BYTES);
+  });
+
+  it('loadAttachment routes to node path when ref.scope === "node", space path otherwise', async () => {
+    const client = makeFakeClient();
+    const nodeRef: AttachmentRef = { blobId: 'bbb1', name: 'f.bin', mime: 'application/octet-stream', size: 5, kind: 'file', scope: 'node' };
+    const spaceRef: AttachmentRef = { blobId: 'bbb2', name: 'f.bin', mime: 'application/octet-stream', size: 5, kind: 'file' };
+    const nodePullPath = '/pull/spaces/sp-r/objects/n/node-r/blobs/bbb1';
+    const spacePullPath = '/pull/spaces/sp-r/objects/blobs/bbb2';
+    client.blobs.set(nodePullPath, BYTES);
+    client.blobs.set(spacePullPath, BYTES);
+
+    const fromNode = await loadAttachment(client as never, null, 'sp-r', nodeRef, 'node-r');
+    const fromSpace = await loadAttachment(client as never, null, 'sp-r', spaceRef);
+    expect(fromNode).toEqual(BYTES);
+    expect(fromSpace).toEqual(BYTES);
+    const calls = vi.mocked(client.pullBlob).mock.calls.map(([p]) => p);
+    expect(calls.some((p) => p.includes('/objects/n/node-r/blobs/'))).toBe(true);
+    expect(calls.some((p) => p.includes('/objects/blobs/'))).toBe(true);
+  });
 
   it('legacy ref without scope always routes to space-level path even with nodeId arg', async () => {
     const client = makeFakeClient();
