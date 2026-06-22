@@ -25,6 +25,7 @@ import { isLlmConfigured, runLlm } from '../ai/engine-port';
 import { randomId } from '../domain/ids';
 import type { Session } from '../starfish/identity';
 import { objInvLogPush } from '../starfish/paths';
+import { readSpaces, setRequestDeclined } from '../starfish/registry';
 import { readIntakeConfig, type IntakeConfig } from './intake-config';
 import { makeTicketCreateHandler, makeRoomCreateHandler } from './orchestrator';
 
@@ -119,9 +120,17 @@ export async function reconcileTicketRequests(
   return changed;
 }
 
-/** List a space's pending (not-yet-accepted) ticket requests — for the manual Requests UI. */
+/**
+ * List a space's pending (not-yet-accepted, not-yet-declined) ticket requests — for the manual
+ * Requests UI. Filters out any request the owner has previously declined (persisted in the
+ * `_spaces` doc) so declined requests don't reappear after a refresh.
+ */
 export async function listPendingTicketRequests(session: Session, spaceId: string): Promise<PendingRequest[]> {
-  return scanResourceRequests(session, new Set([spaceId]));
+  const [all, { declinedRequests }] = await Promise.all([
+    scanResourceRequests(session, new Set([spaceId])),
+    readSpaces(session.spacesRegistryClient, session.userId),
+  ]);
+  return all.filter((p) => !declinedRequests[p.req.reqId]);
 }
 
 /**
@@ -151,11 +160,15 @@ export async function acceptNodeRequest(
 /** @deprecated Use {@link acceptNodeRequest} — handles both ticket and room requests. */
 export const acceptTicketRequest = acceptNodeRequest;
 
-/** Decline a pending request (seals a rejection to the requester; the owner may also just ignore it). */
+/**
+ * Decline a pending request: seals a rejection to the requester AND persists the reqId in the
+ * owner's `_spaces` doc so `listPendingTicketRequests` filters it out on the next refresh.
+ */
 export async function declineTicketRequest(
   session: Session,
   pending: PendingRequest,
   reason?: string,
 ): Promise<void> {
   await rejectResourceRequest(session, pending, reason);
+  await setRequestDeclined(session.spacesRegistryClient, session.userId, pending.req.reqId);
 }

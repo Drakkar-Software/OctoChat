@@ -25,6 +25,12 @@ export type DmMap = Record<string, string>;
  *  stored in the `_spaces` doc under `extra.archivedDms`. */
 export type ArchivedDms = Record<string, true>;
 
+/** The set of resource-request ids the owner has declined (filtered from the Incoming-requests
+ *  shelf so declined requests don't reappear after a refresh). OctoChat-owned; stored in the
+ *  `_spaces` doc under `extra.declinedRequests`. Monotonically growing (the owner's inbox is
+ *  append-only, so declined elements are never deleted server-side). */
+export type DeclinedRequests = Record<string, true>;
+
 import type {
   ID,
   SealedBlob,

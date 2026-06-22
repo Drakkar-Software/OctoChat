@@ -21,7 +21,7 @@ import {
 } from '@drakkar.software/octospaces-sdk';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { ArchivedDms, DmMap, Room, Space } from '../domain/types';
+import type { ArchivedDms, DeclinedRequests, DmMap, Room, Space } from '../domain/types';
 import type { Session } from './identity';
 import { ownerTrustedAdders } from './identity';
 import { DEFAULT_CATEGORY } from './objects';
@@ -70,6 +70,11 @@ const coerceArchivedDms = (v: unknown): ArchivedDms => {
   return out;
 };
 const coerceQuickReactions = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+const coerceDeclinedRequests = (v: unknown): DeclinedRequests => {
+  const out: DeclinedRequests = {};
+  for (const [k, val] of Object.entries(asRecord(v))) if (val === true) out[k] = true;
+  return out;
+};
 
 /** {@link readSpacesCore} with the OctoChat-owned `extra` fields re-flattened onto the
  *  result (back-compat with pre-0.16 call sites that read `.dms`/`.archivedDms`/`.quickReactions`). */
@@ -81,6 +86,7 @@ export async function readSpaces(client: StarfishClient, userId: string) {
     dms: coerceDms(extra.dms),
     archivedDms: coerceArchivedDms(extra.archivedDms),
     quickReactions: coerceQuickReactions(extra.quickReactions),
+    declinedRequests: coerceDeclinedRequests(extra.declinedRequests),
   };
 }
 
@@ -94,6 +100,17 @@ export function updateArchivedDmsDoc(client: StarfishClient, userId: string, mut
 
 export function updateQuickReactionsDoc(client: StarfishClient, userId: string, mutator: (cur: string[]) => string[] | null): Promise<void> {
   return updateSpacesExtraField<string[]>(client, userId, 'quickReactions', (cur) => mutator(coerceQuickReactions(cur)));
+}
+
+export function updateDeclinedRequestsDoc(client: StarfishClient, userId: string, mutator: (cur: DeclinedRequests) => DeclinedRequests | null): Promise<void> {
+  return updateSpacesExtraField<DeclinedRequests>(client, userId, 'declinedRequests', (cur) => mutator(coerceDeclinedRequests(cur)));
+}
+
+/** Mark a resource-request id as declined by the owner — idempotent (no write when already present).
+ *  Persisted in the `_spaces` doc under `extra.declinedRequests` so subsequent calls to
+ *  `listPendingTicketRequests` filter it out, even after refresh or on other devices. */
+export function setRequestDeclined(client: StarfishClient, userId: string, reqId: string): Promise<void> {
+  return updateDeclinedRequestsDoc(client, userId, (cur) => (cur[reqId] ? null : { ...cur, [reqId]: true }));
 }
 
 export function setDmMapping(client: StarfishClient, userId: string, peerUserId: string, spaceId: string): Promise<void> {

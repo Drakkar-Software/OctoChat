@@ -9,6 +9,10 @@ vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => ({
   rejectResourceRequest: vi.fn(),
   getNodeStreamClient: vi.fn(),
 }));
+vi.mock('../starfish/registry', () => ({
+  readSpaces: vi.fn(async () => ({ declinedRequests: {} })),
+  setRequestDeclined: vi.fn(async () => undefined),
+}));
 vi.mock('./intake-config', () => ({ readIntakeConfig: vi.fn() }));
 vi.mock('./orchestrator', () => ({
   makeTicketCreateHandler: vi.fn(() => vi.fn()),
@@ -30,6 +34,7 @@ import {
   rejectResourceRequest,
   getNodeStreamClient,
 } from '@drakkar.software/octospaces-sdk';
+import { readSpaces, setRequestDeclined } from '../starfish/registry';
 import { readIntakeConfig, type IntakeConfig } from './intake-config';
 import { isLlmConfigured, runLlm } from '../ai/engine-port';
 import type { Session } from '../starfish/identity';
@@ -43,6 +48,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(isLlmConfigured).mockReturnValue(false);
   vi.mocked(acceptResourceRequest).mockResolvedValue({ spaceId: 'sp-1', nodeId: 'ticket-1' } as never);
+  vi.mocked(readSpaces).mockResolvedValue({ declinedRequests: {} } as never);
 });
 
 describe('reconcileTicketRequests', () => {
@@ -163,10 +169,20 @@ describe('listPendingTicketRequests / declineTicketRequest', () => {
     await listPendingTicketRequests(session, 'sp-9');
     expect(scanResourceRequests).toHaveBeenCalledWith(session, new Set(['sp-9']));
   });
-  it('decline delegates to rejectResourceRequest', async () => {
+
+  it('list filters out previously-declined reqIds so they never reappear after refresh', async () => {
+    vi.mocked(readSpaces).mockResolvedValue({ declinedRequests: { r2: true } } as never);
+    vi.mocked(scanResourceRequests).mockResolvedValue([pendingReq('r1'), pendingReq('r2')]);
+    const result = await listPendingTicketRequests(session, 'sp-9');
+    expect(result).toHaveLength(1);
+    expect(result[0]!.req.reqId).toBe('r1');
+  });
+
+  it('decline seals rejection to requester AND persists the reqId so it stays gone on refresh', async () => {
     const p = pendingReq('r');
     await declineTicketRequest(session, p, 'spam');
     expect(rejectResourceRequest).toHaveBeenCalledWith(session, p, 'spam');
+    expect(setRequestDeclined).toHaveBeenCalledWith(session.spacesRegistryClient, session.userId, 'r');
   });
 
   it('accept delegates to acceptResourceRequest with the ticket create handler', async () => {

@@ -1,5 +1,19 @@
 # OctoChat Changelog
 
+## sdk 0.3.11 — 2026-06-22 · declined-request persistence
+
+### SDK changes (0.3.10 → 0.3.11)
+
+- **0.3.11 – Declined incoming requests persist across refresh** (`domain/types.ts`,
+  `starfish/registry.ts`, `desk/intake.ts`): declining a ticket/room request on the
+  owner-side "Incoming requests" shelf now records the `reqId` durably in the user's
+  `_spaces` doc under `extra.declinedRequests`, synced cross-device alongside
+  `archivedDms`. `listPendingTicketRequests` reads this set and filters it from the
+  scan result, so a declined request stays gone after refresh/restart/other-device.
+  Previously `declineTicketRequest` only sealed a rejection to the requester's inbox
+  and `usePendingRequests` removed it in-memory only — causing it to reappear on
+  the next `scanResourceRequests` call (mount, navigation, foreground).
+
 ## sdk 0.3.10 — 2026-06-22 · DM kemSig fix
 
 ### SDK changes (0.3.9 → 0.3.10)
