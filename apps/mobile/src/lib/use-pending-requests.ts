@@ -24,8 +24,10 @@ export interface PendingRequestsHook {
   pending: PendingRequest[];
   count: number;
   loading: boolean;
-  /** The reqId currently being accepted/declined (for per-row spinners), or null. */
-  busyId: string | null;
+  /** The reqId currently being accepted (for per-row spinners), or null. */
+  acceptBusyId: string | null;
+  /** The reqId currently being declined (for per-row spinners), or null. */
+  declineBusyId: string | null;
   error: string | null;
   refresh: () => void;
   accept: (p: PendingRequest) => Promise<void>;
@@ -37,7 +39,8 @@ export function usePendingRequests(spaceId: string | null): PendingRequestsHook 
   const { refresh: refreshSpaces } = useSpacesContext();
   const [pending, setPending] = useState<PendingRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [acceptBusyId, setAcceptBusyId] = useState<string | null>(null);
+  const [declineBusyId, setDeclineBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
@@ -69,7 +72,7 @@ export function usePendingRequests(spaceId: string | null): PendingRequestsHook 
   const accept = useCallback(
     async (p: PendingRequest) => {
       if (!session || !spaceId) return;
-      setBusyId(p.req.reqId);
+      setAcceptBusyId(p.req.reqId);
       setError(null);
       try {
         await acceptNodeRequest(session, p);
@@ -81,7 +84,7 @@ export function usePendingRequests(spaceId: string | null): PendingRequestsHook 
       } catch (e) {
         setError(String((e as Error)?.message ?? e));
       } finally {
-        setBusyId(null);
+        setAcceptBusyId(null);
       }
     },
     [session, spaceId, removeLocal, refreshSpaces],
@@ -90,7 +93,7 @@ export function usePendingRequests(spaceId: string | null): PendingRequestsHook 
   const decline = useCallback(
     async (p: PendingRequest) => {
       if (!session || !spaceId) return;
-      setBusyId(p.req.reqId);
+      setDeclineBusyId(p.req.reqId);
       setError(null);
       try {
         await declineTicketRequest(session, p);
@@ -98,11 +101,11 @@ export function usePendingRequests(spaceId: string | null): PendingRequestsHook 
       } catch (e) {
         setError(String((e as Error)?.message ?? e));
       } finally {
-        setBusyId(null);
+        setDeclineBusyId(null);
       }
     },
     [session, spaceId, removeLocal],
   );
 
-  return { pending, count: pending.length, loading, busyId, error, refresh, accept, decline };
+  return { pending, count: pending.length, loading, acceptBusyId, declineBusyId, error, refresh, accept, decline };
 }

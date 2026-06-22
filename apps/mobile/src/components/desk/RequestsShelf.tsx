@@ -16,7 +16,7 @@ const REQUESTS_KEY = '__requests__';
  */
 export function RequestsShelf({ spaceId, userId }: { spaceId: string; userId: string }) {
   const hasTickets = useFeature('tickets');
-  const { pending, count, busyId, accept, decline } = usePendingRequests(hasTickets && spaceId ? spaceId : null);
+  const { pending, count, acceptBusyId, declineBusyId, accept, decline } = usePendingRequests(hasTickets && spaceId ? spaceId : null);
   const { isCollapsed, toggle } = useCategoryCollapse(userId, spaceId, 'requests');
 
   if (!hasTickets || count === 0) return null;
@@ -32,7 +32,8 @@ export function RequestsShelf({ spaceId, userId }: { spaceId: string; userId: st
         <RequestRow
           key={p.req.reqId}
           entry={p}
-          busy={busyId === p.req.reqId}
+          acceptBusy={acceptBusyId === p.req.reqId}
+          declineBusy={declineBusyId === p.req.reqId}
           onAccept={() => void accept(p)}
           onDecline={() => void decline(p)}
         />

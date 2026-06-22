@@ -10,14 +10,16 @@ import { Txt } from '@/components/ui/Txt';
 
 interface RequestRowProps {
   entry: PendingRequest;
-  /** True while this row's accept/decline is in flight (drives the button spinner + disables). */
-  busy: boolean;
+  /** True while accept is in flight (drives the Accept button spinner + disables both). */
+  acceptBusy: boolean;
+  /** True while decline is in flight (drives the Decline button spinner + disables both). */
+  declineBusy: boolean;
   onAccept: () => void;
   onDecline: () => void;
 }
 
 /** A single pending ticket request awaiting the owner's decision (manual-mode "Requests" shelf). */
-export function RequestRow({ entry, busy, onAccept, onDecline }: RequestRowProps) {
+export function RequestRow({ entry, acceptBusy, declineBusy, onAccept, onDecline }: RequestRowProps) {
   const { colors } = useTheme();
   const { req } = entry;
   const { who, shortId } = requesterDisplay(req);
@@ -50,8 +52,8 @@ export function RequestRow({ entry, busy, onAccept, onDecline }: RequestRowProps
       ) : null}
 
       <View style={styles.actions}>
-        <Button label="Decline" variant="secondary" size="sm" disabled={busy} onPress={onDecline} />
-        <Button label="Accept" variant="primary" size="sm" loading={busy} onPress={onAccept} />
+        <Button label="Decline" variant="secondary" size="sm" loading={declineBusy} disabled={acceptBusy} onPress={onDecline} />
+        <Button label="Accept" variant="primary" size="sm" loading={acceptBusy} disabled={declineBusy} onPress={onAccept} />
       </View>
     </View>
   );
