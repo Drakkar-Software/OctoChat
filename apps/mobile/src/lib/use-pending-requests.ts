@@ -16,9 +16,8 @@ import {
   type PendingRequest,
 } from '@drakkar.software/octochat-sdk';
 
-import { dispatchRoomChange } from './room-events-bus';
+import { dispatchIndexChange } from './room-events-bus';
 import { useSession } from './session-context';
-import { useSpacesContext } from './spaces-context';
 
 export interface PendingRequestsHook {
   pending: PendingRequest[];
@@ -36,7 +35,6 @@ export interface PendingRequestsHook {
 
 export function usePendingRequests(spaceId: string | null): PendingRequestsHook {
   const { session } = useSession();
-  const { refresh: refreshSpaces } = useSpacesContext();
   const [pending, setPending] = useState<PendingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [acceptBusyId, setAcceptBusyId] = useState<string | null>(null);
@@ -77,17 +75,17 @@ export function usePendingRequests(spaceId: string | null): PendingRequestsHook 
       try {
         await acceptNodeRequest(session, p);
         removeLocal(p.req.reqId);
-        dispatchRoomChange(spaceId);
-        // Refresh the object index so SharedRoomList / TicketList update immediately
-        // (useObjects does not subscribe to dispatchRoomChange — it only reacts to SSE/focus).
-        void refreshSpaces();
+        // Pull the shared objindex store once — the new ticket/room paints immediately
+        // on this device without a reload. Other devices get the update via SSE
+        // (object.changed event → dispatchIndexChange in the unread handler).
+        dispatchIndexChange(spaceId);
       } catch (e) {
         setError(String((e as Error)?.message ?? e));
       } finally {
         setAcceptBusyId(null);
       }
     },
-    [session, spaceId, removeLocal, refreshSpaces],
+    [session, spaceId, removeLocal],
   );
 
   const decline = useCallback(

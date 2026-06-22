@@ -32,7 +32,7 @@ import { hydrateMutes } from '@drakkar.software/octochat-sdk';
 import { flushReadsNow, hydrateReads } from '@drakkar.software/octochat-sdk';
 import { hydrateArchivedDms } from '@drakkar.software/octochat-sdk';
 import { refreshDmHeads } from '@drakkar.software/octochat-sdk';
-import { dispatchRoomChange } from './room-events-bus';
+import { dispatchIndexChange } from './room-events-bus';
 import { activeVariant } from './variants';
 import { useSession } from './session-context';
 
@@ -119,6 +119,15 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Minimum interval between expensive reconcile passes even on heavy refreshes.
+  // reconcileDmInbox scans monthly shard buckets (?full=true) — once per minute is fine.
+  // reconcileTicketRequests reads per-space indexes — same interval.
+  const RECONCILE_INTERVAL_MS = 60_000;
+  const lastReconcileDmAt = useRef(0);
+  const lastReconcileTicketsAt = useRef(0);
+
+  /** Heavy refresh: full cascade including DM heal + reconciles. Used on mount,
+   *  foreground, space create/reorder, and post-primed-snapshot background sync. */
   const refresh = useCallback(async () => {
     if (!session) return;
     const { spaces: list, mutes, reads, archivedDms, dms: dmMap } = await readSpaces(session.spacesRegistryClient, session.userId);
@@ -146,43 +155,63 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {});
     setActiveId((prev) => prev ?? rail[0]?.id ?? null);
-    // This `_spaces` re-pull runs on every navigation (effect below) and on app
-    // foreground — the only post-startup re-read of the doc. Re-hydrate the read marks
-    // and mute prefs from it too (they share the doc) so a room read or a space muted
-    // on another device propagates here without an app restart. Max-merged / server-
-    // authoritative in their own modules, so a stale read can't roll local state back.
+    // Re-hydrate the read marks and mute prefs so a room read or a space muted on another
+    // device propagates here without an app restart. Max-merged / server-authoritative in
+    // their own modules, so a stale read can't roll local state back.
     await hydrateReads(session.userId, reads);
     await hydrateMutes(session.userId, mutes);
     hydrateArchivedDms(archivedDms);
     // Refresh the DM head-timestamps (authoritative sort key for the DM list).
-    // Fire-and-forget — the internal throttle absorbs nav spam; failures degrade
-    // gracefully to the kv + local-cache values already in the store.
+    // Fire-and-forget — the internal throttle absorbs spam; failures degrade gracefully.
     void refreshDmHeads(session, Object.values(dmMap)).catch(() => {});
-    // Accept any inbound DM invites delivered through a shared space's carrier
-    // (best-effort, fire-and-forget so a carrier hiccup never blocks the rails). If a
-    // new DM was accepted, re-read so its peer→space mapping reaches the DM section.
-    void reconcileDmInbox(session, rail)
-      .then(async (changed) => {
-        if (!changed) return;
-        const next = await readSpaces(session.spacesRegistryClient, session.userId);
-        const healed = await healDmMap(session, next.spaces, next.dms);
-        setDms(healed);
-        // A freshly-accepted DM must land its peer in `_access.members` too (see above).
-        await healDmRosters(session, healed);
-      })
-      .catch(() => {});
-    // On a desk build, also accept inbound TICKET requests per each space's intake config
-    // (auto-accept / auto-reply). Best-effort; manual-mode spaces are left for the Requests UI.
-    // On a change, nudge the affected spaces' object index so the new ticket repaints in the
-    // Tickets shelf without waiting for a focus-pull.
-    if (DESK_INTAKE) {
-      const railIds = new Set(rail.map((s) => s.id));
-      void reconcileTicketRequests(session, railIds)
-        .then((changed) => {
-          if (changed) for (const id of railIds) dispatchRoomChange(id);
+    // Accept any inbound DM invites — throttled: monthly shards change rarely, so scanning
+    // them on every heavy refresh is wasted. One pass per RECONCILE_INTERVAL_MS.
+    const now = Date.now();
+    if (now - lastReconcileDmAt.current >= RECONCILE_INTERVAL_MS) {
+      lastReconcileDmAt.current = now;
+      void reconcileDmInbox(session, rail)
+        .then(async (changed) => {
+          if (!changed) return;
+          const next = await readSpaces(session.spacesRegistryClient, session.userId);
+          const healed = await healDmMap(session, next.spaces, next.dms);
+          setDms(healed);
+          // A freshly-accepted DM must land its peer in `_access.members` too (see above).
+          await healDmRosters(session, healed);
         })
         .catch(() => {});
     }
+    // On a desk build, also accept inbound TICKET requests per each space's intake config
+    // (auto-accept / auto-reply). Best-effort; manual-mode spaces are left for the Requests UI.
+    // Throttled: reads per-space indexes so we skip if one ran recently.
+    if (DESK_INTAKE && now - lastReconcileTicketsAt.current >= RECONCILE_INTERVAL_MS) {
+      lastReconcileTicketsAt.current = now;
+      const railIds = new Set(rail.map((s) => s.id));
+      void reconcileTicketRequests(session, railIds)
+        .then((changed) => {
+          // Nudge the objindex store so new tickets paint in the Tickets shelf immediately.
+          if (changed) for (const id of railIds) dispatchIndexChange(id);
+        })
+        .catch(() => {});
+    }
+  }, [session]);
+
+  /** Light refresh: re-reads `_spaces` + hydrates reads/mutes/DM heads only.
+   *  No DM heal, no reconcile passes — used on navigation to keep the space rail
+   *  current without triggering the expensive per-space/per-DM cascade. */
+  const refreshLight = useCallback(async () => {
+    if (!session) return;
+    const { spaces: list, mutes, reads, archivedDms, dms: dmMap } = await readSpaces(session.spacesRegistryClient, session.userId);
+    const rail = railSpaces(list);
+    setSpaces(rail);
+    setDmSpaceIds(list.filter((s) => isDmSpaceId(s.id)).map((s) => s.id));
+    setGuestSpaces(list.filter((s) => isGuestSpaceId(s.id)));
+    setGuestOwnerSpaceIds(guestOwnerSpaceIdsFromStore());
+    setDms(dmMap);
+    setActiveId((prev) => prev ?? rail[0]?.id ?? null);
+    await hydrateReads(session.userId, reads);
+    await hydrateMutes(session.userId, mutes);
+    hydrateArchivedDms(archivedDms);
+    void refreshDmHeads(session, Object.values(dmMap)).catch(() => {});
   }, [session]);
 
   useEffect(() => {
@@ -244,8 +273,10 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   // device shows up in the persistent desktop shell, which never remounts. One
   // refresh for the whole app now, not one per mounted consumer. Skips the mount
   // run (the effect above already loads then) so first paint is a single fetch.
-  // Throttled: rapid navigation (or a re-render storm) can fire this effect many times
-  // per second; we only refresh once per 5 s to keep _index/_access reads bounded.
+  // Light path only: navigating between rooms/spaces must NOT fan out per-DM
+  // _access reads, monthly shard scans, or per-space index reconciles — those
+  // run on mount/foreground via the full `refresh()`.
+  // Throttled: rapid navigation can fire this effect many times per second.
   const mountedRef = useRef(false);
   const lastNavRefreshAt = useRef(0);
   useEffect(() => {
@@ -257,8 +288,8 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     const now = Date.now();
     if (now - lastNavRefreshAt.current < 5_000) return;
     lastNavRefreshAt.current = now;
-    void refresh().catch(() => {});
-  }, [pathname, session, refresh]);
+    void refreshLight().catch(() => {});
+  }, [pathname, session, refreshLight]);
 
   // Re-pull on app foreground too, so the read-mark / mute reconcile happens even when
   // the user returns to the app WITHOUT navigating (the navigation effect above never

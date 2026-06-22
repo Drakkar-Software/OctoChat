@@ -1,5 +1,15 @@
 # Changelog — @drakkar.software/octochat-sdk
 
+## 0.4.5 (2026-06-22)
+
+### Fixed
+
+- **Live index refresh via SSE** (`events.shared.ts`): object-index events (`objindex` write —
+  node create/rename/reorder) carry only `params.spaceId` and were previously dropped by
+  `parseRoomChange`. They are now surfaced as `{ kind: 'index', roomId: spaceId, spaceId }`
+  so the client can pull the shared objindex store and repaint the ticket/room list on every
+  member's device without bumping unread counts.
+
 ## 0.4.4 (2026-06-22)
 
 ### Fixed

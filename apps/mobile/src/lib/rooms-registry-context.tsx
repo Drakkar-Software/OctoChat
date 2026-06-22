@@ -267,15 +267,17 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
     return () => {
       set!.delete(cb);
       const n = (refCounts.current.get(spaceId) ?? 1) - 1;
-      if (n > 0) {
+      // Keep the cached registry entry even when the last consumer unmounts.
+      // Re-entering the space serves the cached _access/_index/_sp record instead
+      // of issuing a fresh pull; freshness is maintained by the heavy refresh on
+      // mount/foreground and (once deployed) by SSE object.changed events.
+      if (n <= 0) {
+        refCounts.current.delete(spaceId);
+        listeners.current.delete(spaceId);
+        // entries.current intentionally kept — stale-but-cached beats re-pulling.
+      } else {
         refCounts.current.set(spaceId, n);
-        return;
       }
-      // Last consumer of this space left: drop its cached registry so re-entry reads
-      // fresh (picking up channels an owner may have added elsewhere meanwhile).
-      refCounts.current.delete(spaceId);
-      entries.current.delete(spaceId);
-      listeners.current.delete(spaceId);
     };
   }, [ensure]);
 

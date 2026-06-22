@@ -23,8 +23,10 @@ describe('parseRoomChange', () => {
     ).toMatchObject({ roomId: 'sp-a-inv1', spaceId: 'sp-a' });
   });
 
-  it('drops objindex events (no roomId — index-wide, left to focus-pull)', () => {
-    expect(parseRoomChange(frame({ collection: 'objindex', params: { spaceId: 'sp-a' } }))).toBeNull();
+  it('surfaces objindex events (spaceId-only) as index-changes', () => {
+    expect(parseRoomChange(frame({ collection: 'objindex', params: { spaceId: 'sp-a' } }))).toEqual({
+      kind: 'index', roomId: 'sp-a', spaceId: 'sp-a',
+    });
   });
 
   it('forwards the write author identity when present (raw + rawPayload)', () => {

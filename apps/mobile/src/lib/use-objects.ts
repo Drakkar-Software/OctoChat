@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { objIndexPull, objIndexPush } from '@drakkar.software/octochat-sdk';
 import {
@@ -16,6 +16,7 @@ import {
 import type { ID, ObjectNode } from '@drakkar.software/octochat-sdk';
 import { useMergeDoc } from './use-merge-doc';
 import { useRoomLiveSync } from './use-room-live-sync';
+import { registerIndexPull } from './room-events-bus';
 
 /** The unified object-index hook for one space — a union-merged merge-doc (see
  *  {@link useMergeDoc}) exposing the repaired render tree plus the create/rename/move/
@@ -67,14 +68,22 @@ export function useObjects(spaceId: string, opts: { enabled?: boolean; liveSync?
   // that edits a doc/project pushes to the server through its OWN index store, so a
   // separately-mounted Work surface only sees the change on its next pull. Reuse the
   // shared {@link useRoomLiveSync} to focus-pull (+ poll while SSE is down) the index.
-  // Note: index change events carry only `spaceId` and are dropped by parseRoomChange,
-  // so the SSE registerPull never fires for the index — focus-pull is what refreshes it.
   // OPT-IN (`liveSync`): this calls useFocusEffect, which needs a router screen. The
   // index is also mounted in the desktop sidebar (outside a focus screen), so we must
   // NOT call the hook there — gated by a flag that is static per mount, keeping hook
   // order stable.
   // eslint-disable-next-line react-hooks/rules-of-hooks -- `liveSync` is fixed per call site (never toggles for a mounted instance), so the hook order is stable
   if (opts.liveSync) useRoomLiveSync({ roomId: spaceId, ready, pull, skipFirstFocus: true, firstFocusKey: spaceId });
+
+  // Register the index pull in the shared bus so dispatchIndexChange(spaceId) can
+  // repaint this store after a headless write (accepted request, SSE object.changed
+  // event). Non-focus-gated: the index lives in both screen and sidebar contexts.
+  // Multiple consumers share the same store, so the refcounted registry ensures only
+  // ONE pull fires per spaceId regardless of how many instances are mounted.
+  useEffect(() => {
+    if (!enabled) return;
+    return registerIndexPull(spaceId, pull);
+  }, [enabled, spaceId, pull]);
 
   const objects = useMemo<ObjectNode[]>(() => (Array.isArray(doc?.objects) ? (doc!.objects as ObjectNode[]) : []), [doc]);
 

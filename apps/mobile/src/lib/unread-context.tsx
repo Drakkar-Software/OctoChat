@@ -42,7 +42,7 @@ import { kvGet, kvSet } from '@drakkar.software/octochat-sdk';
 import { isDmInboxRoomId, isDmSpaceId, isSharedRoomId, isTicketRoomId } from '@drakkar.software/octochat-sdk';
 import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 import { buildAuthHeaders } from '@drakkar.software/octochat-sdk';
-import { dispatchRoomChange, emitSseStatus } from './room-events-bus';
+import { dispatchRoomChange, dispatchIndexChange, emitSseStatus } from './room-events-bus';
 import { usePush } from './push/use-push';
 
 interface UnreadValue {
@@ -298,6 +298,14 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
 
       unsub = subscribeRoomChanges(
         (e) => {
+          // Object-index events (node create/rename): pull the objindex store so the
+          // ticket/room list repaints on every member's device, then bail — index
+          // changes must never bump unread counts.
+          if (e.kind === 'index') {
+            if (e.spaceId) dispatchIndexChange(e.spaceId);
+            return;
+          }
+
           // The DM-invite carrier rides a `streamchat` doc inside a shared space, so its
           // appends fire a change event keyed on THAT space — which would otherwise
           // inflate the host space's badge + create a phantom room counter. It's never a

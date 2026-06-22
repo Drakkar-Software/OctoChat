@@ -23,7 +23,8 @@
  * it's safe to forward; the client uses it to skip its own writes (see unread-context).
  *
  * Routing by collection: `streamchat`/`streampub`/`streaminv` carry `params.roomId`.
- * Index collections (`objindex`) carry only `spaceId` and are left to focus-pull.
+ * Index collections (`objindex`) carry only `spaceId` — surfaced as `kind:'index'`
+ * events so the client can pull the shared objindex store without bumping unread counts.
  *
  * The generic transport (buildSignedEventsRequest / parseSseFrames / subscribeChanges)
  * lives in `@drakkar.software/octospaces-sdk`. This module is the OctoChat-specific
@@ -41,6 +42,11 @@ export interface RoomChange {
    *  server forwards it (`includeIdentity`). Absent on servers that don't — callers
    *  must treat undefined as "author unknown". */
   identity?: string;
+  /** Set to `'index'` for object-index change events (an `objindex` write that carries
+   *  only `spaceId`, no `roomId`). Callers must handle this case separately — index
+   *  changes must NOT bump unread counts. When `kind === 'index'`, `roomId` echoes
+   *  `spaceId` and carries no per-room meaning. */
+  kind?: 'index';
 }
 
 interface QueueMessageish {
@@ -57,7 +63,10 @@ interface QueueMessageish {
 /** Parse one SSE `data:` payload into a RoomChange, or null if not a chat change.
  *  Accepts both a raw QueueMessage and the Whistlers `{ rawPayload }` envelope.
  *
- *  All stream collections (`streamchat`, `streampub`, `streaminv`) publish `params.roomId`. */
+ *  All stream collections (`streamchat`, `streampub`, `streaminv`) publish `params.roomId`.
+ *  Object-index events (`objindex`) publish only `params.spaceId` — these are surfaced as
+ *  `{ kind: 'index', roomId: spaceId, spaceId }` so callers can dispatch a store pull
+ *  without bumping unread counts. */
 export function parseRoomChange(data: string): RoomChange | null {
   try {
     const d = JSON.parse(data) as QueueMessageish & { rawPayload?: QueueMessageish };
@@ -65,7 +74,15 @@ export function parseRoomChange(data: string): RoomChange | null {
     // Accept the OctoChat-local param name (roomId) AND the unified octospaces
     // server param names (objectId for objlog, nodeId for objpublog/objinvlog).
     const roomId = msg.params?.roomId ?? msg.params?.objectId ?? msg.params?.nodeId;
-    if (!roomId) return null;
+    if (!roomId) {
+      // Object-index events (collection === 'objindex') carry only spaceId. Surface
+      // them as index-changes so the client can pull the objindex store without
+      // touching unread counts. Other collections without a roomId are malformed
+      // and are dropped (null).
+      const spaceId = msg.params?.spaceId;
+      if (!spaceId || msg.collection !== 'objindex') return null;
+      return { kind: 'index', roomId: spaceId, spaceId };
+    }
     return {
       roomId,
       spaceId: msg.params?.spaceId,

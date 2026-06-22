@@ -2,9 +2,10 @@
   "version": 1,
   "subscriptions": [],
   "namespaces": {
-    "octochat": {
+    "octospaces": {
       "subscriptions": [
-        { "name": "octochat-chat", "topics": ["octochat.chat.changed.*"] }
+        { "name": "octospaces-log",    "topics": ["octospaces.log.changed.*"] },
+        { "name": "octospaces-object", "topics": ["octospaces.object.changed.*"] }
       ]
     }
   }

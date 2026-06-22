@@ -186,10 +186,13 @@ export function createEventsRoute(opts: EventsRouteOptions): Hono {
     }
 
     // 4. Map to sanitized destinationTopics server-side (never trust the client).
-    //    Mirrors Whistlers' per-message derivation for `octospaces.log.changed.<spaceId>`.
-    const topics = authorized.map(
-      (s) => `${WHISTLERS_NAMESPACE}-${sanitizeTopic(`octospaces.log.changed.${s}`)}`,
-    );
+    //    Each authorized space gets TWO topics: log.changed (chat messages) and
+    //    object.changed (objindex writes: node create/rename/reorder). The client
+    //    handler in unread-context dispatches the correct action for each kind.
+    const topics = authorized.flatMap((s) => [
+      `${WHISTLERS_NAMESPACE}-${sanitizeTopic(`octospaces.log.changed.${s}`)}`,
+      `${WHISTLERS_NAMESPACE}-${sanitizeTopic(`octospaces.object.changed.${s}`)}`,
+    ]);
 
     // 5. ★ Firehose-prevention invariant.
     //    An empty topic list would make Whistlers stream the global firehose.
