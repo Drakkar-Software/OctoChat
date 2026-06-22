@@ -237,6 +237,7 @@ export {
   acceptResourceRequest,
   rejectResourceRequest,
   scanResourceGrants,
+  scanResourceRejects,
   acceptResourceGrant,
   type ResourceRequest,
   type ResourceGrant,

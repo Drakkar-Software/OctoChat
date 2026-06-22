@@ -1,5 +1,19 @@
 # OctoChat Changelog
 
+## sdk 0.4.2 — 2026-06-22 · requester-side refusal detection
+
+### SDK changes (0.4.1 → 0.4.2)
+
+- **Requester-side refusal detection** (`domain/types.ts`, `starfish/registry.ts`,
+  `desk/requester.ts`): when the owner declines a ticket or room request the
+  requester can now detect it. `scanResourceRejects` (new in octospaces-sdk 0.22.0)
+  is called by `claimRejectedRequests`, which durably marks the request `status:refused`
+  in the user's `_spaces` doc under `extra.outgoingRequests`. `getOutgoingRequestsForSpace`
+  reads that registry so the declined state survives restart and propagates cross-device.
+  `submitNodeRequest` now records each filed request as `status:pending` at the time
+  of submission, completing the lifecycle. Bump `@drakkar.software/octospaces-sdk` pin
+  `0.21.0 → 0.22.0` for the new `scanResourceRejects` export.
+
 ## sdk 0.3.11 — 2026-06-22 · declined-request persistence
 
 ### SDK changes (0.3.10 → 0.3.11)

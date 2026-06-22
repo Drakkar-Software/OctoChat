@@ -21,7 +21,7 @@ import {
 } from '@drakkar.software/octospaces-sdk';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { ArchivedDms, DeclinedRequests, DmMap, Room, Space } from '../domain/types';
+import type { ArchivedDms, DeclinedRequests, DmMap, OutgoingRequest, OutgoingRequests, Room, Space } from '../domain/types';
 import type { Session } from './identity';
 import { ownerTrustedAdders } from './identity';
 import { DEFAULT_CATEGORY } from './objects';
@@ -75,6 +75,22 @@ const coerceDeclinedRequests = (v: unknown): DeclinedRequests => {
   for (const [k, val] of Object.entries(asRecord(v))) if (val === true) out[k] = true;
   return out;
 };
+const coerceOutgoingRequests = (v: unknown): OutgoingRequests => {
+  const out: OutgoingRequests = {};
+  for (const [k, val] of Object.entries(asRecord(v))) {
+    const r = val as Partial<OutgoingRequest>;
+    if (
+      typeof r?.spaceId === 'string' &&
+      (r.nodeType === 'room' || r.nodeType === 'ticket') &&
+      typeof r.title === 'string' &&
+      typeof r.ts === 'number' &&
+      (r.status === 'pending' || r.status === 'refused')
+    ) {
+      out[k] = { spaceId: r.spaceId, nodeType: r.nodeType, title: r.title, ts: r.ts, status: r.status };
+    }
+  }
+  return out;
+};
 
 /** {@link readSpacesCore} with the OctoChat-owned `extra` fields re-flattened onto the
  *  result (back-compat with pre-0.16 call sites that read `.dms`/`.archivedDms`/`.quickReactions`). */
@@ -87,6 +103,7 @@ export async function readSpaces(client: StarfishClient, userId: string) {
     archivedDms: coerceArchivedDms(extra.archivedDms),
     quickReactions: coerceQuickReactions(extra.quickReactions),
     declinedRequests: coerceDeclinedRequests(extra.declinedRequests),
+    outgoingRequests: coerceOutgoingRequests(extra.outgoingRequests),
   };
 }
 
@@ -111,6 +128,34 @@ export function updateDeclinedRequestsDoc(client: StarfishClient, userId: string
  *  `listPendingTicketRequests` filter it out, even after refresh or on other devices. */
 export function setRequestDeclined(client: StarfishClient, userId: string, reqId: string): Promise<void> {
   return updateDeclinedRequestsDoc(client, userId, (cur) => (cur[reqId] ? null : { ...cur, [reqId]: true }));
+}
+
+export function updateOutgoingRequestsDoc(client: StarfishClient, userId: string, mutator: (cur: OutgoingRequests) => OutgoingRequests | null): Promise<void> {
+  return updateSpacesExtraField<OutgoingRequests>(client, userId, 'outgoingRequests', (cur) => mutator(coerceOutgoingRequests(cur)));
+}
+
+/** Record a newly-filed resource request (status: 'pending') in the requester's `_spaces` doc.
+ *  Idempotent — skips the write if an entry for the same reqId already exists. */
+export function recordOutgoingRequest(
+  client: StarfishClient,
+  userId: string,
+  reqId: string,
+  info: Omit<OutgoingRequest, 'status'>,
+): Promise<void> {
+  return updateOutgoingRequestsDoc(client, userId, (cur) =>
+    cur[reqId] ? null : { ...cur, [reqId]: { ...info, status: 'pending' } },
+  );
+}
+
+/** Mark an outgoing request as refused by the owner — idempotent (no write when already refused).
+ *  Persisted in the `_spaces` doc under `extra.outgoingRequests` so the declined state survives
+ *  refresh and app restart, and propagates to other devices. */
+export function setOutgoingRequestRefused(client: StarfishClient, userId: string, reqId: string): Promise<void> {
+  return updateOutgoingRequestsDoc(client, userId, (cur) => {
+    const entry = cur[reqId];
+    if (!entry || entry.status === 'refused') return null;
+    return { ...cur, [reqId]: { ...entry, status: 'refused' } };
+  });
 }
 
 export function setDmMapping(client: StarfishClient, userId: string, peerUserId: string, spaceId: string): Promise<void> {

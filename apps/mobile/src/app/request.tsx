@@ -48,7 +48,7 @@ export default function RequestScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const { submit, busy, claimed } = useResourceRequest();
+  const { submit, busy, claimed, refused, reset } = useResourceRequest(spaceId);
 
   // Once the owner accepts, navigate to the newly granted room automatically.
   useEffect(() => {
@@ -116,6 +116,31 @@ export default function RequestScreen() {
         </Txt>
       ) : !session ? (
         <SignInPrompt subtitle={`Create an identity to request access from ${ownerName}.`} />
+      ) : refused ? (
+        <>
+          <ProfileHero
+            name={ownerName}
+            handle={`@${livePseudo ?? ownerId.slice(0, 6)}`}
+            avatarLabel={ownerName.slice(0, 2).toUpperCase()}
+            image={avatar}
+          />
+          <Callout tone="danger" iconName="alert" title="Request declined">
+            {`${ownerName} declined your ${nodeType === 'room' ? 'room request' : 'ticket'}.${refused.reason ? ` Reason: ${refused.reason}` : ''}`}
+          </Callout>
+          <Button
+            label="Submit a new request"
+            variant="primary"
+            onPress={() => {
+              reset();
+              setSubmitted(false);
+            }}
+          />
+          <Button
+            label="Go home"
+            variant="secondary"
+            onPress={() => router.replace('/(tabs)/rooms')}
+          />
+        </>
       ) : submitted ? (
         <>
           <ProfileHero

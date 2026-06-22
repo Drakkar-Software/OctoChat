@@ -31,6 +31,21 @@ export type ArchivedDms = Record<string, true>;
  *  append-only, so declined elements are never deleted server-side). */
 export type DeclinedRequests = Record<string, true>;
 
+/** An outgoing resource-request (ticket or shared-room) filed by the requester, with its
+ *  current status. OctoChat-owned; stored in the `_spaces` doc under
+ *  `extra.outgoingRequests` (reqId → OutgoingRequest). Monotonically growing — entries are
+ *  only written or updated (status: pending → refused), never deleted. */
+export interface OutgoingRequest {
+  spaceId: string;
+  nodeType: 'room' | 'ticket';
+  title: string;
+  /** Unix-ms timestamp of when the request was filed. */
+  ts: number;
+  status: 'pending' | 'refused';
+}
+/** Maps reqId → the outgoing request the requester filed. Stored under `extra.outgoingRequests`. */
+export type OutgoingRequests = Record<string, OutgoingRequest>;
+
 import type {
   ID,
   SealedBlob,

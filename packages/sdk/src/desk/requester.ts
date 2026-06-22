@@ -19,11 +19,15 @@ import {
   localSpaceAccessEntries,
   submitResourceRequest,
   scanResourceGrants,
+  scanResourceRejects,
   acceptResourceGrant,
   addJoinedSpace,
   buildSpace,
 } from '@drakkar.software/octospaces-sdk';
-import type { ResourceGrant } from '@drakkar.software/octospaces-sdk';
+import type { ResourceGrant, ResourceReject } from '@drakkar.software/octospaces-sdk';
+
+import { readSpaces, recordOutgoingRequest, setOutgoingRequestRefused } from '../starfish/registry';
+import type { OutgoingRequest } from '../domain/types';
 
 import type { Session } from '../starfish/identity';
 import { decodeRequestLink } from '../starfish/dm-link';
@@ -145,6 +149,14 @@ async function submitNodeRequest(
     meta: { requester: clampField(opts.requester, TICKET_REQUESTER_MAX), ...extraMeta },
     message: opts.message,
   });
+  // Persist the outgoing request so the requester can track its status (pending → refused)
+  // across restarts and devices, via the `_spaces` doc `extra.outgoingRequests` field.
+  await recordOutgoingRequest(session.spacesRegistryClient, session.userId, reqId, {
+    spaceId,
+    nodeType,
+    title: clampField(opts.title, TICKET_TITLE_MAX),
+    ts: Date.now(),
+  });
   return { reqId, spaceId };
 }
 
@@ -188,6 +200,50 @@ export function submitTicketRequest(
  * Best-effort: a corrupt/duplicate grant is skipped, not thrown.
  * Pass `seenReqIds` (from persisted state) to skip already-processed grants.
  */
+// Re-export so app-side hook imports stay from octochat-sdk only.
+export type { ResourceReject };
+
+/**
+ * Scan the session's inbox for declined requests (the owner rejected one or more requests)
+ * and durably mark each as refused in the requester's `_spaces` registry. Returns the list
+ * of newly-seen rejections.
+ *
+ * Best-effort: a corrupt/duplicate reject is skipped, not thrown.
+ * Pass `seenReqIds` (from persisted state) to skip already-processed rejections.
+ */
+export async function claimRejectedRequests(
+  session: Session,
+  opts: { seenReqIds?: Set<string> } = {},
+): Promise<ResourceReject[]> {
+  const rejects = await scanResourceRejects(session, { seenReqIds: opts.seenReqIds });
+  const claimed: ResourceReject[] = [];
+  for (const reject of rejects) {
+    try {
+      await setOutgoingRequestRefused(session.spacesRegistryClient, session.userId, reject.reqId);
+      claimed.push(reject);
+    } catch {
+      // best-effort; a failed registry write must not block other rejections
+    }
+  }
+  return claimed;
+}
+
+/**
+ * Return all outgoing requests (filed by this requester) for a given space, newest-first.
+ * Reads the durable `_spaces` registry — survives restart and is cross-device.
+ * Returns `[]` when the user has not filed any requests for the space.
+ */
+export async function getOutgoingRequestsForSpace(
+  session: Session,
+  spaceId: string,
+): Promise<Array<{ reqId: string } & OutgoingRequest>> {
+  const { outgoingRequests } = await readSpaces(session.spacesRegistryClient, session.userId);
+  return Object.entries(outgoingRequests)
+    .filter(([, r]) => r.spaceId === spaceId)
+    .map(([reqId, r]) => ({ reqId, ...r }))
+    .sort((a, b) => b.ts - a.ts);
+}
+
 export async function claimGrantedNodes(
   session: Session,
   opts: { seenReqIds?: Set<string> } = {},
