@@ -1,5 +1,25 @@
 # OctoChat Changelog
 
+## sdk 0.4.3 — 2026-06-22 · ticket send fix + description as first message
+
+### SDK changes (0.4.2 → 0.4.3)
+
+- **Fix: "Couldn't send" on brand new ticket rooms** (`outbox-send.ts`,
+  `outbox-types.ts`, `use-room-send.ts`, `room/[id].tsx`, `thread/[id].tsx`):
+  the outbox flush for invite-access rooms used `streamInvRoomPush(roomId)` which
+  re-derives the space id from the room id — wrong for `ticket-<hex>` ids. Messages
+  from ticket requesters (who are not space members) also failed because the flush
+  tried to read the space `_index`. Fixed by storing `spaceId` and `access` on the
+  outbox entry; for `access: 'invite'` the index read is bypassed entirely. Both
+  `room/[id].tsx` and `thread/[id].tsx` now thread `spaceId` + `access` into
+  `useRoomSend`.
+- **Feature: ticket description as first message** (`intake.ts`, `ticket.ts`):
+  when a request has a non-empty `message` the owner's accept (manual and
+  auto-accept / auto-reply) now posts it as the first message in the ticket room,
+  attributed to the requester. For auto-reply spaces the description is message #1
+  and the desk reply is message #2. New `TICKET_MESSAGE_MAX = 4000` constant bounds
+  the description length.
+
 ## sdk 0.4.2 — 2026-06-22 · requester-side refusal detection
 
 ### SDK changes (0.4.1 → 0.4.2)

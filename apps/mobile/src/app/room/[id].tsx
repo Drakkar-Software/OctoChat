@@ -79,7 +79,7 @@ export default function RoomScreen() {
   // Offline outbox: route text sends through the queue when offline / on failure,
   // and surface this room's pending bubbles + retry. Attachments still need a
   // connection (handled in the Composer's onSend below).
-  const { online, pending, retry, sendText } = useRoomSend({ roomId: id, kind, send });
+  const { online, pending, retry, sendText } = useRoomSend({ roomId: id, spaceId, access, kind, send });
 
   // `owner`/`rooms` come from the shared registry read above (the kind source of
   // truth). `owner` gates the per-message pin affordance AND is the only author whose
@@ -169,7 +169,7 @@ export default function RoomScreen() {
     return true;
   });
   const openThread = (msgId: string) =>
-    router.push({ pathname: '/thread/[id]', params: { id: msgId, roomId: id, roomName: name, kind } });
+    router.push({ pathname: '/thread/[id]', params: { id: msgId, roomId: id, spaceId, roomName: name, kind } });
   // Pass the room context so the space screen can surface the owner-only "Connect
   // a bot" panel for public rooms (the in-room panel hides once the room has
   // messages — see {@link WebhookPanelWhenEmpty}). Automated rooms route the info

@@ -1,5 +1,30 @@
 # Changelog — @drakkar.software/octochat-sdk
 
+## 0.4.3 (2026-06-22)
+
+### Fixed
+
+- **Ticket outbox regression** (`outbox-send.ts`): outbox flush for ticket/invite rooms used
+  `streamInvRoomPush(roomId)` which internally derives the space id from the room id — wrong for
+  `ticket-<hex>` ids (no embedded space). Now uses `objInvLogPush(entry.spaceId, entry.roomId)`
+  with the correct explicit spaceId. Separately, `resolveContext` attempted to read the space's
+  `_index` before sending — ticket requesters are not space members and so cannot read that index,
+  causing every outbox retry to fail. The fix introduces `entry.access` on `OutboxMessage`: when
+  `access === 'invite'`, the index read is skipped and the invite path used directly. Both
+  `room/[id].tsx` and `thread/[id].tsx` now thread `spaceId` and `access` through to `useRoomSend`
+  so queued ticket messages carry the correct metadata.
+
+### Added
+
+- **Ticket description as first chat message** (`intake.ts`): when a ticket request carries a
+  `message` (the requester's description), it is now posted as the first message in the ticket room
+  on accept — attributed to the requester — on both the manual accept path (`acceptNodeRequest`) and
+  the auto-accept / auto-reply path (`reconcileTicketRequests`). For auto-reply spaces the
+  description appears as message #1 and the desk reply as message #2. Empty descriptions are
+  silently ignored. Room (shared-invite) requests are unaffected.
+- `TICKET_MESSAGE_MAX = 4000` constant in `ticket.ts` — bounds description length before appending
+  to the ticket stream.
+
 ## 0.4.1 (2026-06-22)
 
 ### Added

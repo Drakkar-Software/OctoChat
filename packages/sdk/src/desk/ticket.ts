@@ -37,6 +37,7 @@ export interface TicketInfo {
 /** Max lengths for index/sealed strings — bounds storage-amplification + index bloat. */
 export const TICKET_TITLE_MAX = 200;
 export const TICKET_REQUESTER_MAX = 320; // RFC 5321 max email length
+export const TICKET_MESSAGE_MAX = 4000;
 
 /** Clamp a free-text field to a max length (and drop control chars). */
 export function clampField(s: string, max: number): string {

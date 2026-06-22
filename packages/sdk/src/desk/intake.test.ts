@@ -40,9 +40,14 @@ import { isLlmConfigured, runLlm } from '../ai/engine-port';
 import type { Session } from '../starfish/identity';
 
 const session = { userId: 'owner', keys: {} } as unknown as Session;
-const pendingReq = (id: string) =>
-  ({ req: { reqId: id, spaceId: 'sp-1', title: 'T', message: 'hello', nodeType: 'ticket', requester: { userId: 'u' } }, senderEdPub: 'ed' }) as never;
-const replyText = (call: unknown[]): string => (call[1] as { e: { text: string } }).e.text;
+const pendingReq = (id: string, message = 'hello') =>
+  ({ req: { reqId: id, spaceId: 'sp-1', title: 'T', message, nodeType: 'ticket', requester: { userId: 'u' } }, senderEdPub: 'ed' }) as never;
+/** Extract the message text from an `append(path, body)` call. */
+const msgText = (call: unknown[]): string => (call[1] as { e: { text: string } }).e.text;
+/** Extract the authorId from an `append(path, body)` call. */
+const msgAuthor = (call: unknown[]): string => (call[1] as { e: { authorId: string } }).e.authorId;
+/** @deprecated use msgText */
+const replyText = msgText;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -66,31 +71,47 @@ describe('reconcileTicketRequests', () => {
     expect(acceptResourceRequest).not.toHaveBeenCalled();
   });
 
-  it('auto-accept: accepts each request, posts NO reply', async () => {
+  it('auto-accept: accepts each request, posts description message (no reply)', async () => {
     vi.mocked(readIntakeConfig).mockResolvedValue({ mode: 'auto-accept', replyKind: 'fixed', replyText: 'x' });
     vi.mocked(scanResourceRequests).mockResolvedValue([pendingReq('r1'), pendingReq('r2')]);
     const append = vi.fn();
     vi.mocked(getNodeStreamClient).mockReturnValue({ append } as never);
     expect(await reconcileTicketRequests(session, new Set(['sp-1']))).toBe(true);
     expect(acceptResourceRequest).toHaveBeenCalledTimes(2);
+    // One description append per ticket (message:'hello'); no reply for auto-accept.
+    expect(append).toHaveBeenCalledTimes(2);
+    expect(msgText(append.mock.calls[0]!)).toBe('hello');
+    expect(msgAuthor(append.mock.calls[0]!)).toBe('u'); // attributed to requester
+  });
+
+  it('auto-accept: no append when the request has no description', async () => {
+    vi.mocked(readIntakeConfig).mockResolvedValue({ mode: 'auto-accept', replyKind: 'fixed', replyText: 'x' });
+    vi.mocked(scanResourceRequests).mockResolvedValue([pendingReq('r1', ''), pendingReq('r2', '   ')]);
+    const append = vi.fn();
+    vi.mocked(getNodeStreamClient).mockReturnValue({ append } as never);
+    await reconcileTicketRequests(session, new Set(['sp-1']));
     expect(append).not.toHaveBeenCalled();
   });
 
-  it('auto-reply (fixed): accepts, then posts the fixed message into objinvlog', async () => {
+  it('auto-reply (fixed): posts description first, then the fixed reply', async () => {
     vi.mocked(readIntakeConfig).mockResolvedValue({ mode: 'auto-reply', replyKind: 'fixed', replyText: 'thanks!' });
     vi.mocked(scanResourceRequests).mockResolvedValue([pendingReq('r1')]);
     const append = vi.fn();
     vi.mocked(getNodeStreamClient).mockReturnValue({ append } as never);
     await reconcileTicketRequests(session, new Set(['sp-1']));
-    expect(append).toHaveBeenCalledTimes(1);
-    const call = append.mock.calls[0]!;
-    expect(String(call[0])).toContain('sp-1'); // objinvlog path bound to the real space + node
-    expect(String(call[0])).toContain('ticket-1');
-    expect(replyText(call)).toBe('thanks!');
+    expect(append).toHaveBeenCalledTimes(2);
+    // call[0] = description from requester, call[1] = auto-reply from owner
+    expect(msgText(append.mock.calls[0]!)).toBe('hello');
+    expect(msgAuthor(append.mock.calls[0]!)).toBe('u');
+    const replyCall = append.mock.calls[1]!;
+    expect(String(replyCall[0])).toContain('sp-1'); // objinvlog path bound to the real space + node
+    expect(String(replyCall[0])).toContain('ticket-1');
+    expect(msgText(replyCall)).toBe('thanks!');
+    expect(msgAuthor(replyCall)).toBe('owner'); // reply from desk owner
     expect(runLlm).not.toHaveBeenCalled();
   });
 
-  it('auto-reply (ai, engine wired): posts the AI output', async () => {
+  it('auto-reply (ai, engine wired): posts description first, then the AI reply', async () => {
     vi.mocked(readIntakeConfig).mockResolvedValue({ mode: 'auto-reply', replyKind: 'ai', replyText: 'fallback' });
     vi.mocked(scanResourceRequests).mockResolvedValue([pendingReq('r1')]);
     vi.mocked(isLlmConfigured).mockReturnValue(true);
@@ -99,7 +120,9 @@ describe('reconcileTicketRequests', () => {
     vi.mocked(getNodeStreamClient).mockReturnValue({ append } as never);
     await reconcileTicketRequests(session, new Set(['sp-1']));
     expect(runLlm).toHaveBeenCalledTimes(1);
-    expect(replyText(append.mock.calls[0]!)).toBe('AI hello');
+    expect(append).toHaveBeenCalledTimes(2);
+    expect(msgText(append.mock.calls[0]!)).toBe('hello'); // description first
+    expect(msgText(append.mock.calls[1]!)).toBe('AI hello'); // AI reply second
   });
 
   it('best-effort: a failing accept does not block the rest', async () => {
@@ -186,9 +209,31 @@ describe('listPendingTicketRequests / declineTicketRequest', () => {
   });
 
   it('accept delegates to acceptResourceRequest with the ticket create handler', async () => {
+    const append = vi.fn();
+    vi.mocked(getNodeStreamClient).mockReturnValue({ append } as never);
     const p = pendingReq('r');
     await acceptTicketRequest(session, p);
     expect(acceptResourceRequest).toHaveBeenCalledWith(session, p, expect.objectContaining({ create: expect.any(Function) }));
+  });
+
+  it('manual accept posts description as first message, attributed to requester', async () => {
+    vi.mocked(readIntakeConfig).mockResolvedValue({ mode: 'manual', replyKind: 'fixed', replyText: '', enc: false } as never);
+    const append = vi.fn();
+    vi.mocked(getNodeStreamClient).mockReturnValue({ append } as never);
+    const p = pendingReq('r', 'my issue here');
+    await acceptTicketRequest(session, p);
+    expect(append).toHaveBeenCalledTimes(1);
+    expect(msgText(append.mock.calls[0]!)).toBe('my issue here');
+    expect(msgAuthor(append.mock.calls[0]!)).toBe('u');
+  });
+
+  it('manual accept with empty description posts no message', async () => {
+    vi.mocked(readIntakeConfig).mockResolvedValue({ mode: 'manual', replyKind: 'fixed', replyText: '', enc: false } as never);
+    const append = vi.fn();
+    vi.mocked(getNodeStreamClient).mockReturnValue({ append } as never);
+    const p = pendingReq('r', '');
+    await acceptTicketRequest(session, p);
+    expect(append).not.toHaveBeenCalled();
   });
 
   it('acceptNodeRequest with nodeType:room routes to makeRoomCreateHandler', async () => {
@@ -236,9 +281,10 @@ describe('reconcileTicketRequests — nodeType routing', () => {
     expect(acceptResourceRequest).toHaveBeenCalledTimes(1);
   });
 
-  it('auto-reply is NOT sent for nodeType:room requests', async () => {
+  it('auto-reply and description post are NOT triggered for nodeType:room requests', async () => {
     vi.mocked(readIntakeConfig).mockResolvedValue({ mode: 'auto-reply', replyKind: 'fixed', replyText: 'hi' });
-    vi.mocked(scanResourceRequests).mockResolvedValue([roomReq('r1')]);
+    const roomWithMsg = { req: { reqId: 'r1', spaceId: 'sp-1', title: 'T', message: 'need a room', nodeType: 'room', requester: { userId: 'u' } }, senderEdPub: 'ed' } as never;
+    vi.mocked(scanResourceRequests).mockResolvedValue([roomWithMsg]);
     const append = vi.fn();
     vi.mocked(getNodeStreamClient).mockReturnValue({ append } as never);
     await reconcileTicketRequests(session, new Set(['sp-1']));

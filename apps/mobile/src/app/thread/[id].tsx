@@ -35,9 +35,11 @@ import { ReadOnlyFooter } from '@/components/chat/ReadOnlyFooter';
 import { ThreadConversation } from '@/components/chat/ThreadConversation';
 
 export default function ThreadScreen() {
-  const params = useLocalSearchParams<{ id: string; roomId: string; roomName?: string; kind?: string }>();
+  const params = useLocalSearchParams<{ id: string; roomId: string; spaceId?: string; roomName?: string; kind?: string }>();
   const parentId = params.id;
   const roomId = params.roomId;
+  // Ticket ids embed no space segment; the room screen passes spaceId explicitly for them.
+  const threadSpaceId = params.spaceId ?? spaceIdFromRoomId(roomId);
   const roomName = params.roomName ?? roomId;
   const kind = (params.kind ?? 'channel') as RoomKind;
   const { colors } = useTheme();
@@ -46,7 +48,7 @@ export default function ThreadScreen() {
   // Owner gates the per-message pin affordance and is the only author whose pin events
   // count at fold time (resolvePinned) — read from the shared registry like room/[id].
   // Also provides the room's access/enc tier so useRoom picks the right stream collection.
-  const { owner, rooms } = useRoomsRegistry(spaceIdFromRoomId(roomId));
+  const { owner, rooms } = useRoomsRegistry(threadSpaceId);
   const registryRoom = rooms.find((r) => r.id === roomId) ?? null;
   // Every room is an append-only log now — one hook for all kinds. Replies post the same
   // way for any kind: `send(text, parentId)`.
@@ -55,7 +57,7 @@ export default function ThreadScreen() {
   const isOwner = !!owner && session?.userId === owner;
   const onPinMessage = (msgId: string, pin: boolean) => (pin ? pinMessage(msgId) : unpinMessage(msgId));
   // Offline outbox for this thread surface (keyed to roomId + parentId).
-  const { online, pending, retry, sendText } = useRoomSend({ roomId, kind, parentId, send });
+  const { online, pending, retry, sendText } = useRoomSend({ roomId, spaceId: threadSpaceId, access: registryRoom?.access, kind, parentId, send });
 
   // Mirror room/[id]: prefer the natural back action; fall through to `/rooms`
   // only if the thread is somehow the only screen in the stack (no thread deep

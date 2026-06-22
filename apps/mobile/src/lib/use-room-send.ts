@@ -20,7 +20,7 @@ import { randomId } from '@drakkar.software/octochat-sdk';
 import { useOutbox } from './outbox';
 import { useSession } from './session-context';
 import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
-import type { RoomKind } from '@drakkar.software/octochat-sdk';
+import type { NodeAccess, RoomKind } from '@drakkar.software/octochat-sdk';
 
 /** A room/thread `send` (the optional `id` lets a queued message reuse its pending-bubble
  *  id). The single append-only `useRoom.send` resolves to a success boolean — `false` ⇒
@@ -28,8 +28,8 @@ import type { RoomKind } from '@drakkar.software/octochat-sdk';
  *  to queue". (The union still admits a sync `boolean`/`void` for back-compat.) */
 type SendFn = (text: string, parentId?: string, attachment?: undefined, id?: string) => void | boolean | Promise<void> | Promise<boolean>;
 
-export function useRoomSend(opts: { roomId: string; kind: RoomKind; parentId?: string; send: SendFn }) {
-  const { roomId, kind, parentId, send } = opts;
+export function useRoomSend(opts: { roomId: string; spaceId?: string; access?: NodeAccess; kind: RoomKind; parentId?: string; send: SendFn }) {
+  const { roomId, spaceId, access, kind, parentId, send } = opts;
   const { session } = useSession();
   const online = useOnline();
   const { pending, enqueue, retry } = useOutbox(roomId, parentId);
@@ -53,8 +53,12 @@ export function useRoomSend(opts: { roomId: string; kind: RoomKind; parentId?: s
       enqueue({
         id,
         roomId,
-        spaceId: spaceIdFromRoomId(roomId),
+        // Use the explicitly-provided spaceId when available (required for ticket rooms:
+        // ticket ids like `ticket-<hex>` have no embedded space, so spaceIdFromRoomId
+        // would return the ticket id itself and the outbox flush would target the wrong space).
+        spaceId: spaceId ?? spaceIdFromRoomId(roomId),
         kind,
+        access,
         authorId: session.userId,
         text: t,
         parentId,
@@ -63,7 +67,7 @@ export function useRoomSend(opts: { roomId: string; kind: RoomKind; parentId?: s
         attempts: 0,
       });
     },
-    [session, online, send, roomId, kind, parentId, enqueue],
+    [session, online, send, roomId, spaceId, access, kind, parentId, enqueue],
   );
 
   return { online, pending, retry, sendText };

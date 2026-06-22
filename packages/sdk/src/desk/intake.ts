@@ -29,6 +29,7 @@ import { buildNodeAccessShared } from '../starfish/node-access-cache';
 import { readSpaces, setRequestDeclined } from '../starfish/registry';
 import { readIntakeConfig, DEFAULT_INTAKE_CONFIG, type IntakeConfig } from './intake-config';
 import { makeTicketCreateHandler, makeRoomCreateHandler } from './orchestrator';
+import { clampField, TICKET_MESSAGE_MAX } from './ticket';
 import { writeSealedTicketInfo } from './ticket-info';
 
 /** The fallback first reply when auto-reply has no fixed text and no AI engine is available. */
@@ -58,6 +59,25 @@ export async function composeIntakeReply(cfg: IntakeConfig, req: ResourceRequest
     }
   }
   return cfg.replyText.trim() || DEFAULT_INTAKE_REPLY;
+}
+
+type EncryptFn = { encrypt: (d: Record<string, unknown>) => Promise<Record<string, unknown>> };
+
+/** Append one plaintext or E2EE message to a ticket's invite-stream log. */
+async function postTicketMessage(
+  session: Session,
+  spaceId: string,
+  nodeId: string,
+  enc: boolean,
+  msg: { id: string; authorId: string; ts: number; text: string },
+): Promise<void> {
+  let body: Record<string, unknown> = { t: 'msg', e: msg } as unknown as Record<string, unknown>;
+  if (enc) {
+    const access = await buildNodeAccessShared(session, spaceId, nodeId, { access: 'invite', enc: true });
+    if (!access?.encryptor) throw new Error('No node keyring to seal ticket message');
+    body = await (access.encryptor as EncryptFn).encrypt(body);
+  }
+  await getNodeStreamClient(spaceId, nodeId, session).append(objInvLogPush(spaceId, nodeId), body);
 }
 
 /**
@@ -112,18 +132,24 @@ export async function reconcileTicketRequests(
         const requester = typeof p.req.meta?.requester === 'string' ? (p.req.meta.requester as string) : p.req.requester.userId;
         await writeSealedTicketInfo(session, spaceId, nodeId, { title: p.req.title, requester });
       }
+      // Post the requester's description as the FIRST message in the ticket room.
+      const desc = (p.req.message ?? '').trim();
+      if (p.req.nodeType === 'ticket' && desc) {
+        await postTicketMessage(session, spaceId, nodeId, enc, {
+          id: randomId(),
+          authorId: p.req.requester.userId,
+          ts: Date.now(),
+          text: clampField(desc, TICKET_MESSAGE_MAX),
+        });
+      }
       if (cfg.mode === 'auto-reply' && p.req.nodeType !== 'room') {
         const text = await composeIntakeReply(cfg, p.req);
-        const env = { t: 'msg', e: { id: randomId(), authorId: session.userId, ts: Date.now(), text } };
-        let body: Record<string, unknown> = env as unknown as Record<string, unknown>;
-        if (enc) {
-          // E2EE ticket: seal the reply with the per-node keyring before appending.
-          // The desk owner is a keyring recipient (it minted the keyring in accept above).
-          const access = await buildNodeAccessShared(session, spaceId, nodeId, { access: 'invite', enc: true });
-          if (!access?.encryptor) throw new Error('No node keyring to seal auto-reply');
-          body = await (access.encryptor as { encrypt: (d: Record<string, unknown>) => Promise<Record<string, unknown>> }).encrypt(body);
-        }
-        await getNodeStreamClient(spaceId, nodeId, session).append(objInvLogPush(spaceId, nodeId), body);
+        await postTicketMessage(session, spaceId, nodeId, enc, {
+          id: randomId(),
+          authorId: session.userId,
+          ts: Date.now(),
+          text,
+        });
       }
     } catch {
       // best-effort: a bad/failed request must not block the others
@@ -173,6 +199,16 @@ export async function acceptNodeRequest(
   if (enc && pending.req.nodeType === 'ticket') {
     const requester = typeof pending.req.meta?.requester === 'string' ? (pending.req.meta.requester as string) : pending.req.requester.userId;
     await writeSealedTicketInfo(session, pending.req.spaceId, result.nodeId, { title: pending.req.title, requester });
+  }
+  // Post the requester's description as the first message in the new ticket room.
+  const desc = (pending.req.message ?? '').trim();
+  if (pending.req.nodeType === 'ticket' && desc) {
+    await postTicketMessage(session, pending.req.spaceId, result.nodeId, enc, {
+      id: randomId(),
+      authorId: pending.req.requester.userId,
+      ts: Date.now(),
+      text: clampField(desc, TICKET_MESSAGE_MAX),
+    });
   }
   return result;
 }

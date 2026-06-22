@@ -4,6 +4,7 @@
  * ({@link ./message-view}) can share it without depending on the app's outbox
  * store (which is a UI-framework concern and stays in the app).
  */
+import type { NodeAccess } from '@drakkar.software/octospaces-sdk';
 import type { RoomKind } from '../domain/types';
 
 export type OutboxStatus = 'queued' | 'sending' | 'failed';
@@ -15,6 +16,9 @@ export interface OutboxMessage {
   roomId: string;
   spaceId: string;
   kind: RoomKind;
+  /** Room access tier — stored so the outbox flush can skip the space `_index` read
+   *  for invite rooms (tickets, shared rooms) where the user may not be a space member. */
+  access?: NodeAccess;
   authorId: string;
   text: string;
   /** Set when this is a thread reply — keys the entry to (roomId, parentId). */
