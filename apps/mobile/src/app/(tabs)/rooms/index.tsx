@@ -26,7 +26,7 @@ import { SidebarLinkRow } from '@/components/chat/SidebarLinkRow';
 import { SpaceTabHeader } from '@/components/chat/SpaceTabHeader';
 import { useFeature } from '@/lib/use-feature';
 import { TicketList } from '@/components/desk/TicketList';
-import { RequestsShelf } from '@/components/desk/RequestsShelf';
+import { RequestsLink } from '@/components/desk/RequestsLink';
 import { SharedRoomList } from '@/components/desk/SharedRoomList';
 import { GuestRoomSection } from '@/components/desk/GuestRoomSection';
 
@@ -191,7 +191,7 @@ export default function RoomsScreen() {
               independent of channel count so OctoDesk-only spaces always render them. */}
           {(activeId ?? space?.id) ? (
             <>
-              <RequestsShelf spaceId={activeId ?? space?.id ?? ''} userId={session.userId} />
+              <RequestsLink spaceId={activeId ?? space?.id ?? ''} />
               <SharedRoomList spaceId={activeId ?? space?.id ?? ''} userId={session.userId} />
               <TicketList spaceId={activeId ?? space?.id ?? ''} userId={session.userId} />
             </>

@@ -18,7 +18,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { Txt } from '@/components/ui/Txt';
 
 import { TicketList } from '@/components/desk/TicketList';
-import { RequestsShelf } from '@/components/desk/RequestsShelf';
+import { RequestsLink } from '@/components/desk/RequestsLink';
 import { SharedRoomList } from '@/components/desk/SharedRoomList';
 import { GuestRoomSection } from '@/components/desk/GuestRoomSection';
 import { AgentsPanel } from './AgentsPanel';
@@ -290,7 +290,7 @@ export function DesktopRoomSidebar({
                 respective lists; independent of channels so OctoDesk-only spaces always show them. */}
             {space?.id ? (
               <>
-                <RequestsShelf spaceId={space.id} userId={userId} />
+                <RequestsLink spaceId={space.id} />
                 <SharedRoomList spaceId={space.id} userId={userId} />
                 <TicketList spaceId={space.id} userId={userId} />
               </>

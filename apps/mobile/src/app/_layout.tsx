@@ -22,6 +22,7 @@ import { SessionProvider } from '@/lib/session-context';
 import { useAutomationBackground } from '@/lib/automations/use-automation-background';
 import { SpacesProvider } from '@/lib/spaces-context';
 import { ThreadDigestProvider } from '@/lib/thread-digest-context';
+import { RequestsProvider } from '@/lib/requests-context';
 import { UnreadProvider } from '@/lib/unread-context';
 import { ViewModeProvider } from '@/lib/view-mode';
 import { BrandProvider } from '@/lib/brand-context';
@@ -117,6 +118,7 @@ export default function RootLayout() {
             <SpacesProvider>
               <RoomsRegistryProvider>
                 <UnreadProvider>
+                  <RequestsProvider>
                   <ProfileProvider>
                     <ThreadDigestProvider>
                       {/* Workspace view mode (Chat/Agents/Work) — a global UI pref
@@ -133,6 +135,7 @@ export default function RootLayout() {
                       </ViewModeProvider>
                     </ThreadDigestProvider>
                   </ProfileProvider>
+                  </RequestsProvider>
                 </UnreadProvider>
               </RoomsRegistryProvider>
             </SpacesProvider>

@@ -38,46 +38,45 @@ export function dispatchRoomChange(roomId: string): boolean {
 }
 
 // ── Object-index pull registry ────────────────────────────────────────────────
-// Multiple consumers (useObjects instances) may mount for the same spaceId but
-// they all share ONE underlying merge-doc store. This refcounted registry stores
-// ONE pull function per spaceId (the first registrant's) and counts active
-// consumers so the entry survives partial unmounts without firing redundant pulls.
+// Multiple consumers (useObjects instances) may mount for the same spaceId; they
+// share ONE underlying merge-doc store. Each consumer registers its own pull fn
+// here. When `useObjects`'s pull identity flips from a no-op (null-store window on
+// first render) to a real pull (store ready), the effect cleanup removes the no-op
+// and re-registers the real fn — ensuring dispatchIndexChange never calls a stale
+// no-op that leaves the Tickets list un-repainted after an accept or SSE event.
 
-interface IndexEntry { pull: PullFn; count: number }
-const indexPullRegistry = new Map<string, IndexEntry>();
+const indexPullRegistry = new Map<string, Set<PullFn>>();
 
 /**
- * Register a pull for the object-index of `spaceId`. Only the FIRST registrant's
- * fn is stored; subsequent ones increment the refcount (all consumers share the
- * same store, so any pull fn is equivalent). Returns an unsubscribe fn.
+ * Register a pull fn for the object-index of `spaceId`. Each registrant gets its
+ * own slot in a per-spaceId Set so the most-recent (real) pull fn is always
+ * included. Returns an unsubscribe fn that removes only this fn from the set.
  */
 export function registerIndexPull(spaceId: string, fn: PullFn): () => void {
-  const entry = indexPullRegistry.get(spaceId);
-  if (entry) {
-    entry.count++;
-  } else {
-    indexPullRegistry.set(spaceId, { pull: fn, count: 1 });
+  let set = indexPullRegistry.get(spaceId);
+  if (!set) {
+    set = new Set();
+    indexPullRegistry.set(spaceId, set);
   }
+  set.add(fn);
   return () => {
-    const e = indexPullRegistry.get(spaceId);
-    if (!e) return;
-    if (e.count <= 1) {
-      indexPullRegistry.delete(spaceId);
-    } else {
-      e.count--;
-    }
+    const s = indexPullRegistry.get(spaceId);
+    if (!s) return;
+    s.delete(fn);
+    if (s.size === 0) indexPullRegistry.delete(spaceId);
   };
 }
 
 /**
  * Trigger a pull of the object-index for `spaceId` (e.g. after a headless write
  * that bypassed the store, like an accepted ticket request or an SSE index-change).
- * Returns true if a pull was registered and fired; false if no consumer is mounted.
+ * Calls ALL registered pull fns (idempotent: they all share the same store).
+ * Returns true if at least one pull was fired; false if no consumer is mounted.
  */
 export function dispatchIndexChange(spaceId: string): boolean {
-  const entry = indexPullRegistry.get(spaceId);
-  if (!entry) return false;
-  entry.pull();
+  const set = indexPullRegistry.get(spaceId);
+  if (!set || set.size === 0) return false;
+  for (const fn of set) fn();
   return true;
 }
 
