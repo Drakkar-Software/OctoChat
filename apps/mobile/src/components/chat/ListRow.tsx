@@ -101,8 +101,8 @@ export function ListRow({
         <Icon name={iconName} size={15} color={active || emphasized ? colors.accent : colors.inkMuted} />
       ) : null}
       <Txt
-        variant="subhead"
-        weight={emphasized || active ? 'semibold' : 'regular'}
+        variant="body"
+        weight="medium"
         color={labelColor}
         numberOfLines={1}
         style={styles.name}

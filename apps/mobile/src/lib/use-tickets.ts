@@ -1,13 +1,15 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useObjects } from './use-objects';
 import { useUnread } from './unread-context';
-import { ticketOf, withTicket } from '@drakkar.software/octochat-sdk';
+import { useSession } from './session-context';
+import { ticketOf, withTicket, readSealedTicketInfo } from '@drakkar.software/octochat-sdk';
 import type { ObjectNode } from '@drakkar.software/octochat-sdk';
-import type { TicketMeta, TicketStatus } from '@drakkar.software/octochat-sdk';
+import type { TicketMeta, TicketStatus, TicketInfo } from '@drakkar.software/octochat-sdk';
 
 /** Shown for an E2EE ticket in the all-member list — the real subject/requester are sealed
  *  in the per-node stream and only visible to participants once the ticket is opened. */
 export const ENCRYPTED_TICKET_TITLE = 'Encrypted ticket';
+export const UNTITLED_TICKET_TITLE = 'Untitled ticket';
 
 export interface TicketEntry {
   node: ObjectNode;
@@ -36,19 +38,44 @@ export function useTickets(spaceId: string | null): {
 } {
   const { nodes, ready, mutate, archive: archiveNode } = useObjects(spaceId ?? '', { enabled: !!spaceId });
   const { unreadByRoom } = useUnread();
+  const { session } = useSession();
+
+  // Lazily decrypt the sealed title/requester for each E2EE ticket so the sidebar
+  // shows the real subject instead of the placeholder once resolved.
+  const fetchedRef = useRef<Set<string>>(new Set());
+  const [sealedInfo, setSealedInfo] = useState<Map<string, TicketInfo>>(new Map());
+
+  useEffect(() => {
+    if (!session || !spaceId) return;
+    for (const n of nodes) {
+      if (n.type !== 'ticket' || !n.enc) continue;
+      if (fetchedRef.current.has(n.id)) continue;
+      fetchedRef.current.add(n.id);
+      void readSealedTicketInfo(session, spaceId, n.id).then((info) => {
+        if (!info) return;
+        setSealedInfo((prev) => {
+          const next = new Map(prev);
+          next.set(n.id, info);
+          return next;
+        });
+      }).catch(() => {});
+    }
+  }, [nodes, session, spaceId]);
 
   const tickets = useMemo<TicketEntry[]>(
     () =>
       nodes.flatMap((n) => {
         if (n.type !== 'ticket') return [];
         const ticket = ticketOf(n) ?? { status: 'open', priority: 'medium', assigneeId: null, requester: '', title: '', slaDueAt: null };
-        // E2EE tickets strip title/requester from the index — show a placeholder in the
-        // list; participants see the real values on open (decrypted from the stream).
-        const title = n.enc ? ENCRYPTED_TICKET_TITLE : (ticket.title || n.title || 'Untitled ticket');
-        const requester = n.enc ? '' : ticket.requester;
+        const sealed = n.enc ? sealedInfo.get(n.id) : undefined;
+        // E2EE tickets: use decrypted header when available, fall back to placeholder.
+        const title = n.enc
+          ? (sealed?.title || ENCRYPTED_TICKET_TITLE)
+          : (ticket.title || n.title || UNTITLED_TICKET_TITLE);
+        const requester = n.enc ? (sealed?.requester ?? '') : ticket.requester;
         return [{ node: n, ticket, title, requester, unread: unreadByRoom[n.id] ?? 0 }];
       }),
-    [nodes, unreadByRoom],
+    [nodes, unreadByRoom, sealedInfo],
   );
 
   // `withTicket` doesn't stamp `updatedAt`, so we spread it in explicitly —
