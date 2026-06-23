@@ -43,7 +43,8 @@ import { flushReadsNow, hydrateReads } from '@drakkar.software/octochat-sdk';
 import { hydrateArchivedDms } from '@drakkar.software/octochat-sdk';
 import { refreshDmHeads } from '@drakkar.software/octochat-sdk';
 import { dispatchIndexChange } from './room-events-bus';
-import { activeVariant } from './variants';
+import { VARIANTS } from './variants';
+import { getActiveVariantId } from './variant-store';
 import { useSession } from './session-context';
 
 interface SpacesContextValue {
@@ -121,8 +122,6 @@ const railSpaces = (list: Space[]): SpaceView[] =>
 /** Widen a raw SDK Space with a seeded monogram. */
 const toSpaceView = (s: Space): SpaceView => ({ ...s, short: s.name.slice(0, 2).toUpperCase() });
 
-/** Desk builds (the `tickets` feature) auto-handle inbound ticket requests per space settings. */
-const DESK_INTAKE = activeVariant.features.includes('tickets');
 
 const Ctx = createContext<SpacesContextValue | null>(null);
 
@@ -198,10 +197,14 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
         })
         .catch(() => {});
     }
-    // On a desk build, also accept inbound TICKET requests per each space's intake config
-    // (auto-accept / auto-reply). Best-effort; manual-mode spaces are left for the Requests UI.
+    // Accept inbound TICKET requests per each space's intake config (auto-accept / auto-reply).
+    // Best-effort; manual-mode spaces are left for the Requests UI.
     // Throttled: reads per-space indexes so we skip if one ran recently.
-    if (DESK_INTAKE && now - lastReconcileTicketsAt.current >= RECONCILE_INTERVAL_MS) {
+    // The 'tickets' capability is a RUNTIME variant choice (in-app switcher / persisted KV),
+    // not a build-time constant — read it live so auto-accept works when the user selects a
+    // tickets-enabled variant, matching how useFeature('tickets') resolves it.
+    const deskIntake = VARIANTS[getActiveVariantId()].features.includes('tickets');
+    if (deskIntake && now - lastReconcileTicketsAt.current >= RECONCILE_INTERVAL_MS) {
       lastReconcileTicketsAt.current = now;
       const railIds = new Set(rail.map((s) => s.id));
       void reconcileTicketRequests(session, railIds)
