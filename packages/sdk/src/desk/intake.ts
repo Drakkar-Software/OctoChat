@@ -208,8 +208,17 @@ export async function acceptNodeRequest(
   const enc = cfg.enc ?? false;
   const result = await acceptResourceRequest(session, pending, { create, enc });
   if (enc && pending.req.nodeType === 'ticket') {
-    const requester = typeof pending.req.meta?.requester === 'string' ? (pending.req.meta.requester as string) : pending.req.requester.userId;
-    await writeSealedTicketInfo(session, pending.req.spaceId, result.nodeId, { title: pending.req.title, requester });
+    // Best-effort: the node and the grant-back are already created at this point.
+    // A transient header-seal failure (e.g. 429 / append race) must not reject the
+    // whole accept and leave the row on screen — the UI falls back to
+    // ENCRYPTED_TICKET_TITLE when the sealed header is absent, and it can be
+    // re-sealed on a later read. Mirrors the defensive style in reconcileTicketRequests.
+    try {
+      const requester = typeof pending.req.meta?.requester === 'string' ? (pending.req.meta.requester as string) : pending.req.requester.userId;
+      await writeSealedTicketInfo(session, pending.req.spaceId, result.nodeId, { title: pending.req.title, requester });
+    } catch (err) {
+      console.warn('[OctoChat] ticket header seal failed (will retry on next read)', err);
+    }
   }
   // Post the requester's description as the first message in the new ticket room.
   // Best-effort: the node is already created; a transient append failure (e.g. a 429

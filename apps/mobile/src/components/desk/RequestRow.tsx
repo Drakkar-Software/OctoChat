@@ -52,8 +52,8 @@ export function RequestRow({ entry, acceptBusy, declineBusy, onAccept, onDecline
       ) : null}
 
       <View style={styles.actions}>
-        <Button label="Decline" variant="secondary" size="sm" loading={declineBusy} disabled={acceptBusy} onPress={onDecline} />
-        <Button label="Accept" variant="primary" size="sm" loading={acceptBusy} disabled={declineBusy} onPress={onAccept} />
+        <Button label="Decline" variant="secondary" size="sm" loading={declineBusy} disabled={acceptBusy || declineBusy} onPress={onDecline} />
+        <Button label="Accept" variant="primary" size="sm" loading={acceptBusy} disabled={acceptBusy || declineBusy} onPress={onAccept} />
       </View>
     </View>
   );

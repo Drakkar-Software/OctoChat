@@ -7,7 +7,7 @@
  * Only relevant for a space the user owns, on a desk-capable build — callers gate rendering on
  * `useFeature('tickets')`.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   listPendingTicketRequests,
@@ -40,6 +40,11 @@ export function usePendingRequests(spaceId: string | null): PendingRequestsHook 
   const [acceptBusyId, setAcceptBusyId] = useState<string | null>(null);
   const [declineBusyId, setDeclineBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Synchronous re-entry guard: React state updates are async so two fast taps can both
+  // pass the state check before the first re-render disables the button. A ref Set is
+  // checked synchronously and blocks the second call in the same JS tick. Mirrors the
+  // busyRef pattern in use-resource-request.ts.
+  const inFlightRef = useRef<Set<string>>(new Set());
 
   const refresh = useCallback(() => {
     if (!session || !spaceId) {
@@ -70,6 +75,11 @@ export function usePendingRequests(spaceId: string | null): PendingRequestsHook 
   const accept = useCallback(
     async (p: PendingRequest) => {
       if (!session || !spaceId) return;
+      // Synchronous guard: block a second tap that arrives before the first re-render
+      // disables the button. Without this, two fast taps both pass the state check and
+      // both call acceptNodeRequest → two ticket nodes created for one request.
+      if (inFlightRef.current.has(p.req.reqId)) return;
+      inFlightRef.current.add(p.req.reqId);
       setAcceptBusyId(p.req.reqId);
       setError(null);
       try {
@@ -82,6 +92,7 @@ export function usePendingRequests(spaceId: string | null): PendingRequestsHook 
       } catch (e) {
         setError(String((e as Error)?.message ?? e));
       } finally {
+        inFlightRef.current.delete(p.req.reqId);
         setAcceptBusyId(null);
       }
     },
@@ -91,6 +102,8 @@ export function usePendingRequests(spaceId: string | null): PendingRequestsHook 
   const decline = useCallback(
     async (p: PendingRequest) => {
       if (!session || !spaceId) return;
+      if (inFlightRef.current.has(p.req.reqId)) return;
+      inFlightRef.current.add(p.req.reqId);
       setDeclineBusyId(p.req.reqId);
       setError(null);
       try {
@@ -99,6 +112,7 @@ export function usePendingRequests(spaceId: string | null): PendingRequestsHook 
       } catch (e) {
         setError(String((e as Error)?.message ?? e));
       } finally {
+        inFlightRef.current.delete(p.req.reqId);
         setDeclineBusyId(null);
       }
     },
