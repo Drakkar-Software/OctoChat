@@ -3,6 +3,7 @@ import { useTheme } from '@/lib/use-theme';
 import { useHover } from '@/lib/use-hover';
 import { radii, spacing } from '@/theme';
 import { Badge } from '@/components/ui/Badge';
+import { Icon } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 import { StatusPill } from './StatusPill';
 import type { TicketEntry } from '@/lib/use-tickets';
@@ -26,6 +27,7 @@ export function TicketRow({ entry, onPress, onLongPress }: TicketRowProps) {
       style={({ pressed }) => [styles.row, (pressed || hovered) && { backgroundColor: colors.hover }]}
       {...hoverProps}
     >
+      {entry.node.enc ? <Icon name="lock" size={15} color={colors.inkMuted} /> : null}
       <View style={styles.content}>
         <Txt variant="body" weight="medium" numberOfLines={1} style={styles.title}>
           {title}

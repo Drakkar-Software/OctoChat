@@ -7,7 +7,7 @@ import type { TicketMeta, TicketStatus } from '@drakkar.software/octochat-sdk';
 
 /** Shown for an E2EE ticket in the all-member list — the real subject/requester are sealed
  *  in the per-node stream and only visible to participants once the ticket is opened. */
-export const ENCRYPTED_TICKET_TITLE = '🔒 Encrypted ticket';
+export const ENCRYPTED_TICKET_TITLE = 'Encrypted ticket';
 
 export interface TicketEntry {
   node: ObjectNode;
