@@ -1,5 +1,17 @@
 # OctoChat Changelog
 
+## sdk 0.6.1 — 2026-06-23 · E2EE keyring cap-scope fix
+
+### SDK changes (0.6.0 → 0.6.1)
+
+- **Fix: E2EE ticket keyring 403** — re-pins `starfish-spaces` to `3.0.0-alpha.34`,
+  which fixes `defaultSpaceLayout` `nodeKeyringScope` (and `nodeMemberScope` /
+  `nodeStreamScope`) to include the literal `/n/` segment in their path globs
+  (`objects/n/${nodeId}/**`). Previously the globs used `objects/${nodeId}/**`,
+  mismatching every node storage path on the server → `403 "request path is outside
+  cap scope"` on `_keyring` pulls. New E2EE tickets created after the desk consumes
+  this version will have correctly-scoped keyring caps and work end-to-end.
+
 ## sdk 0.5.3 — 2026-06-22 · encrypted-ticket owner fix
 
 ### SDK changes (0.5.2 → 0.5.3)

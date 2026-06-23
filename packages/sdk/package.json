@@ -1,6 +1,6 @@
 {
   "name": "@drakkar.software/octochat-sdk",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Headless, reusable OctoChat core — chat-domain logic (identity, encrypted Starfish sync, registry, spaces/rooms, messages, DMs, formatters) with no UI and no platform lock-in.",
   "license": "MIT",
   "type": "module",
@@ -47,7 +47,7 @@
     "@drakkar.software/starfish-keyring": "3.0.0-alpha.31",
     "@drakkar.software/starfish-protocol": "3.0.0-alpha.32",
     "@drakkar.software/starfish-sharing": "3.0.0-alpha.31",
-    "@drakkar.software/starfish-spaces": "3.0.0-alpha.33",
+    "@drakkar.software/starfish-spaces": "3.0.0-alpha.34",
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0",
     "@scure/bip39": "^2.0.0",
