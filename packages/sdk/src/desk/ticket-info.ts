@@ -13,7 +13,7 @@
  *
  * Plaintext tickets do NOT use this — their title/requester live in the index `meta.ticket`.
  */
-import { getNodeStreamClient } from '@drakkar.software/starfish-spaces';
+import { getNodeStreamClient, ownerEnsureNodeKeyring } from '@drakkar.software/starfish-spaces';
 import { objInvLogPull, objInvLogPush } from '@drakkar.software/octospaces-sdk';
 import { buildNodeAccessShared } from '../starfish/node-access-cache';
 
@@ -37,13 +37,16 @@ export async function writeSealedTicketInfo(
   ticketId: string,
   info: TicketInfo,
 ): Promise<void> {
-  const access = await buildNodeAccessShared(session, spaceId, ticketId, { access: 'invite', enc: true });
-  if (!access?.encryptor) throw new Error('No node keyring to seal ticket info');
+  // Use ownerEnsureNodeKeyring instead of buildNodeAccessShared: inviteToNode during ticket
+  // accept only adds the REQUESTER to the per-node keyring, not the owner. buildNodeAccess
+  // therefore returns null for the owner (buildNodeEncryptor finds no decryptable entry).
+  // ownerEnsureNodeKeyring creates the owner's keyring entry if missing and returns an Encryptor.
+  const encryptor = await ownerEnsureNodeKeyring(session, spaceId, ticketId) as unknown as Encryptor;
   const clean: TicketInfo = {
     title: clampField(info.title, TICKET_TITLE_MAX),
     requester: clampField(info.requester, TICKET_REQUESTER_MAX),
   };
-  const body = await (access.encryptor as unknown as Encryptor).encrypt({ t: TICKET_INFO_TYPE, e: clean });
+  const body = await encryptor.encrypt({ t: TICKET_INFO_TYPE, e: clean });
   await getNodeStreamClient(spaceId, ticketId, session).append(objInvLogPush(spaceId, ticketId), body);
 }
 
@@ -57,13 +60,24 @@ export async function readSealedTicketInfo(
   spaceId: string,
   ticketId: string,
 ): Promise<TicketInfo | null> {
+  // Non-owner path (requester, assigned agent): use the stored per-node grant.
+  // Owner path: buildNodeAccess returns null because resolveNodeKeyringHandle(soft=true)
+  // calls buildNodeEncryptor which only reads the keyring — it finds no entry for the owner
+  // (inviteToNode adds the requester, not the owner). Fall back to ownerEnsureNodeKeyring,
+  // which bypasses the userId/edPub trust-check asymmetry and uses ownerTrustedAdders directly.
+  let encryptor: Encryptor | null = null;
   const access = await buildNodeAccessShared(session, spaceId, ticketId, { access: 'invite', enc: true });
-  if (!access?.encryptor) return null;
+  if (access?.encryptor) {
+    encryptor = access.encryptor as unknown as Encryptor;
+  } else {
+    encryptor = await ownerEnsureNodeKeyring(session, spaceId, ticketId).catch(() => null) as Encryptor | null;
+  }
+  if (!encryptor) return null;
   const client = getNodeStreamClient(spaceId, ticketId, session);
   const items = (await client.pull(objInvLogPull(spaceId, ticketId), { appendField: 'items', full: true }).catch(() => [])) as unknown[];
   for (const raw of items) {
     try {
-      const dec = await (access.encryptor as unknown as Encryptor).decrypt(raw as Record<string, unknown>);
+      const dec = await encryptor.decrypt(raw as Record<string, unknown>);
       if ((dec as { t?: string }).t === TICKET_INFO_TYPE) {
         const e = (dec as { e?: TicketInfo }).e;
         if (e && typeof e.title === 'string' && typeof e.requester === 'string') return e;
