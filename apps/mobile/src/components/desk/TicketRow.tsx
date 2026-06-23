@@ -15,7 +15,7 @@ export function TicketRow({ entry, onPress, onLongPress }: TicketRowProps) {
   return (
     <ListRow
       label={title}
-      iconName={entry.node.enc ? 'lock' : 'ticket'}
+      iconName="lock"
       unread={unread}
       trailing={<StatusPill status={ticket.status} />}
       onPress={() => onPress(entry)}
