@@ -116,10 +116,10 @@ interface SessionContextValue {
 const Ctx = createContext<SessionContextValue | null>(null);
 
 // Yield one macrotask so React commits the caller's `busy`/`switching` state and the
-// browser paints the spinner BEFORE the synchronous, memory-hard Argon2id derivation
-// locks the main thread. Without this the derivation starts in the same tick and the
-// UI freezes with no feedback (the Argon2 impl only yields microtasks, which never
-// trigger a repaint).
+// browser paints the spinner BEFORE the Argon2id derivation starts. The argon2 impl
+// (octospaces-platform-sdk's hash-wasm-shim) now yields real macrotasks between
+// block batches so the progress bar in `creating.tsx` updates live, but this initial
+// yield is still needed to commit the loading state before the first batch runs.
 const yieldToPaint = () => new Promise((r) => setTimeout(r, 0));
 
 // Wipe every module-level cache tied to the current identity. Called before swapping

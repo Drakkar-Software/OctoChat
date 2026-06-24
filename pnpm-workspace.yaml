@@ -34,3 +34,7 @@ onlyBuiltDependencies:
 # Keep it in lockstep with the packages/sdk pin. Mirrors OctoVault's root override.
 overrides:
   "hosted-git-info@4>lru-cache": "^7.18.3"
+  # Temporarily point to the local fixed build (macrotask nextTick for argon2
+  # progress bar) while 0.3.1 awaits npm publish. Remove once 0.3.1 is live and
+  # packages/sdk/package.json is bumped to "0.3.1".
+  "@drakkar.software/octospaces-platform-sdk": "file:/Users/user/Documents/dev/Drakkar-Software/octospaces/packages/ts/octospaces-platform-sdk/drakkar.software-octospaces-platform-sdk-0.3.1.tgz"

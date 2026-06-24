@@ -6,6 +6,7 @@ settings:
 
 overrides:
   hosted-git-info@4>lru-cache: ^7.18.3
+  '@drakkar.software/octospaces-platform-sdk': file:/Users/user/Documents/dev/Drakkar-Software/octospaces/packages/ts/octospaces-platform-sdk/drakkar.software-octospaces-platform-sdk-0.3.1.tgz
 
 importers:
 
@@ -342,8 +343,8 @@ importers:
   packages/sdk:
     dependencies:
       '@drakkar.software/octospaces-platform-sdk':
-        specifier: 0.3.0
-        version: 0.3.0(c89c25b820e35270338d46a154599c4a)
+        specifier: file:/Users/user/Documents/dev/Drakkar-Software/octospaces/packages/ts/octospaces-platform-sdk/drakkar.software-octospaces-platform-sdk-0.3.1.tgz
+        version: file:../octospaces/packages/ts/octospaces-platform-sdk/drakkar.software-octospaces-platform-sdk-0.3.1.tgz(c89c25b820e35270338d46a154599c4a)
       '@drakkar.software/octospaces-sdk':
         specifier: 0.26.0
         version: 0.26.0(d2ed215729593bcef12ddc329e710ecd)
@@ -1083,8 +1084,9 @@ packages:
       expo-task-manager:
         optional: true
 
-  '@drakkar.software/octospaces-platform-sdk@0.3.0':
-    resolution: {integrity: sha512-pnwks5YhJi0HuSyxi0kWjQsdbg47+FB04q00mpSQ/ajJ7OFEIAJOeG72I91QOItgjUtg6RpYiLcuwigdmtJ3Eg==}
+  '@drakkar.software/octospaces-platform-sdk@file:../octospaces/packages/ts/octospaces-platform-sdk/drakkar.software-octospaces-platform-sdk-0.3.1.tgz':
+    resolution: {integrity: sha512-Hdfu7wIOSYroQBYC4q+6Frad65xkfIIL7Yh1MDSpFT5YVz2yCvX2l8DcVMzTPJe0V6FbBOxqMbKmzlAvrpa0JA==, tarball: file:../octospaces/packages/ts/octospaces-platform-sdk/drakkar.software-octospaces-platform-sdk-0.3.1.tgz}
+    version: 0.3.1
     peerDependencies:
       '@drakkar.software/starfish-identities': '>=3.0.0-alpha.31'
       '@drakkar.software/starfish-protocol': '>=3.0.0-alpha.32'
@@ -1097,20 +1099,6 @@ packages:
       expo-secure-store:
         optional: true
       react-native-quick-crypto:
-        optional: true
-
-  '@drakkar.software/octospaces-sdk@0.25.0':
-    resolution: {integrity: sha512-NACP5e7ESjVKdMH7QStfiLdyPPiQ3yM5pT2sHeXSlCCqch2eMZx7NCGstZjbqCKY1hWVzq73oaDodIAdcRhCHg==}
-    peerDependencies:
-      '@drakkar.software/starfish-client': '>=3.0.0-alpha.31'
-      '@drakkar.software/starfish-identities': '>=3.0.0-alpha.31'
-      '@drakkar.software/starfish-keyring': '>=3.0.0-alpha.31'
-      '@drakkar.software/starfish-protocol': '>=3.0.0-alpha.32'
-      '@drakkar.software/starfish-sharing': '>=3.0.0-alpha.31'
-      '@drakkar.software/starfish-spaces': '>=3.0.0-alpha.32'
-      '@drakkar.software/starfish-wal': '>=3.0.0-alpha.30'
-    peerDependenciesMeta:
-      '@drakkar.software/starfish-wal':
         optional: true
 
   '@drakkar.software/octospaces-sdk@0.26.0':
@@ -7128,9 +7116,9 @@ snapshots:
       expo-notifications: 56.0.18(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)(typescript@6.0.3)
       expo-task-manager: 56.0.19(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))
 
-  '@drakkar.software/octospaces-platform-sdk@0.3.0(c89c25b820e35270338d46a154599c4a)':
+  '@drakkar.software/octospaces-platform-sdk@file:../octospaces/packages/ts/octospaces-platform-sdk/drakkar.software-octospaces-platform-sdk-0.3.1.tgz(c89c25b820e35270338d46a154599c4a)':
     dependencies:
-      '@drakkar.software/octospaces-sdk': 0.25.0(d2ed215729593bcef12ddc329e710ecd)
+      '@drakkar.software/octospaces-sdk': 0.26.0(d2ed215729593bcef12ddc329e710ecd)
       '@drakkar.software/starfish-identities': 3.0.0-alpha.31(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
       '@drakkar.software/starfish-protocol': 3.0.0-alpha.32
     optionalDependencies:
@@ -7143,19 +7131,6 @@ snapshots:
       - '@drakkar.software/starfish-sharing'
       - '@drakkar.software/starfish-spaces'
       - '@drakkar.software/starfish-wal'
-
-  '@drakkar.software/octospaces-sdk@0.25.0(d2ed215729593bcef12ddc329e710ecd)':
-    dependencies:
-      '@drakkar.software/starfish-client': 3.0.0-alpha.31(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
-      '@drakkar.software/starfish-identities': 3.0.0-alpha.31(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
-      '@drakkar.software/starfish-keyring': 3.0.0-alpha.31(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
-      '@drakkar.software/starfish-protocol': 3.0.0-alpha.32
-      '@drakkar.software/starfish-sharing': 3.0.0-alpha.31(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
-      '@drakkar.software/starfish-spaces': 3.0.0-alpha.34(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
-      '@noble/curves': 2.2.0
-      '@noble/hashes': 2.2.0
-      '@scure/bip39': 2.2.0
-      hash-wasm: 4.12.0
 
   '@drakkar.software/octospaces-sdk@0.26.0(d2ed215729593bcef12ddc329e710ecd)':
     dependencies:
