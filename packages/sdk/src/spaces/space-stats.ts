@@ -24,9 +24,8 @@ import type { Session } from '../starfish/identity';
 import { roomStreamPull } from '../messaging/room-paths';
 import { foldRoomCached } from '../messaging/stream-log';
 import { listSpaceRooms } from '../messaging/cross-room';
-import type { Room } from '../domain/types';
 import { buildThreadDigest } from '../messaging/threads';
-import type { MessageEditEvent } from '../domain/types';
+import type { MessageEditEvent, Room } from '../domain/types';
 
 export interface SpaceStats {
   /** Rooms/channels in the space (from the index). */

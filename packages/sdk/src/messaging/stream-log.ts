@@ -180,11 +180,13 @@ export async function foldRoomCached(
     // run them in parallel so decryption doesn't wait for the storage round-trip.
     const [decrypted] = await Promise.all([
       cursor.getDecryptedItems(),
-      // Persist back when the cursor grew — writes the kv blob that enables warm-starts
-      // for both this helper AND useRoom on the next open of the same room.
-      // Write unconditionally — a shrinking log (server compaction/purge) would otherwise
-      // leave a stale oversized blob that seeds phantom messages on every subsequent open.
-      kvSet(streamLogKey(userId, roomId), JSON.stringify(items)).catch(() => {}),
+      // Persist back when the item count changed (grow OR shrink). A shrinking log
+      // (server compaction/purge) would otherwise leave a stale oversized blob that
+      // seeds phantom messages; skip the write entirely when nothing changed so a
+      // warm room swept after TTL expiry doesn't re-serialize and rewrite the blob.
+      items.length !== initialItems.length
+        ? kvSet(streamLogKey(userId, roomId), JSON.stringify(items)).catch(() => {})
+        : Promise.resolve(),
     ]);
     const result: FoldedLog = { data: fanOut(decrypted), items };
     _foldCache.set(key, { result, ts: Date.now() });
