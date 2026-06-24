@@ -54,7 +54,7 @@ function Dot({ color, delay }: { color: string; delay: number }) {
   }, [y, delay, reduced]);
 
   const animStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: reduced ? 0 : y.value }],
+    transform: [{ translateY: reduced ? 0 : y.get() }],
     opacity: reduced ? 0.35 : 1,
   }));
 

@@ -38,7 +38,7 @@ export function HeroMark({ size = 128 }: HeroMarkProps) {
   }, [float, reduced]);
 
   const floatStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: reduced ? 0 : interpolate(float.value, [0, 1], [-5, 5]) }],
+    transform: [{ translateY: reduced ? 0 : interpolate(float.get(), [0, 1], [-5, 5]) }],
   }));
 
   return (

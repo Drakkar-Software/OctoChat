@@ -5,7 +5,7 @@ import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { fonts } from '@/theme';
 import { useResponsive } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
-import { tabBadgeLabel, useUnread } from '@/lib/unread-context';
+import { tabBadgeLabel, useUnreadCounts } from '@/lib/unread-context';
 import { useTotalDmUnread } from '@/lib/use-dms';
 import { useActiveAgentUnread } from '@/lib/use-agent-unread';
 
@@ -37,7 +37,7 @@ import { useActiveAgentUnread } from '@/lib/use-agent-unread';
 export default function NativeTabsLayout() {
   const { colors } = useTheme();
   const { isWide } = useResponsive();
-  const { totalUnread } = useUnread();
+  const { totalUnread } = useUnreadCounts();
   const badge = tabBadgeLabel(totalUnread);
   const agentBadge = tabBadgeLabel(useActiveAgentUnread());
   const dmBadge = tabBadgeLabel(useTotalDmUnread());

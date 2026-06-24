@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 
 import type { SpaceView } from './spaces-context';
 import { useSpacesContext } from './spaces-context';
-import { useUnread } from './unread-context';
+import { useUnreadCounts } from './unread-context';
 
 /**
  * The current identity's spaces (empty until the user creates or joins one).
@@ -14,7 +14,7 @@ import { useUnread } from './unread-context';
  */
 export function useSpaces() {
   const { spaces, activeId, setActiveId, loading, createSpace, reorderSpaces, moveSpace } = useSpacesContext();
-  const { unreadBySpace } = useUnread();
+  const { unreadBySpace } = useUnreadCounts();
 
   const spacesWithUnread = useMemo<SpaceView[]>(
     () => spaces.map((s) => ({ ...s, unread: unreadBySpace[s.id] ?? 0 })),

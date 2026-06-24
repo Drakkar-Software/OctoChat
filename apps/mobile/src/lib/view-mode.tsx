@@ -10,7 +10,7 @@
  * native) so the workspace reopens in the mode you left it. Content stays
  * space-contextual — Agents always lists the *active* space's automations.
  */
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type { IconName } from '@/components/ui/Icon';
 
@@ -63,7 +63,8 @@ export function ViewModeProvider({ children }: { children: ReactNode }) {
     void kvSet(STORAGE_KEY, next);
   }, []);
 
-  return <ViewModeContext.Provider value={{ mode, setMode }}>{children}</ViewModeContext.Provider>;
+  const value = useMemo<ViewModeContextValue>(() => ({ mode, setMode }), [mode, setMode]);
+  return <ViewModeContext.Provider value={value}>{children}</ViewModeContext.Provider>;
 }
 
 export function useViewMode(): ViewModeContextValue {

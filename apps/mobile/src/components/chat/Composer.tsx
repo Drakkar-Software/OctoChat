@@ -76,7 +76,7 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey, offline, s
   // out — the most-repeated gesture gets a moment of craft. Reduced-motion-safe.
   const sendPop = useSharedValue(1);
   const reducedMotion = useReducedMotion();
-  const sendPopStyle = useAnimatedStyle(() => ({ transform: [{ scale: sendPop.value }] }));
+  const sendPopStyle = useAnimatedStyle(() => ({ transform: [{ scale: sendPop.get() }] }));
 
   const submit = async () => {
     if (!hasContent || busy || fileBlocked) return;
@@ -89,10 +89,10 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey, offline, s
       setEmojiOpen(false);
       if (!reducedMotion) {
         // Quick punch out, then a springy settle (overshoot) — a felt payoff, not a twitch.
-        sendPop.value = withSequence(
+        sendPop.set(withSequence(
           withTiming(1.25, { duration: motion.fast }),
           withSpring(1, motion.spring),
-        );
+        ));
       }
     } finally {
       setBusy(false);

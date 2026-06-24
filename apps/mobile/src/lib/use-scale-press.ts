@@ -23,8 +23,8 @@ interface ScalePressOptions {
 export function useScalePress({ scaleTo = 0.97, fadeTo = 1 }: ScalePressOptions = {}) {
   const t = useSharedValue(0);
   const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: 1 + (scaleTo - 1) * t.value }],
-    opacity: 1 + (fadeTo - 1) * t.value,
+    transform: [{ scale: 1 + (scaleTo - 1) * t.get() }],
+    opacity: 1 + (fadeTo - 1) * t.get(),
   }));
   const onPressIn = () => {
     // Crisp grab on press-in…

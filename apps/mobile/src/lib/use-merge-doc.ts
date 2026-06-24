@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
+import { createStore } from 'zustand';
 import { createUnionMerge } from '@drakkar.software/starfish-client';
-import { useSharedSyncStore } from '@drakkar.software/starfish-client/zustand';
+import { useSharedSyncStore, useStarfishData } from '@drakkar.software/starfish-client/zustand';
 
 import { SYNC_BASE, SYNC_NAMESPACE } from './octochat-config';
 import { capProviderFor } from '@drakkar.software/octochat-sdk';
@@ -11,6 +12,19 @@ import { pullCache, PULL_CACHE_MAX_AGE_MS, CACHE_FALLBACK_STATUSES } from '@drak
 import { useSession } from './session-context';
 import { useRoomOpen } from './use-room-open-flow';
 import { resolveMemberAuth } from './space-cap';
+
+// Stable placeholder when config is null (store not yet ready / space switch).
+// useStarfishData must be called unconditionally (rules of hooks), so we supply
+// a minimal stub whose data is undefined → the selector returns undefined →
+// doc stays null and loaded stays false, matching the "not yet loaded" state.
+// Unlike the previous store.subscribe pattern, useStarfishData is a fine-grained
+// selector that ONLY re-renders when .data changes — syncing/stale/online ticks
+// no longer cause the objects → tree → nodes → breadcrumbs cascade.
+const EMPTY_DOC_STORE = createStore(() => ({
+  data: undefined as Record<string, unknown> | undefined,
+  syncing: false, online: true, dirty: false, error: null, hash: null, stale: false,
+  pull: async () => {}, set: () => {}, restore: () => {}, flush: async () => {}, setOnline: () => {}, seed: async () => {},
+})) as unknown as NonNullable<ReturnType<typeof useSharedSyncStore>>;
 
 /** A pull/push path pair for a Starfish merge-doc. */
 export interface DocPaths {
@@ -115,18 +129,14 @@ export function useMergeDoc(opts: MergeDocOptions): MergeDocResult {
 
   const store = useSharedSyncStore(config);
 
-  const [doc, setDoc] = useState<Record<string, unknown> | null>(null);
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset data when the store identity changes (space/object switch or reopen)
-    setDoc(null);
-    if (!store) return;
-    const read = () => {
-      const s = store.getState() as { data?: Record<string, unknown> };
-      setDoc(s.data ?? null);
-    };
-    read();
-    return store.subscribe(() => read());
-  }, [store]);
+  // Fine-grained selector: re-renders only when .data changes, not on every
+  // syncing/stale/online tick. Falls back to EMPTY_DOC_STORE when the store is null
+  // (config not ready, space switch) — the stub has data: undefined, so doc is null
+  // and loaded stays false until real data arrives, matching the old setState(null) reset.
+  const doc = useStarfishData(
+    store ?? EMPTY_DOC_STORE,
+    (d) => d as Record<string, unknown> | undefined,
+  ) ?? null;
 
   const apply = useCallback(
     (update: (doc: Record<string, unknown>) => Record<string, unknown>) => {

@@ -57,8 +57,8 @@ function PinSlot({ on, shakeKey }: { on: boolean; shakeKey: unknown }) {
     flash.set(withSequence(withTiming(1, { duration: motion.fast }), withTiming(0, { duration: motion.base })));
   }, [shakeKey, reduced, flash]);
 
-  const dotStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.value }], opacity: pop.value }));
-  const flashStyle = useAnimatedStyle(() => ({ opacity: flash.value }));
+  const dotStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.get() }], opacity: pop.get() }));
+  const flashStyle = useAnimatedStyle(() => ({ opacity: flash.get() }));
 
   return (
     <View
@@ -98,7 +98,7 @@ export function PinDots({ length = 6, filled = 0, shake }: PinDotsProps) {
     ));
   }, [shake, reduced, shift]);
 
-  const rowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shift.value }] }));
+  const rowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shift.get() }] }));
 
   return (
     <Animated.View style={[styles.row, rowStyle]}>

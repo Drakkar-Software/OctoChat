@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useObjects } from './use-objects';
-import { useUnread } from './unread-context';
+import { useUnreadCounts } from './unread-context';
 import { useSession } from './session-context';
 import { ticketOf, withTicket, readSealedTicketInfo } from '@drakkar.software/octochat-sdk';
 import type { ObjectNode } from '@drakkar.software/octochat-sdk';
@@ -37,7 +37,7 @@ export function useTickets(spaceId: string | null): {
   archive: (ticketId: string) => void;
 } {
   const { nodes, ready, mutate, archive: archiveNode } = useObjects(spaceId ?? '', { enabled: !!spaceId });
-  const { unreadByRoom } = useUnread();
+  const { unreadByRoom } = useUnreadCounts();
   const { session } = useSession();
 
   // Lazily decrypt the sealed title/requester for each E2EE ticket so the sidebar

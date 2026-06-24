@@ -39,7 +39,7 @@ function Ring({ size, color, phase }: { size: number; color: string; phase: numb
     if (reduced) {
       return { opacity: 0.16, transform: [{ scale: 1 + phase * 0.5 }] };
     }
-    const t = (p.value + phase) % 1;
+    const t = (p.get() + phase) % 1;
     return {
       opacity: interpolate(t, [0, 0.1, 1], [0, 0.5, 0]),
       transform: [{ scale: interpolate(t, [0, 1], [1, 1.85]) }],

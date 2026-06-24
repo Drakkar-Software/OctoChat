@@ -16,7 +16,7 @@ import { composeSend } from '@/lib/compose-send';
 import { useRoom } from '@/lib/use-room';
 import { resolveRoomSpaceId, resolveRoomAccess } from '@/lib/room-route';
 import { useRoomSend } from '@/lib/use-room-send';
-import { useUnread } from '@/lib/unread-context';
+import { useUnreadCounts, useUnreadActions } from '@/lib/unread-context';
 import { kvSet } from '@drakkar.software/octochat-sdk';
 import type { RoomKind, StoredMsg } from '@drakkar.software/octochat-sdk';
 import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
@@ -56,7 +56,8 @@ export default function RoomScreen() {
   // Normal `sp-<rand>-…` room ids embed it (the fallback). See resolveRoomSpaceId.
   const spaceId = resolveRoomSpaceId(params, id);
   const { session } = useSession();
-  const { markRoomRead, lastReadAt, hydrated } = useUnread();
+  const { hydrated } = useUnreadCounts();
+  const { markRoomRead, lastReadAt } = useUnreadActions();
   // `kind` drives the title/icon + automated-room behaviour, so it MUST be authoritative.
   // A notification open carries no `kind` on the wire (chat is E2EE) and the route param
   // then defaults to 'channel'. The shared rooms registry (resolves for owned, joined AND

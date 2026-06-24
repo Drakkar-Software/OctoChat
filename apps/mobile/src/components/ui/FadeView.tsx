@@ -34,7 +34,7 @@ function NativeFadeView({ visible, duration, delay = 0, style, ...rest }: FadeVi
   useEffect(() => {
     opacity.set(withDelay(delay, withTiming(visible ? 1 : 0, { duration })));
   }, [visible, duration, delay, opacity]);
-  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.get() }));
   return <Animated.View {...rest} style={[style, animatedStyle]} />;
 }
 

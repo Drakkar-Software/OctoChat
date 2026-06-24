@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { router } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 
@@ -10,13 +11,15 @@ import { useSpaceNav } from '@/lib/use-space-nav';
 import { excludeAutomatedRooms, useRooms } from '@/lib/use-rooms';
 import { useSpaces } from '@/lib/use-spaces';
 import { useDms, type DmEntry } from '@/lib/use-dms';
-import type { Room } from '@drakkar.software/octochat-sdk';
+import { DEFAULT_CATEGORY, type Room } from '@drakkar.software/octochat-sdk';
+import { Button } from '@/components/ui/Button';
 import { Divider } from '@/components/ui/Divider';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Txt } from '@/components/ui/Txt';
 import { SignInPrompt } from '@/components/ui/SignInPrompt';
 import { StackScreen } from '@/components/ui/StackScreen';
 import { ChannelListSkeleton } from '@/components/chat/ChannelListSkeleton';
+import { CreateRoomSheet } from '@/components/chat/CreateRoomSheet';
 import { ChatNoSpaces } from '@/components/chat/ChatEmpty';
 import { SpaceDigestCard } from '@/components/chat/SpaceDigestCard';
 import { DmList } from '@/components/chat/DmList';
@@ -49,6 +52,7 @@ export default function RoomsScreen() {
   const dms = useDms();
 
   const hasChannels = useFeature('channels');
+  const [addingRoom, setAddingRoom] = useState(false);
 
   const openRoom = (room: Room) =>
     router.push({ pathname: '/room/[id]', params: { id: room.id, name: room.name, kind: room.kind } });
@@ -172,17 +176,25 @@ export default function RoomsScreen() {
                   iconName="hash"
                   title="No channels yet"
                   subtitle={isOwner ? 'Create your first channel to start the conversation.' : "The owner hasn't added channels yet."}
+                  action={isOwner ? (
+                    <Button
+                      label="New channel"
+                      iconName="hash"
+                      variant="primary"
+                      onPress={() => setAddingRoom(true)}
+                    />
+                  ) : undefined}
                 />
               </View>
               {isOwner ? (
-                <RoomCategoryList
-                  categories={[]}
-                  userId={session.userId}
-                  spaceId={activeId ?? space?.id ?? ''}
-                  onOpenRoom={openRoom}
-                  onCreateRoom={(category, name, isPublic) => createRoom(name, category, { isPublic })}
-                  onMoveRoom={moveRoom}
-                  onCreateCategory={createCategory}
+                <CreateRoomSheet
+                  visible={addingRoom}
+                  onClose={() => setAddingRoom(false)}
+                  defaultCategory={DEFAULT_CATEGORY}
+                  onSubmit={async (name, category, isPublic) => {
+                    await createRoom(name, category, { isPublic });
+                    return null;
+                  }}
                 />
               ) : null}
             </>
@@ -205,8 +217,8 @@ export default function RoomsScreen() {
 const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: 96 },
   dmHome: { minHeight: 320 },
-  // EmptyState is flex:1; give it a floor so the owner-no-rooms state centers above
-  // the create control instead of collapsing in the scroll container.
+  // EmptyState is flex:1, which collapses inside a ScrollView — minHeight gives it a
+  // floor so the centered icon/title/action group is visible without scrolling.
   emptyFloor: { minHeight: 260 },
   navDivider: { marginVertical: spacing.xs, marginHorizontal: spacing.xs },
   // Desktop shell home pane — a real launch pad, not a "Select a room" dead end.

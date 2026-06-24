@@ -76,16 +76,16 @@ export function StackScreen({
     {
       onScroll: (e) => {
         const y = e.contentOffset.y;
-        const dy = y - lastY.value;
+        const dy = y - lastY.get();
         lastY.set(y);
         // Near the top the header is always shown (no blank strip); below that,
         // accumulate scroll delta clamped to [-headerH, 0].
-        headerY.set(y <= headerH ? 0 : Math.min(0, Math.max(-headerH, headerY.value - dy)));
+        headerY.set(y <= headerH ? 0 : Math.min(0, Math.max(-headerH, headerY.get() - dy)));
       },
     },
     [headerH],
   );
-  const headerAnim = useAnimatedStyle(() => ({ transform: [{ translateY: headerY.value }] }));
+  const headerAnim = useAnimatedStyle(() => ({ transform: [{ translateY: headerY.get() }] }));
 
   // The footer (Composer) bottom inset collapses as the keyboard opens. The KAV
   // (behavior="padding") pins the footer's bottom edge to the keyboard top, so a
@@ -94,7 +94,10 @@ export function StackScreen({
   // the composer rests snug above it; restores the full inset when it closes.
   const keyboard = useReanimatedKeyboardAnimation();
   const footerBottomInset = useAnimatedStyle(() => ({
-    paddingBottom: insets.bottom * (1 - keyboard.progress.value),
+    // NOTE: paddingBottom is a layout prop (not GPU-composited). Replacing it with
+    // translateY would require removing the laid-out space too — complex with the KAV
+    // pairing. Left as-is; only the .get() read is fixed for React Compiler compat.
+    paddingBottom: insets.bottom * (1 - keyboard.progress.get()),
   }));
 
   // The header is an absolute overlay, so the scroll content must be padded down

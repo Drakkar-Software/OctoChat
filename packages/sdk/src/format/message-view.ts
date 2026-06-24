@@ -65,6 +65,13 @@ export function sameDay(a: number, b: number): boolean {
   );
 }
 
+// Module-level cached formatters: constructing Intl.DateTimeFormat is expensive
+// (locale negotiation + pattern compilation) — reusing them cuts per-row cost in
+// long message lists and thread result rows where dayLabel is called for every
+// date-divider. Two variants: one with year (cross-year messages) and one without.
+const _dayFmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+const _dayFmtWithYear = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
 /** Human day label for a message's date divider: "Today" / "Yesterday" / a short
  *  date ("May 23"), dropping to "May 23, 2025" once it predates the current year.
  *  `now` is injectable for tests. */
@@ -73,11 +80,7 @@ export function dayLabel(ts: number, now: number = Date.now()): string {
   if (sameDay(ts, now - 86_400_000)) return 'Yesterday';
   const d = new Date(ts);
   const sameYear = d.getFullYear() === new Date(now).getFullYear();
-  return d.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    ...(sameYear ? null : { year: 'numeric' }),
-  });
+  return (sameYear ? _dayFmt : _dayFmtWithYear).format(d);
 }
 
 /** Latest edit/delete event for a message, folded from the append-only `edits`

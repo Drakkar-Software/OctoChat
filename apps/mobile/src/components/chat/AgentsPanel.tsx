@@ -145,7 +145,7 @@ export function AgentDetailSheet({
 
   const reduced = useReducedMotion();
   const rise = useSharedValue(reduced ? 0 : SHEET_RISE);
-  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: rise.value }] }));
+  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: rise.get() }] }));
   useEffect(() => {
     if (reduced) return;
     rise.set(withSpring(0, motion.spring));

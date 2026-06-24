@@ -46,7 +46,7 @@ export function EmptyState({ iconName, title, subtitle, children, hero = false, 
     pop.set(withSequence(withTiming(1.22, { duration: motion.fast }), withTiming(1, { duration: motion.base })));
   }, [iconName, pop]);
 
-  const discStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.value * press.value }] }));
+  const discStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.get() * press.get() }] }));
 
   const disc = (
     <Animated.View

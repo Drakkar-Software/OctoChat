@@ -49,10 +49,10 @@ export function Skeleton({ width = '100%', height = 12, radius = radii.xs, shimm
   }, [p, reduced, shimmer]);
 
   const blockStyle = useAnimatedStyle(() => ({
-    opacity: reduced ? 0.6 : useShimmer ? 1 : interpolate(p.value, [0, 1], [0.35, 0.7]),
+    opacity: reduced ? 0.6 : useShimmer ? 1 : interpolate(p.get(), [0, 1], [0.35, 0.7]),
   }));
   const sweepStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: interpolate(p.value, [0, 1], [-w.value, w.value]) }],
+    transform: [{ translateX: interpolate(p.get(), [0, 1], [-w.get(), w.get()]) }],
   }));
 
   return (

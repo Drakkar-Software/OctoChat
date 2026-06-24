@@ -11,7 +11,7 @@ import {
   readProfiles,
 } from '@drakkar.software/octochat-sdk';
 import { useSession } from '@/lib/session-context';
-import { useUnread } from '@/lib/unread-context';
+import { useUnreadCounts, useUnreadActions } from '@/lib/unread-context';
 import { useAiSettings } from '@/lib/ai-settings-context';
 
 import { aiErrorCode, aiStream } from './ai-engine';
@@ -43,7 +43,8 @@ export interface SpaceDigest {
 export function useSpaceDigest(spaceId: string | null): SpaceDigest {
   const { settings } = useAiSettings();
   const { session } = useSession();
-  const { lastReadAt, unreadBySpace } = useUnread();
+  const { unreadBySpace } = useUnreadCounts();
+  const { lastReadAt } = useUnreadActions();
   const [status, setStatus] = useState<DigestStatus>('idle');
   const [summary, setSummary] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

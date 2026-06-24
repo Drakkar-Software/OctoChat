@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { loadAllPins, loadAllThreads } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
-import { useUnread } from './unread-context';
+import { useUnreadActions } from './unread-context';
 
 /**
  * Existence flags for the desktop sidebar's non-room nav rows: whether the active
@@ -17,7 +17,7 @@ import { useUnread } from './unread-context';
  */
 export function useSpaceNav(spaceId: string | null) {
   const { session } = useSession();
-  const { lastReadAt } = useUnread();
+  const { lastReadAt } = useUnreadActions();
   const [hasThreads, setHasThreads] = useState(false);
   const [hasPins, setHasPins] = useState(false);
 

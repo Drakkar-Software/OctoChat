@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Image } from 'expo-image';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { layout, radii, spacing } from '@/theme';
 import { formatBytes } from '@drakkar.software/octochat-sdk';
@@ -103,14 +104,14 @@ export function AttachmentView({ attachment, onLoad }: AttachmentViewProps) {
         >
           {/* contain preserves aspect within the measured box (the box already
               matches the image ratio, so it fills edge-to-edge without cropping). */}
-          <Image source={{ uri }} style={styles.image} resizeMode="contain" accessibilityLabel={attachment.name} />
+          <Image source={{ uri }} style={styles.image} contentFit="contain" accessibilityLabel={attachment.name} />
         </Pressable>
         <Lightbox visible={zoomed} onClose={() => setZoomed(false)} closeLabel={`Close ${attachment.name} preview`} onDownload={handleLightboxDownload} downloadLabel={`Save ${attachment.name}`}>
           {/* Fractions of the viewport keep the full image on-screen; contain preserves aspect. */}
           <Image
             source={{ uri }}
             style={{ width: win.width * 0.92, height: win.height * 0.82 }}
-            resizeMode="contain"
+            contentFit="contain"
             accessibilityLabel={attachment.name}
           />
         </Lightbox>

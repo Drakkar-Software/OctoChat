@@ -43,7 +43,7 @@ export function VerifiedSeal({ fingerprint, label = 'Verified' }: VerifiedSealPr
     ));
   }, [pop, reduced]);
 
-  const discStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.value }] }));
+  const discStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.get() }] }));
   // 4-char groups for the staggered surface-in.
   const groups = fingerprint.match(/.{1,4}/g) ?? [fingerprint];
 

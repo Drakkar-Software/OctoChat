@@ -17,7 +17,7 @@ import { roomSlug } from '@drakkar.software/octochat-sdk';
 import { useObjects } from './use-objects';
 import { useRoomsRegistry, useRoomsRegistryActions } from './rooms-registry-context';
 import { useSession } from './session-context';
-import { useUnread } from './unread-context';
+import { useUnreadCounts } from './unread-context';
 
 export interface RoomCategory {
   name: string;
@@ -56,7 +56,7 @@ const findCategory = (nodes: ObjectNode[], name: string) =>
  */
 export function useRooms(spaceId: string | null) {
   const { session } = useSession();
-  const { unreadByRoom } = useUnread();
+  const { unreadByRoom } = useUnreadCounts();
   const sid = spaceId ?? '';
   const enabled = !!spaceId;
 

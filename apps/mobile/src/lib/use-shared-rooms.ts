@@ -12,7 +12,7 @@ import { isSharedRoomId } from '@drakkar.software/octochat-sdk';
 import type { ObjectNode } from '@drakkar.software/octochat-sdk';
 
 import { useObjects } from './use-objects';
-import { useUnread } from './unread-context';
+import { useUnreadCounts } from './unread-context';
 
 export interface SharedRoomEntry {
   node: ObjectNode;
@@ -32,7 +32,7 @@ export function useSharedRooms(spaceId: string | null): {
   archive: (roomId: string) => void;
 } {
   const { nodes, ready, archive: archiveNode } = useObjects(spaceId ?? '', { enabled: !!spaceId });
-  const { unreadByRoom } = useUnread();
+  const { unreadByRoom } = useUnreadCounts();
 
   const rooms = useMemo<SharedRoomEntry[]>(
     () =>

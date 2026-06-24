@@ -21,7 +21,7 @@ function PinKey({ label, onPress }: { label: string; onPress: () => void }) {
   const { hovered, hoverProps } = useHover();
   const isDelete = label === 'del';
   const scale = useSharedValue(1);
-  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
 
   return (
     <AnimatedPressable

@@ -79,7 +79,7 @@ export function AutomatedRoomSettingsSheet({ session, room, onClose, onDeleted }
   // (the scrim keeps Modal's fade). Reduced motion → resting position.
   const reduced = useReducedMotion();
   const rise = useSharedValue(reduced ? 0 : SHEET_RISE);
-  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: rise.value }] }));
+  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: rise.get() }] }));
 
   useEffect(() => {
     if (reduced) return;

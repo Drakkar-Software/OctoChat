@@ -3,7 +3,7 @@ import { useFocusEffect } from 'expo-router';
 
 import { loadAllThreads, type CrossRoomThread } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
-import { useUnread } from './unread-context';
+import { useUnreadActions } from './unread-context';
 
 /**
  * Every thread (a parent message with ≥1 reply) across the decrypted rooms of a
@@ -14,7 +14,7 @@ import { useUnread } from './unread-context';
  */
 export function useThreads(spaceId: string | null) {
   const { session } = useSession();
-  const { lastReadAt } = useUnread();
+  const { lastReadAt } = useUnreadActions();
   const [threads, setThreads] = useState<CrossRoomThread[]>([]);
   const [loading, setLoading] = useState(false);
 

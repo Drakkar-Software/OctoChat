@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 
 import type { Capability } from '@drakkar.software/octochat-sdk';
 
@@ -36,11 +36,11 @@ export function BrandProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const value: BrandContextValue = {
-    variant,
-    has: (cap) => variant.features.includes(cap),
-    setVariant: saveVariantId,
-  };
+  const has = useCallback((cap: Capability) => variant.features.includes(cap), [variant]);
+  const value = useMemo<BrandContextValue>(
+    () => ({ variant, has, setVariant: saveVariantId }),
+    [variant, has],
+  );
   return <BrandContext.Provider value={value}>{children}</BrandContext.Provider>;
 }
 

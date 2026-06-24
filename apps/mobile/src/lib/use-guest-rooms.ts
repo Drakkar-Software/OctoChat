@@ -15,7 +15,7 @@ import { useMemo } from 'react';
 
 import { isSharedRoomId, isTicketRoomId, localSpaceAccessEntries } from '@drakkar.software/octochat-sdk';
 import { useSpacesContext } from './spaces-context';
-import { useUnread } from './unread-context';
+import { useUnreadCounts } from './unread-context';
 
 export interface GuestRoomEntry {
   /** The node id: `shared-<hex>` for shared rooms, `ticket-<hex>` for tickets. */
@@ -63,7 +63,7 @@ function isNodeEncrypted(ownerSpaceId: string, nodeId: string): boolean {
  */
 export function useGuestRooms(): GuestRoomEntry[] {
   const { guestSpaces } = useSpacesContext();
-  const { unreadByRoom } = useUnread();
+  const { unreadByRoom } = useUnreadCounts();
 
   return useMemo(() => {
     return guestSpaces

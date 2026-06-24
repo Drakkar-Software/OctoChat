@@ -11,7 +11,8 @@ import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { dmRoomId, getArchivedDms, isDmArchived, subscribeArchivedDms } from '@drakkar.software/octochat-sdk';
 import { getDmHeads, refreshDmHeads, subscribeDmHeads } from '@drakkar.software/octochat-sdk';
 import { usePseudos, useAvatars } from './use-pseudos';
-import { useUnread } from './unread-context';
+import { useUnreadCounts } from './unread-context';
+import { getLatestActivity, subscribeLatestActivity } from './latest-activity';
 import { useDmMap } from './spaces-context';
 import { useSession } from './session-context';
 
@@ -47,7 +48,7 @@ export function useDms(): DmEntry[] {
   // Same shared profile cache as pseudos — no extra request — so the DM row shows
   // the peer's real picture (image with monogram fallback), like the chat avatar.
   const avatar = useAvatars(peerIds);
-  const { unreadByRoom, latestActivityAt } = useUnread();
+  const { unreadByRoom } = useUnreadCounts();
   // Subscribe to archive-set changes via the module-level store (no provider needed —
   // archived-dms.ts is a singleton like mutes.ts). The snapshot reference changes on
   // every toggle, so this is the minimal dependency for recompute.
@@ -56,6 +57,10 @@ export function useDms(): DmEntry[] {
   // as the primary sort key so web and mobile sort DMs identically. The snapshot
   // reference changes whenever `refreshDmHeads` advances any head, so recompute fires.
   const dmHeads = useSyncExternalStore(subscribeDmHeads, getDmHeads, getDmHeads);
+  // Latest SSE activity timestamp per room — module store, same pattern as dmHeads.
+  // useSyncExternalStore ensures the DM list re-sorts even when a currently-viewed
+  // room advances its timestamp (which doesn't bump the unread count).
+  const latestActivity = useSyncExternalStore(subscribeLatestActivity, getLatestActivity, getLatestActivity);
 
   // `pseudo` reads a module cache the React Compiler can't track; the joined ids,
   // unread map, latest-activity, and archived-set drive recompute.
@@ -81,14 +86,14 @@ export function useDms(): DmEntry[] {
       // Both are 0 when absent, so an unranked DM sorts to the end alphabetically.
       // Tiebreak: peer name asc so unranked DMs keep a stable alphabetical order.
       .sort((a, b) => {
-        const rankB = Math.max(dmHeads[b.roomId] ?? 0, latestActivityAt(b.roomId));
-        const rankA = Math.max(dmHeads[a.roomId] ?? 0, latestActivityAt(a.roomId));
+        const rankB = Math.max(dmHeads[b.roomId] ?? 0, latestActivity[b.roomId] ?? 0);
+        const rankA = Math.max(dmHeads[a.roomId] ?? 0, latestActivity[a.roomId] ?? 0);
         const tsDiff = rankB - rankA;
         if (tsDiff !== 0) return tsDiff;
         return a.name.localeCompare(b.name);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [peerIds, dms, unreadByRoom, latestActivityAt, _archivedDms, dmHeads, pseudo, avatar]);
+  }, [peerIds, dms, unreadByRoom, latestActivity, _archivedDms, dmHeads, pseudo, avatar]);
 }
 
 /** Total unread across every DM — the virtual DM space's rail-tile badge count. */

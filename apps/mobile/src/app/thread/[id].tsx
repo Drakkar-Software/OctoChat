@@ -11,7 +11,7 @@ import { useHardwareBack } from '@/lib/use-hardware-back';
 import { composeSend } from '@/lib/compose-send';
 import { useRoom } from '@/lib/use-room';
 import { useRoomSend } from '@/lib/use-room-send';
-import { useUnread } from '@/lib/unread-context';
+import { useUnreadActions } from '@/lib/unread-context';
 import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 import type { RoomKind, StoredMsg } from '@drakkar.software/octochat-sdk';
 import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
@@ -44,7 +44,7 @@ export default function ThreadScreen() {
   const kind = (params.kind ?? 'channel') as RoomKind;
   const { colors } = useTheme();
   const { session } = useSession();
-  const { lastReadAt } = useUnread();
+  const { lastReadAt } = useUnreadActions();
   // Owner gates the per-message pin affordance and is the only author whose pin events
   // count at fold time (resolvePinned) — read from the shared registry like room/[id].
   // Also provides the room's access/enc tier so useRoom picks the right stream collection.

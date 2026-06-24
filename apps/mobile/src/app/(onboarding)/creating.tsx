@@ -75,8 +75,8 @@ export default function CreatingScreen() {
   // Animated values
   const tipOpacity = useSharedValue(1);
   const octopusScale = useSharedValue(1);
-  const progressWidth = useSharedValue(0);
-  const trackW = useSharedValue(0);
+  // 0→1 progress fraction animated via scaleX (GPU-composited, no layout recalc per frame).
+  const progressFraction = useSharedValue(0);
 
   // Tip rotation: fade out → swap → fade in
   useEffect(() => {
@@ -101,12 +101,12 @@ export default function CreatingScreen() {
     ));
   }, [octopusScale]);
 
-  // Progress bar width
+  // Progress fraction (0→1) drives scaleX — no layout recalc per frame
   useEffect(() => {
     if (argon2 != null) {
-      progressWidth.set(withTiming(argon2, { duration: 500 }));
+      progressFraction.set(withTiming(argon2, { duration: 500 }));
     }
-  }, [argon2, progressWidth]);
+  }, [argon2, progressFraction]);
 
   // Trigger signIn exactly once on mount
   useEffect(() => {
@@ -117,12 +117,14 @@ export default function CreatingScreen() {
       .catch((e: unknown) => setError(String((e as Error)?.message ?? e)));
   }, [signIn, pendingSeed]);
 
-  const tipStyle = useAnimatedStyle(() => ({ opacity: tipOpacity.value }));
+  const tipStyle = useAnimatedStyle(() => ({ opacity: tipOpacity.get() }));
   const octopusStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: octopusScale.value }],
+    transform: [{ scale: octopusScale.get() }],
   }));
+  // scaleX on a full-width bar is GPU-composited; transformOrigin: 'left' anchors the
+  // scale to the leading edge so the bar grows left→right.
   const barStyle = useAnimatedStyle(() => ({
-    width: progressWidth.value * trackW.value,
+    transform: [{ scaleX: progressFraction.get() }],
   }));
 
   // Web onboarding uses the lock setup screen — this route is native-only.
@@ -150,14 +152,9 @@ export default function CreatingScreen() {
         </Txt>
       </View>
 
-      {/* Progress track */}
+      {/* Progress track — bar uses scaleX (GPU) from a full-width base */}
       {!error && (
-        <View
-          style={[styles.track, { backgroundColor: colors.fill }]}
-          onLayout={(e) => {
-            trackW.set(e.nativeEvent.layout.width);
-          }}
-        >
+        <View style={[styles.track, { backgroundColor: colors.fill }]}>
           <Animated.View style={[styles.bar, { backgroundColor: colors.accent }, barStyle]} />
         </View>
       )}
@@ -195,7 +192,9 @@ const styles = StyleSheet.create({
   hero: { alignItems: 'center', gap: spacing.md },
   centered: { textAlign: 'center' },
   track: { height: 4, borderRadius: radii.pill, overflow: 'hidden' },
-  bar: { height: '100%', borderRadius: radii.pill },
+  // Full-width base; scaleX animation shrinks it — transformOrigin pins the anchor
+  // to the leading edge so the bar fills left-to-right as progress advances.
+  bar: { height: '100%', width: '100%', borderRadius: radii.pill, transformOrigin: 'left' },
   tip: { borderRadius: radii.card, padding: spacing.lg, gap: spacing.sm },
   tipHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   errorArea: { gap: spacing.md },

@@ -53,7 +53,7 @@ function ObjectTreeRow({ node, onOpen, collapsed, onToggle }: { node: ObjectTree
     const to = isCollapsed ? 0 : 1;
     turn.set(reduced ? to : withTiming(to, { duration: motion.fast }));
   }, [isCollapsed, reduced, turn]);
-  const chevStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.value * 90}deg` }] }));
+  const chevStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.get() * 90}deg` }] }));
 
   const open = useCallback(() => {
     if (isCategory) onToggle(node.id);
@@ -125,7 +125,7 @@ function SubtreeReveal({ children }: { children: ReactNode }) {
     if (reduced) return;
     opacity.set(withTiming(1, { duration: motion.base }));
   }, [reduced, opacity]);
-  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  const style = useAnimatedStyle(() => ({ opacity: opacity.get() }));
   return <Animated.View style={style}>{children}</Animated.View>;
 }
 

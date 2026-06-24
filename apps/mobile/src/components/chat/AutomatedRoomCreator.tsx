@@ -58,7 +58,7 @@ export function AutomatedRoomCreator({ session, spaceId, onClose, onCreated }: P
     if (reduced) return;
     rise.set(withSpring(0, motion.spring));
   }, [reduced, rise]);
-  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: rise.value }] }));
+  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: rise.get() }] }));
 
   const picked = useMemo<AutomationProvider | null>(() => provider ?? null, [provider]);
 

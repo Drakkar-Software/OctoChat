@@ -45,39 +45,41 @@ import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 import { buildAuthHeaders } from '@drakkar.software/octochat-sdk';
 import { dispatchRoomChange, dispatchIndexChange, emitSseStatus } from './room-events-bus';
 import { usePush } from './push/use-push';
+import { advanceRoomActivity, hydrateLatestActivity, resetLatestActivity } from './latest-activity';
 
-interface UnreadValue {
+/** Reactive unread counts — changes on every SSE bump. Separate context so
+ *  action-only consumers (threads, room screen) don't re-render on every bump. */
+interface UnreadCountsValue {
   /** Unread count per room id (absent = caught up). */
   unreadByRoom: Record<string, number>;
   /** Unread totals per space id (sum of its rooms). */
   unreadBySpace: Record<string, number>;
   /** Grand total across all rooms — for the notifications bell / tab badge. */
   totalUnread: number;
-  /** Clear a room's unread (on open, or from the notifications list). */
-  markRoomRead: (roomId: string) => void;
-  /** The viewer's last-read timestamp for a room (ms); 0 if never read. Lets a
-   *  conversation flag messages newer than the previous visit as unread. */
-  lastReadAt: (roomId: string) => number;
   /** True once the persisted last-read marks have loaded from kv for the current
    *  identity. Callers MUST gate their `lastReadAt` snapshot on this: before it,
    *  the map is empty and `lastReadAt` returns 0, which would flash every thread /
    *  message as unread on a fresh page load (the marks haven't hydrated yet). */
   hydrated: boolean;
-  /** The most-recent room-change timestamp (server epoch-ms) seen for a room, or 0 if
-   *  no SSE event has arrived in this session. Populated from a kv cache on hydrate
-   *  (restores order across reloads) and updated live by every SSE room-change event
-   *  (including your own sends and the actively-viewed room).
-   *
-   *  NOTE (POC limitation): the SSE stream has no replay, so cold-start recency is
-   *  kv-cache-only; a DM whose last message predates this feature will sort
-   *  alphabetically until its next live event. */
-  latestActivityAt: (roomId: string) => number;
 }
 
-const persistKey = (userId: string) => `octochat.unread.${userId}`;
-const activityKey = (userId: string) => `octochat.latestactivity.${userId}`;
+/** Stable read/write actions — changes only on identity switch.
+ *  Separate context so count-only consumers don't re-render on action changes. */
+interface UnreadActionsValue {
+  /** Clear a room's unread (on open, or from the notifications list). */
+  markRoomRead: (roomId: string) => void;
+  /** The viewer's last-read timestamp for a room (ms); 0 if never read. Lets a
+   *  conversation flag messages newer than the previous visit as unread. */
+  lastReadAt: (roomId: string) => number;
+}
 
-const Ctx = createContext<UnreadValue | null>(null);
+/** Combined shape — kept for callers that need both; prefer the narrower hooks. */
+type UnreadValue = UnreadCountsValue & UnreadActionsValue;
+
+const persistKey = (userId: string) => `octochat.unread.${userId}`;
+
+const CountsCtx = createContext<UnreadCountsValue | null>(null);
+const ActionsCtx = createContext<UnreadActionsValue | null>(null);
 
 export function UnreadProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
@@ -86,13 +88,6 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   // Mirror of the map for the SSE callback + persistence — avoids stale closures
   // and keeps state updaters pure (no side effects inside setState).
   const mapRef = useRef<Record<string, number>>({});
-
-  // Per-room latest-activity timestamp: the server epoch-ms of the most recent SSE
-  // room-change event we've observed for that room. Max-merged into a persisted kv
-  // cache so DM sort order survives reloads. Not reset on unread-clear: it tracks
-  // "when did something last happen here", not "what remains unread".
-  const [latestByRoom, setLatestByRoom] = useState<Record<string, number>>({});
-  const latestRef = useRef<Record<string, number>>({});
 
   // Per-room last-read timestamp (ms). A local MIRROR of the synced read-mark cache
   // (`reads.ts` — stored in the `_spaces` doc, shared across the user's devices), kept
@@ -191,9 +186,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: clear unread counts when the identity (userId) clears
       setUnreadByRoom({});
       lastReadRef.current = {};
-      latestRef.current = {};
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: clear latest-activity when identity clears
-      setLatestByRoom({});
+      resetLatestActivity();
       setHydrated(false);
       return;
     }
@@ -205,23 +198,15 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       // folding the legacy `octochat.lastread` map). This seeds the mirror with THIS
       // device's own marks; cross-device marks merged in by `hydrateReads` arrive via
       // the reconcile subscription below.
-      const [raw, marks, latestRaw] = await Promise.all([
+      // latest-activity hydration runs concurrently and self-manages via the
+      // module store in latest-activity.ts (sets activeKey, max-merges from kv).
+      const [raw, marks] = await Promise.all([
         kvGet(persistKey(userId)),
         loadReadMarksFromKv(userId),
-        kvGet(activityKey(userId)),
+        hydrateLatestActivity(userId),
       ]);
       if (cancelled) return;
       lastReadRef.current = marks;
-      // Restore persisted latest-activity map so DM sort order survives reloads.
-      if (latestRaw) {
-        try {
-          const parsed = JSON.parse(latestRaw) as Record<string, number>;
-          latestRef.current = parsed;
-          setLatestByRoom(parsed);
-        } catch {
-          // ignore corrupt kv
-        }
-      }
       // Marks are loaded — flip the gate now (before the count-prune / subscribe
       // gate below, which can early-return). `cancelled` was checked just above and
       // nothing awaits between, so no stale-closure write. Stays true across re-runs.
@@ -324,16 +309,11 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
           // real room (not in any registry), so drop it entirely: no bump, no toast.
           if (isDmInboxRoomId(e.roomId)) return;
 
-          // ── Recency tracking: max-merge ts BEFORE all early-returns so your own
-          // sends and the actively-viewed room also advance the DM-sort order. ────
+          // ── Recency tracking: advance the module-level activity store so use-dms.ts
+          // re-sorts immediately via useSyncExternalStore. Fires BEFORE all early-returns
+          // so your own sends and the actively-viewed room also advance the sort order. ──
           const eventTs = e.ts ?? Date.now();
-          const prevTs = latestRef.current[e.roomId] ?? 0;
-          if (eventTs > prevTs) {
-            const nextLatest = { ...latestRef.current, [e.roomId]: eventTs };
-            latestRef.current = nextLatest;
-            setLatestByRoom(nextLatest);
-            void kvSet(activityKey(userId), JSON.stringify(nextLatest));
-          }
+          advanceRoomActivity(e.roomId, eventTs);
 
           // ── Auto-resurface: an incoming message un-archives the DM (Messenger-
           // style) so an unread DM is never hidden from the list. ─────────────────
@@ -412,10 +392,6 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   // Reads the ref so callers can snapshot it during render before markRoomRead.
   const lastReadAt = useCallback((roomId: string) => lastReadRef.current[roomId] ?? 0, []);
 
-  // Read the latest-activity timestamp for a room (0 = no SSE event observed yet).
-  // Reads the ref so callers can snapshot it during render without stale-closure risk.
-  const latestActivityAt = useCallback((roomId: string) => latestRef.current[roomId] ?? 0, []);
-
   const unreadBySpace = useMemo(() => {
     const m: Record<string, number> = {};
     for (const [roomId, n] of Object.entries(unreadByRoom)) {
@@ -446,18 +422,43 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
     setTabTitleBadge(totalUnread);
   }, [totalUnread]);
 
-  const value = useMemo<UnreadValue>(
-    () => ({ unreadByRoom, unreadBySpace, totalUnread, markRoomRead, lastReadAt, hydrated, latestActivityAt }),
-    [unreadByRoom, unreadBySpace, totalUnread, markRoomRead, lastReadAt, hydrated, latestActivityAt],
+  const counts = useMemo<UnreadCountsValue>(
+    () => ({ unreadByRoom, unreadBySpace, totalUnread, hydrated }),
+    [unreadByRoom, unreadBySpace, totalUnread, hydrated],
+  );
+  const actions = useMemo<UnreadActionsValue>(
+    () => ({ markRoomRead, lastReadAt }),
+    [markRoomRead, lastReadAt],
   );
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <CountsCtx.Provider value={counts}>
+      <ActionsCtx.Provider value={actions}>{children}</ActionsCtx.Provider>
+    </CountsCtx.Provider>
+  );
 }
 
-export function useUnread(): UnreadValue {
-  const v = useContext(Ctx);
-  if (!v) throw new Error('useUnread must be used within UnreadProvider');
+/** Subscribe to reactive unread counts (bumps on every SSE event). Use this in room
+ *  lists, badges, and any component that shows counts. */
+export function useUnreadCounts(): UnreadCountsValue {
+  const v = useContext(CountsCtx);
+  if (!v) throw new Error('useUnreadCounts must be used within UnreadProvider');
   return v;
+}
+
+/** Subscribe to stable read/write actions (changes only on identity switch). Use this
+ *  in thread/room screens that only need `markRoomRead` / `lastReadAt`. */
+export function useUnreadActions(): UnreadActionsValue {
+  const v = useContext(ActionsCtx);
+  if (!v) throw new Error('useUnreadActions must be used within UnreadProvider');
+  return v;
+}
+
+/** Convenience hook for callers that need both counts and actions.
+ *  Prefer the narrower hooks (`useUnreadCounts`, `useUnreadActions`) so a component
+ *  only re-renders from the context it actually reads. */
+export function useUnread(): UnreadValue {
+  return { ...useUnreadCounts(), ...useUnreadActions() };
 }
 
 /** Format an unread count for a bottom-tab badge: `undefined` at zero (so the
