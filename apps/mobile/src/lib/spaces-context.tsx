@@ -121,6 +121,10 @@ const railSpaces = (list: Space[]): SpaceView[] =>
 /** Widen a raw SDK Space with a seeded monogram. */
 const toSpaceView = (s: Space): SpaceView => ({ ...s, short: s.name.slice(0, 2).toUpperCase() });
 
+/** Stable empty DM map — hoisted so `setDms(primed.dms ?? EMPTY_DMS)` never
+ *  creates a new object reference when the prime carries no DMs. */
+const EMPTY_DMS: DmMap = {};
+
 
 const Ctx = createContext<SpacesContextValue | null>(null);
 
@@ -268,7 +272,7 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       // start. The `dms` map is lossy/peer-indexed; `healDmMap` in the deferred
       // refresh() below reconciles any missing/stale entries, so this cache-first
       // paint is strictly better than showing blank until refresh() completes.
-      setDms(primed.dms ?? {});
+      setDms(primed.dms ?? EMPTY_DMS);
       setLoading(false);
       // Deferred background refresh to accept inbound DM invites, reconcile
       // ticket requests, and heal the DM map + rosters. Deferred past the first
