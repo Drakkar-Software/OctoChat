@@ -176,12 +176,16 @@ export async function foldRoomCached(
     // Incremental when warm (checkpoint > 0); full only on a true cold start.
     await cursor.pull();
     const items = cursor.getItems();
-    // Persist back when the cursor grew — writes the kv blob that enables warm-starts
-    // for both this helper AND useRoom on the next open of the same room.
-    if (items.length > initialItems.length) {
-      await kvSet(streamLogKey(userId, roomId), JSON.stringify(items)).catch(() => {});
-    }
-    const decrypted = await cursor.getDecryptedItems();
+    // kvSet (kv write) and getDecryptedItems (in-memory crypto) are independent —
+    // run them in parallel so decryption doesn't wait for the storage round-trip.
+    const [decrypted] = await Promise.all([
+      cursor.getDecryptedItems(),
+      // Persist back when the cursor grew — writes the kv blob that enables warm-starts
+      // for both this helper AND useRoom on the next open of the same room.
+      items.length > initialItems.length
+        ? kvSet(streamLogKey(userId, roomId), JSON.stringify(items)).catch(() => {})
+        : Promise.resolve(),
+    ]);
     const result: FoldedLog = { data: fanOut(decrypted), items };
     _foldCache.set(key, { result, ts: Date.now() });
     return result;

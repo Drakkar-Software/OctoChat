@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
@@ -76,17 +76,22 @@ export default function RoomScreen() {
   // `access`/`enc` from the param default, useRoomOpen's open effect re-runs, produces new
   // client/encryptor identities, and the cursor-build effect fires a second full pull.
   const accessLatchRef = useRef<{ id: string; access: typeof rawAccess; enc: typeof rawEnc } | null>(null);
-  if (!accessLatchRef.current || accessLatchRef.current.id !== id) {
-    accessLatchRef.current = { id, access: rawAccess, enc: rawEnc };
-  } else if (rawAccess !== undefined && accessLatchRef.current.access === undefined) {
-    // First registry resolution: promote from undefined → known. No further changes.
-    accessLatchRef.current = { id, access: rawAccess, enc: rawEnc };
-  } else if (rawEnc !== undefined && accessLatchRef.current.enc === undefined) {
-    // enc resolved separately (enc param was absent, registry supplied it).
-    accessLatchRef.current = { id, access: accessLatchRef.current.access, enc: rawEnc };
-  }
-  const access = accessLatchRef.current.access;
-  const enc = accessLatchRef.current.enc;
+  // READ during render: derive latched values (falls back to raw on first render or room-switch).
+  const latched = accessLatchRef.current?.id === id ? accessLatchRef.current : null;
+  const access = latched ? (latched.access ?? rawAccess) : rawAccess;
+  const enc = latched ? (latched.enc ?? rawEnc) : rawEnc;
+  // WRITE in layout effect: React Compiler requires ref mutations to stay out of render body.
+  // useLayoutEffect fires synchronously before paint — the latch is updated before the next
+  // render sees stale raw values, which preserves the "one promotion" semantics.
+  useLayoutEffect(() => {
+    if (!accessLatchRef.current || accessLatchRef.current.id !== id) {
+      accessLatchRef.current = { id, access: rawAccess, enc: rawEnc };
+    } else if (rawAccess !== undefined && accessLatchRef.current.access === undefined) {
+      accessLatchRef.current = { id, access: rawAccess, enc: rawEnc };
+    } else if (rawEnc !== undefined && accessLatchRef.current.enc === undefined) {
+      accessLatchRef.current = { id, access: accessLatchRef.current.access, enc: rawEnc };
+    }
+  }, [id, rawAccess, rawEnc]);
   // Every room is an append-only log now — one hook for all kinds. An automated room
   // additionally has a runner attached (driven below) + its own settings sheet.
   const isAutomated = kind === 'automated';
