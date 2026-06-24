@@ -10,9 +10,11 @@
 import { Platform } from 'react-native';
 
 import { configureOctoChat, configureKv, configureLlm } from '@drakkar.software/octochat-sdk';
-// The RAW platform kv impl (localStorage / AsyncStorage) is fed into the SDK's
-// `configureKv` here; feature code reads through the DI accessor on the core entry.
-import { kvGet, kvSet, kvRemove } from '@drakkar.software/octochat-sdk/platform';
+// On native this resolves to app-kv.native.ts (MMKV — synchronous JSI, no bridge
+// round-trips); on web it falls back to app-kv.ts (localStorage via platform-sdk).
+// Using one import here keeps every kv-backed cache (pull-cache, profile-cache,
+// space-access, reads/mutes, spaces snapshot) on the same fast backend.
+import { kvGet, kvSet, kvRemove } from './app-kv';
 
 import { generateText } from '@/lib/ai/llm-adapter';
 import { SYNC_BASE, SYNC_NAMESPACE, EVENTS_URL, WEB_BASE, SHARED_SPACES_NAMESPACE } from '@/lib/octochat-config';

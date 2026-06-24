@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { InteractionManager } from 'react-native';
 
 import { dispatchRoomChange } from '../room-events-bus';
 import { useRoomsRegistryActions } from '../rooms-registry-context';
@@ -111,27 +112,32 @@ export function usePush(session: Session | null, spaceIds: string[], enabled: bo
       return;
     }
     let active = true;
-    void (async () => {
-      if (!(await ensurePushPermission()) || !active) return;
-      // Self-exclusion: subscribe to this account's user-topic so the bridge can
-      // exclude our own devices from our own messages' pushes. Re-subscribe if the
-      // signed-in account changed (drop the previous user-topic first).
-      if (subscribedUser.current !== session.userId) {
-        if (subscribedUser.current) await unsubscribeUserPush(subscribedUser.current);
-        await subscribeUserPush(session.userId);
-        subscribedUser.current = session.userId;
-      }
-      const next = new Set(spaceIds);
-      for (const id of next) {
-        if (!subscribed.current.has(id)) await subscribeSpacePush(id);
-      }
-      for (const id of subscribed.current) {
-        if (!next.has(id)) await unsubscribeSpacePush(id);
-      }
-      subscribed.current = next;
-    })();
+    // Defer FCM topic subscriptions until after the first frame so the initial
+    // render (spaces rail + rooms) paints before any FCM network calls start.
+    const task = InteractionManager.runAfterInteractions(() => {
+      void (async () => {
+        if (!(await ensurePushPermission()) || !active) return;
+        // Self-exclusion: subscribe to this account's user-topic so the bridge can
+        // exclude our own devices from our own messages' pushes. Re-subscribe if the
+        // signed-in account changed (drop the previous user-topic first).
+        if (subscribedUser.current !== session.userId) {
+          if (subscribedUser.current) await unsubscribeUserPush(subscribedUser.current);
+          await subscribeUserPush(session.userId);
+          subscribedUser.current = session.userId;
+        }
+        const next = new Set(spaceIds);
+        for (const id of next) {
+          if (!subscribed.current.has(id)) await subscribeSpacePush(id);
+        }
+        for (const id of subscribed.current) {
+          if (!next.has(id)) await unsubscribeSpacePush(id);
+        }
+        subscribed.current = next;
+      })();
+    });
     return () => {
       active = false;
+      task.cancel();
     };
     // spacesKey is the stable sorted-join of spaceIds — re-runs when the set
     // changes (and when the master toggle flips).

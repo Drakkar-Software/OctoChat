@@ -35,7 +35,7 @@ import {
 import { disableBiometricLock } from './app-lock';
 import type { PersistedSession, SeedLock, UnlockMethod, Vault } from '@drakkar.software/octochat-sdk';
 import { clearRoomEventsBus } from './room-events-bus';
-import { clearPrimedSpaces, primeSpaces } from './spaces-prime';
+import { clearPrimedSpaces, loadSpacesSnapshot, persistSpacesSnapshot, primeSpaces } from './spaces-prime';
 import { clearPseudoCache, primeProfile } from './use-pseudos';
 import { clearSyncStoreRegistry } from '@drakkar.software/starfish-client/zustand';
 
@@ -175,6 +175,9 @@ async function hydrateCapsFor(session: Session): Promise<void> {
   // second pull.
   hydrateArchivedDms(archivedDms);
   primeSpaces(session.userId, spaces);
+  // Persist the fresh snapshot so the next cold start can prime the rail instantly
+  // without waiting for this network read to complete.
+  persistSpacesSnapshot(session.userId, spaces);
   // Seed the shared public-profile cache with our own pseudo so `use-pseudos`
   // (message authors, sidebar) never fires a separate fetch for self — the editable
   // copy is loaded once by ProfileProvider, which also primes the avatar.
@@ -269,17 +272,33 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (acct) {
           try {
             const s = await sessionFromPersisted(acct);
-            // Set the session BEFORE caps hydrate so a caps hiccup can't sign the
-            // user out — hydrateSpaceAccessStore (called inside recoverSpaceAccess via
-            // hydrateCapsFor) loads the local kv first, so the user has the offline
-            // cap set even if the server merge fails.
-            if (!cancelled) setSession(s);
-            await hydrateCapsFor(s).catch((err) => {
+            // Warm the in-memory prime from the persisted kv snapshot BEFORE setting
+            // the session. SpacesProvider's effect fires right after setSession commits
+            // (React re-renders synchronously), so the stash must already exist for
+            // consumePrimedSpaces to find it — enabling an instant cache paint with no
+            // network wait on every cold start.
+            try {
+              const snap = await loadSpacesSnapshot(s.userId);
+              if (snap) primeSpaces(s.userId, snap);
+            } catch { /* non-critical — SpacesProvider falls through to refresh() */ }
+            // Set session + status in the same batch so React paints the authenticated
+            // shell in one pass (no intermediate loading flicker). hydrateSpaceAccessStore
+            // (inside recoverSpaceAccess) reads kv first, so offline E2EE access for
+            // already-joined rooms is available immediately.
+            if (!cancelled) {
+              setSession(s);
+              setStatus('ready');
+            }
+            // Recover caps in the background — recoverSpaceAccess does server
+            // round-trips that must NOT gate first paint. On completion it updates the
+            // spaces snapshot (via persistSpacesSnapshot inside hydrateCapsFor) so the
+            // next cold start sees fresh data.
+            void hydrateCapsFor(s).catch((err) => {
               console.error('[session-context] caps hydrate failed (session kept)', err);
             });
+            return; // status already set — skip the fallthrough setStatus below
           } catch (err) {
-            // Genuine corrupt/stale persisted identity OR sessionFromPersisted
-            // throw. Log so the next cold-start welcome incident is diagnosable.
+            // Genuine corrupt/stale persisted identity OR sessionFromPersisted throw.
             console.error('[session-context] sessionFromPersisted failed', err);
           }
         }

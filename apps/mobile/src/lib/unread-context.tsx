@@ -25,6 +25,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { InteractionManager } from 'react-native';
 
 import { subscribeRoomChanges } from '@drakkar.software/octochat-sdk';
 import { setDesktopBadge } from './desktop';
@@ -106,6 +107,14 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   // of the load (e.g. when the space set resolves) must NOT bounce it back to false,
   // or callers would re-snapshot after markRoomRead has advanced the mark.
   const [hydrated, setHydrated] = useState(false);
+
+  // Gate the SSE subscription until after the first frame so the initial render
+  // (spaces rail + rooms skeleton) paints before any network connections open.
+  const [sseReady, setSseReady] = useState(false);
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => setSseReady(true));
+    return () => task.cancel();
+  }, []);
 
   // The user's space ids — passed as candidates to the /events proxy. Read from
   // the shared SpacesProvider (which sits above this one), NOT via useSpaces():
@@ -294,7 +303,10 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
 
       // Skip subscribing when the user has no spaces — the server sentinel is the
       // real guard, but there's no value in connecting with an empty candidate set.
-      if (!session || spaceIds.length === 0) return;
+      // Also skip until the first frame has painted: sseReady is flipped by
+      // InteractionManager.runAfterInteractions so the rooms skeleton renders before
+      // any network connection opens. The effect re-runs when sseReady becomes true.
+      if (!sseReady || !session || spaceIds.length === 0) return;
 
       unsub = subscribeRoomChanges(
         (e) => {
@@ -370,9 +382,10 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       unsubReads();
     };
     // spacesKey is the stable sorted-join of spaceIds; changing it re-establishes
-    // the stream when the user joins or leaves a space.
+    // the stream when the user joins or leaves a space. sseReady fires after the
+    // first frame to avoid contending with the initial render pass.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, spacesKey, session]);
+  }, [userId, spacesKey, session, sseReady]);
 
   const markRoomRead = useCallback(
     (roomId: string) => {

@@ -1,7 +1,7 @@
 {
   "name": "@octochat/mobile",
   "main": "expo-router/entry",
-  "version": "1.15.0",
+  "version": "1.16.0",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
@@ -10,6 +10,7 @@
     "web": "expo start --web",
     "export:web": "expo export -p web --output-dir dist --clear",
     "update:preview": "eas update --environment preview --branch=preview",
+    "update:production": "eas update --environment production --branch=production",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -74,6 +75,7 @@
     "react-native-keyboard-controller": "^1.21.6",
     "react-native-nitro-modules": "^0.35.7",
     "react-native-qrcode-svg": "^6.3.21",
+    "react-native-mmkv": "^3.1.0",
     "react-native-quick-crypto": "^1.1.4",
     "react-native-reanimated": "4.3.1",
     "react-native-safe-area-context": "~5.7.0",

@@ -19,7 +19,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { AppState } from 'react-native';
+import { AppState, InteractionManager } from 'react-native';
 import { usePathname } from 'expo-router';
 
 import type { DmMap, Space } from '@drakkar.software/octochat-sdk';
@@ -272,8 +272,11 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       // …but the prime only carries the spaces array, NOT the `dms` map — so the
       // virtual DM space would read empty until the first navigation. Kick a
-      // background refresh to hydrate `dms` (+ accept any inbound invites) now.
-      void refresh().catch(() => {});
+      // background refresh to hydrate `dms` (+ accept any inbound invites), but
+      // defer it until after the first frame so the rooms skeleton paints first.
+      InteractionManager.runAfterInteractions(() => {
+        void refresh().catch(() => {});
+      });
       return;
     }
     (async () => {
