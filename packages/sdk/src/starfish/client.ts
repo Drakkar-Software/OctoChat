@@ -40,6 +40,7 @@ import {
 } from '@drakkar.software/octospaces-sdk';
 
 import { keyringPull } from './paths';
+import { pullCache, PULL_CACHE_MAX_AGE_MS, CACHE_FALLBACK_STATUSES } from './pull-cache';
 
 export type { DeviceKeys, PublicProfile };
 export { capProviderFor, ownerEnsureKeyring };
@@ -86,7 +87,13 @@ export async function buildAuthHeaders(
 /** makeClient wrapper — renamed to makeSpaceClient in starfish-spaces; injects connection globals so
  *  callers keep the old 2-arg ergonomics: makeClient(cap, edPrivHex). */
 export function makeClient(cap: unknown, devEdPrivHex: string): StarfishClient {
-  return makeSpaceClient(cap, devEdPrivHex, { baseUrl: getSyncBase(), namespace: getSyncNamespace() ?? '' });
+  return makeSpaceClient(cap, devEdPrivHex, {
+    baseUrl: getSyncBase(),
+    namespace: getSyncNamespace() ?? '',
+    cache: pullCache(),
+    cacheMaxAgeMs: PULL_CACHE_MAX_AGE_MS,
+    cacheFallbackStatuses: [...CACHE_FALLBACK_STATUSES],
+  });
 }
 
 /**

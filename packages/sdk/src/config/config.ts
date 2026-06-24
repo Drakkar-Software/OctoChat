@@ -15,6 +15,7 @@ import {
   getSyncPrefix as _getSyncPrefix,
   getSharedSpacesNamespace,
 } from '@drakkar.software/octospaces-sdk';
+import { pullCache, PULL_CACHE_MAX_AGE_MS, CACHE_FALLBACK_STATUSES } from '../starfish/pull-cache';
 import { configureSpaces } from '@drakkar.software/starfish-spaces';
 import { octoLayout } from '../starfish/client';
 
@@ -42,7 +43,16 @@ export function configureOctoChat(config: OctoChatConfig): void {
   _eventsUrl = config.eventsUrl;
   _webBase = config.webBase ?? '';
   _onServerReachable = config.onServerReachable;
-  configureOctoSpaces(config);
+  // Inject the shared pull-cache into every session client — including the
+  // restore-on-launch path (octospaces-sdk's makeClientOpts reads these from config).
+  // pullCache() is lazy — it captures the kvGet/kvSet shims resolved by configureKv,
+  // which always runs after configureOctoChat at app boot.
+  configureOctoSpaces({
+    ...config,
+    cache: pullCache(),
+    cacheMaxAgeMs: PULL_CACHE_MAX_AGE_MS,
+    cacheFallbackStatuses: [...CACHE_FALLBACK_STATUSES],
+  });
   // Install the OctoChat layout module-wide. configureSpaces merges, so any kvAdapter
   // already set by configureKv is preserved. This must run after configureOctoSpaces
   // so `getSyncBase()`/`getSyncNamespace()` are ready when octoLayout() reads them.

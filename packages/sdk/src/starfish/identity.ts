@@ -20,13 +20,22 @@ import {
 } from '@drakkar.software/starfish-spaces';
 import type { Session, LinkedIdentity, DeviceKeys, BuildLinkedSessionOpts } from '@drakkar.software/starfish-spaces';
 import { getSyncBase, getSyncNamespace, getSharedSpacesNamespace } from '@drakkar.software/octospaces-sdk';
+import { pullCache, PULL_CACHE_MAX_AGE_MS, CACHE_FALLBACK_STATUSES } from './pull-cache';
+import { getOnServerReachable } from '../config/config';
 
 export type { Session, LinkedIdentity };
 export { ownerTrustedAdders, generateSeedWords, isValidSeed, fingerprintFromUserId };
 
 /** Current global connection opts, injected into each session builder. */
 function clientOpts() {
-  return { baseUrl: getSyncBase(), namespace: getSyncNamespace() ?? '' };
+  return {
+    baseUrl: getSyncBase(),
+    namespace: getSyncNamespace() ?? '',
+    cache: pullCache(),
+    cacheMaxAgeMs: PULL_CACHE_MAX_AGE_MS,
+    cacheFallbackStatuses: [...CACHE_FALLBACK_STATUSES],
+    onRevalidated: () => getOnServerReachable()?.(),
+  };
 }
 
 /** Optional shared-namespace for multi-namespace setups. */

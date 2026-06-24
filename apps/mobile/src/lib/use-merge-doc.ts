@@ -7,7 +7,7 @@ import { capProviderFor } from '@drakkar.software/octochat-sdk';
 import { fetchWithTimeout } from '@drakkar.software/octochat-sdk';
 import { reportReachability } from './connectivity';
 import { getSpaceAccessEntry } from '@drakkar.software/starfish-spaces';
-import { pullCache, PULL_CACHE_MAX_AGE_MS } from '@drakkar.software/octochat-sdk';
+import { pullCache, PULL_CACHE_MAX_AGE_MS, CACHE_FALLBACK_STATUSES } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useRoomOpen } from './use-room-open-flow';
 import { resolveMemberAuth } from './space-cap';
@@ -91,7 +91,7 @@ export function useMergeDoc(opts: MergeDocOptions): MergeDocResult {
       fetch: fetchWithTimeout(),
       cache: pullCache(),
       cacheMaxAgeMs: PULL_CACHE_MAX_AGE_MS,
-      cacheFallbackStatuses: [429, 500, 502, 503, 504],
+      cacheFallbackStatuses: [...CACHE_FALLBACK_STATUSES],
       onRevalidated: () => reportReachability(true),
     };
     // Use the access entry cap + its signing key. For link-joined spaces the cap
