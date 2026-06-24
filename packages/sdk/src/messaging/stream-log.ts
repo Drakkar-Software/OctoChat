@@ -182,9 +182,9 @@ export async function foldRoomCached(
       cursor.getDecryptedItems(),
       // Persist back when the cursor grew — writes the kv blob that enables warm-starts
       // for both this helper AND useRoom on the next open of the same room.
-      items.length > initialItems.length
-        ? kvSet(streamLogKey(userId, roomId), JSON.stringify(items)).catch(() => {})
-        : Promise.resolve(),
+      // Write unconditionally — a shrinking log (server compaction/purge) would otherwise
+      // leave a stale oversized blob that seeds phantom messages on every subsequent open.
+      kvSet(streamLogKey(userId, roomId), JSON.stringify(items)).catch(() => {}),
     ]);
     const result: FoldedLog = { data: fanOut(decrypted), items };
     _foldCache.set(key, { result, ts: Date.now() });

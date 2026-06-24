@@ -177,11 +177,11 @@ describe('loadSpaceStats — failure handling', () => {
     expect(stats.messages).toBe(1); // good room counted
   });
 
-  it('returns empty snapshot when room list is unreadable', async () => {
+  it('returns partial snapshot when room list is unreadable', async () => {
     mockListSpaceRooms.mockRejectedValue(new Error('network'));
 
     const stats = await loadSpaceStats(SESSION, SPACE);
 
-    expect(stats).toEqual({ rooms: 0, messages: 0, threads: 0, attachments: 0, bytes: 0, partial: false });
+    expect(stats).toEqual({ rooms: 0, messages: 0, threads: 0, attachments: 0, bytes: 0, partial: true });
   });
 });

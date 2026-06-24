@@ -24,6 +24,7 @@ import type { Session } from '../starfish/identity';
 import { roomStreamPull } from '../messaging/room-paths';
 import { foldRoomCached } from '../messaging/stream-log';
 import { listSpaceRooms } from '../messaging/cross-room';
+import type { Room } from '../domain/types';
 import { buildThreadDigest } from '../messaging/threads';
 import type { MessageEditEvent } from '../domain/types';
 
@@ -77,7 +78,14 @@ export async function loadSpaceStats(session: Session, spaceId: string): Promise
 
   const client = getSpaceClient(spaceId, session);
   // Object index is always plaintext — listSpaceRooms coalesces concurrent callers.
-  const rooms = await listSpaceRooms(client, spaceId).catch(() => []);
+  // A network failure on the index read returns partial:true rather than an empty snapshot
+  // so the caller can distinguish "unreachable" from "genuinely empty space".
+  let rooms: Room[];
+  try {
+    rooms = await listSpaceRooms(client, spaceId);
+  } catch {
+    return { ...stats, partial: true };
+  }
 
   stats.rooms = rooms.length;
   for (const room of rooms) {

@@ -130,7 +130,9 @@ export function useRoomOpen(opts: {
         // self-heal). This avoids re-pulling `_keyring`/`sp-…` on every re-open for the
         // common case where the keyring was already minted on the first open.
         let nodeAccess: { client: unknown; encryptor: unknown } | null;
-        nodeAccess = await buildNodeAccessShared(session, spaceId, roomId, { access, enc: true });
+        // .catch(() => null) so a network throw is treated identically to a null result —
+        // otherwise the outer catch fires before the owner self-heal branch can run.
+        nodeAccess = await buildNodeAccessShared(session, spaceId, roomId, { access, enc: true }).catch(() => null);
         if (nodeAccess === null && isOwner) {
           const handle = await getNodeAccess(spaceId, roomId, { access, enc: true }, session, {
             owner,
