@@ -16,6 +16,34 @@
  * Server collection names (apps/server/src/config.ts):
  *   spaceregistry → spaces/{spaceId}/_access
  *   objindex      → spaces/{spaceId}/objects/_index
+ *
+ * ## Known batching limitations
+ *
+ * ### 1. No cross-space batch
+ * `StarfishClient.batchPull` is bound to a single per-space client/cap
+ * (`getSpaceClient(spaceId)`), so each batch request is scoped to ONE space.
+ * Reads that fan out N requests across N spaces — e.g. `healDmRosters`
+ * (`dm.ts`) doing one `_access` read-modify-write per DM space — cannot be
+ * collapsed client-side.
+ *
+ * **Server-side change needed to fix this:** accept a multi-space batch endpoint
+ * that authorises each requested collection entry independently against the
+ * caller's identity (per-space membership check) rather than requiring a
+ * per-space cap per request. The existing `BatchPullEntry.error` field already
+ * supports per-entry partial failures, so the client wire shape is ready. The
+ * client would call `batchPullMany('spaceregistry', [{spaceId:a},{spaceId:b},…])`
+ * on a shared (non-space-scoped) client.
+ *
+ * ### 2. Batch is not append/checkpoint-aware
+ * `batchPull` cannot carry `last` / `since` / `appendField`, so the per-DM
+ * `?last=1` head pulls (`dm-activity.ts:189`) cannot move to a batch request.
+ * Those reads are eliminated at the call site (lazy trigger from `<DmList>`)
+ * rather than batched.
+ *
+ * **Server-side change needed to batch those:** a batch variant that accepts per-
+ * entry append parameters (`last`, `since`, etc.) and returns bounded-tail
+ * element arrays. Larger change; not required while the lazy-trigger approach is
+ * in place.
  */
 import { getSpaceClient, readSpaceAccess } from '@drakkar.software/starfish-spaces';
 import type { Session } from '@drakkar.software/starfish-spaces';

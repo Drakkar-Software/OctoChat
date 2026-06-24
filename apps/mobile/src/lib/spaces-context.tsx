@@ -41,7 +41,6 @@ import { consumePrimedSpaces } from './spaces-prime';
 import { hydrateMutes } from '@drakkar.software/octochat-sdk';
 import { flushReadsNow, hydrateReads } from '@drakkar.software/octochat-sdk';
 import { hydrateArchivedDms } from '@drakkar.software/octochat-sdk';
-import { refreshDmHeads } from '@drakkar.software/octochat-sdk';
 import { dispatchIndexChange } from './room-events-bus';
 import { VARIANTS } from './variants';
 import { getActiveVariantId } from './variant-store';
@@ -175,12 +174,9 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     // Re-hydrate the read marks and mute prefs so a room read or a space muted on another
     // device propagates here without an app restart. Max-merged / server-authoritative in
     // their own modules, so a stale read can't roll local state back.
-    await hydrateReads(session.userId, reads);
-    await hydrateMutes(session.userId, mutes);
+    // hydrateReads and hydrateMutes are independent — run concurrently.
+    await Promise.all([hydrateReads(session.userId, reads), hydrateMutes(session.userId, mutes)]);
     hydrateArchivedDms(archivedDms);
-    // Refresh the DM head-timestamps (authoritative sort key for the DM list).
-    // Fire-and-forget — the internal throttle absorbs spam; failures degrade gracefully.
-    void refreshDmHeads(session, Object.values(dmMap)).catch(() => {});
     // Accept any inbound DM invites — throttled: monthly shards change rarely, so scanning
     // them on every heavy refresh is wasted. One pass per RECONCILE_INTERVAL_MS.
     const now = Date.now();
@@ -229,10 +225,9 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     setGuestOwnerSpaceIds(guestOwnerSpaceIdsFromStore());
     setDms(dmMap);
     setActiveId((prev) => prev ?? rail[0]?.id ?? null);
-    await hydrateReads(session.userId, reads);
-    await hydrateMutes(session.userId, mutes);
+    // hydrateReads and hydrateMutes are independent — run concurrently.
+    await Promise.all([hydrateReads(session.userId, reads), hydrateMutes(session.userId, mutes)]);
     hydrateArchivedDms(archivedDms);
-    void refreshDmHeads(session, Object.values(dmMap)).catch(() => {});
   }, [session]);
 
   useEffect(() => {

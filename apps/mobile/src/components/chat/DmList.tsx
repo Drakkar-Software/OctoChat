@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import type { Room } from '@drakkar.software/octochat-sdk';
 import type { ThreadSummary } from '@drakkar.software/octochat-sdk';
 import type { DmEntry } from '@/lib/use-dms';
+import { useRefreshDmHeads } from '@/lib/use-dms';
 import { useArchivedDms } from '@/lib/use-archived-dms';
 import { useTheme } from '@/lib/use-theme';
 import { spacing } from '@/theme';
@@ -39,6 +40,9 @@ interface DmListProps {
  * (or right-clicking on web) opens a {@link DmActionsSheet} to archive / unarchive.
  */
 export function DmList({ dms, activeRoomId, threads, onOpen, onOpenThread }: DmListProps) {
+  // Refresh the authoritative DM head-timestamps (sort key) while the list is visible.
+  // Placed before any conditional returns to satisfy rules of hooks.
+  useRefreshDmHeads();
   const { colors } = useTheme();
   const { setDmArchived } = useArchivedDms();
   const [showArchived, setShowArchived] = useState(false);

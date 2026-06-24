@@ -17,7 +17,7 @@ import { readSpaces } from '@drakkar.software/octochat-sdk';
 import { hydrateMutes, resetMutes } from '@drakkar.software/octochat-sdk';
 import { hydrateQuickReactions, resetQuickReactions } from '@drakkar.software/octochat-sdk';
 import { hydrateArchivedDms, resetArchivedDms } from '@drakkar.software/octochat-sdk';
-import { resetDmHeads } from '@drakkar.software/octochat-sdk';
+import { loadDmHeadsFromKv, resetDmHeads } from '@drakkar.software/octochat-sdk';
 import { flushReadsNow, hydrateReads, resetReads } from '@drakkar.software/octochat-sdk';
 import { activeAccountOf, sessionFromPersisted } from '@drakkar.software/octochat-sdk';
 import { clearNodeAccessCache, clearBuildNodeAccessCache } from '@drakkar.software/octochat-sdk';
@@ -158,14 +158,15 @@ async function hydrateCapsFor(session: Session): Promise<void> {
   // Cast: pubAccess values are SealedBlobs written by octospaces-sdk's addJoinedSpaceWithLinkAccess.
   // NOTE: recoverSpaceAccess internally calls hydrateSpaceAccessStore with the full link
   // set, so a separate preliminary call with {} is redundant and has been removed.
-  await recoverSpaceAccess(session, { caps, pubAccess: pubAccess as Parameters<typeof recoverSpaceAccess>[1]['pubAccess'] });
-  // Mute prefs share the same `_spaces` doc, so the single read above already carries
-  // them — feed them to the mute cache (server-authoritative; an unreachable read
-  // degrades to empty upstream, which a later successful sync re-heals). No second pull.
-  await hydrateMutes(session.userId, mutes);
-  // Read marks share the same `_spaces` doc — feed them to the read cache (max-merged
-  // with local so an offline read survives). No second pull. See `reads.ts`.
-  await hydrateReads(session.userId, reads);
+  // All three are independent (each writes a different cache from data already in hand
+  // from the single `readSpaces` above) — run them concurrently to cut startup latency.
+  await Promise.all([
+    recoverSpaceAccess(session, { caps, pubAccess: pubAccess as Parameters<typeof recoverSpaceAccess>[1]['pubAccess'] }),
+    // Mute prefs share the same `_spaces` doc — feed them to the mute cache.
+    hydrateMutes(session.userId, mutes),
+    // Read marks share the same `_spaces` doc — feed them to the read cache.
+    hydrateReads(session.userId, reads),
+  ]);
   // Quick-reaction palette shares the same `_spaces` doc — feed it to the palette
   // snapshot (server-authoritative; an offline read degrades to `[]` upstream, which
   // hydrates to the defaults and a later successful sync re-heals). No second pull.
@@ -174,6 +175,10 @@ async function hydrateCapsFor(session: Session): Promise<void> {
   // snapshot (server-authoritative; an offline read degrades to {} upstream). No
   // second pull.
   hydrateArchivedDms(archivedDms);
+  // Warm the DM head-timestamp store from the persisted kv snapshot so the DM list
+  // sorts by the last-known authoritative order on first open, before `<DmList>`
+  // triggers the network refresh. No network — reads kv only.
+  await loadDmHeadsFromKv(session.userId);
   primeSpaces(session.userId, spaces);
   // Persist the fresh snapshot so the next cold start can prime the rail instantly
   // without waiting for this network read to complete.

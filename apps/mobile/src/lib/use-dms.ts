@@ -6,13 +6,14 @@
  * sort), and whether the DM is archived (hidden unless the user shows archived).
  * Logic lives here; the section component just renders.
  */
-import { useMemo, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 
 import { dmRoomId, getArchivedDms, isDmArchived, subscribeArchivedDms } from '@drakkar.software/octochat-sdk';
-import { getDmHeads, subscribeDmHeads } from '@drakkar.software/octochat-sdk';
+import { getDmHeads, refreshDmHeads, subscribeDmHeads } from '@drakkar.software/octochat-sdk';
 import { usePseudos, useAvatars } from './use-pseudos';
 import { useUnread } from './unread-context';
 import { useDmMap } from './spaces-context';
+import { useSession } from './session-context';
 
 export interface DmEntry {
   spaceId: string;
@@ -94,4 +95,26 @@ export function useDms(): DmEntry[] {
 export function useTotalDmUnread(): number {
   const dms = useDms();
   return useMemo(() => dms.reduce((n, d) => n + d.unread, 0), [dms]);
+}
+
+/**
+ * Refresh authoritative DM head timestamps while the DM list is on screen.
+ *
+ * Call from `<DmList>` so the per-DM `?last=1` head pulls fire ONLY when the DM
+ * list is actually rendered, not on every space-rooms load / navigation / foreground.
+ * The SDK's 15s throttle + in-flight coalescing absorb mount churn; re-fires when
+ * the DM set changes (a new DM conversation was created).
+ */
+export function useRefreshDmHeads(): void {
+  const { session } = useSession();
+  const dms = useDmMap();
+  const dmSpaceIds = useMemo(() => Object.values(dms), [dms]);
+  // Stable string key: re-fires the effect only when the set of DM space ids changes,
+  // not on every unrelated context re-render.
+  const key = dmSpaceIds.join(',');
+  useEffect(() => {
+    if (!session || dmSpaceIds.length === 0) return;
+    void refreshDmHeads(session, dmSpaceIds).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, key]);
 }
