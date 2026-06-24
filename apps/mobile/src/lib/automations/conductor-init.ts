@@ -205,23 +205,32 @@ async function reconcile(session: Session): Promise<void> {
   const desired = new Map<string, TaskDefinition>();
   try {
     const { spaces } = await readSpaces(session.spacesRegistryClient, session);
-    for (const space of spaces) {
-      try {
-        // Public OR owned-private; a private space this device can't open reads as no rooms,
-        // and the `runOnDeviceId` election below keeps non-owner devices from scheduling.
-        const rooms = await readSpaceRooms(session, space.id);
-        for (const room of rooms) {
-          const a = room.automation;
-          if (!a || !a.enabled) continue;
-          if (a.runOnDeviceId !== session.keys.edPub) continue; // only the elected runner schedules
-          const def = taskDefFor(space.id, room.id, a);
-          if (def) desired.set(def.id, def);
+    // Parallelise per-space room reads with a bounded concurrency pool to avoid
+    // an N-wide burst of objindex pulls that could trip the server's 429 limit.
+    // JS is single-threaded so concurrent Map writes are safe across await points.
+    const CONCURRENCY = 5;
+    const queue = [...spaces];
+    const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
+      while (queue.length > 0) {
+        const space = queue.shift()!;
+        try {
+          // Public OR owned-private; a private space this device can't open reads as no rooms,
+          // and the `runOnDeviceId` election below keeps non-owner devices from scheduling.
+          const rooms = await readSpaceRooms(session, space.id);
+          for (const room of rooms) {
+            const a = room.automation;
+            if (!a || !a.enabled) continue;
+            if (a.runOnDeviceId !== session.keys.edPub) continue; // only the elected runner schedules
+            const def = taskDefFor(space.id, room.id, a);
+            if (def) desired.set(def.id, def);
+          }
+        } catch (e) {
+          // One unreachable/unauthorized space must not abort the reconcile for the others.
+          console.error('[automations] sync: space read failed', space.id, e);
         }
-      } catch (e) {
-        // One unreachable/unauthorized space must not abort the reconcile for the others.
-        console.error('[automations] sync: space read failed', space.id, e);
       }
-    }
+    });
+    await Promise.all(workers);
   } catch (e) {
     console.error('[automations] sync: spaces read failed', e);
     return; // can't compute the desired set — leave existing tasks untouched

@@ -185,6 +185,13 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
   // result. A FAILED read (offline / unreachable — readSpaceAccess throws rather than
   // collapsing to empty) never wipes a known-good list: it keeps the in-memory entry,
   // else the persisted cache, else degrades to an empty-but-loaded shell.
+  //
+  // Stale-while-revalidate (Design A): when no in-memory entry exists, the kv cache
+  // (`octochat.rooms-cache.*`) is painted immediately (loading:true) so the room
+  // header (owner/members/name/categories) shows on cold start before the network
+  // round-trip resolves. The inflight network read then overwrites it. The cached
+  // entry always has hash:null so it can never feed a write; TOFU auto-claim runs
+  // on the fresh fetchEntry result, not on the cache-first paint.
   const runFetch = useCallback((spaceId: string): Promise<RoomsRegistryEntry> => {
     const pending = inflight.current.get(spaceId);
     if (pending) return pending;
@@ -193,17 +200,31 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
     entries.current.set(spaceId, { ...prev, loading: true });
     notify(spaceId);
     const userId = sessionRef.current?.userId ?? null;
-    const p = fetchEntry(spaceId)
-      .then((entry) => {
+    const p = (async () => {
+      // Stale-while-revalidate: load the kv cache BEFORE the network call so the
+      // header paints from cache on cold start. Only done when there's no in-memory
+      // entry (prev.loaded is false) to avoid redundant reads on subsequent fetches.
+      // The result is captured and reused as the network-failure fallback too, so
+      // the kv store is read at most once per runFetch call.
+      let cachedEntry: RoomsRegistryEntry | null = null;
+      if (userId && !prev.loaded) {
+        cachedEntry = await loadCachedEntry(userId, spaceId);
+        if (cachedEntry && !entries.current.get(spaceId)?.loaded) {
+          // Paint cache immediately (loading:true = revalidating in progress).
+          entries.current.set(spaceId, { ...cachedEntry, loading: true });
+          notify(spaceId);
+        }
+      }
+      try {
+        const entry = await fetchEntry(spaceId);
         // Cache a real (session-present) read so a later offline read can fall back.
         if (entry.loaded && userId) persistEntry(userId, spaceId, entry);
         return entry;
-      })
-      .catch(async () => {
+      } catch {
         if (prev.loaded) return { ...prev, loading: false }; // in-session: keep what we had
-        const cached = userId ? await loadCachedEntry(userId, spaceId) : null; // cold start
-        return cached ?? { ...IDLE, loaded: true };
-      })
+        return cachedEntry ?? { ...IDLE, loaded: true }; // cold start: kv cache or empty-loaded
+      }
+    })()
       .then((entry) => {
         entries.current.set(spaceId, entry);
         return entry;

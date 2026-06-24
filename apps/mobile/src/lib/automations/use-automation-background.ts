@@ -9,6 +9,7 @@
  * creator), which already hold the session.
  */
 import { useEffect } from 'react';
+import { InteractionManager } from 'react-native';
 
 import { useSession } from '../session-context';
 
@@ -19,9 +20,19 @@ export function useAutomationBackground(): void {
   const { session } = useSession();
   useEffect(() => {
     if (!session) return;
+    // Register the OS-wake bridge immediately (cheap native call).
     void registerAutomationWake();
-    void syncAutomationTasks(session);
+    // Defer the reconcile pass until after the first frame so the rail + rooms
+    // skeleton paints before the per-space objindex fan-out starts. The headless
+    // tick path (handleTick / Conductor.defineTask) is untouched — it runs on
+    // cold background wakes where React never mounts and must stay immediate.
+    // Capture the handle so a fast session switch cancels a pending reconcile
+    // instead of scheduling tasks for the old session after cleanup ran.
+    const handle = InteractionManager.runAfterInteractions(() => {
+      void syncAutomationTasks(session);
+    });
     return () => {
+      handle.cancel();
       void cancelAllAutomationTasks();
       void unregisterAutomationWake();
     };

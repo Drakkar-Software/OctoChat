@@ -23,7 +23,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { AppState } from 'react-native';
+import { AppState, InteractionManager } from 'react-native';
 
 import {
   listPendingTicketRequests,
@@ -33,6 +33,7 @@ import {
 } from '@drakkar.software/octochat-sdk';
 
 import { dispatchIndexChange } from './room-events-bus';
+import { useFeature } from './use-feature';
 import { useSession } from './session-context';
 import { useSpacesContext } from './spaces-context';
 
@@ -62,6 +63,10 @@ const Ctx = createContext<RequestsValue | null>(null);
 export function RequestsProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
   const { spaces } = useSpacesContext();
+  // Gate every effect on the `tickets` feature so the default OctoChat build
+  // issues zero per-space scans on cold start. Tickets-enabled variants still
+  // scan, but only after the first frame (InteractionManager below).
+  const ticketsOn = useFeature('tickets');
 
   // Derive rail space ids. Kept in a ref so the refresh callback is stable and
   // always reads the latest list without needing it in its deps array.
@@ -93,20 +98,27 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
     const ids = spaceIdsRef.current;
     if (!session || ids.length === 0) return;
     setLoading(true);
-    void Promise.allSettled(
-      ids.map((id) =>
-        listPendingTicketRequests(session, id).then((items) => ({ id, items })),
-      ),
-    ).then((results) => {
-      const next: Record<string, PendingRequest[]> = {};
-      let firstError: string | null = null;
-      for (const r of results) {
-        if (r.status === 'fulfilled') {
-          next[r.value.id] = r.value.items;
-        } else if (!firstError) {
-          firstError = String((r.reason as Error)?.message ?? r.reason);
+    // Bounded concurrency — mirrors the 5-worker pool in conductor-init.ts so a
+    // user with many spaces can't burst N concurrent per-space reads and trigger
+    // 429s. JS is single-threaded so cross-worker writes to `next`/`firstError`
+    // are safe across await points.
+    const CONCURRENCY = 5;
+    const queue = [...ids];
+    const next: Record<string, PendingRequest[]> = {};
+    let firstError: string | null = null;
+    const worker = async () => {
+      while (queue.length > 0) {
+        const id = queue.shift()!;
+        try {
+          next[id] = await listPendingTicketRequests(session, id);
+        } catch (reason) {
+          if (!firstError) firstError = String((reason as Error)?.message ?? reason);
         }
       }
+    };
+    void Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, ids.length) }, worker),
+    ).then(() => {
       // Merge: keep stale entries for any space whose fetch failed this round so
       // a transient network error doesn't wipe counts that were recently correct.
       const merged = { ...mapRef.current, ...next };
@@ -126,26 +138,35 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
   }, [session]);
 
   // Refresh on mount, session change, and when the space set changes.
+  // Deferred behind the first frame so the rooms skeleton paints before any
+  // network fan-out. When tickets is off (default OctoChat build) this is a
+  // no-op — zero per-space scans on cold start.
   useEffect(() => {
-    refresh();
+    if (!ticketsOn) return;
+    const handle = InteractionManager.runAfterInteractions(() => {
+      refresh();
+    });
+    return () => handle.cancel();
     // spaceIdsKey is a stable proxy for spaceIds — ensures we re-scan when the
     // owner joins / creates a new space while the app is open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refresh, spaceIdsKey]);
+  }, [refresh, spaceIdsKey, ticketsOn]);
 
   // Foreground refresh: re-scan when the app comes back to the foreground.
   useEffect(() => {
+    if (!ticketsOn) return;
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') refresh();
     });
     return () => sub.remove();
-  }, [refresh]);
+  }, [refresh, ticketsOn]);
 
   // Background poll — catches new requests that arrive while the app is open.
   useEffect(() => {
+    if (!ticketsOn) return;
     const id = setInterval(refresh, POLL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [refresh]);
+  }, [refresh, ticketsOn]);
 
   // ── local optimistic mutation helpers ────────────────────────────────────────
 

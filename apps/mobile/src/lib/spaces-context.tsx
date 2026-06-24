@@ -248,31 +248,41 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     // hydration) instead of pulling the identical doc again on first paint. Falls
     // back to a read when no fresh stash exists (e.g. a later in-app refresh).
     const primed = consumePrimedSpaces(session.userId);
-    // An EMPTY prime (`[]`) is truthy in JS — if we adopted it we'd short-circuit
-    // the refresh and show a blank rail. Offline that empty came from a failed
-    // `readSpaces`; the SDK pull cache now serves the last-synced `_spaces` doc on
-    // the refresh below, so fall through to it instead of locking in empty.
-    if (primed && primed.length > 0) {
+    // An EMPTY prime (`spaces: []`) would short-circuit the refresh and show a
+    // blank rail. Offline that empty came from a failed `readSpaces`; the SDK
+    // pull cache now serves the last-synced `_spaces` doc on the refresh below,
+    // so fall through to it instead of locking in empty.
+    if (primed && primed.spaces.length > 0) {
       // Paint the rail instantly from the primed snapshot…
-      const rail = railSpaces(primed);
+      const rail = railSpaces(primed.spaces);
       setSpaces(rail);
       // The primed list IS the full _spaces list — extract DM space ids from it
       // immediately so the SSE + FCM subscription covers DMs on first paint (same
       // timing as rooms). Without this, dmSpaceIds stays [] until refresh() below
       // completes, creating a window where DM messages arrive unsubscribed.
-      setDmSpaceIds(primed.flatMap((s) => isDmSpaceId(s.id) ? [s.id] : []));
-      setGuestSpaces(primed.filter((s) => isGuestSpaceId(s.id)));
+      setDmSpaceIds(primed.spaces.flatMap((s) => isDmSpaceId(s.id) ? [s.id] : []));
+      setGuestSpaces(primed.spaces.filter((s) => isGuestSpaceId(s.id)));
       setGuestOwnerSpaceIds(guestOwnerSpaceIdsFromStore());
       setActiveId((prev) => prev ?? rail[0]?.id ?? null);
+      // Paint the DM list from the cached snapshot so it's non-empty on cold
+      // start. The `dms` map is lossy/peer-indexed; `healDmMap` in the deferred
+      // refresh() below reconciles any missing/stale entries, so this cache-first
+      // paint is strictly better than showing blank until refresh() completes.
+      setDms(primed.dms ?? {});
       setLoading(false);
-      // …but the prime only carries the spaces array, NOT the `dms` map — so the
-      // virtual DM space would read empty until the first navigation. Kick a
-      // background refresh to hydrate `dms` (+ accept any inbound invites), but
-      // defer it until after the first frame so the rooms skeleton paints first.
-      InteractionManager.runAfterInteractions(() => {
-        void refresh().catch(() => {});
+      // Deferred background refresh to accept inbound DM invites, reconcile
+      // ticket requests, and heal the DM map + rosters. Deferred past the first
+      // frame so the rooms skeleton paints first.
+      // Capture the handle so a sign-out / account-switch that fires before the
+      // callback runs can cancel it — otherwise refresh() would overwrite the new
+      // (or null) session's state with data from the previous identity.
+      const handle = InteractionManager.runAfterInteractions(() => {
+        if (!cancelled) void refresh().catch(() => {});
       });
-      return;
+      return () => {
+        cancelled = true;
+        handle.cancel();
+      };
     }
     (async () => {
       try {

@@ -151,7 +151,7 @@ async function hydrateCapsFor(session: Session): Promise<void> {
   // prime SpacesProvider with the list; neither then re-reads the identical doc. Pass
   // the seed-authenticated accountClient (readSpaces degrades to empty on failure,
   // which leaves the local cap cache intact).
-  const { spaces, caps, mutes, reads, quickReactions, archivedDms, pubAccess } = await readSpaces(session.spacesRegistryClient, session);
+  const { spaces, caps, mutes, reads, quickReactions, archivedDms, dms, pubAccess } = await readSpaces(session.spacesRegistryClient, session);
   // Recover any space-access entries that are local-only back to the server, and
   // pull any server-only entries into the local cache (e.g. a join made on another
   // device). Best-effort — a failed recovery leaves the local cache intact.
@@ -179,10 +179,10 @@ async function hydrateCapsFor(session: Session): Promise<void> {
   // sorts by the last-known authoritative order on first open, before `<DmList>`
   // triggers the network refresh. No network — reads kv only.
   await loadDmHeadsFromKv(session.userId);
-  primeSpaces(session.userId, spaces);
-  // Persist the fresh snapshot so the next cold start can prime the rail instantly
-  // without waiting for this network read to complete.
-  persistSpacesSnapshot(session.userId, spaces);
+  primeSpaces(session.userId, spaces, dms);
+  // Persist the fresh snapshot (spaces + dms) so the next cold start can prime
+  // the rail and DM list instantly without waiting for this network read.
+  persistSpacesSnapshot(session.userId, spaces, dms);
   // Seed the shared public-profile cache with our own pseudo so `use-pseudos`
   // (message authors, sidebar) never fires a separate fetch for self — the editable
   // copy is loaded once by ProfileProvider, which also primes the avatar.
@@ -284,7 +284,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             // network wait on every cold start.
             try {
               const snap = await loadSpacesSnapshot(s.userId);
-              if (snap) primeSpaces(s.userId, snap);
+              if (snap) primeSpaces(s.userId, snap.spaces, snap.dms);
             } catch { /* non-critical — SpacesProvider falls through to refresh() */ }
             // Set session + status in the same batch so React paints the authenticated
             // shell in one pass (no intermediate loading flicker). hydrateSpaceAccessStore
