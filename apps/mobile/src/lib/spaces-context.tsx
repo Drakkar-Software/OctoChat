@@ -38,6 +38,7 @@ import { createSpace as createSpaceDoc, onSpaceMeta, readSpaces, reorderSpaces a
 import { healDmMap, healDmRosters, isDmSpaceId, reconcileDmInbox, reconcileTicketRequests } from '@drakkar.software/octochat-sdk';
 import { isSharedRoomId, isTicketRoomId, localSpaceAccessEntries } from '@drakkar.software/octochat-sdk';
 import { consumePrimedSpaces } from './spaces-prime';
+import { runReconcileOncePerWindow } from './reconcile-throttle';
 import { hydrateMutes } from '@drakkar.software/octochat-sdk';
 import { flushReadsNow, hydrateReads } from '@drakkar.software/octochat-sdk';
 import { hydrateArchivedDms } from '@drakkar.software/octochat-sdk';
@@ -139,12 +140,12 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Minimum interval between expensive reconcile passes even on heavy refreshes.
+  // Minimum interval between expensive reconcile passes. Both passes are guarded by
+  // runReconcileOncePerWindow (module-level, survives remount / StrictMode / HMR) so
+  // concurrent refresh() calls only ever fire one network pass per window.
   // reconcileDmInbox scans monthly shard buckets (?full=true) — once per minute is fine.
   // reconcileTicketRequests reads per-space indexes — same interval.
   const RECONCILE_INTERVAL_MS = 60_000;
-  const lastReconcileDmAt = useRef(0);
-  const lastReconcileTicketsAt = useRef(0);
 
   /** Heavy refresh: full cascade including DM heal + reconciles. Used on mount,
    *  foreground, space create/reorder, and post-primed-snapshot background sync. */
@@ -181,33 +182,39 @@ export function SpacesProvider({ children }: { children: ReactNode }) {
     // hydrateReads and hydrateMutes are independent — run concurrently.
     await Promise.all([hydrateReads(session.userId, reads), hydrateMutes(session.userId, mutes)]);
     hydrateArchivedDms(archivedDms);
-    // Accept any inbound DM invites — throttled: monthly shards change rarely, so scanning
-    // them on every heavy refresh is wasted. One pass per RECONCILE_INTERVAL_MS.
-    const now = Date.now();
-    if (now - lastReconcileDmAt.current >= RECONCILE_INTERVAL_MS) {
-      lastReconcileDmAt.current = now;
-      void reconcileDmInbox(session, rail)
-        .then(async (changed) => {
-          if (!changed) return;
-          const next = await readSpaces(session.spacesRegistryClient, session);
-          const healed = await healDmMap(session, next.spaces, next.dms);
-          setDms(healed);
-          // A freshly-accepted DM must land its peer in `_access.members` too (see above).
-          await healDmRosters(session, healed);
-        })
-        .catch(() => {});
-    }
+    // Accept any inbound DM invites — monthly shards change rarely, so scanning them on
+    // every heavy refresh is wasteful. runReconcileOncePerWindow collapses concurrent
+    // refresh() calls (e.g. mount + AppState 'active') into one network pass per window
+    // and is immune to provider remount / StrictMode / HMR resets (unlike a useRef).
+    void runReconcileOncePerWindow(
+      `dm:${session.userId}`,
+      RECONCILE_INTERVAL_MS,
+      () => reconcileDmInbox(session, rail),
+      false,
+    )
+      .then(async (changed) => {
+        if (!changed) return;
+        const next = await readSpaces(session.spacesRegistryClient, session);
+        const healed = await healDmMap(session, next.spaces, next.dms);
+        setDms(healed);
+        // A freshly-accepted DM must land its peer in `_access.members` too (see above).
+        await healDmRosters(session, healed);
+      })
+      .catch(() => {});
     // Accept inbound TICKET requests per each space's intake config (auto-accept / auto-reply).
     // Best-effort; manual-mode spaces are left for the Requests UI.
-    // Throttled: reads per-space indexes so we skip if one ran recently.
     // The 'tickets' capability is a RUNTIME variant choice (in-app switcher / persisted KV),
     // not a build-time constant — read it live so auto-accept works when the user selects a
     // tickets-enabled variant, matching how useFeature('tickets') resolves it.
     const deskIntake = VARIANTS[getActiveVariantId()].features.includes('tickets');
-    if (deskIntake && now - lastReconcileTicketsAt.current >= RECONCILE_INTERVAL_MS) {
-      lastReconcileTicketsAt.current = now;
+    if (deskIntake) {
       const railIds = new Set(rail.map((s) => s.id));
-      void reconcileTicketRequests(session, railIds)
+      void runReconcileOncePerWindow(
+        `tickets:${session.userId}`,
+        RECONCILE_INTERVAL_MS,
+        () => reconcileTicketRequests(session, railIds),
+        false,
+      )
         .then((changed) => {
           // Nudge the objindex store so new tickets paint in the Tickets shelf immediately.
           if (changed) for (const id of railIds) dispatchIndexChange(id);

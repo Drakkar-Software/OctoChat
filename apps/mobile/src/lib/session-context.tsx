@@ -36,6 +36,7 @@ import {
 import { disableBiometricLock } from './app-lock';
 import type { PersistedSession, SeedLock, UnlockMethod, Vault } from '@drakkar.software/octochat-sdk';
 import { clearRoomEventsBus } from './room-events-bus';
+import { clearReconcileThrottle } from './reconcile-throttle';
 import { clearPrimedSpaces, loadSpacesSnapshot, persistSpacesSnapshot, primeSpaces } from './spaces-prime';
 import { clearPseudoCache, primeProfile } from './use-pseudos';
 import { clearSyncStoreRegistry } from '@drakkar.software/starfish-client/zustand';
@@ -135,6 +136,7 @@ function resetAccountScopedState(): void {
   clearSyncStoreRegistry();
   clearPrimedSpaces();
   clearRoomEventsBus();
+  clearReconcileThrottle();
   // Flush any pending read marks before dropping them so a just-read room on the
   // outgoing account isn't lost; then clear the in-memory snapshot.
   void flushReadsNow();
