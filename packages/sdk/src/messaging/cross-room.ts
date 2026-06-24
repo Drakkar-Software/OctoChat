@@ -6,8 +6,8 @@
  * Every room is an APPEND-ONLY log now, so each reader folds a room's log via
  * {@link foldRoomCached} — which warm-starts from the local kv blob (written by `useRoom`
  * after each visit), pulls only the incremental delta, and coalesces concurrent calls.
- * A room truly never opened on this device still cold-starts once; every re-fold within
- * the TTL window or while a prior fold is in-flight is free.
+ * A room truly never opened on this device still cold-starts once; concurrent calls within
+ * one burst share a single in-flight fold per room.
  *
  * Space-level metadata reads (`_index`, `_access`) are coalesced via in-flight maps so
  * threads + pins + nav + digest — which all fire simultaneously on focus — share ONE
@@ -104,7 +104,13 @@ async function foldRoom(
 
 /** Open the space client, list its rooms, fold each room's log via the cached path,
  *  and flat-map `collect` across them. The shared scaffold behind the cross-room sweeps;
- *  only the per-room projection differs. */
+ *  only the per-room projection differs.
+ *
+ *  Rooms are folded with a 5-worker bounded pool (NOT unbounded Promise.all) so a space
+ *  with many rooms doesn't burst N concurrent objlog pulls and risk 429s. foldRoomCached's
+ *  in-flight coalescing collapses duplicate rooms across simultaneous cross-room sweeps
+ *  (threads + pins + nav + digest) into a single network pull each. Room order is
+ *  preserved: each slot is written by index then flattened in order. */
 async function forEachSpaceRoom<T>(
   session: Session,
   spaceId: string,
@@ -112,9 +118,18 @@ async function forEachSpaceRoom<T>(
 ): Promise<T[]> {
   const client = getSpaceClient(spaceId, session);
   const rooms = await listSpaceRooms(client, spaceId);
-  const out: T[] = [];
-  for (const room of rooms) out.push(...collect(room, await foldRoom(session, spaceId, client, room)));
-  return out;
+  const slots: T[][] = Array.from({ length: rooms.length });
+  const CONCURRENCY = 5;
+  const queue = rooms.map((r, i) => [r, i] as [Room, number]);
+  const workers = Array.from({ length: Math.min(CONCURRENCY, rooms.length) }, async () => {
+    let entry: [Room, number] | undefined;
+    while ((entry = queue.shift()) !== undefined) {
+      const [room, idx] = entry;
+      slots[idx] = collect(room, await foldRoom(session, spaceId, client, room));
+    }
+  });
+  await Promise.all(workers);
+  return slots.flat();
 }
 
 export async function loadAllMessages(session: Session, spaceId: string): Promise<CrossRoomMessage[]> {
@@ -151,16 +166,16 @@ export async function loadAllThreads(
  * Returns `[]` for a space with no resolvable owner/keyring.
  */
 export async function loadAllPins(session: Session, spaceId: string): Promise<CrossRoomMessage[]> {
-  const out: { room: Room; msg: StoredMsg; pinnedTs: number }[] = [];
-  const client = getSpaceClient(spaceId, session);
-
   // `owner` (the only pin authority) lives in the `_access` registry.
   // Coalesced so a simultaneous threads+pins+nav burst shares one `_access` read.
+  const client = getSpaceClient(spaceId, session);
   const { owner } = await getSpaceOwner(client, spaceId, session);
   if (!owner) return [];
 
-  // Fold a room's folded log → its pinned messages (latest owner event per id wins, `pin` ⇒ included).
-  const collect = (room: Room, log: StreamData) => {
+  // Fold each room via the shared scaffold (5-worker pool, in-flight coalescing).
+  // collect returns the room's pinned entries so forEachSpaceRoom can flatten them.
+  type PinEntry = { room: Room; msg: StoredMsg; pinnedTs: number };
+  const entries = await forEachSpaceRoom(session, spaceId, (room, log): PinEntry[] => {
     const latest = new Map<string, (typeof log.pins)[number]>();
     for (const p of log.pins) {
       if (p.userId !== owner) continue;
@@ -168,14 +183,13 @@ export async function loadAllPins(session: Session, spaceId: string): Promise<Cr
       if (!cur || p.ts > cur.ts) latest.set(p.msgId, p);
     }
     const byId = new Map(log.messages.map((m) => [m.id, m]));
+    const result: PinEntry[] = [];
     for (const [msgId, ev] of latest) {
       if (ev.kind !== 'pin') continue;
       const msg = byId.get(msgId);
-      if (msg) out.push({ room, msg, pinnedTs: ev.ts });
+      if (msg) result.push({ room, msg, pinnedTs: ev.ts });
     }
-  };
-
-  const rooms = await listSpaceRooms(client, spaceId);
-  for (const room of rooms) collect(room, await foldRoom(session, spaceId, client, room));
-  return out.sort((a, b) => b.pinnedTs - a.pinnedTs).map(({ room, msg }) => ({ room, msg }));
+    return result;
+  });
+  return entries.sort((a, b) => b.pinnedTs - a.pinnedTs).map(({ room, msg }) => ({ room, msg }));
 }

@@ -83,15 +83,29 @@ export default function RoomScreen() {
   // WRITE in layout effect: React Compiler requires ref mutations to stay out of render body.
   // useLayoutEffect fires synchronously before paint — the latch is updated before the next
   // render sees stale raw values, which preserves the "one promotion" semantics.
+  // Once registryRoom is present it is the authoritative source (resolveRoomAccess already
+  // prefers it over params), so snap the latch to it even if a nav param latched a different
+  // concrete value first (a deep link / universal link can pass a wrong access tier).
   useLayoutEffect(() => {
-    if (!accessLatchRef.current || accessLatchRef.current.id !== id) {
+    const cur = accessLatchRef.current;
+    if (!cur || cur.id !== id) {
       accessLatchRef.current = { id, access: rawAccess, enc: rawEnc };
-    } else if (rawAccess !== undefined && accessLatchRef.current.access === undefined) {
-      accessLatchRef.current = { id, access: rawAccess, enc: rawEnc };
-    } else if (rawEnc !== undefined && accessLatchRef.current.enc === undefined) {
-      accessLatchRef.current = { id, access: accessLatchRef.current.access, enc: rawEnc };
+      return;
     }
-  }, [id, rawAccess, rawEnc]);
+    if (registryRoom) {
+      // Registry resolved — snap to its authoritative values if they differ.
+      if (cur.access !== rawAccess || cur.enc !== rawEnc) {
+        accessLatchRef.current = { id, access: rawAccess, enc: rawEnc };
+      }
+      return;
+    }
+    // Pre-registry (ticket / still loading): promote undefined → defined from params only.
+    if (rawAccess !== undefined && cur.access === undefined) {
+      accessLatchRef.current = { id, access: rawAccess, enc: rawEnc };
+    } else if (rawEnc !== undefined && cur.enc === undefined) {
+      accessLatchRef.current = { id, access: cur.access, enc: rawEnc };
+    }
+  }, [id, rawAccess, rawEnc, registryRoom]);
   // Every room is an append-only log now — one hook for all kinds. An automated room
   // additionally has a runner attached (driven below) + its own settings sheet.
   const isAutomated = kind === 'automated';

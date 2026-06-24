@@ -121,29 +121,28 @@ export interface FoldedLog {
 // Used by `cross-room.ts`, `space-stats.ts`, and `use-space-digest`. Unlike
 // `pullAndFold` (which always cold-starts with `full:true`), this helper mirrors
 // what `useRoom`'s AppendLogCursor does: warm-start from the persisted kv blob →
-// incremental pull → persist back when the cursor grew. Two extra guards mirror
-// `dm-activity.ts`'s pattern: per-key in-flight coalescing (a focus burst that
-// starts threads + pins + nav + digest simultaneously issues ONE network pull, not N),
-// and a short TTL cache so a re-focus within the window is free.
+// incremental pull → persist back unconditionally (mirrors useRoom, ensures empty
+// rooms write a kv checkpoint so the NEXT pull is incremental rather than full).
+// Per-key in-flight coalescing (mirrors `dm-activity.ts`'s pattern) collapses a
+// focus burst that starts threads + pins + nav + digest simultaneously into ONE
+// network pull per room, not N. No TTL: each non-overlapping call does an incremental
+// delta pull (cheap, usually empty) → always fresh.
 //
-// Cache-key includes whether enc is present so a user gaining enc access mid-session
-// doesn't receive the prior plaintext result.
-
-/** How long a successfully-folded result is reused without a network round-trip. */
-const FOLD_CACHE_TTL = 10_000;
+// Cache key includes enc AND pullPath so two callers with different paths or enc state
+// for the same room don't coalesce onto the wrong cursor.
 
 const _foldInflight = new Map<string, Promise<FoldedLog>>();
-const _foldCache = new Map<string, { result: FoldedLog; ts: number }>();
 
 /**
  * Warm-start aware room-log fold for cross-room sweeps.
  *
  * Warm-starts from `streamlog.v2` kv → builds an AppendLogCursor (so the first pull
- * is incremental `?checkpoint=` rather than `?full=true`) → persists back when the
- * cursor grew → caches the result for {@link FOLD_CACHE_TTL} ms per `userId.roomId`.
+ * is incremental `?checkpoint=` rather than `?full=true`) → persists back so future
+ * pulls are incremental too. In-flight coalescing ensures a focus burst that triggers
+ * threads + pins + nav + digest simultaneously shares ONE network pull per room.
  *
  * A room truly never opened on this device still cold-starts once (kv miss → full pull);
- * every subsequent call within the TTL window or before the in-flight resolves is free.
+ * every concurrent call before the in-flight resolves is free.
  */
 export async function foldRoomCached(
   userId: string,
@@ -152,13 +151,9 @@ export async function foldRoomCached(
   roomId: string,
   pullPath: string,
 ): Promise<FoldedLog> {
-  const key = `${userId}.${roomId}.${enc !== null ? '1' : '0'}`;
+  const key = `${userId}.${roomId}.${enc !== null ? '1' : '0'}.${pullPath}`;
 
-  // TTL hit: return stale-while-still-fresh result (absorbs focus bursts).
-  const hit = _foldCache.get(key);
-  if (hit && Date.now() - hit.ts < FOLD_CACHE_TTL) return hit.result;
-
-  // Coalesce: join an already-in-flight fold for this room.
+  // Coalesce: join an already-in-flight fold for this room+path.
   const pending = _foldInflight.get(key);
   if (pending) return pending;
 
@@ -178,19 +173,13 @@ export async function foldRoomCached(
     const items = cursor.getItems();
     // kvSet (kv write) and getDecryptedItems (in-memory crypto) are independent —
     // run them in parallel so decryption doesn't wait for the storage round-trip.
+    // Write unconditionally (mirrors useRoom) so empty rooms establish a kv checkpoint
+    // and future pulls are incremental rather than full=true re-fetches.
     const [decrypted] = await Promise.all([
       cursor.getDecryptedItems(),
-      // Persist back when the item count changed (grow OR shrink). A shrinking log
-      // (server compaction/purge) would otherwise leave a stale oversized blob that
-      // seeds phantom messages; skip the write entirely when nothing changed so a
-      // warm room swept after TTL expiry doesn't re-serialize and rewrite the blob.
-      items.length !== initialItems.length
-        ? kvSet(streamLogKey(userId, roomId), JSON.stringify(items)).catch(() => {})
-        : Promise.resolve(),
+      kvSet(streamLogKey(userId, roomId), JSON.stringify(items)).catch(() => {}),
     ]);
-    const result: FoldedLog = { data: fanOut(decrypted), items };
-    _foldCache.set(key, { result, ts: Date.now() });
-    return result;
+    return { data: fanOut(decrypted), items };
   })();
 
   _foldInflight.set(key, p);
@@ -198,10 +187,9 @@ export async function foldRoomCached(
   return p;
 }
 
-/** Clear all cached folds — call on sign-out alongside `resetDmHeads`. */
+/** Clear all in-flight folds — call on sign-out alongside `resetDmHeads`. */
 export function resetFoldRoomCache(): void {
   _foldInflight.clear();
-  _foldCache.clear();
 }
 
 export async function pullAndFold(
