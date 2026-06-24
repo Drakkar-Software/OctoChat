@@ -87,23 +87,29 @@ export async function loadSpaceStats(session: Session, spaceId: string): Promise
   }
 
   stats.rooms = rooms.length;
-  for (const room of rooms) {
-    try {
-      // Soft-open per-room access: enc rooms get a decryptor; plaintext get null.
-      const access = await buildNodeAccessShared(session, spaceId, room.id, { enc: room.enc }).catch(() => null);
-      // foldRoomCached warm-starts from kv and pulls incrementally (no full=true re-pull).
-      // Let a pull failure THROW so we can flag the snapshot `partial`.
-      const { data, items } = await foldRoomCached(
-        session.userId,
-        access?.client ?? client,
-        access?.encryptor ?? null,
-        room.id,
-        roomStreamPull(room, room.id),
-      );
-      accumulate(stats, { messages: data.messages, edits: data.edits, docBytes: items.length ? byteLen(items) : 0 }, session.userId);
-    } catch {
-      stats.partial = true; // room unreadable — totals undercount
+  // 5-worker bounded pool mirrors cross-room.ts so a large space doesn't burst N
+  // concurrent objlog pulls and risk 429s. foldRoomCached in-flight coalescing still
+  // collapses duplicate rooms across a concurrent threads+stats sweep.
+  const CONCURRENCY = 5;
+  const queue = [...rooms];
+  const workers = Array.from({ length: Math.min(CONCURRENCY, rooms.length) }, async () => {
+    let room: Room | undefined;
+    while ((room = queue.shift()) !== undefined) {
+      try {
+        const access = await buildNodeAccessShared(session, spaceId, room.id, { enc: room.enc }).catch(() => null);
+        const { data, items } = await foldRoomCached(
+          session.userId,
+          access?.client ?? client,
+          access?.encryptor ?? null,
+          room.id,
+          roomStreamPull(room, room.id),
+        );
+        accumulate(stats, { messages: data.messages, edits: data.edits, docBytes: items.length ? byteLen(items) : 0 }, session.userId);
+      } catch {
+        stats.partial = true; // room unreadable — totals undercount
+      }
     }
-  }
+  });
+  await Promise.all(workers);
   return stats;
 }

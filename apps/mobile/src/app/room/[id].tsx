@@ -76,8 +76,13 @@ export default function RoomScreen() {
   // `access`/`enc` from the param default, useRoomOpen's open effect re-runs, produces new
   // client/encryptor identities, and the cursor-build effect fires a second full pull.
   const accessLatchRef = useRef<{ id: string; access: typeof rawAccess; enc: typeof rawEnc } | null>(null);
-  // READ during render: derive latched values (falls back to raw on first render or room-switch).
-  const latched = accessLatchRef.current?.id === id ? accessLatchRef.current : null;
+  // READ during render: bypass the latch when the registry has resolved the room —
+  // rawAccess/rawEnc are already authoritative (resolveRoomAccess prefers registryRoom),
+  // and a stale latched concrete value (e.g. enc:false from a deep-link param) must not
+  // block the correct registry enc:true on the render where registryRoom first arrives.
+  // For tickets / still-loading (no registry), use the latch so useRoomOpen doesn't
+  // re-run on every param-update render.
+  const latched = !registryRoom && accessLatchRef.current?.id === id ? accessLatchRef.current : null;
   const access = latched ? (latched.access ?? rawAccess) : rawAccess;
   const enc = latched ? (latched.enc ?? rawEnc) : rawEnc;
   // WRITE in layout effect: React Compiler requires ref mutations to stay out of render body.

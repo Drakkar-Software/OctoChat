@@ -125,7 +125,11 @@ async function forEachSpaceRoom<T>(
     let entry: [Room, number] | undefined;
     while ((entry = queue.shift()) !== undefined) {
       const [room, idx] = entry;
-      slots[idx] = collect(room, await foldRoom(session, spaceId, client, room));
+      try {
+        slots[idx] = collect(room, await foldRoom(session, spaceId, client, room));
+      } catch {
+        slots[idx] = []; // one failing room must not abort the sweep
+      }
     }
   });
   await Promise.all(workers);
