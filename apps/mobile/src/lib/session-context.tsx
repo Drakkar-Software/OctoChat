@@ -18,6 +18,7 @@ import { hydrateMutes, resetMutes } from '@drakkar.software/octochat-sdk';
 import { hydrateQuickReactions, resetQuickReactions } from '@drakkar.software/octochat-sdk';
 import { hydrateArchivedDms, resetArchivedDms } from '@drakkar.software/octochat-sdk';
 import { loadDmHeadsFromKv, resetDmHeads } from '@drakkar.software/octochat-sdk';
+import { resetSpaceLevelMetaCache } from '@drakkar.software/octochat-sdk';
 import { flushReadsNow, hydrateReads, resetReads } from '@drakkar.software/octochat-sdk';
 import { activeAccountOf, sessionFromPersisted } from '@drakkar.software/octochat-sdk';
 import { clearNodeAccessCache, clearBuildNodeAccessCache } from '@drakkar.software/octochat-sdk';
@@ -142,6 +143,7 @@ function resetAccountScopedState(): void {
   resetQuickReactions();
   resetArchivedDms();
   resetDmHeads();
+  resetSpaceLevelMetaCache();
 }
 
 async function hydrateCapsFor(session: Session): Promise<void> {

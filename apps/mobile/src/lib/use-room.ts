@@ -155,8 +155,12 @@ export function useRoom(roomId: string, opts: { enabled?: boolean; access?: Node
       const batch = await cur.cursor.pull();
       if (batch.length) {
         mergeIntoStore(roomState.store, fanOut(batch));
-        void kvSet(streamLogKey(session!.userId, roomId), JSON.stringify(cur.cursor.getItems()));
       }
+      // Persist the cursor's items after every successful pull — even an empty one.
+      // Without this, a room that had 0 messages on first open never writes a kv blob,
+      // so the next open cold-starts with full=true again instead of incremental.
+      // Writing [] is cheap (a few bytes) and marks that we have a valid checkpoint.
+      void kvSet(streamLogKey(session!.userId, roomId), JSON.stringify(cur.cursor.getItems()));
       // A successful cursor pull is the real reachability signal (append-log pulls
       // aren't served from the offline cache — they own their warm-start persistence).
       reportReachability(true);

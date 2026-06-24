@@ -124,15 +124,19 @@ export function useRoomOpen(opts: {
         // contentClient has space:owner permission and ownerEnsureKeyring is idempotent. For all
         // other callers, use the shared soft path (buildNodeAccessShared) which returns null instead of
         // throwing when access is unavailable.
+        // Try the shared cache path first — if the keyring already exists this returns
+        // instantly from the result cache (no network). Fall back to getNodeAccess only
+        // when it returns null, meaning the keyring is absent and needs minting (owner
+        // self-heal). This avoids re-pulling `_keyring`/`sp-…` on every re-open for the
+        // common case where the keyring was already minted on the first open.
         let nodeAccess: { client: unknown; encryptor: unknown } | null;
-        if (isOwner) {
+        nodeAccess = await buildNodeAccessShared(session, spaceId, roomId, { access, enc: true });
+        if (nodeAccess === null && isOwner) {
           const handle = await getNodeAccess(spaceId, roomId, { access, enc: true }, session, {
             owner,
             members: [],
           });
           nodeAccess = { client: handle.client, encryptor: handle.encryptor };
-        } else {
-          nodeAccess = await buildNodeAccessShared(session, spaceId, roomId, { access, enc: true });
         }
         if (!nodeAccess) throw new SpaceAccessError(`No access to room ${roomId}.`);
         if (!cancelled) {

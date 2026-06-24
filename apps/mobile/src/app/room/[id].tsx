@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
@@ -70,7 +70,23 @@ export default function RoomScreen() {
   // tier can't be resolved there — the ticket list passes `access`/`enc` as params (fallback).
   // Without the correct `access: 'invite'`, the open path can't reach the per-node objinvlog
   // stream (and the owner self-heal in useRoomOpen never runs). See resolveRoomAccess.
-  const { access, enc } = resolveRoomAccess(params, registryRoom);
+  const { access: rawAccess, enc: rawEnc } = resolveRoomAccess(params, registryRoom);
+  // Latch: allow exactly one promotion from "undefined" → resolved access/enc, keyed by
+  // room id so a room-switch resets it. Without this, when registryRoom resolves and flips
+  // `access`/`enc` from the param default, useRoomOpen's open effect re-runs, produces new
+  // client/encryptor identities, and the cursor-build effect fires a second full pull.
+  const accessLatchRef = useRef<{ id: string; access: typeof rawAccess; enc: typeof rawEnc } | null>(null);
+  if (!accessLatchRef.current || accessLatchRef.current.id !== id) {
+    accessLatchRef.current = { id, access: rawAccess, enc: rawEnc };
+  } else if (rawAccess !== undefined && accessLatchRef.current.access === undefined) {
+    // First registry resolution: promote from undefined → known. No further changes.
+    accessLatchRef.current = { id, access: rawAccess, enc: rawEnc };
+  } else if (rawEnc !== undefined && accessLatchRef.current.enc === undefined) {
+    // enc resolved separately (enc param was absent, registry supplied it).
+    accessLatchRef.current = { id, access: accessLatchRef.current.access, enc: rawEnc };
+  }
+  const access = accessLatchRef.current.access;
+  const enc = accessLatchRef.current.enc;
   // Every room is an append-only log now — one hook for all kinds. An automated room
   // additionally has a runner attached (driven below) + its own settings sheet.
   const isAutomated = kind === 'automated';

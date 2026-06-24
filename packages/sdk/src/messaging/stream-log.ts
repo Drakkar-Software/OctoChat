@@ -8,11 +8,12 @@
  * dedup by id, and warm-start the cursor from kv across restarts. The hook owns the cursor
  * + store; this module owns the data shaping, the shared pull/fold, and the persistence keys.
  */
+import { AppendLogCursor } from '@drakkar.software/starfish-client';
 import type { AppendElement, Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { MessageEditEvent, PinEvent, ReactionEvent } from '../domain/types';
 import type { StoredMsg } from '../format/message-view';
-import { kvGet } from '../config/adapters';
+import { kvGet, kvSet } from '../config/adapters';
 
 /** One append-log element: a typed envelope so a single log carries messages,
  *  reactions and edits. `t` discriminates; `e` is the payload (a StoredMsg /
@@ -116,6 +117,87 @@ export interface FoldedLog {
  * defaults to the whole log (`full`); pass `{ appendField:'items', last: K }` for a
  * bounded tail (e.g. a preview that only needs the latest line).
  */
+// ── Cached room-fold for cross-room sweeps ───────────────────────────────────────
+// Used by `cross-room.ts`, `space-stats.ts`, and `use-space-digest`. Unlike
+// `pullAndFold` (which always cold-starts with `full:true`), this helper mirrors
+// what `useRoom`'s AppendLogCursor does: warm-start from the persisted kv blob →
+// incremental pull → persist back when the cursor grew. Two extra guards mirror
+// `dm-activity.ts`'s pattern: per-key in-flight coalescing (a focus burst that
+// starts threads + pins + nav + digest simultaneously issues ONE network pull, not N),
+// and a short TTL cache so a re-focus within the window is free.
+//
+// Cache-key includes whether enc is present so a user gaining enc access mid-session
+// doesn't receive the prior plaintext result.
+
+/** How long a successfully-folded result is reused without a network round-trip. */
+const FOLD_CACHE_TTL = 10_000;
+
+const _foldInflight = new Map<string, Promise<FoldedLog>>();
+const _foldCache = new Map<string, { result: FoldedLog; ts: number }>();
+
+/**
+ * Warm-start aware room-log fold for cross-room sweeps.
+ *
+ * Warm-starts from `streamlog.v2` kv → builds an AppendLogCursor (so the first pull
+ * is incremental `?checkpoint=` rather than `?full=true`) → persists back when the
+ * cursor grew → caches the result for {@link FOLD_CACHE_TTL} ms per `userId.roomId`.
+ *
+ * A room truly never opened on this device still cold-starts once (kv miss → full pull);
+ * every subsequent call within the TTL window or before the in-flight resolves is free.
+ */
+export async function foldRoomCached(
+  userId: string,
+  client: StarfishClient,
+  enc: Encryptor | null,
+  roomId: string,
+  pullPath: string,
+): Promise<FoldedLog> {
+  const key = `${userId}.${roomId}.${enc !== null ? '1' : '0'}`;
+
+  // TTL hit: return stale-while-still-fresh result (absorbs focus bursts).
+  const hit = _foldCache.get(key);
+  if (hit && Date.now() - hit.ts < FOLD_CACHE_TTL) return hit.result;
+
+  // Coalesce: join an already-in-flight fold for this room.
+  const pending = _foldInflight.get(key);
+  if (pending) return pending;
+
+  const p = (async (): Promise<FoldedLog> => {
+    const initialItems = await loadStreamLog(userId, roomId);
+    const cursor = new AppendLogCursor({
+      client,
+      pullPath,
+      appendField: 'items',
+      onElementError: 'skip',
+      initialItems,
+      // Keep getItems() as ciphertext envelopes for a private room (same as useRoom).
+      ...(enc ? { encryptor: enc, persistEncrypted: true } : {}),
+    });
+    // Incremental when warm (checkpoint > 0); full only on a true cold start.
+    await cursor.pull();
+    const items = cursor.getItems();
+    // Persist back when the cursor grew — writes the kv blob that enables warm-starts
+    // for both this helper AND useRoom on the next open of the same room.
+    if (items.length > initialItems.length) {
+      await kvSet(streamLogKey(userId, roomId), JSON.stringify(items)).catch(() => {});
+    }
+    const decrypted = await cursor.getDecryptedItems();
+    const result: FoldedLog = { data: fanOut(decrypted), items };
+    _foldCache.set(key, { result, ts: Date.now() });
+    return result;
+  })();
+
+  _foldInflight.set(key, p);
+  void p.finally(() => _foldInflight.delete(key));
+  return p;
+}
+
+/** Clear all cached folds — call on sign-out alongside `resetDmHeads`. */
+export function resetFoldRoomCache(): void {
+  _foldInflight.clear();
+  _foldCache.clear();
+}
+
 export async function pullAndFold(
   client: StarfishClient,
   enc: Encryptor | null,

@@ -18,14 +18,12 @@
  */
 import { getSpaceClient } from '@drakkar.software/starfish-spaces';
 import { buildNodeAccessShared } from '../starfish/node-access-cache';
-import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
 import { resolveEdit, type StoredMsg } from '../format/message-view';
 import type { Session } from '../starfish/identity';
-import { readIndexRooms } from '../starfish/object-index';
-import { objIndexPull } from '../starfish/paths';
 import { roomStreamPull } from '../messaging/room-paths';
-import { pullAndFold } from '../messaging/stream-log';
+import { foldRoomCached } from '../messaging/stream-log';
+import { listSpaceRooms } from '../messaging/cross-room';
 import { buildThreadDigest } from '../messaging/threads';
 import type { MessageEditEvent } from '../domain/types';
 
@@ -54,14 +52,6 @@ interface RoomLog {
 /** JSON byte length (char-length is exact for base64 ciphertext envelopes). */
 const byteLen = (doc: unknown): number => JSON.stringify(doc ?? null).length;
 
-/** Pull + fold one room's whole append-only log via the shared {@link pullAndFold}, then
- *  size it from the RAW elements. Lets a pull failure THROW so `loadSpaceStats` can flag
- *  the snapshot `partial` (an unreadable room is an undercount, not a silent zero). */
-async function roomLog(client: StarfishClient, enc: Encryptor | null, pullPath: string): Promise<RoomLog> {
-  const { data, items } = await pullAndFold(client, enc, pullPath);
-  return { messages: data.messages, edits: data.edits, docBytes: items.length ? byteLen(items) : 0 };
-}
-
 /** Fold one room's log into the running totals. */
 function accumulate(stats: SpaceStats, log: RoomLog, selfId: string): void {
   stats.bytes += log.docBytes;
@@ -86,15 +76,24 @@ export async function loadSpaceStats(session: Session, spaceId: string): Promise
   const stats: SpaceStats = { rooms: 0, messages: 0, threads: 0, attachments: 0, bytes: 0, partial: false };
 
   const client = getSpaceClient(spaceId, session);
-  // Object index is always plaintext (enc: none) — no encryptor needed.
-  const rooms = (await readIndexRooms(client, null, objIndexPull(spaceId), spaceId).catch(() => null))?.rooms ?? [];
+  // Object index is always plaintext — listSpaceRooms coalesces concurrent callers.
+  const rooms = await listSpaceRooms(client, spaceId).catch(() => []);
 
   stats.rooms = rooms.length;
   for (const room of rooms) {
     try {
       // Soft-open per-room access: enc rooms get a decryptor; plaintext get null.
       const access = await buildNodeAccessShared(session, spaceId, room.id, { enc: room.enc }).catch(() => null);
-      accumulate(stats, await roomLog(access?.client ?? client, access?.encryptor ?? null, roomStreamPull(room, room.id)), session.userId);
+      // foldRoomCached warm-starts from kv and pulls incrementally (no full=true re-pull).
+      // Let a pull failure THROW so we can flag the snapshot `partial`.
+      const { data, items } = await foldRoomCached(
+        session.userId,
+        access?.client ?? client,
+        access?.encryptor ?? null,
+        room.id,
+        roomStreamPull(room, room.id),
+      );
+      accumulate(stats, { messages: data.messages, edits: data.edits, docBytes: items.length ? byteLen(items) : 0 }, session.userId);
     } catch {
       stats.partial = true; // room unreadable — totals undercount
     }

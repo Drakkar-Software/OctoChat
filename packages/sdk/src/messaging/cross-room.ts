@@ -3,15 +3,22 @@
  * and flatten their messages. Rooms never accessed have no keyring cached and are simply
  * skipped (buildNodeAccess returns null).
  *
- * Every room is an APPEND-ONLY log now, so each reader pulls a room's whole
- * log and folds it via {@link fanOut} — exactly like `useRoom` / `notification-preview`.
+ * Every room is an APPEND-ONLY log now, so each reader folds a room's log via
+ * {@link foldRoomCached} — which warm-starts from the local kv blob (written by `useRoom`
+ * after each visit), pulls only the incremental delta, and coalesces concurrent calls.
+ * A room truly never opened on this device still cold-starts once; every re-fold within
+ * the TTL window or while a prior fold is in-flight is free.
+ *
+ * Space-level metadata reads (`_index`, `_access`) are coalesced via in-flight maps so
+ * threads + pins + nav + digest — which all fire simultaneously on focus — share ONE
+ * `_index` read and ONE `_access` read per space burst, not one each.
  *
  * Stream path routing by `room.access`/`room.enc` (projected from the index):
  *   public  → `streamPubRoomPull` (plaintext, no encryptor)
  *   space/invite + enc:true  → `streamRoomPull` (E2EE, space keyring)
  *   space/invite + enc:false → `streamRoomPull` (member-gated plaintext)
  */
-import type { Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
+import type { StarfishClient } from '@drakkar.software/starfish-client';
 import { getSpaceClient } from '@drakkar.software/starfish-spaces';
 import { buildNodeAccessShared } from '../starfish/node-access-cache';
 
@@ -21,7 +28,7 @@ import { objIndexPull } from '../starfish/paths';
 import { roomStreamPull } from './room-paths';
 import { readSpaceAccess } from '../starfish/registry';
 import type { StoredMsg } from '../format/message-view';
-import { fanOut, pullAndFold, type StreamData } from './stream-log';
+import { fanOut, foldRoomCached, type StreamData } from './stream-log';
 import { buildThreadDigest, type ThreadSummary } from './threads';
 import type { Room } from '../domain/types';
 
@@ -35,35 +42,76 @@ export interface CrossRoomThread {
   thread: ThreadSummary;
 }
 
-/** Fold a room's whole append-only log via the shared {@link pullAndFold}, swallowing a
- *  pull failure to an empty fold — a single unreachable/never-opened room must not abort
- *  a space-wide search/threads/pins sweep (skip it, keep the rest). */
-const foldRoomLog = (client: StarfishClient, enc: Encryptor | null, pullPath: string): Promise<StreamData> =>
-  pullAndFold(client, enc, pullPath).then((r) => r.data).catch(() => fanOut([]));
+// ── Space-level metadata coalescing (Tier 2) ─────────────────────────────────────
+// Concurrent sweeps (threads + pins + nav + digest) fire simultaneously on focus.
+// Without coalescing they each pull `_index` and `_access` separately — one extra HTTP
+// round-trip per sweep. In-flight coalescing collapses a burst of concurrent requests
+// for the same space into a single network call; sequential calls (different focus events)
+// each get fresh data.
+
+const _indexInflight = new Map<string, Promise<Room[]>>();
+const _accessInflight = new Map<string, Promise<{ owner: string | null }>>();
+
+/** Pull the space's object index and return its room list — coalesced per spaceId burst. */
+async function listSpaceRooms(client: StarfishClient, spaceId: string): Promise<Room[]> {
+  const pending = _indexInflight.get(spaceId);
+  if (pending) return pending;
+  const p = readIndexRooms(client, null, objIndexPull(spaceId), spaceId)
+    .then((r) => r?.rooms ?? [])
+    .finally(() => _indexInflight.delete(spaceId));
+  _indexInflight.set(spaceId, p);
+  return p;
+}
+
+/** Pull the space's access doc and return the owner — coalesced per spaceId burst. */
+async function getSpaceOwner(client: StarfishClient, spaceId: string, session: Session): Promise<{ owner: string | null }> {
+  const pending = _accessInflight.get(spaceId);
+  if (pending) return pending;
+  const p = readSpaceAccess(client, spaceId, session)
+    .then(({ owner }) => ({ owner: owner ?? null }))
+    .finally(() => _accessInflight.delete(spaceId));
+  _accessInflight.set(spaceId, p);
+  return p;
+}
+
+// Export so callers can expose it on `listSpaceRooms` for `space-stats.ts`.
+export { listSpaceRooms };
+
+/** Drop all in-flight space-level metadata — call on sign-out alongside resetFoldRoomCache. */
+export function resetSpaceLevelMetaCache(): void {
+  _indexInflight.clear();
+  _accessInflight.clear();
+}
 
 /** Soft-open a room's per-node access (enc rooms get a decryptor; plaintext → null;
- *  a never-opened room → fall back to the space client) and fold its whole log. */
-function foldRoom(
+ *  a never-opened room → fall back to the space client) and fold its log via the
+ *  cached warm-start path. */
+async function foldRoom(
   session: Session,
   spaceId: string,
   fallbackClient: StarfishClient,
   room: Room,
 ): Promise<StreamData> {
-  return buildNodeAccessShared(session, spaceId, room.id, { enc: room.enc })
-    .catch(() => null)
-    .then((access) => foldRoomLog(access?.client ?? fallbackClient, access?.encryptor ?? null, roomStreamPull(room, room.id)));
+  const access = await buildNodeAccessShared(session, spaceId, room.id, { enc: room.enc }).catch(() => null);
+  return foldRoomCached(
+    session.userId,
+    access?.client ?? fallbackClient,
+    access?.encryptor ?? null,
+    room.id,
+    roomStreamPull(room, room.id),
+  ).then((r) => r.data).catch(() => fanOut([]));
 }
 
-/** Open the space client, list its rooms (index is always plaintext — no encryptor),
- *  fold each room's log, and flat-map `collect` across them. The shared scaffold behind
- *  the cross-room sweeps; only the per-room projection differs. */
+/** Open the space client, list its rooms, fold each room's log via the cached path,
+ *  and flat-map `collect` across them. The shared scaffold behind the cross-room sweeps;
+ *  only the per-room projection differs. */
 async function forEachSpaceRoom<T>(
   session: Session,
   spaceId: string,
   collect: (room: Room, log: StreamData) => T[],
 ): Promise<T[]> {
   const client = getSpaceClient(spaceId, session);
-  const rooms = (await readIndexRooms(client, null, objIndexPull(spaceId), spaceId))?.rooms ?? [];
+  const rooms = await listSpaceRooms(client, spaceId);
   const out: T[] = [];
   for (const room of rooms) out.push(...collect(room, await foldRoom(session, spaceId, client, room)));
   return out;
@@ -107,7 +155,8 @@ export async function loadAllPins(session: Session, spaceId: string): Promise<Cr
   const client = getSpaceClient(spaceId, session);
 
   // `owner` (the only pin authority) lives in the `_access` registry.
-  const { owner } = await readSpaceAccess(client, spaceId, session);
+  // Coalesced so a simultaneous threads+pins+nav burst shares one `_access` read.
+  const { owner } = await getSpaceOwner(client, spaceId, session);
   if (!owner) return [];
 
   // Fold a room's folded log → its pinned messages (latest owner event per id wins, `pin` ⇒ included).
@@ -126,7 +175,7 @@ export async function loadAllPins(session: Session, spaceId: string): Promise<Cr
     }
   };
 
-  const rooms = (await readIndexRooms(client, null, objIndexPull(spaceId), spaceId))?.rooms ?? [];
+  const rooms = await listSpaceRooms(client, spaceId);
   for (const room of rooms) collect(room, await foldRoom(session, spaceId, client, room));
   return out.sort((a, b) => b.pinnedTs - a.pinnedTs).map(({ room, msg }) => ({ room, msg }));
 }
