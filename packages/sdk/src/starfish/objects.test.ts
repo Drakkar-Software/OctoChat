@@ -215,3 +215,4 @@ describe('channelNodeAccess helper', () => {
     expect(room?.access).toBe('public');
   });
 });
+
