@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
@@ -14,6 +14,7 @@ import { Divider } from '@/components/ui/Divider';
 import { Reveal } from '@/components/ui/Reveal';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { TextField } from '@/components/ui/TextField';
+import { Toggle } from '@/components/ui/Toggle';
 import { Txt } from '@/components/ui/Txt';
 
 const MODES: { key: IntakeMode; title: string; detail: string }[] = [
@@ -112,12 +113,11 @@ export function IntakeSettings({ spaceId }: { spaceId: string }) {
                 Messages are sealed with a per-ticket keyring — only you and the requester can read them.
               </Txt>
             </View>
-            <Switch
+            <Toggle
+              tone="desk"
               disabled={loading}
               value={config.enc ?? false}
               onValueChange={(v) => void save({ enc: v })}
-              trackColor={{ false: '#767577', true: colors.accentDesk }}
-              thumbColor="#ffffff"
             />
           </View>
 

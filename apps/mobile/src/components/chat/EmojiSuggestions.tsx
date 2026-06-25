@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     padding: spacing.xs,
     borderRadius: radii.md,
     borderWidth: 1,
-    gap: 2,
+    gap: spacing.hair,
   },
   item: {
     flexDirection: 'row',

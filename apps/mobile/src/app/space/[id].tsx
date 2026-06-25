@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { spacing } from '@/theme';
+import { layout, spacing } from '@/theme';
 import { webOrigin } from '@/lib/links';
 import { isDmSpaceId } from '@drakkar.software/octochat-sdk';
 import { useMutes } from '@/lib/mutes-context';
@@ -15,6 +15,8 @@ import { useSpaceStats } from '@/lib/use-space-stats';
 import { useTheme } from '@/lib/use-theme';
 import { AppBar } from '@/components/ui/AppBar';
 import { Avatar } from '@/components/ui/Avatar';
+import { PulseHalo } from '@/components/ui/PulseHalo';
+import { Reveal } from '@/components/ui/Reveal';
 import { EditableAvatar } from '@/components/ui/EditableAvatar';
 import { Button } from '@/components/ui/Button';
 import { Callout } from '@/components/ui/Callout';
@@ -33,6 +35,8 @@ import { SpaceMembersCard } from '@/components/chat/SpaceMembersCard';
 import { SpaceMeta } from '@/components/chat/SpaceMeta';
 import { SpaceStatsCard } from '@/components/chat/SpaceStatsCard';
 import { WebhookPanel } from '@/components/chat/WebhookPanel';
+
+const RING_SIZE = layout.heroAvatar * layout.heroRingScale;
 
 function copy(text: string) {
   try {
@@ -184,21 +188,23 @@ export default function SpaceScreen() {
               locations={[0, 0.55, 1]}
               style={StyleSheet.absoluteFill}
             />
-            {/* Subtle concentric ring — a "bioluminescent pulse" around the avatar */}
-            <View style={[styles.heroRing, { borderColor: colors.accentBorder }]} />
-            <View style={styles.heroAvatarWrap}>
-              <Avatar label={shortLabel} image={space?.image} size={80} ring />
-            </View>
-            <View style={styles.heroText}>
+            {/* Bioluminescent pulse halo rings behind the avatar */}
+            <PulseHalo size={RING_SIZE} color={colors.accent}>
+              <Avatar label={shortLabel} image={space?.image} size={layout.heroAvatar} ring />
+            </PulseHalo>
+            {/* Name + meta slide in just after the hero settles */}
+            <Reveal delay={120} style={styles.heroText}>
               <Txt variant="title" weight="bold" center numberOfLines={2}>
                 {name}
               </Txt>
               <SpaceMeta memberCount={memberCount} iconSize={13} variant="footnote" />
-            </View>
+            </Reveal>
             {/* Space ID — mono fingerprint beneath the name, intentionally subtle */}
-            <Txt variant="micro" mono tone="inkFaint" numberOfLines={1} style={styles.heroId}>
-              {spaceId}
-            </Txt>
+            <Reveal delay={200}>
+              <Txt variant="micro" mono tone="inkFaint" numberOfLines={1} style={styles.heroId}>
+                {spaceId}
+              </Txt>
+            </Reveal>
           </View>
 
           {/* ── Notifications ─────────────────────────────────────────────────── */}
@@ -428,7 +434,7 @@ export default function SpaceScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: spacing.screenX, paddingTop: spacing.screenX, paddingBottom: 96, gap: spacing.lg },
+  content: { paddingHorizontal: spacing.screenX, paddingTop: spacing.screenX, paddingBottom: layout.tabBarSafeBottom, gap: spacing.lg },
 
   // ── Hero ──────────────────────────────────────────────────────────────────
   // Negative margins offset the contentStyle padding so the hero bleeds
@@ -444,19 +450,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  // Concentric accent ring behind the avatar — decorative depth layer
-  heroRing: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    borderWidth: 1,
-    opacity: 0.35,
-    top: spacing.xl + spacing.lg - 30,
-  },
-  heroAvatarWrap: { zIndex: 1 },
   heroText: { alignItems: 'center', gap: spacing.xs },
-  heroId: { letterSpacing: 0.3, maxWidth: 280 },
+  heroId: { maxWidth: 280 },
 
   // ── Cards ─────────────────────────────────────────────────────────────────
   meta: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },

@@ -387,6 +387,8 @@ export const headingTracking = -0.4;
 /** 4px spacing scale + semantic aliases. */
 export const spacing = {
   none: 0,
+  /** Sub-scale hairline gap — for tight label-over-value pairs. Below the 4px grid. */
+  hair: 2,
   xs: 4,
   sm: 8,
   md: 12,
@@ -594,12 +596,26 @@ export const layout = {
   composerSendSize: 40,
   /** Max width of an EmptyState's copy column so subtitles wrap to a tidy block. */
   emptyStateMaxWidth: 320,
+  /** Min-height floor for an empty-state slot in a ScrollView so the centered
+   *  icon/title/action group is visible without scrolling. */
+  emptyStateFloor: 300,
   /** Diameter of the camera badge overlaid on an editable avatar. */
   avatarBadge: 24,
   /** Max width of an inline chat image attachment (aspect-preserved within it). */
   chatImageMaxWidth: 260,
   tabBarHeight: 64,
   headerMinHeight: 52,
+  /** Bottom clearance for scroll content that sits under the floating tab bar +
+   *  home-indicator — tabBarHeight (64) + spacing.xxl (32). Use instead of the
+   *  magic literal `96` so the value is adjustable in one place. */
+  tabBarSafeBottom: 96,
+  /** Diameter of a space/profile hero avatar. */
+  heroAvatar: 80,
+  /** Scale factor for the concentric "bioluminescent ring" behind the hero avatar.
+   *  Ring diameter = heroAvatar × heroRingScale; radius = half that. */
+  heroRingScale: 1.75,
+  /** Size of the OctoChat mark on the onboarding key-derivation screen. */
+  onboardingMark: 96,
   /** At/above this viewport width (web) the app switches to the desktop shell. */
   breakpointDesktop: 900,
   /** Vertical spaces rail at the left edge of the desktop shell. */

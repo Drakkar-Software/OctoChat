@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { layout, shadows, spacing } from '@/theme';
+import { getElevation, layout, spacing } from '@/theme';
 import { useInShell } from '@/lib/use-responsive';
 import { useTheme } from '@/lib/use-theme';
 
@@ -30,6 +30,7 @@ interface AppBarProps {
  */
 export function AppBar({ title, subtitle, onBack, left, right, elevated = false }: AppBarProps) {
   const { colors } = useTheme();
+  const elev = getElevation(colors);
   const inShell = useInShell();
   const leftNode =
     left ??
@@ -43,9 +44,10 @@ export function AppBar({ title, subtitle, onBack, left, right, elevated = false 
         styles.bar,
         inShell && styles.barShell,
         { backgroundColor: colors.paper, borderBottomColor: colors.lineSoft },
-        // borderTopColor renders nothing without a matching width — add both.
-        elevated && { borderTopWidth: 1, borderTopColor: colors.hairlineHi },
-        elevated && shadows.sm,
+        // Elevated variant: use e3 (lit top hairline + soft drop shadow).
+        // borderTopColor requires a matching width to render — the bar's borderTopWidth
+        // is conditionally applied here alongside the e3 shadow + hairline.
+        elevated && { borderTopWidth: 1, borderTopColor: elev.e3.topHairline, ...elev.e3.shadow },
       ]}
     >
       {/* On desktop the title hugs the start; on mobile both sides flex to center it. */}

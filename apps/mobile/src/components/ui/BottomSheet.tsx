@@ -1,9 +1,10 @@
-import { useEffect, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { type ReactNode } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { radii, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
+import { Overlay } from '@/components/ui/Overlay';
 import { Txt } from '@/components/ui/Txt';
 
 interface BottomSheetProps {
@@ -15,11 +16,12 @@ interface BottomSheetProps {
 }
 
 /**
- * Reusable bottom-sheet modal. Slides in from the bottom on native; instant
- * on web (RN Modal doesn't animate on web). Top corners use `radii.sheet`.
+ * Reusable bottom-sheet modal. Slides/springs in from the bottom on native with a
+ * web fade-in CSS transition via {@link Overlay}. Top corners use `radii.sheet`.
  * Safe-area bottom padding applied automatically.
  *
- * Dismissal: backdrop tap · Android back button · web Escape key.
+ * Dismissal: backdrop tap · Android back button · web Escape key (all handled
+ * by Overlay).
  *
  * Usage in a `renderContainer` render-prop (e.g. {@link SpaceSwitcher}):
  * ```tsx
@@ -34,38 +36,18 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
-  // Web: close on Escape key (Modal has no built-in Escape on web).
-  useEffect(() => {
-    if (!visible || Platform.OS !== 'web') return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [visible, onClose]);
-
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      {/* KAV must live inside the Modal so it can respond to the keyboard that
-          appears over this modal's layer. On iOS it adds bottom padding equal to
-          the keyboard height; on Android the OS handles adjustResize instead. */}
+    <Overlay visible={visible} onClose={onClose} placement="bottom">
+      {/* KAV must live inside the Modal (via Overlay) so it can respond to the
+          keyboard that appears over this modal's layer. On iOS it adds bottom
+          padding equal to the keyboard height; on Android the OS handles
+          adjustResize instead. */}
       <KeyboardAvoidingView
         style={styles.avoid}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* absoluteFill scrim doubles as the tap-to-dismiss backdrop. */}
-        <Pressable
-          style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim }]}
-          onPress={onClose}
-          accessibilityLabel="Dismiss"
-        />
-        {/* Inner Pressable swallows taps so they don't fall through to the backdrop. */}
+        {/* Inner Pressable swallows taps so they don't fall through to the
+            Overlay backdrop — Overlay itself handles backdrop dismiss. */}
         <Pressable
           style={[
             styles.sheet,
@@ -89,14 +71,15 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
           </ScrollView>
         </Pressable>
       </KeyboardAvoidingView>
-    </Modal>
+    </Overlay>
   );
 }
 
 const styles = StyleSheet.create({
   avoid: {
-    flex: 1,
-    justifyContent: 'flex-end',
+    // Lay out KAV content from the bottom upward so the sheet sticks to the
+    // bottom edge (the Overlay container is already flex-end).
+    flexShrink: 1,
   },
   sheet: {
     maxHeight: '85%',

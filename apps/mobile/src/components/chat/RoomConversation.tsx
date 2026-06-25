@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
+
+import { layout } from '@/theme';
 import { LegendList, type LegendListRef } from '@legendapp/list/react-native';
 
 import { authorFor, dayLabel, isContinuation, mergePendingMessages, resolvePinned, sameDay, toDisplayMessage } from '@drakkar.software/octochat-sdk';
@@ -201,5 +203,5 @@ export function RoomConversation({
 const styles = StyleSheet.create({
   list: { flex: 1 },
   // Give the (otherwise zero-height) empty slot room so the haloed state centers.
-  empty: { flexGrow: 1, minHeight: 320, justifyContent: 'center' },
+  empty: { flexGrow: 1, minHeight: layout.emptyStateFloor, justifyContent: 'center' },
 });

@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
     left: 0,
     marginTop: spacing.xs,
     maxWidth: 240,
-    gap: 2,
+    gap: spacing.hair,
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
     borderRadius: radii.md,

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { StyleSheet, View } from 'react-native';
 
-import { paperBorder, radii, shadows, spacing } from '@/theme';
+import { getElevation, radii, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
 
 import { Txt } from './Txt';
@@ -29,22 +29,53 @@ interface CardProps {
  *  the defaults reproduce the original raised paper card exactly. */
 export function Card({ title, children, padded = true, tone = 'paper', elevation = 'sm', style }: CardProps) {
   const { colors } = useTheme();
+  const elev = getElevation(colors);
 
-  const surface =
-    tone === 'inset'
-      ? { backgroundColor: colors.paperAlt, borderColor: colors.lineFaint }
-      : tone === 'accent'
-        ? paperBorder(colors, colors.accentBorder)
-        : paperBorder(colors);
+  // Resolve surface/border/topHairline/shadow from the elevation scale.
+  // inset → e1 (recessed well, no shadow, no top hairline)
+  // paper → e2 at rest; e3 for elevation="sm"; e4 for elevation="md"/"lg"
+  // accent → same paper surface tier but with accent border + strong top hairline
+  let surfaceStyle: {
+    backgroundColor: string;
+    borderColor: string;
+    borderTopColor: string;
+  };
+  let shadowStyle: object;
+
+  if (tone === 'inset') {
+    surfaceStyle = {
+      backgroundColor: elev.e1.surface,
+      borderColor: elev.e1.border,
+      borderTopColor: elev.e1.topHairline,
+    };
+    shadowStyle = elev.e1.shadow;
+  } else if (tone === 'accent') {
+    // Accent cards use accentBg surface + accent border, same shadow tier as paper.
+    const tier = elevation === 'none' ? elev.e2 : elevation === 'sm' ? elev.e3 : elev.e4;
+    surfaceStyle = {
+      backgroundColor: colors.accentBg,
+      borderColor: colors.accentBorder,
+      borderTopColor: colors.hairlineHi,
+    };
+    shadowStyle = tier.shadow;
+  } else {
+    // paper: resting = e2 (no shadow), sm = e3, md/lg = e4
+    const tier = elevation === 'none' ? elev.e2 : elevation === 'sm' ? elev.e3 : elev.e4;
+    surfaceStyle = {
+      backgroundColor: tier.surface,
+      borderColor: tier.border,
+      borderTopColor: tier.topHairline,
+    };
+    shadowStyle = tier.shadow;
+  }
 
   return (
     <View
       style={[
         styles.card,
-        surface,
+        surfaceStyle,
+        shadowStyle,
         padded && styles.padded,
-        // Recessed wells don't float; everything else uses the elevation ramp.
-        tone === 'inset' ? shadows.none : shadows[elevation],
         style,
       ]}
     >

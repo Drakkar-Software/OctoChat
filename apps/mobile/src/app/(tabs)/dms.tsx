@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
-import { spacing } from '@/theme';
+import { layout, spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
 import { useDms, type DmEntry } from '@/lib/use-dms';
 import { AppBar } from '@/components/ui/AppBar';
@@ -47,6 +47,6 @@ export default function DmsScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: 96 },
-  dmHome: { minHeight: 320 },
+  content: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: layout.tabBarSafeBottom },
+  dmHome: { minHeight: layout.emptyStateFloor },
 });

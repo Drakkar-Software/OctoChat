@@ -4,7 +4,7 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, TextInp
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 
-import { fonts, glowShadow, layout, motion, radii, spacing, type as typeScale } from '@/theme';
+import { fonts, getElevation, glowShadow, layout, motion, radii, spacing, type as typeScale } from '@/theme';
 import { submitOnEnter } from '@/lib/composer-keys';
 import { useDraft } from '@/lib/use-draft';
 import { formatBytes } from '@drakkar.software/octochat-sdk';
@@ -50,6 +50,7 @@ export type { ReplySuggestionContext };
 /** Message input bar — attach a file, insert an emoji, and send. */
 export function Composer({ placeholder, onSend, onEditLast, draftKey, offline, suggestionContext }: ComposerProps) {
   const { colors } = useTheme();
+  const e2 = getElevation(colors).e2;
   const { text, setText, clearDraft } = useDraft(draftKey);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [pending, setPending] = useState<PickedFile | null>(null);
@@ -119,7 +120,7 @@ export function Composer({ placeholder, onSend, onEditLast, draftKey, offline, s
   };
 
   return (
-    <View style={[styles.wrap, { backgroundColor: colors.paper, borderTopColor: colors.lineSoft }]}>
+    <View style={[styles.wrap, { backgroundColor: e2.surface, borderTopColor: e2.border }]}>
       {emoji.open ? (
         <EmojiSuggestions
           suggestions={emoji.suggestions}

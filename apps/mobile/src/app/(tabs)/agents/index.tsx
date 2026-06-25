@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { Platform, StyleSheet } from 'react-native';
 
-import { spacing } from '@/theme';
+import { layout, spacing } from '@/theme';
 import { isDmHomeId } from '@/lib/dm-home';
 import { useSession } from '@/lib/session-context';
 import { useRooms } from '@/lib/use-rooms';
@@ -66,5 +66,5 @@ export default function AgentsScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: 96 },
+  content: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: layout.tabBarSafeBottom },
 });

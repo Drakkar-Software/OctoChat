@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: spacing.hair,
     paddingHorizontal: 3,
     paddingVertical: 1,
     borderRadius: radii.md,

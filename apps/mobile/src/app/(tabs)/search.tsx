@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 import { LegendList } from '@legendapp/list/react-native';
 
-import { spacing } from '@/theme';
+import { layout, spacing } from '@/theme';
 import type { CrossRoomMessage, PublicSpaceEntry } from '@drakkar.software/octochat-sdk';
 import { useExploreSpaces } from '@/lib/use-explore-spaces';
 import { useSearch } from '@/lib/use-search';
@@ -168,7 +168,7 @@ const Separator = () => <View style={styles.gap} />;
 const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.screenX, paddingTop: spacing.md, gap: spacing.md },
   flex: { flex: 1 },
-  list: { paddingBottom: 96 },
+  list: { paddingBottom: layout.tabBarSafeBottom },
   gap: { height: spacing.sm },
   inviteCard: { gap: spacing.sm },
   skeletons: { gap: spacing.sm },

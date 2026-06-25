@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 import { LegendList } from '@legendapp/list/react-native';
 
-import { spacing } from '@/theme';
+import { layout, spacing } from '@/theme';
 import type { CrossRoomThread } from '@drakkar.software/octochat-sdk';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { MessageListSkeleton } from '@/components/chat/MessageListSkeleton';
@@ -55,6 +55,6 @@ const Separator = () => <View style={styles.gap} />;
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  list: { paddingBottom: 96 },
+  list: { paddingBottom: layout.tabBarSafeBottom },
   gap: { height: spacing.sm },
 });

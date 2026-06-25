@@ -18,9 +18,9 @@ function SkeletonRow({ lines, lead = true }: { lines: number[]; lead?: boolean }
         <View style={styles.gutter} />
       )}
       <View style={styles.body}>
-        {lead ? <Skeleton width={92} height={9} /> : null}
+        {lead ? <Skeleton width={92} height={9} shimmer /> : null}
         {lines.map((w, i) => (
-          <Skeleton key={i} width={`${w}%`} height={11} />
+          <Skeleton key={i} width={`${w}%`} height={11} shimmer />
         ))}
       </View>
     </View>

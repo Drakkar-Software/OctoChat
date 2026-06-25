@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Image, Linking, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Animated, Linking, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 
@@ -119,6 +120,7 @@ export function LandingPage() {
             />
             <Image
               source={require('../../assets/images/logo-512.png')}
+              contentFit="contain"
               style={[
                 styles.logoImage,
                 { width: desktop ? 160 : 120, height: desktop ? 160 : 120, borderRadius: desktop ? 40 : 30 },
@@ -276,6 +278,7 @@ export function LandingPage() {
         >
           <Image
             source={require('../../assets/images/logo-512.png')}
+            contentFit="contain"
             style={[styles.logoImage, { width: 56, height: 56, borderRadius: 14 }]}
           />
           <Txt variant="display" weight="bold" color={colors.ink} center>
@@ -304,6 +307,7 @@ export function LandingPage() {
           <View style={styles.footerBrand}>
             <Image
               source={require('../../assets/images/logo-512.png')}
+              contentFit="contain"
               style={styles.footerLogo}
             />
             <Txt variant="callout" weight="semibold" color={colors.inkSoft}>
@@ -432,7 +436,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
   },
 
-  logoImage: { resizeMode: 'contain' },
+  logoImage: {},
 
   // ── Features ─────────────────────────────────────────────────────
   featuresSection: {
@@ -557,7 +561,6 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 6,
-    resizeMode: 'contain',
   },
   footerLinks: {
     flexDirection: 'row',

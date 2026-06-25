@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import type { Room } from '@drakkar.software/octochat-sdk';
-import { spacing } from '@/theme';
+import { layout, spacing } from '@/theme';
 import { useRoomsRegistryActions } from '@/lib/rooms-registry-context';
 import { useRooms } from '@/lib/use-rooms';
 import { useSession } from '@/lib/session-context';
@@ -115,7 +115,7 @@ export function AutomationsView({ spaceId, header, inTabs = false }: Automations
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: 96 },
+  content: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: layout.tabBarSafeBottom },
   list: { gap: spacing.xs },
   cta: { alignSelf: 'center' },
   createBar: { marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1 },

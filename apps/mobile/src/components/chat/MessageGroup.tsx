@@ -108,15 +108,15 @@ function ThreadReplyChip({ count, onPress }: { count: number; onPress: () => voi
           // Borderless on rest, accent-tinted background on hover — more integrated,
           // less like a standalone chip. Accent border only when hovered.
           borderColor: hovered ? colors.accentBorder : 'transparent',
-          backgroundColor: hovered ? colors.accentBg : colors.accentBg,
+          backgroundColor: hovered ? colors.accentBg : 'transparent',
         },
       ]}
     >
       <Icon name="thread" size={12} color={colors.accentInk} />
-      <Txt variant="footnote" weight="semibold" color={colors.accentInk}>
+      <Txt variant="footnote" weight="semibold" color={colors.accentInk} tabularNums>
         {plural(count, 'reply', 'replies')}
       </Txt>
-      <Icon name="chev" size={11} color={hovered ? colors.accentInk : colors.accentInk} />
+      <Icon name="chev" size={11} color={hovered ? colors.accentStrong : colors.accentInk} />
     </Pressable>
   );
 }

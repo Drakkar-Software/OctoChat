@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Platform, View, type ViewProps, type ViewStyle } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 
 interface FadeViewProps extends ViewProps {
   /** Target visibility; opacity animates to 1 when true, 0 when false. */
@@ -18,13 +18,14 @@ interface FadeViewProps extends ViewProps {
  * real CSS transitions; reanimated runs its worklet off-thread on native.
  */
 function WebFadeView({ visible, duration, delay = 0, style, ...rest }: FadeViewProps) {
+  const reduced = useReducedMotion();
   // RN's ViewStyle type omits the web-only transition props that RNW reads.
   const transition = {
     opacity: visible ? 1 : 0,
-    transitionProperty: 'opacity',
-    transitionDuration: `${duration}ms`,
-    transitionDelay: `${delay}ms`,
-    transitionTimingFunction: 'ease',
+    transitionProperty: reduced ? undefined : 'opacity',
+    transitionDuration: reduced ? undefined : `${duration}ms`,
+    transitionDelay: reduced ? undefined : `${delay}ms`,
+    transitionTimingFunction: reduced ? undefined : 'ease',
   } as unknown as ViewStyle;
   return <View {...rest} style={[style, transition]} />;
 }

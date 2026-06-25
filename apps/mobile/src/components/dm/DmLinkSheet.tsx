@@ -1,4 +1,5 @@
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Overlay } from '@/components/ui/Overlay';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { glowShadow, radii, shadows, spacing } from '@/theme';
@@ -40,10 +41,9 @@ export function DmLinkSheet({ visible, onClose }: DmLinkSheetProps) {
   const initials = name.slice(0, 2).toUpperCase();
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable style={[styles.backdrop, { backgroundColor: colors.scrim }]} onPress={onClose} accessibilityLabel="Dismiss">
-        {/* Inner press swallows taps so they don't fall through to the backdrop. */}
-        <Pressable style={[styles.card, { backgroundColor: colors.paper, borderColor: colors.accentBorder }, shadows.lg]} onPress={() => undefined}>
+    <Overlay visible={visible} onClose={onClose} placement="center" dismissLabel="Dismiss">
+      {/* Inner press swallows taps so they don't fall through to the scrim. */}
+      <Pressable style={[styles.card, { backgroundColor: colors.paper, borderColor: colors.accentBorder }, shadows.lg]} onPress={() => undefined}>
           {/* A faint depth band gives the card subaquatic atmosphere behind the identity. */}
           <LinearGradient colors={[colors.depthTop, colors.paper]} style={[StyleSheet.absoluteFill, styles.fill]} />
 
@@ -106,18 +106,17 @@ export function DmLinkSheet({ visible, onClose }: DmLinkSheetProps) {
               </Txt>
             )}
           </ScrollView>
-        </Pressable>
       </Pressable>
-    </Modal>
+    </Overlay>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   card: {
     width: '100%',
     maxWidth: 360,
     maxHeight: '90%',
+    marginHorizontal: spacing.xl,
     borderRadius: radii.sheet,
     borderWidth: 1,
     paddingHorizontal: spacing.xl,

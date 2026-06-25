@@ -12,6 +12,10 @@ export interface TxtProps extends TextProps {
   weight?: Weight;
   /** Use JetBrains Mono (keys, fingerprints, timestamps, labels). */
   mono?: boolean;
+  /** Apply `fontVariant: ['tabular-nums']` — prevents layout shift as counts/stats
+   *  tick up. Use on all proportional (non-mono) numeric displays: badges, stats,
+   *  reaction counts, member counts. Mono text is already fixed-width; skip it there. */
+  tabularNums?: boolean;
   /** Explicit color (wins over `tone`). */
   color?: string;
   /** Palette token to color the text (e.g. "inkMuted", "accent"). */
@@ -48,6 +52,7 @@ export function Txt({
   variant = 'body',
   weight = 'regular',
   mono = false,
+  tabularNums = false,
   color,
   tone,
   uppercase = false,
@@ -77,6 +82,7 @@ export function Txt({
                 : 0,
           textTransform: uppercase ? 'uppercase' : 'none',
           textAlign: center ? 'center' : 'left',
+          fontVariant: tabularNums ? ['tabular-nums'] : undefined,
         },
         style,
       ]}

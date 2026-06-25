@@ -4,15 +4,15 @@ import { Redirect, router } from 'expo-router';
 import Animated, {
   Easing,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withRepeat,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Image } from 'expo-image';
 
-import { motion, radii, spacing } from '@/theme';
+import { layout, motion, radii, spacing } from '@/theme';
 import { useSession } from '@/lib/session-context';
 import { useArgon2Progress } from '@/lib/use-argon2-progress';
 import { useTheme } from '@/lib/use-theme';
@@ -21,8 +21,7 @@ import type { IconName } from '@/components/ui/Icon';
 import { Txt } from '@/components/ui/Txt';
 import { Callout } from '@/components/ui/Callout';
 import { Button } from '@/components/ui/Button';
-
-const LOGO = require('../../../assets/images/logo.png') as number;
+import { HeroMark } from '@/components/brand/HeroMark';
 
 const TIPS: { icon: IconName; title: string; body: string }[] = [
   {
@@ -68,45 +67,48 @@ export default function CreatingScreen() {
   const { signIn, pendingSeed } = useSession();
   const argon2 = useArgon2Progress();
   const { colors } = useTheme();
+  const reducedMotion = useReducedMotion();
   const [tipIndex, setTipIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const calledRef = useRef(false);
 
   // Animated values
   const tipOpacity = useSharedValue(1);
-  const octopusScale = useSharedValue(1);
   // 0→1 progress fraction animated via scaleX (GPU-composited, no layout recalc per frame).
   const progressFraction = useSharedValue(0);
 
-  // Tip rotation: fade out → swap → fade in
+  // Tip rotation: fade out → swap → fade in.
+  // Reduced motion: swap instantly (no withTiming cross-fade).
   useEffect(() => {
     const id = setInterval(() => {
-      tipOpacity.set(withSequence(
-        withTiming(0, { duration: 300, easing: Easing.out(Easing.ease) }),
-        withTiming(1, { duration: 400, easing: Easing.in(Easing.ease) }),
-      ));
-      setTimeout(() => setTipIndex((i) => (i + 1) % TIPS.length), 300);
+      if (reducedMotion) {
+        tipOpacity.value = 0;
+        setTimeout(() => {
+          setTipIndex((i) => (i + 1) % TIPS.length);
+          tipOpacity.value = 1;
+        }, 0);
+      } else {
+        tipOpacity.set(withSequence(
+          withTiming(0, { duration: 300, easing: Easing.out(Easing.ease) }),
+          withTiming(1, { duration: 400, easing: Easing.in(Easing.ease) }),
+        ));
+        setTimeout(() => setTipIndex((i) => (i + 1) % TIPS.length), 300);
+      }
     }, TIP_DURATION);
     return () => clearInterval(id);
-  }, [tipOpacity]);
+  }, [tipOpacity, reducedMotion]);
 
-  // Octopus ambient pulse
-  useEffect(() => {
-    octopusScale.set(withRepeat(
-      withSequence(
-        withTiming(1.1, { duration: motion.pulse / 2, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1, { duration: motion.pulse / 2, easing: Easing.inOut(Easing.ease) }),
-      ),
-      -1,
-    ));
-  }, [octopusScale]);
-
-  // Progress fraction (0→1) drives scaleX — no layout recalc per frame
+  // Progress fraction (0→1) drives scaleX — no layout recalc per frame.
+  // Reduced motion: jump directly to the target value (duration: 0).
   useEffect(() => {
     if (argon2 != null) {
-      progressFraction.set(withTiming(argon2, { duration: 500 }));
+      progressFraction.set(
+        reducedMotion
+          ? withTiming(argon2, { duration: 0 })
+          : withTiming(argon2, { duration: 500 }),
+      );
     }
-  }, [argon2, progressFraction]);
+  }, [argon2, progressFraction, reducedMotion]);
 
   // Trigger signIn exactly once on mount
   useEffect(() => {
@@ -118,9 +120,6 @@ export default function CreatingScreen() {
   }, [signIn, pendingSeed]);
 
   const tipStyle = useAnimatedStyle(() => ({ opacity: tipOpacity.get() }));
-  const octopusStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: octopusScale.get() }],
-  }));
   // scaleX on a full-width bar is GPU-composited; transformOrigin: 'left' anchors the
   // scale to the leading edge so the bar grows left→right.
   const barStyle = useAnimatedStyle(() => ({
@@ -141,9 +140,7 @@ export default function CreatingScreen() {
     >
       {/* Hero */}
       <View style={styles.hero}>
-        <Animated.View style={octopusStyle}>
-          <Image source={LOGO} style={{ width: 96, height: 96 }} contentFit="contain" />
-        </Animated.View>
+        <HeroMark size={layout.onboardingMark} />
         <Txt variant="display" weight="bold" style={styles.centered}>
           Creating your identity
         </Txt>

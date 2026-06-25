@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 
-import { spacing } from '@/theme';
+import { layout, spacing } from '@/theme';
 import { useOnline } from '@/lib/connectivity';
 import { isDmHomeId } from '@/lib/dm-home';
 import { useInShell } from '@/lib/use-responsive';
@@ -215,15 +215,15 @@ export default function RoomsScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: 96 },
-  dmHome: { minHeight: 320 },
+  content: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: layout.tabBarSafeBottom },
+  dmHome: { minHeight: layout.emptyStateFloor },
   // EmptyState is flex:1, which collapses inside a ScrollView — minHeight gives it a
   // floor so the centered icon/title/action group is visible without scrolling.
-  emptyFloor: { minHeight: 260 },
+  emptyFloor: { minHeight: layout.emptyStateFloor },
   navDivider: { marginVertical: spacing.xs, marginHorizontal: spacing.xs },
   // Desktop shell home pane — a real launch pad, not a "Select a room" dead end.
   shellHome: { padding: spacing.lg, gap: spacing.md },
-  shellHeader: { gap: 2, marginBottom: spacing.xs },
+  shellHeader: { gap: spacing.hair, marginBottom: spacing.xs },
   shellDivider: { marginVertical: spacing.xs },
   shellHint: { textAlign: 'center', paddingVertical: spacing.md },
 });

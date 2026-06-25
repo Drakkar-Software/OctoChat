@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { spacing } from '@/theme';
+import { layout, spacing } from '@/theme';
 import { useProfile } from '@/lib/profile-context';
 import { useInShell } from '@/lib/use-responsive';
 import { useSession } from '@/lib/session-context';
@@ -171,7 +171,7 @@ export default function YouScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: spacing.screenX, gap: spacing.lg, paddingBottom: 96 },
-  field: { gap: 3 },
+  content: { padding: spacing.screenX, gap: spacing.lg, paddingBottom: layout.tabBarSafeBottom },
+  field: { gap: spacing.hair },
   divider: { marginVertical: spacing.xs },
 });

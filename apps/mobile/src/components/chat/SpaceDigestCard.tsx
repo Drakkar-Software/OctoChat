@@ -77,7 +77,7 @@ export function SpaceDigestCard({ spaceId }: SpaceDigestCardProps) {
       </View>
       {status === 'idle' ? (
         <View style={styles.prompt}>
-          <Txt variant="subhead" weight="semibold">
+          <Txt variant="subhead" weight="semibold" tabularNums>
             {unreadCount} unread{unreadCount === 1 ? ' message' : ' messages'}
           </Txt>
           <Txt variant="footnote" tone="inkMuted" style={styles.promptDetail}>
