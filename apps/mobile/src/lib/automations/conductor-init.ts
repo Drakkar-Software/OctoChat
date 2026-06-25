@@ -21,6 +21,7 @@ import type { Recurrence, TaskDefinition, TaskExecutionContext, Trigger } from '
 
 import {
   activeAccountOf,
+  batchPullManySpaceData,
   effectiveSchedule,
   getSpaceClient,
   hydrateSpaceAccessStore,
@@ -206,34 +207,23 @@ async function reconcile(session: Session): Promise<void> {
   const desired = new Map<string, TaskDefinition>();
   try {
     const { spaces } = await readSpaces(session.spacesRegistryClient, session);
-    // DM spaces never host automations — exclude them so reconcile doesn't read
-    // one objindex per DM at cold load (pure waste; DMs can't have scheduled rooms).
-    // Parallelise per-space room reads with a bounded concurrency pool to avoid
-    // an N-wide burst of objindex pulls that could trip the server's 429 limit.
-    // JS is single-threaded so concurrent Map writes are safe across await points.
-    const CONCURRENCY = 5;
-    const queue = spaces.filter((s) => !isDmSpaceId(s.id));
-    const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
-      while (queue.length > 0) {
-        const space = queue.shift()!;
-        try {
-          // Public OR owned-private; a private space this device can't open reads as no rooms,
-          // and the `runOnDeviceId` election below keeps non-owner devices from scheduling.
-          const rooms = await readSpaceRooms(session, space.id);
-          for (const room of rooms) {
-            const a = room.automation;
-            if (!a || !a.enabled) continue;
-            if (a.runOnDeviceId !== session.keys.edPub) continue; // only the elected runner schedules
-            const def = taskDefFor(space.id, room.id, a);
-            if (def) desired.set(def.id, def);
-          }
-        } catch (e) {
-          // One unreachable/unauthorized space must not abort the reconcile for the others.
-          console.error('[automations] sync: space read failed', space.id, e);
-        }
+    // DM spaces never host automations. For the rest, batch ALL object-index reads into ONE
+    // /batch/pull (collections=spaceregistry,objindex) instead of one objindex GET per space —
+    // the same plaintext member-gated objindex the rooms-registry prefetch already batches via
+    // the device account cap. batchPullManySpaceData rethrows 429 (caught below → leave tasks
+    // untouched) and degrades gracefully to per-space pulls on non-429 / no-batch-support servers.
+    const spaceIds = spaces.filter((s) => !isDmSpaceId(s.id)).map((s) => s.id);
+    const batch = await batchPullManySpaceData(session, spaceIds);
+    for (const spaceId of spaceIds) {
+      const rooms = (batch.get(spaceId)?.index?.rooms ?? []) as Room[];
+      for (const room of rooms) {
+        const a = room.automation;
+        if (!a || !a.enabled) continue;
+        if (a.runOnDeviceId !== session.keys.edPub) continue; // only the elected runner schedules
+        const def = taskDefFor(spaceId, room.id, a);
+        if (def) desired.set(def.id, def);
       }
-    });
-    await Promise.all(workers);
+    }
   } catch (e) {
     console.error('[automations] sync: spaces read failed', e);
     return; // can't compute the desired set — leave existing tasks untouched

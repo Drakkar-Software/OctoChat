@@ -141,4 +141,14 @@ describe('healDmRosters — repair existing DM rosters', () => {
     expect(pullSpy).not.toHaveBeenCalled(); // batch satisfied the read — no individual pull
     expect(client.store.get('dm-1')!.hash).toBe(before); // no write either
   });
+
+  it('repairs a missing peer via a direct write — issues NO individual _access read', async () => {
+    // Peer MISSING from the roster — the direct writeSpaceAccess (using the hash from the
+    // batch read) must repair the roster without calling client.pull at all.
+    const client = fakeAccessClient({ 'dm-1': { owner: 'me', members: [] } });
+    const pullSpy = vi.spyOn(client, 'pull');
+    await healDmRosters(sessionWith(client), { 'peer-1': 'dm-1' });
+    expect(pullSpy).not.toHaveBeenCalled(); // batch read + direct CAS write — zero _access GETs
+    expect(client.store.get('dm-1')!.data.members).toEqual(['peer-1']); // still healed
+  });
 });

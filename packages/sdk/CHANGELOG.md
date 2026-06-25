@@ -1,5 +1,26 @@
 # Changelog — @drakkar.software/octochat-sdk
 
+## 0.7.1 (2026-06-25)
+
+### Fixed
+
+- **`healDmRosters` per-DM `_access` GET on the repair path** (`starfish/dm.ts`) — `healDmRosters`
+  0.7.0 correctly batch-read rosters up front, but for any DM needing repair it called
+  `addSpaceMember`, which internally reads `_access` again (read-modify-write). The batch snapshot
+  `{ owner, members, name, image, hash }` already holds every value `addSpaceMember` would re-read,
+  so the repair now issues a **direct `writeSpaceAccess` CAS write** — byte-identical to the old
+  write, zero individual `_access` GETs. A DM the batch can't read is silently skipped (retried
+  next refresh) rather than falling through to a per-DM read.
+
+- **Conductor reconcile per-`sp-`-space `objects/_index` fan-out** (`apps/mobile/src/lib/automations/conductor-init.ts`)
+  — the automation-task reconciler's 5-worker pool issued one individual `objects/_index` read per
+  joined `sp-` space via `getSpaceClient` + `readIndexRooms`. Replaced with a single
+  `batchPullManySpaceData` call over all non-DM space ids — the same plaintext, member-gated
+  `objindex` the `RoomsRegistryProvider` prefetch already batches — collapsing N per-space reads
+  into one (or a few) `/batch/pull?collections=spaceregistry,objindex` requests. On 429 the
+  existing `try/catch` leaves tasks untouched; on non-429 / no-batch-support servers the helper
+  degrades to per-space pulls internally.
+
 ## 0.7.0 (2026-06-25)
 
 ### Fixed

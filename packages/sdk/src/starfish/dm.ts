@@ -26,7 +26,7 @@ import type { PeerKeys } from './dm-keys';
 import { ownerTrustedAdders, type Session } from './identity';
 import { DEFAULT_CATEGORY } from './objects';
 import { pushIndexSeed } from './object-index';
-import { addJoinedSpace, addSpaceMember, readSpaceAccess, readSpaces, setDmMapping, writeSpaceAccess } from './registry';
+import { addJoinedSpace, readSpaces, setDmMapping, writeSpaceAccess } from './registry';
 import { batchPullManySpaceAccess } from './batch-space';
 
 // Re-export the pure id/dedup helpers so existing importers can keep reaching for them
@@ -195,19 +195,25 @@ export async function healDmMap(session: Session, rawSpaces: Space[], dmMap: DmM
 export async function healDmRosters(session: Session, dms: DmMap): Promise<void> {
   const entries = Object.entries(dms).filter(([, spaceId]) => isDmSpaceId(spaceId));
   if (entries.length === 0) return;
-  // Batch-read every DM roster up front. New DMs seed the peer at creation, so the common
-  // case is "already correct" — this collapses N read-modify-writes into ONE _access read.
-  // Only DMs we own whose peer is genuinely missing (or whose roster we couldn't read) fall
-  // through to the per-DM addSpaceMember repair below.
+  // ONE batched _access read for every DM roster. The snapshot carries {owner,members,name,
+  // image,hash} — everything addSpaceMember's internal read would fetch — so we repair with a
+  // DIRECT CAS write and issue ZERO individual `_access` GETs (the old addSpaceMember RMW did
+  // one read per repaired DM). A DM the batch can't read is SKIPPED (best-effort, retried next
+  // refresh) rather than fanned out to an individual read — new DMs seed the peer at creation,
+  // so the unhealed set is bounded/legacy.
   const rosters = await batchPullManySpaceAccess(session, entries.map(([, id]) => id)).catch(() => new Map());
   for (const [peerUserId, spaceId] of entries) {
     const roster = rosters.get(spaceId);
-    if (roster) {
-      if (roster.owner !== session.userId) continue;     // peer-owned → their pass repairs it
-      if (roster.members.includes(peerUserId)) continue;  // peer already in roster → nothing to do
-    }
-    // No roster entry (unreadable) OR peer missing from a DM we own → repair (RMW write).
-    await addSpaceMember(session.contentClient, spaceId, session.userId, peerUserId, session).catch(() => {});
+    if (!roster) continue;                                // unreadable in the batch — skip (no individual read)
+    if (roster.owner !== session.userId) continue;        // peer-owned → their pass repairs it
+    if (roster.members.includes(peerUserId)) continue;    // peer already in roster → nothing to do
+    // Owned DM, peer missing → add the peer with a direct write (byte-identical to what
+    // addSpaceMember would write, minus the read).
+    await writeSpaceAccess(
+      session.contentClient, spaceId, session.userId,
+      [...roster.members, peerUserId], roster.hash, session,
+      { name: roster.name ?? undefined, image: roster.image ?? undefined },
+    ).catch(() => {});
   }
 }
 
