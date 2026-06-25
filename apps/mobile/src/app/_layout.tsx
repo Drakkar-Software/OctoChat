@@ -28,7 +28,7 @@ import { ViewModeProvider } from '@/lib/view-mode';
 import { BrandProvider } from '@/lib/brand-context';
 
 import { useEffect, useMemo } from 'react';
-import { InteractionManager, useColorScheme } from 'react-native';
+import { AppState, InteractionManager, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -51,9 +51,20 @@ initOctoChat();
 // Register the PWA service worker (web production only; no-op elsewhere).
 registerServiceWorker();
 
-// Register the FCM background-message handler (native only; no-op on web). Must
-// run at module scope so it's installed before the first push arrives.
-registerBackgroundPushHandler();
+// Register the FCM background-message handler (native only; no-op on web). RN-Firebase
+// requires setBackgroundMessageHandler to be registered before a background message is
+// processed — but that's only relevant on a headless/background wake, not a foreground
+// launch. Gate on AppState so we don't load the Firebase+notifee+expo-notifications+SDK
+// decryption graph during foreground boot-eval (inlineRequires cannot defer a module-
+// scope call, and this call is the first reference to @/lib/push/fcm).
+//   - foreground launch  (active)    → defer past first paint; handler installed before
+//                                       the app can ever be backgrounded.
+//   - headless/bg wake  (non-active) → register immediately (the requirement).
+if (AppState.currentState === 'active') {
+  InteractionManager.runAfterInteractions(() => registerBackgroundPushHandler());
+} else {
+  registerBackgroundPushHandler();
+}
 
 // Create the high-importance "Messages" Android channel (no-op on iOS/web). The
 // channel must exist before a push RENDERS — not before first paint — and the

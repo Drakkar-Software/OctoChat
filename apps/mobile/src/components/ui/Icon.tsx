@@ -1,10 +1,12 @@
 // Deep per-set imports avoid evaluating all three icon-set barrel files (glyph
 // maps + font loaders) in a single require() at cold start. Each set is still
 // bundled, but module evaluation is deferred until Icon.tsx is first required.
+// MCI and Ionicons use subset TTFs (~1.4 KB + ~1.6 KB) via icon-fonts.ts instead
+// of the full families (1.31 MB + 390 KB) — glyphs are pixel-identical.
 import Feather from '@expo/vector-icons/Feather';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentType } from 'react';
+
+import { MciSubset, IoniconsSubset } from '@/lib/icon-fonts';
 
 import { useTheme } from '@/lib/use-theme';
 
@@ -34,14 +36,14 @@ const ICONS = {
   reply: { lib: Feather, n: 'corner-up-left' },
   thread: { lib: Feather, n: 'git-pull-request' },
   dm: { lib: Feather, n: 'message-square' },
-  pin: { lib: MaterialCommunityIcons, n: 'pin' },
+  pin: { lib: MciSubset, n: 'pin' },
   mic: { lib: Feather, n: 'mic' },
   image: { lib: Feather, n: 'image' },
   video: { lib: Feather, n: 'video' },
   file: { lib: Feather, n: 'file' },
   link: { lib: Feather, n: 'link-2' },
-  qr: { lib: MaterialCommunityIcons, n: 'qrcode' },
-  'qr-scan': { lib: MaterialCommunityIcons, n: 'qrcode-scan' },
+  qr: { lib: MciSubset, n: 'qrcode' },
+  'qr-scan': { lib: MciSubset, n: 'qrcode-scan' },
   check: { lib: Feather, n: 'check' },
   'check-circle': { lib: Feather, n: 'check-circle' },
   chev: { lib: Feather, n: 'chevron-right' },
@@ -63,7 +65,7 @@ const ICONS = {
   'dots-v': { lib: Feather, n: 'more-vertical' },
   camera: { lib: Feather, n: 'camera' },
   key: { lib: Feather, n: 'key' },
-  devices: { lib: MaterialCommunityIcons, n: 'devices' },
+  devices: { lib: MciSubset, n: 'devices' },
   copy: { lib: Feather, n: 'copy' },
   eye: { lib: Feather, n: 'eye' },
   'eye-off': { lib: Feather, n: 'eye-off' },
@@ -82,12 +84,12 @@ const ICONS = {
   archive: { lib: Feather, n: 'archive' },
   // Workspace mode switcher (Chat / Agents / Work) + Work-mode group glyphs.
   chat: { lib: Feather, n: 'message-circle' },
-  agents: { lib: Ionicons, n: 'sparkles-outline' },
+  agents: { lib: IoniconsSubset, n: 'sparkles-outline' },
   work: { lib: Feather, n: 'briefcase' },
   book: { lib: Feather, n: 'book-open' },
   target: { lib: Feather, n: 'target' },
   layers: { lib: Feather, n: 'layers' },
-  sparkles: { lib: Ionicons, n: 'sparkles' },
+  sparkles: { lib: IoniconsSubset, n: 'sparkles' },
 } satisfies Record<string, IconDef>;
 
 export type IconName = keyof typeof ICONS;

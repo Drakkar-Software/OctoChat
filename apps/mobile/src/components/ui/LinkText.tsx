@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 
 import { linkify, matchesUser, openRoom, openUrl } from '@/lib/links';
@@ -41,7 +42,10 @@ export function LinkText({
   ...rest
 }: LinkTextProps) {
   const { colors } = useTheme();
-  const segments = linkify(children);
+  // `linkify` does a double global-regex matchAll pass per call; memoize so it
+  // only re-runs when the source string changes, not on every useTheme() tick or
+  // parent re-render — same rationale as the MessageBody / Markdown useMemos.
+  const segments = useMemo(() => linkify(children), [children]);
   return (
     <Txt variant={variant} weight={weight} {...rest}>
       {segments.map((seg, i) => {
