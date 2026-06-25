@@ -60,3 +60,14 @@ App code lives in `apps/mobile/src`. These rules are non-negotiable:
 
 The full version (with structure and conventions) is in
 [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md).
+
+## Data-access rules — ALWAYS respect
+
+1. **Batch cross-entity pulls.** When a read fans out over multiple spaces or DMs (per-space
+   `_access` / `objects/_index` / registry reads), issue ONE cross-entity batch —
+   `batchPullManySpaceData` / `batchPullManySpaceAccess` / `StarfishClient.batchPullMany` — never
+   loop an individual `pull` over a list of space/DM ids. This is already the rule for the rooms
+   registry, DM-roster heal, and the automation conductor.
+   *Exception:* the user's OWN append-only inbox (`inbox/{userId}/{shard}`, `full:true`) is a
+   single-document read, not a per-space fan-out, and `/batch/pull` rejects `full:true` — reduce
+   its repeats with an SWR cache, not a batch.

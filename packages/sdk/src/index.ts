@@ -144,6 +144,7 @@ export * from './desk/registry-write';
 export * from './desk/orchestrator';
 export * from './desk/intake-config';
 export * from './desk/intake';
+export * from './desk/intake-requests-cache';
 export * from './desk/requester';
 
 // ── domain/capabilities — variant capability registry ─────────────────────────

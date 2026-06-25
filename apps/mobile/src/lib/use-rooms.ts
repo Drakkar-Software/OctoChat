@@ -218,7 +218,11 @@ export function useRooms(spaceId: string | null) {
   return {
     categories,
     rooms,
-    loading: enabled && !ready && reg.loading && !reg.loaded,
+    // Skeleton hides as soon as the object index (cache-first via useMergeDoc.pullCache)
+    // is ready — NOT gated on the registry network pull. The registry subscription
+    // still runs (feeds batchPullManySpaceData + supplies isOwner/memberCount) but the
+    // UI no longer withholds already-cached rooms behind an in-flight _access request.
+    loading: enabled && !ready,
     isOwner,
     memberCount,
     createRoom,

@@ -170,16 +170,35 @@ export async function reconcileTicketRequests(
 }
 
 /**
+ * List pending (not-yet-accepted, not-yet-declined) ticket requests across many spaces in ONE
+ * inbox scan. The inbox is the caller's own — `spaceIds` is an in-memory filter applied after
+ * the two-shard scan (one scan covers all spaces). Filters out any request the owner has
+ * previously declined (persisted in the `_spaces` doc).
+ *
+ * Prefer this over the single-space variant when the caller has a set of spaces in view —
+ * it issues exactly 2 inbox GETs + 1 `_spaces` read regardless of set size.
+ */
+export async function listPendingTicketRequestsForSpaces(
+  session: Session,
+  spaceIds: ReadonlySet<string>,
+): Promise<PendingRequest[]> {
+  if (spaceIds.size === 0) return [];
+  const [all, { declinedRequests }] = await Promise.all([
+    scanResourceRequests(session, spaceIds),           // ONE inbox scan (2 shards) for the whole set
+    readSpaces(session.spacesRegistryClient, session), // ONE _spaces read
+  ]);
+  return all.filter((p) => !declinedRequests[p.req.reqId]);
+}
+
+/**
  * List a space's pending (not-yet-accepted, not-yet-declined) ticket requests — for the manual
  * Requests UI. Filters out any request the owner has previously declined (persisted in the
  * `_spaces` doc) so declined requests don't reappear after a refresh.
+ *
+ * Single-space convenience wrapper around {@link listPendingTicketRequestsForSpaces}.
  */
 export async function listPendingTicketRequests(session: Session, spaceId: string): Promise<PendingRequest[]> {
-  const [all, { declinedRequests }] = await Promise.all([
-    scanResourceRequests(session, new Set([spaceId])),
-    readSpaces(session.spacesRegistryClient, session),
-  ]);
-  return all.filter((p) => !declinedRequests[p.req.reqId]);
+  return listPendingTicketRequestsForSpaces(session, new Set([spaceId]));
 }
 
 /**

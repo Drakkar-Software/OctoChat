@@ -35,7 +35,9 @@ export function SignInPrompt({ subtitle }: SignInPromptProps) {
 
   // Restoring on launch: render nothing rather than flash "Sign in first" before
   // the persisted session resolves (a refresh on any gated page would show it).
-  if (status === 'loading') return null;
+  // 'authenticating' = vault ready + account known, waiting for sessionFromPersisted
+  // to resolve its network pseudo pull — session is null but the user IS signed in.
+  if (status === 'loading' || status === 'authenticating') return null;
 
   if (status === 'locked') {
     if (unlockMethods.includes('passkey')) {

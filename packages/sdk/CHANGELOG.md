@@ -1,5 +1,26 @@
 # Changelog — @drakkar.software/octochat-sdk
 
+## 0.7.2 (2026-06-25)
+
+### Fixed
+
+- **Per-space inbox fan-out eliminated** (`desk/intake.ts`, `desk/intake-requests-cache.ts`) —
+  `RequestsProvider.refresh()` previously ran a 5-worker pool calling `listPendingTicketRequests`
+  once **per space**, triggering 2N inbox GETs + N `_spaces` reads per refresh. The new
+  `listPendingTicketRequestsForSpaces` issues exactly **2 inbox GETs + 1 `_spaces` read** for any
+  set of spaces, because `scanResourceRequests` reads the user's own inbox and filters by space in
+  memory — one scan covers all. The `requests-context.tsx` provider now calls this once and groups
+  the flat result by `p.req.spaceId`.
+
+- **Module-level SWR cache** (`desk/intake-requests-cache.ts`) — `readPendingRequestsSWR` wraps
+  the multi-space scan with a 2-min TTL, SWR flavor: fresh → cache hit (no network); stale →
+  serve cached instantly + background revalidate → `onRevalidated(fresh)` auto-updates the UI;
+  cold / space-set changed → fresh scan. `removePendingFromCache(userId, reqId)` is called on
+  accept/decline so optimistic removals survive the next stale-serve. NOT request-level dedup.
+
+- **Account-switch reset** (`session-context.tsx`) — `clearInboxRequestsCache()` added to
+  `resetAccountScopedState` so no cached requests from one account bleed into the next.
+
 ## 0.7.1 (2026-06-25)
 
 ### Fixed

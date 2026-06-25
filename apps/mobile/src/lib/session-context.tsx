@@ -22,6 +22,7 @@ import { resetSpaceLevelMetaCache, resetFoldRoomCache } from '@drakkar.software/
 import { flushReadsNow, hydrateReads, resetReads } from '@drakkar.software/octochat-sdk';
 import { activeAccountOf, sessionFromPersisted } from '@drakkar.software/octochat-sdk';
 import { clearNodeAccessCache, clearBuildNodeAccessCache } from '@drakkar.software/octochat-sdk';
+import { clearInboxRequestsCache } from '@drakkar.software/octochat-sdk';
 import { enrollPasskey, passkeyEnrollable } from '@drakkar.software/octochat-sdk/platform';
 import { activeVariant } from './variants';
 import {
@@ -51,11 +52,14 @@ export interface AccountSummary {
 interface SessionContextValue {
   session: Session | null;
   /**
-   * "loading" while restoring on launch; "locked" when a sealed vault exists and
-   * needs a PIN/passkey to unlock (web); "switching" during an account swap/add;
-   * "ready" once resolved either way.
+   * "loading" while the vault is being read from the OS keystore; "authenticating"
+   * once we know an account exists (vault ready + activeAccountOf non-null) but the
+   * session is still resolving (sessionFromPersisted's network pseudo pull) — the
+   * native tab shell mounts here so the tab bar is interactive immediately;
+   * "locked" when a sealed vault needs a PIN/passkey to unlock (web only);
+   * "switching" during an account swap/add; "ready" once the full session resolves.
    */
-  status: 'loading' | 'locked' | 'switching' | 'ready';
+  status: 'loading' | 'authenticating' | 'locked' | 'switching' | 'ready';
   /** Unlock methods available for the locked persisted vault (web). */
   unlockMethods: UnlockMethod[];
   /** Whether to offer passkey enrollment: WebAuthn is usable AND a platform
@@ -137,6 +141,7 @@ function resetAccountScopedState(): void {
   clearPrimedSpaces();
   clearRoomEventsBus();
   clearReconcileThrottle();
+  clearInboxRequestsCache();
   // Flush any pending read marks before dropping them so a just-read room on the
   // outgoing account isn't lost; then clear the in-memory snapshot.
   void flushReadsNow();
@@ -204,7 +209,7 @@ function summarize(v: Vault | null): AccountSummary[] {
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [status, setStatus] = useState<'loading' | 'locked' | 'switching' | 'ready'>('loading');
+  const [status, setStatus] = useState<'loading' | 'authenticating' | 'locked' | 'switching' | 'ready'>('loading');
   const [unlockMethods, setUnlockMethods] = useState<UnlockMethod[]>([]);
   // In-memory only and deliberately so: holding the 12 words here (not in the URL or
   // sessionStorage) keeps them off disk. A reload mid-onboarding drops it and routes
@@ -280,6 +285,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         commitVault(res.vault);
         const acct = activeAccountOf(res.vault);
         if (acct) {
+          // EARLY SHELL MOUNT: activeAccountOf is synchronous — at this point we
+          // know an account exists without any further async work. Flip to
+          // 'authenticating' so index.tsx redirects into (tabs) immediately,
+          // painting the native tab bar and making it tappable while
+          // sessionFromPersisted's blocking network pseudo pull runs in the background.
+          if (!cancelled) setStatus('authenticating');
           try {
             const s = await sessionFromPersisted(acct);
             // Warm the in-memory prime from the persisted kv snapshot BEFORE setting

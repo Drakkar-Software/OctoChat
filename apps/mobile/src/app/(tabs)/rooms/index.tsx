@@ -28,6 +28,7 @@ import { RoomCategoryList } from '@/components/chat/RoomCategoryList';
 import { SidebarLinkRow } from '@/components/chat/SidebarLinkRow';
 import { SpaceTabHeader } from '@/components/chat/SpaceTabHeader';
 import { useFeature } from '@/lib/use-feature';
+import { useWarmKeyring } from '@/lib/use-warm-keyring';
 import { TicketList } from '@/components/desk/TicketList';
 import { RequestsLink } from '@/components/desk/RequestsLink';
 import { SharedRoomList } from '@/components/desk/SharedRoomList';
@@ -45,8 +46,13 @@ export default function RoomsScreen() {
   const online = useOnline();
   const { spaces, activeId, loading: spacesLoading } = useSpaces();
   const isDmHome = isDmHomeId(activeId);
-  const { categories, loading: roomsLoading, isOwner, createRoom, createCategory, moveRoom } =
+  const { categories, rooms, loading: roomsLoading, isOwner, createRoom, createCategory, moveRoom } =
     useRooms(isDmHome ? null : activeId); // the virtual DM space has no registry doc
+  // Pre-warm the active space's E2EE keyring while the rooms list is visible.
+  // Fires buildNodeAccessShared for one representative enc room so the result cache
+  // is already warm when the user taps — eliminating the first-room skeleton delay.
+  // Deferred behind InteractionManager so it doesn't compete with cold-start render.
+  useWarmKeyring(isDmHome ? null : activeId, rooms);
   const space = isDmHome ? undefined : spaces.find((s) => s.id === activeId) ?? spaces[0];
   const { hasPins } = useSpaceNav(isDmHome ? null : activeId);
   const dms = useDms();

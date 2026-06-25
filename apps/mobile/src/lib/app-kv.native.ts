@@ -6,8 +6,9 @@
  *
  * One-time migration: on the first boot after this module is introduced we copy
  * existing AsyncStorage keys under the `octospaces.*` and `octochat.*` prefixes
- * to MMKV. This starts at module-init time (before React mounts) to maximise the
- * chance it completes before session-context's first kv reads.
+ * to MMKV. The flag check runs synchronously at module-init; the copy itself is
+ * deferred behind InteractionManager.runAfterInteractions to avoid competing with
+ * session-context's first kv reads on the same boot frame.
  */
 import { InteractionManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';

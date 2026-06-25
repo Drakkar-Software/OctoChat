@@ -86,6 +86,49 @@ Non-negotiable. Follow these for every change:
 - `pnpm web` / `pnpm start` / `pnpm ios` / `pnpm android`
 - `pnpm typecheck`
 
+## Cold-start & animation gotchas (learnings from R5)
+
+### The cold-start gate
+
+`src/app/index.tsx` returns `null` while `status === 'loading'` — this withholds the **entire
+shell including the native tab bar**. `status` is produced in `src/lib/session-context.tsx`.
+The boot sequence awaits, in series: `loadVault()` (Keychain/expo-secure-store) →
+`sessionFromPersisted()` (external SDK, does a **network pseudo pull**, up to 12 s) →
+`loadSpacesSnapshot()` (MMKV read). If any of these is slow, the tab bar is invisible.
+
+**The fix — `'authenticating'` early-mount:**
+`activeAccountOf(vault)` is **synchronous**. Once `loadVault()` resolves and `activeAccountOf`
+is non-null, we know an account exists with zero further async work. Flip `status` to
+`'authenticating'` at that point (before the blocking network call) so `index.tsx` can redirect
+into `(tabs)` — mounting the native tab bar and making it tappable — while `sessionFromPersisted`
+resolves in the background. `'ready'` still carries the live session; `'authenticating'` just
+lets the shell paint early.
+
+`SignInPrompt` **must** return `null` for `'authenticating'` (not just `'loading'`) — otherwise
+every `!session ? <SignInPrompt/>` screen guard flashes "Sign in first" to an already-signed-in
+user for the duration of the pseudo pull.
+
+`AppFrame` must **not** show an overlay for `'authenticating'` (only for `'switching'`).
+
+### Never gate visibility on a JS-thread effect
+
+`Reveal` previously did `useState(false)` + `useEffect(() => setShown(true))`. If the JS thread
+is busy (Hermes cold-start burst, back-navigation), that effect never fires → content stays at
+opacity 0 → rooms list is invisible. Tickets escaped because it renders rows directly.
+
+**The rule:** entrance animations must run on the **UI thread with no JS-thread trigger**.
+Use reanimated's `entering` prop (`FadeIn.delay(delay).duration(duration)`) on `Animated.View` —
+the layout animation is scheduled natively on mount and plays on the UI thread regardless of
+JS-thread load.
+
+### Batch-pulling invariant
+
+`rooms-registry-context.tsx` deliberately couples per-space registry subscriptions into a
+**single** `batchPullManySpaceData` call (one `_access`+`_index` round-trip for all unloaded
+spaces). Do **not** split this batch. The UI loading gate can be decoupled from the in-flight
+registry pull (change only the `loading` flag in `use-rooms.ts`, keep the subscription) without
+any network change — the batch fires identically.
+
 ## OTA updates (EAS Update)
 
 - `expo-updates` is wired to EAS Update (`app.json` `updates.url` → `u.expo.dev`,

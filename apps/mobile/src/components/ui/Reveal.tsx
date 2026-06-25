@@ -1,5 +1,8 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
+import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
+import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 
 import { motion } from '@/theme';
 
@@ -15,10 +18,27 @@ interface RevealProps {
 
 /**
  * Fades its children in once, on mount. Wrap a list of blocks with increasing
- * {@link delay}s for an orchestrated page-load stagger. Drives {@link FadeView},
- * so it animates off the JS thread on native and via CSS transition on web.
+ * {@link delay}s for an orchestrated page-load stagger.
+ *
+ * On **native** this drives reanimated's `entering` layout animation — the fade
+ * plays entirely on the UI thread with no JS-thread trigger, so content is never
+ * invisible if the JS thread is busy at boot or back-navigation. On **web** it
+ * drives {@link FadeView}'s CSS transition (web has no Hermes cold-start block).
  */
-export function Reveal({ delay = 0, duration = motion.slow, style, children }: RevealProps) {
+function NativeReveal({ delay = 0, duration = motion.slow, style, children }: RevealProps) {
+  const reduced = useReducedMotion();
+  if (reduced) {
+    // Reduced-motion: render directly, no animation — matches StaggerList's behaviour.
+    return <Animated.View style={style}>{children}</Animated.View>;
+  }
+  return (
+    <Animated.View entering={FadeIn.delay(delay).duration(duration)} style={style}>
+      {children}
+    </Animated.View>
+  );
+}
+
+function WebReveal({ delay = 0, duration = motion.slow, style, children }: RevealProps) {
   const [shown, setShown] = useState(false);
   useEffect(() => setShown(true), []);
   return (
@@ -27,3 +47,5 @@ export function Reveal({ delay = 0, duration = motion.slow, style, children }: R
     </FadeView>
   );
 }
+
+export const Reveal = Platform.OS === 'web' ? WebReveal : NativeReveal;

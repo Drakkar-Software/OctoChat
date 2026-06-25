@@ -26,7 +26,8 @@ import {
 import { AppState, InteractionManager } from 'react-native';
 
 import {
-  listPendingTicketRequests,
+  readPendingRequestsSWR,
+  removePendingFromCache,
   acceptNodeRequest,
   declineTicketRequest,
   type PendingRequest,
@@ -97,35 +98,25 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(() => {
     const ids = spaceIdsRef.current;
     if (!session || ids.length === 0) return;
-    setLoading(true);
-    // Bounded concurrency — mirrors the 5-worker pool in conductor-init.ts so a
-    // user with many spaces can't burst N concurrent per-space reads and trigger
-    // 429s. JS is single-threaded so cross-worker writes to `next`/`firstError`
-    // are safe across await points.
-    const CONCURRENCY = 5;
-    const queue = [...ids];
-    const next: Record<string, PendingRequest[]> = {};
-    let firstError: string | null = null;
-    const worker = async () => {
-      while (queue.length > 0) {
-        const id = queue.shift()!;
-        try {
-          next[id] = await listPendingTicketRequests(session, id);
-        } catch (reason) {
-          if (!firstError) firstError = String((reason as Error)?.message ?? reason);
-        }
-      }
+    // Group the flat PendingRequest[] by spaceId so every known space gets an entry
+    // (spaces that cleared go to []). Called for both the instant return and the
+    // SWR background revalidation.
+    const apply = (pending: PendingRequest[]) => {
+      const next: Record<string, PendingRequest[]> = {};
+      for (const id of ids) next[id] = [];
+      for (const p of pending) (next[p.req.spaceId] ??= []).push(p);
+      mapRef.current = next;
+      setRequestsBySpace(next);
     };
-    void Promise.all(
-      Array.from({ length: Math.min(CONCURRENCY, ids.length) }, worker),
-    ).then(() => {
-      // Merge: keep stale entries for any space whose fetch failed this round so
-      // a transient network error doesn't wipe counts that were recently correct.
-      const merged = { ...mapRef.current, ...next };
-      mapRef.current = merged;
-      setRequestsBySpace(merged);
-      setError(firstError);
-    }).finally(() => setLoading(false));
+    setLoading(true);
+    // ONE inbox scan for all spaces (2 GETs + 1 _spaces read regardless of set size).
+    // fresh (within 2-min TTL) → cached, no network.
+    // stale → returns cached instantly + revalidates in bg → `apply` auto-updates UI.
+    // cold / space-set changed → awaits fresh scan then paints.
+    readPendingRequestsSWR(session, new Set(ids), apply)
+      .then((served) => { apply(served); setError(null); })
+      .catch((reason) => setError(String((reason as Error)?.message ?? reason)))
+      .finally(() => setLoading(false));
   }, [session]);
 
   // Clear map when the session goes away (identity switch / sign-out).
@@ -194,6 +185,7 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
       try {
         await acceptNodeRequest(session, p);
         removeLocal(p.req.spaceId, reqId);
+        removePendingFromCache(session.userId, reqId);
         // Signal the shared objindex store to repaint — the new ticket/room appears
         // immediately on this device. Other devices receive the update via SSE
         // (object.changed → dispatchIndexChange in the unread handler).
@@ -219,6 +211,7 @@ export function RequestsProvider({ children }: { children: ReactNode }) {
       try {
         await declineTicketRequest(session, p);
         removeLocal(p.req.spaceId, reqId);
+        removePendingFromCache(session.userId, reqId);
       } catch (e) {
         setError(String((e as Error)?.message ?? e));
       } finally {

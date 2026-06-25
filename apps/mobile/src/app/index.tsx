@@ -29,7 +29,11 @@ export default function Index() {
 
   if (status === 'loading' || status === 'switching') return null;
   if (status === 'locked') return <Redirect href="/(onboarding)/unlock" />;
-  if (session) return <Redirect href="/(tabs)/rooms" />;
+  // 'authenticating': vault ready + account known — mount the tab shell immediately
+  // so the native tab bar paints and is tappable while the session resolves.
+  // The session is still null here; screens show their empty/skeleton states via
+  // SignInPrompt (returns null for 'authenticating') until 'ready' fills them in.
+  if (status === 'authenticating' || session) return <Redirect href="/(tabs)/rooms" />;
   if (Platform.OS === 'web') return <LandingPage />;
   return <Redirect href="/(onboarding)/welcome" />;
 }
