@@ -36,7 +36,8 @@ import type { AutomationMeta, Room } from '@drakkar.software/octochat-sdk';
 import { kvGet, kvSet } from '@drakkar.software/octochat-sdk';
 import { readSpaceAccess, writeSpaceAccess, reconcileSpaceMeta } from '@drakkar.software/octochat-sdk';
 import { getSpaceClient } from '@drakkar.software/octochat-sdk';
-import { batchPullSpaceData } from '@drakkar.software/octochat-sdk';
+import { batchPullSpaceData, batchPullManySpaceData } from '@drakkar.software/octochat-sdk';
+import type { BatchSpaceDataResult } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useSpacesContext } from './spaces-context';
 
@@ -152,6 +153,38 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
 
   const get = useCallback((spaceId: string) => entries.current.get(spaceId) ?? PENDING, []);
 
+  /**
+   * Shared post-fetch finalizer: runs TOFU auto-claim, broadcasts space meta, and
+   * shapes the batch result into a `RoomsRegistryEntry`. Called by both the
+   * single-space `fetchEntry` path and the cross-space prefetch path.
+   */
+  const finalizeEntry = useCallback(
+    async (spaceId: string, batchResult: BatchSpaceDataResult): Promise<RoomsRegistryEntry> => {
+      const s = sessionRef.current;
+      if (!s) return IDLE;
+      const { registry, index: idx } = batchResult;
+      let { owner, members, name, image, hash } = registry;
+      const spaceClient = getSpaceClient(spaceId, s);
+      // TOFU auto-claim: when no _access doc exists (owner=null, hash=null), the server
+      // grants space:owner+member to any authenticated user (TOFU). Auto-claim ownership
+      // so the space is usable after a migration or data wipe — the server write is
+      // idempotent (first writer wins; if another device beats us, re-read settles it).
+      if (owner === null && hash === null) {
+        try {
+          await writeSpaceAccess(spaceClient, spaceId, s.userId, [], null, s, { name: name ?? undefined, image: image ?? undefined });
+          owner = s.userId;
+        } catch {
+          // Race or auth failure: re-read to get whoever won TOFU
+          const rr = await readSpaceAccess(spaceClient, spaceId, s).catch(() => null);
+          if (rr) { owner = rr.owner; members = rr.members; name = rr.name; image = rr.image; hash = rr.hash; }
+        }
+      }
+      void reconcileSpaceMeta(s.spacesRegistryClient, s, spaceId, { name, image }, spacesRef.current).catch(() => {});
+      return { rooms: (idx?.rooms ?? []) as Room[], owner, members, name, image, categories: idx?.categories ?? [], hash, loading: false, loaded: true };
+    },
+    [],
+  );
+
   // Read a space's access record (owner/members/name/image) and its plaintext
   // object index (rooms/categories). The objindex is always plaintext in the
   // per-node model — no encryptor needed to get the room list.
@@ -160,26 +193,9 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
     if (!s) return IDLE;
     // Use a single batch request (_access + _index in one HTTP round-trip).
     // Falls back to concurrent individual pulls on any error.
-    const { registry, index: idx } = await batchPullSpaceData(s, spaceId);
-    let { owner, members, name, image, hash } = registry;
-    const spaceClient = getSpaceClient(spaceId, s);
-    // TOFU auto-claim: when no _access doc exists (owner=null, hash=null), the server
-    // grants space:owner+member to any authenticated user (TOFU). Auto-claim ownership
-    // so the space is usable after a migration or data wipe — the server write is
-    // idempotent (first writer wins; if another device beats us, re-read settles it).
-    if (owner === null && hash === null) {
-      try {
-        await writeSpaceAccess(spaceClient, spaceId, s.userId, [], null, s, { name: name ?? undefined, image: image ?? undefined });
-        owner = s.userId;
-      } catch {
-        // Race or auth failure: re-read to get whoever won TOFU
-        const rr = await readSpaceAccess(spaceClient, spaceId, s).catch(() => null);
-        if (rr) { owner = rr.owner; members = rr.members; name = rr.name; image = rr.image; hash = rr.hash; }
-      }
-    }
-    void reconcileSpaceMeta(s.spacesRegistryClient, s, spaceId, { name, image }, spacesRef.current).catch(() => {});
-    return { rooms: (idx?.rooms ?? []) as Room[], owner, members, name, image, categories: idx?.categories ?? [], hash, loading: false, loaded: true };
-  }, []);
+    const batchResult = await batchPullSpaceData(s, spaceId);
+    return finalizeEntry(spaceId, batchResult);
+  }, [finalizeEntry]);
 
   // Run one read for a space, sharing the in-flight promise and publishing the
   // result. A FAILED read (offline / unreachable — readSpaceAccess throws rather than
@@ -236,6 +252,85 @@ export function RoomsRegistryProvider({ children }: { children: ReactNode }) {
     inflight.current.set(spaceId, p);
     return p;
   }, [fetchEntry, notify]);
+
+  // Cross-space prefetch: when the spaces list first loads (or changes), issue ONE
+  // batch request for all unloaded, non-in-flight spaces rather than letting each
+  // `subscribe()` call fire its own per-space request.
+  //
+  // Design:
+  //   - Only runs when `session` + `spaces` are both available and there are spaces
+  //     that haven't been loaded yet and aren't already in-flight.
+  //   - Registers per-space promises in `inflight` BEFORE the async work so any
+  //     concurrent `ensure`/`subscribe` joins the batch promise instead of issuing
+  //     a new per-space request.
+  //   - Sets `lastFetchAt` per space so the cooldown backstop fires if `refresh()`
+  //     is called immediately after.
+  //   - On 429, the batch throws and every per-space inflight rejects → each space
+  //     degrades to its last-good cached entry via `runFetch`'s error path.
+  //   - On any other error, graceful degradation happens inside
+  //     `batchPullManySpaceData` itself (falls back to per-space `batchPullSpaceData`).
+  useEffect(() => {
+    const s = sessionRef.current;
+    const uid = s?.userId ?? null;
+    if (!s || !uid) return;
+
+    const idsToFetch = spaces
+      .map((sp) => sp.id)
+      .filter((id) => !entries.current.get(id)?.loaded && !inflight.current.has(id));
+    if (idsToFetch.length === 0) return;
+
+    const now = Date.now();
+    // Create a shared resolve/reject for each space's per-space inflight promise so
+    // concurrent ensure()/subscribe() callers coalesce rather than re-fetching.
+    const resolvers = new Map<string, { resolve: (e: RoomsRegistryEntry) => void; reject: (err: unknown) => void }>();
+
+    for (const spaceId of idsToFetch) {
+      lastFetchAt.current.set(spaceId, now);
+      const prev = entries.current.get(spaceId) ?? PENDING;
+      entries.current.set(spaceId, { ...prev, loading: true });
+      const p = new Promise<RoomsRegistryEntry>((resolve, reject) => {
+        resolvers.set(spaceId, { resolve, reject });
+      }).then((entry) => {
+        entries.current.set(spaceId, entry);
+        if (entry.loaded) persistEntry(uid, spaceId, entry);
+        return entry;
+      }).catch(() => {
+        // Batch error (e.g. 429): keep whatever entry we had.
+        return entries.current.get(spaceId) ?? { ...IDLE, loaded: true };
+      }).finally(() => {
+        inflight.current.delete(spaceId);
+        notify(spaceId);
+      });
+      inflight.current.set(spaceId, p);
+      notify(spaceId);
+    }
+
+    void (async () => {
+      try {
+        const batchMap = await batchPullManySpaceData(s, idsToFetch);
+        for (const spaceId of idsToFetch) {
+          const r = resolvers.get(spaceId)!;
+          const batchResult = batchMap.get(spaceId);
+          if (!batchResult) {
+            // Space was omitted by server (non-member) — resolve to an empty loaded entry.
+            r.resolve({ ...IDLE, loaded: true });
+            continue;
+          }
+          try {
+            const entry = await finalizeEntry(spaceId, batchResult);
+            r.resolve(entry);
+          } catch {
+            r.resolve({ ...IDLE, loaded: true });
+          }
+        }
+      } catch (err) {
+        // Hard failure (e.g. 429) — reject all pending spaces so their inflight
+        // catch handlers serve the last-good cached entry.
+        for (const r of resolvers.values()) r.reject(err);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spaces, userId, finalizeEntry, notify]);
 
   const ensure = useCallback((spaceId: string): Promise<RoomsRegistryEntry> => {
     const cached = entries.current.get(spaceId);

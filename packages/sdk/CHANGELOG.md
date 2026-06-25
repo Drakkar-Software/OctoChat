@@ -1,5 +1,68 @@
 # Changelog — @drakkar.software/octochat-sdk
 
+## 0.6.2 (2026-06-25)
+
+### Added
+
+- **Cross-space batch-pull of `_access` and `_index`** (`starfish/batch-space.ts`) — bumped
+  `@drakkar.software/starfish-*` from `3.0.0-alpha.38` → `3.0.0-alpha.39` and added two new
+  exported helpers that collapse N per-space round-trips into one (or a few) HTTP requests:
+
+  - **`batchPullManySpaceData(session, spaceIds)`** — fetches `_access` + `_index` for many
+    spaces in a single `/batch/pull?collections=spaceregistry,objindex` request via
+    `session.spacesRegistryClient` (device cap, `paths: ["spaces/**", …]`), authorised per-entry
+    by membership on the server. Chunks spaceIds into groups of ≤ 50 (server
+    `max_collections_per_batch` = 100; 2 collections × 50 = 100 entries per request), issues
+    chunks concurrently and merges results. On a non-429 error degrades gracefully to per-space
+    `batchPullSpaceData` calls; on 429 rethrows (avoids amplifying load on a rate-limited
+    server). Returns `Map<spaceId, BatchSpaceDataResult>`, omitting spaces the caller can't read.
+    Used by the rooms-registry prefetch to front-load the entire space rail in one request on cold
+    load.
+
+  - **`batchPullManySpaceAccess(session, spaceIds)`** — fetches only `_access` for many spaces
+    via `session.spacesRegistryClient.batchPullMany('spaceregistry', …)`. No `_index` overhead —
+    efficient for callers that only need owner/members. Returns
+    `Map<spaceId, SpaceRegistrySnapshot>`. On non-429 error returns an empty Map; on 429
+    rethrows. Used by the three DM reconcile loops that previously issued one sequential
+    `readSpaceAccess` call per space.
+
+  The former **"No cross-space batch"** limitation documented in `batch-space.ts` is now
+  resolved. Both helpers use the existing `spaceregistry`/`objindex` collections (compatible
+  with the deployed Python `drakkar-sync` server at alpha.25); they do NOT require the new
+  alpha.39 `spaceaccess` collection (which would need server-side `spacesCollections()`
+  registration).
+
+- **`RoomsRegistryProvider` cross-space prefetch** (`apps/mobile/src/lib/rooms-registry-context.tsx`)
+  — a `useEffect` keyed on the `spaces` list now calls `batchPullManySpaceData` for all
+  unloaded, non-in-flight spaces when the rail first loads, registering per-space inflight
+  promises so concurrent `ensure`/`subscribe` callers coalesce into the batch instead of
+  issuing their own per-space requests. Per-space `batchPullSpaceData` is kept as the path for
+  `refresh(spaceId)` (post-write reload) and spaces added after the initial prefetch. Extracted
+  `finalizeEntry(spaceId, batchResult)` as a shared post-fetch helper (TOFU auto-claim,
+  `reconcileSpaceMeta`, result shaping) called from both paths.
+
+### Changed
+
+- **`dm.ts` DM reconcile loops** — `findSharedSpaceWith`, `healDmMap`, and `acceptScannedInvites`
+  each previously issued one sequential `readSpaceAccess` call per space. Replaced with a single
+  `batchPullManySpaceAccess` call per loop (one or a few HTTP requests for the full set), then
+  iterate the result Map. Write operations (`setDmMapping`, `acceptSpaceInvite`) remain
+  per-item and sequential — only the reads are batched.
+
+## 0.6.1 (2026-06-23)
+
+### Changed
+
+- Re-pinned `@drakkar.software/starfish-spaces` to `3.0.0-alpha.34` (keyring scope fix).
+
+## 0.6.0 (2026-06-22)
+
+### Added
+
+- **Node-aware attachments** — attachment upload/download respects per-node access (`public` /
+  `space` / `invite`), routing through the correct scoped storage path.
+- **`NodeAccessRevokedError`** and **`StarfishHttpError`** re-exported from the SDK barrel.
+
 ## 0.5.3 (2026-06-22)
 
 ### Fixed

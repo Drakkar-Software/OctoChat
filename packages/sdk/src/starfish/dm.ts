@@ -27,6 +27,7 @@ import { ownerTrustedAdders, type Session } from './identity';
 import { DEFAULT_CATEGORY } from './objects';
 import { pushIndexSeed } from './object-index';
 import { addJoinedSpace, addSpaceMember, readSpaceAccess, readSpaces, setDmMapping, writeSpaceAccess } from './registry';
+import { batchPullManySpaceAccess } from './batch-space';
 
 // Re-export the pure id/dedup helpers so existing importers can keep reaching for them
 // through `starfish/dm` (their canonical home is the dependency-light `dm-ids`).
@@ -94,15 +95,17 @@ export async function findSharedSpaceWith(
   knownSpaces: Space[],
 ): Promise<string | null> {
   const me = session.userId;
-  for (const s of knownSpaces) {
-    if (isDmSpaceId(s.id)) continue;
-    try {
-      const { owner, members } = await readSpaceAccess(session.accountClient, s.id, session);
-      const roster = new Set<string>([owner ?? '', ...members].filter(Boolean));
-      if (roster.has(me) && roster.has(peerUserId)) return s.id;
-    } catch {
-      /* unreadable space — skip */
-    }
+  const candidates = knownSpaces.filter((s) => !isDmSpaceId(s.id));
+  if (candidates.length === 0) return null;
+  // Batch all _access reads into as few HTTP round-trips as possible.
+  // The Map contains only spaces the caller is a member of; non-member spaces are omitted.
+  const accessMap = await batchPullManySpaceAccess(session, candidates.map((s) => s.id)).catch(() => new Map());
+  // Preserve the original ordering — first space where both `me` and `peerUserId` are in the roster.
+  for (const s of candidates) {
+    const entry = accessMap.get(s.id);
+    if (!entry) continue;
+    const roster = new Set<string>([entry.owner ?? '', ...entry.members].filter(Boolean));
+    if (roster.has(me) && roster.has(peerUserId)) return s.id;
   }
   return null;
 }
@@ -159,19 +162,18 @@ export async function healDmMap(session: Session, rawSpaces: Space[], dmMap: DmM
   const mappedSpaceIds = new Set(Object.values(dmMap));
   const orphans = rawSpaces.filter((s) => isDmSpaceId(s.id) && !mappedSpaceIds.has(s.id));
   if (orphans.length === 0) return dmMap;
+  // Batch all _access reads for orphan DM spaces — one or a few requests instead of N.
+  const accessMap = await batchPullManySpaceAccess(session, orphans.map((s) => s.id)).catch(() => new Map());
   const healed: DmMap = { ...dmMap };
   for (const s of orphans) {
-    try {
-      const { owner, members } = await readSpaceAccess(session.accountClient, s.id, session);
-      // Owner is the creator; members holds the other side. The peer is whichever
-      // roster entry isn't us (works from both the creator's and the invitee's view).
-      const peer = [owner ?? '', ...members].find((u) => u && u !== session.userId);
-      if (!peer || healed[peer]) continue; // unknown peer, or peer already mapped — skip
-      healed[peer] = s.id;
-      void setDmMapping(session.spacesRegistryClient, session, peer, s.id).catch(() => {});
-    } catch {
-      /* unreadable dm space — skip, try again next refresh */
-    }
+    const entry = accessMap.get(s.id);
+    if (!entry) continue; // unreadable dm space — skip, try again next refresh
+    // Owner is the creator; members holds the other side. The peer is whichever
+    // roster entry isn't us (works from both the creator's and the invitee's view).
+    const peer = [entry.owner ?? '', ...entry.members].find((u) => u && u !== session.userId);
+    if (!peer || healed[peer]) continue; // unknown peer, or peer already mapped — skip
+    healed[peer] = s.id;
+    void setDmMapping(session.spacesRegistryClient, session, peer, s.id).catch(() => {});
   }
   return healed;
 }
@@ -211,17 +213,17 @@ async function acceptScannedInvites(
   dms: DmMap,
   accepted: Set<string>,
 ): Promise<boolean> {
+  if (invites.length === 0) return false;
+  // Batch all _access reads up-front to learn the authoritative owner (= the peer) for
+  // each invite's DM space — one request instead of one per invite.
+  // The DM space's owner is server-gated, so it can't be forged. We're already in its
+  // roster (the inviter added us), so we can read it before fully accepting.
+  const accessMap = await batchPullManySpaceAccess(session, invites.map((inv) => inv.spaceId)).catch(
+    () => new Map(),
+  );
   let changed = false;
   for (const inv of invites) {
-    // The DM space's authoritative owner (the peer who invited us) — server-gated, so
-    // it can't be forged. We're already in its roster (the inviter added us), so we
-    // can read it before fully accepting.
-    let peerUserId: string | null;
-    try {
-      peerUserId = (await readSpaceAccess(session.accountClient, inv.spaceId, session)).owner;
-    } catch {
-      continue;
-    }
+    const peerUserId = accessMap.get(inv.spaceId)?.owner ?? null;
     if (!peerUserId) continue;
     const winner = dmWinner(session.userId, peerUserId, dms[peerUserId], inv.spaceId);
     if (winner !== inv.spaceId) continue; // our own space wins — ignore the loser (don't accept it)

@@ -13,37 +13,22 @@
  * (e.g. the server version predates batch support), `readSpaceAccess` and
  * `readIndexRooms` are fired concurrently as the graceful degradation.
  *
+ * `batchPullManySpaceData` extends this to MULTIPLE spaces in ONE request using the
+ * broad-cap `session.spacesRegistryClient` (device cap, `paths: ["spaces/**", …]`),
+ * which the server authorises per-entry by membership. This removes the former
+ * "No cross-space batch" limitation.
+ *
  * Server collection names (apps/server/src/config.ts):
  *   spaceregistry → spaces/{spaceId}/_access
  *   objindex      → spaces/{spaceId}/objects/_index
  *
  * ## Known batching limitations
  *
- * ### 1. No cross-space batch
- * `StarfishClient.batchPull` is bound to a single per-space client/cap
- * (`getSpaceClient(spaceId)`), so each batch request is scoped to ONE space.
- * Reads that fan out N requests across N spaces — e.g. `healDmRosters`
- * (`dm.ts`) doing one `_access` read-modify-write per DM space — cannot be
- * collapsed client-side.
- *
- * **Server-side change needed to fix this:** accept a multi-space batch endpoint
- * that authorises each requested collection entry independently against the
- * caller's identity (per-space membership check) rather than requiring a
- * per-space cap per request. The existing `BatchPullEntry.error` field already
- * supports per-entry partial failures, so the client wire shape is ready. The
- * client would call `batchPullMany('spaceregistry', [{spaceId:a},{spaceId:b},…])`
- * on a shared (non-space-scoped) client.
- *
- * ### 2. Batch is not append/checkpoint-aware
+ * ### 1. Batch is not append/checkpoint-aware
  * `batchPull` cannot carry `last` / `since` / `appendField`, so the per-DM
  * `?last=1` head pulls (`dm-activity.ts:189`) cannot move to a batch request.
  * Those reads are eliminated at the call site (lazy trigger from `<DmList>`)
  * rather than batched.
- *
- * **Server-side change needed to batch those:** a batch variant that accepts per-
- * entry append parameters (`last`, `since`, etc.) and returns bounded-tail
- * element arrays. Larger change; not required while the lazy-trigger approach is
- * in place.
  */
 import { getSpaceClient, readSpaceAccess } from '@drakkar.software/starfish-spaces';
 import type { Session } from '@drakkar.software/starfish-spaces';
@@ -93,6 +78,16 @@ function parseIndex(
 }
 
 /**
+ * Maximum number of spaces per cross-space `/batch/pull` chunk.
+ *
+ * The server's `max_collections_per_batch` defaults to 100 and counts TOTAL
+ * param-set entries across all collections. We request two collections
+ * (spaceregistry + objindex) × N spaces = 2N entries → cap at 50 spaces per
+ * request to stay under the default 100-entry limit.
+ */
+const CROSS_SPACE_CHUNK_SIZE = 50;
+
+/**
  * Pull a space's registry and object index in one batch request.
  *
  * Falls back to parallel individual pulls if `batchPull` is unavailable or fails
@@ -125,5 +120,135 @@ export async function batchPullSpaceData(
       readIndexRooms(client, null, objIndexPull(spaceId), spaceId),
     ]);
     return { registry, index: idx };
+  }
+}
+
+/**
+ * Pull registry and object index for MANY spaces in as few HTTP round-trips as
+ * possible.
+ *
+ * Uses `session.spacesRegistryClient` (device cap, `paths: ["spaces/**", …]`), which
+ * the server authorises **per entry** by membership — each space in the result is only
+ * present when the caller is a member of that space. Spaces that the server rejects
+ * (non-member, absent _access) are silently omitted from the returned Map, consistent
+ * with the single-space `batchPullSpaceData` fallback behaviour.
+ *
+ * Splits `spaceIds` into chunks of {@link CROSS_SPACE_CHUNK_SIZE} and issues one
+ * `/batch/pull` per chunk concurrently, then merges the results. This stays safely
+ * under the server's default 100-entry `max_collections_per_batch` limit (2 collections
+ * × 50 spaces = 100 entries per request).
+ *
+ * On a non-429 error for a chunk, degrades gracefully to per-space
+ * `batchPullSpaceData` calls (concurrent within the chunk). On 429, rethrows — adding
+ * more requests on a rate-limited server would make things worse.
+ */
+export async function batchPullManySpaceData(
+  session: Session,
+  spaceIds: string[],
+): Promise<Map<string, BatchSpaceDataResult>> {
+  if (spaceIds.length === 0) return new Map();
+
+  // Split into chunks ≤ CROSS_SPACE_CHUNK_SIZE.
+  const chunks: string[][] = [];
+  for (let i = 0; i < spaceIds.length; i += CROSS_SPACE_CHUNK_SIZE) {
+    chunks.push(spaceIds.slice(i, i + CROSS_SPACE_CHUNK_SIZE));
+  }
+
+  const chunkResults = await Promise.all(chunks.map((ids) => fetchChunk(session, ids)));
+
+  const result = new Map<string, BatchSpaceDataResult>();
+  for (const chunkMap of chunkResults) {
+    for (const [id, entry] of chunkMap) {
+      result.set(id, entry);
+    }
+  }
+  return result;
+}
+
+/**
+ * Pull `_access` records for MANY spaces in one HTTP round-trip.
+ *
+ * Uses the existing `spaceregistry` collection (compatible with the deployed Python
+ * sync server) via `session.spacesRegistryClient.batchPullMany`. Only fetches
+ * `_access` — no `_index` — so it's efficient for callers that only need the
+ * roster/owner (e.g. the DM reconcile loops in `dm.ts`).
+ *
+ * Returns a `Map<spaceId, SpaceRegistrySnapshot>` with only the spaces the caller
+ * is a member of. Spaces rejected by the server (non-member, absent) are silently
+ * omitted.
+ *
+ * On a non-429 error, returns an empty `Map` (callers catch independently). On 429,
+ * rethrows so the upstream cooldown/cache path can absorb it.
+ */
+export async function batchPullManySpaceAccess(
+  session: Session,
+  spaceIds: string[],
+): Promise<Map<string, SpaceRegistrySnapshot>> {
+  if (spaceIds.length === 0) return new Map();
+  try {
+    const entries = await session.spacesRegistryClient.batchPullMany(
+      'spaceregistry',
+      spaceIds.map((spaceId) => ({ spaceId })),
+    );
+    const result = new Map<string, SpaceRegistrySnapshot>();
+    for (let i = 0; i < spaceIds.length; i++) {
+      const entry = entries[i];
+      if (!entry || entry.error) continue;
+      result.set(spaceIds[i]!, parseRegistry(entry));
+    }
+    return result;
+  } catch (err) {
+    if (err instanceof StarfishHttpError && err.status === 429) throw err;
+    return new Map();
+  }
+}
+
+async function fetchChunk(
+  session: Session,
+  ids: string[],
+): Promise<Map<string, BatchSpaceDataResult>> {
+  try {
+    const batchResult = await session.spacesRegistryClient.batchPull(
+      ['spaceregistry', 'objindex'],
+      {
+        params: {
+          spaceregistry: ids.map((spaceId) => ({ spaceId })),
+          objindex: ids.map((spaceId) => ({ spaceId })),
+        },
+      },
+    );
+    const registryEntries = batchResult.collections['spaceregistry'] ?? [];
+    const indexEntries = batchResult.collections['objindex'] ?? [];
+    const map = new Map<string, BatchSpaceDataResult>();
+    for (let i = 0; i < ids.length; i++) {
+      const spaceId = ids[i]!;
+      const regEntry = registryEntries[i];
+      const idxEntry = indexEntries[i];
+      // Skip spaces the server explicitly rejected (error entry, e.g. non-member).
+      if (regEntry?.error) continue;
+      map.set(spaceId, {
+        registry: parseRegistry(regEntry),
+        index: parseIndex(idxEntry, spaceId),
+      });
+    }
+    return map;
+  } catch (err) {
+    // 429: do not amplify load — rethrow to the caller.
+    if (err instanceof StarfishHttpError && err.status === 429) throw err;
+    // Any other error (old server, network failure): degrade to per-space fallback.
+    const entries = await Promise.all(
+      ids.map(async (spaceId) => {
+        try {
+          return [spaceId, await batchPullSpaceData(session, spaceId)] as const;
+        } catch {
+          return null;
+        }
+      }),
+    );
+    const map = new Map<string, BatchSpaceDataResult>();
+    for (const entry of entries) {
+      if (entry) map.set(entry[0], entry[1]);
+    }
+    return map;
   }
 }
