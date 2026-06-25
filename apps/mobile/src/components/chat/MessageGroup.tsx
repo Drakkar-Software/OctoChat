@@ -180,7 +180,10 @@ export function MessageGroup({
   // pointer) reveals it on a long-press, so it isn't pinned over every row.
   const [revealed, setRevealed] = useState(false);
   const showActions = Platform.OS === 'web' ? hovered : revealed;
-  const mine = new Set((message.reactions ?? []).flatMap((r) => r.mine ? [r.emoji] : []));
+  // `mine` Set removed from here — moved into MessageActions' `picking` branch
+  // so it's only allocated when the reaction picker is actually open (not on every
+  // render of every row). `message.reactions` has new identity each render (produced
+  // by toDisplayMessageIndexed inline in renderItem), so useMemo wouldn't help here.
   // A queued/sending (not-yet-failed) message reads as muted — it's not on the
   // server yet. A failed one stays full-opacity so its retry affordance is obvious.
   const dimmed = message.pending === 'queued' || message.pending === 'sending';
@@ -297,7 +300,7 @@ export function MessageGroup({
           onDelete={onDelete}
           onPin={onPin}
           pinned={message.pinned}
-          mine={mine}
+          reactions={message.reactions}
         />
       ) : null}
     </>

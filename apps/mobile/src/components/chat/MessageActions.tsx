@@ -23,8 +23,11 @@ interface MessageActionsProps {
   onPin?: () => void;
   /** Whether the message is currently pinned — toggles the pin button's icon/label. */
   pinned?: boolean;
-  /** Emojis the user has already reacted with, highlighted in the picker. */
-  mine?: Set<string>;
+  /** The message's reactions — used to highlight emojis the user has already
+   *  reacted with in the picker. Passed as the raw array (not a pre-built Set)
+   *  so the Set is only allocated while the picker is actually open, not on
+   *  every render of every visible row. */
+  reactions?: Array<{ mine?: boolean; emoji: string }>;
 }
 
 /**
@@ -33,12 +36,15 @@ interface MessageActionsProps {
  * surrounding content. Tapping react swaps the bar for a quick-emoji picker in
  * place — still anchored, so still no reflow.
  */
-export function MessageActions({ visible, onReact, onReply, onEdit, onDelete, onPin, pinned, mine }: MessageActionsProps) {
+export function MessageActions({ visible, onReact, onReply, onEdit, onDelete, onPin, pinned, reactions }: MessageActionsProps) {
   const { colors } = useTheme();
   const { emojis } = useQuickReactions();
   const [picking, setPicking] = useState(false);
   const [confirming, setConfirming] = useState(false);
   if (!visible && !picking && !confirming) return null;
+  // Build the "already reacted" Set only when the picker is open — allocating it
+  // on every row render (the common case) was pure waste since it's only read here.
+  const mine = picking ? new Set((reactions ?? []).flatMap((r) => (r.mine ? [r.emoji] : []))) : null;
 
   const pick = (emoji: string) => {
     tapFeedback();

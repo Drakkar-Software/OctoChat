@@ -24,10 +24,30 @@ interface CachedProfile {
 
 const cache = new Map<string, CachedProfile>();
 const inflight = new Map<string, Promise<void>>();
-const listeners = new Set<() => void>();
+// Listeners indexed by the user-id they watch. When a profile tick fires for a
+// specific id, only listeners subscribed to that id are invoked — not every
+// mounted consumer (O(changed) instead of O(all mounted rows)).
+const listeners = new Map<string, Set<() => void>>();
 
-function notify() {
-  for (const fn of listeners) fn();
+/**
+ * Wake listeners for the given changed user ids. Pass no args (or `undefined`)
+ * to broadcast to all listeners — used by clearPseudoCache on account switch.
+ */
+function notify(changedIds?: string[]) {
+  let toCall: Set<() => void>;
+  if (changedIds === undefined) {
+    // Account switch: wake every registered listener exactly once.
+    toCall = new Set();
+    for (const s of listeners.values()) for (const fn of s) toCall.add(fn);
+  } else {
+    // Profile batch resolved: wake only listeners subscribed to a changed id.
+    toCall = new Set();
+    for (const id of changedIds) {
+      const s = listeners.get(id);
+      if (s) for (const fn of s) toCall.add(fn);
+    }
+  }
+  for (const fn of toCall) fn();
 }
 
 /** Drop every cached profile (on account switch — pseudos/avatars are per-identity).
@@ -47,7 +67,7 @@ export function primeProfile(userId: string, profile: { pseudo?: string; avatar?
   if (profile.avatar !== undefined) next.avatar = profile.avatar ?? undefined;
   if (prev.pseudo === next.pseudo && prev.avatar === next.avatar) return;
   cache.set(userId, next);
-  notify();
+  notify([userId]);
 }
 
 /**
@@ -71,7 +91,7 @@ function fetchProfiles(userIds: string[]): void {
         cache.set(id, next);
       }
     }
-    if (changed) notify();
+    if (changed) notify(todo);
   })().finally(() => {
     for (const id of todo) inflight.delete(id);
   });
@@ -101,12 +121,21 @@ function useProfileSnapshot(userIds: string[], field: 'pseudo' | 'avatar'): Read
         return changed ? new Map(ids.map((id) => [id, cache.get(id)?.[field]])) : prev;
       });
     };
-    listeners.add(update);
+    // Register under each watched id so notify(changedIds) only wakes us when
+    // one of our ids actually changes — not when any other user's profile arrives.
+    for (const id of ids) {
+      let s = listeners.get(id);
+      if (!s) { s = new Set(); listeners.set(id, s); }
+      s.add(update);
+    }
     // Sync immediately: the cache may have updated between this render and mount
     // (e.g. another component's fetch resolved in the interim).
     update();
     return () => {
-      listeners.delete(update);
+      for (const id of ids) {
+        const s = listeners.get(id);
+        if (s) { s.delete(update); if (s.size === 0) listeners.delete(id); }
+      }
     };
   }, [idsKey, field]);
 

@@ -112,7 +112,7 @@ save(place(mark, 1024, 0.94), os.path.join(IMAGES, 'logo.png'))
 
 # --- mobile launcher / splash / favicon (apps/mobile/assets/images) ---
 save(place(mark, 1024, 0.86, bg=BG), os.path.join(IMAGES, 'icon.png'), 'RGB')
-save(place(mark, 1024, 0.90), os.path.join(IMAGES, 'splash-icon.png'))
+# splash-icon.png was removed — app.json splash points to logo.png, not splash-icon
 save(place(mark, 256, 0.92), os.path.join(IMAGES, 'favicon.png'))
 save(place(mark, 512, 0.60), os.path.join(IMAGES, 'android-icon-foreground.png'))
 save(Image.new('RGBA', (512, 512), BG + (255,)),

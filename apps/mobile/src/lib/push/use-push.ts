@@ -74,19 +74,35 @@ export function usePush(session: Session | null, spaceIds: string[], enabled: bo
   );
 
   // Foreground delivery + notification-tap navigation — registered once.
+  // Deferred past first paint so this effect is not the first reference to
+  // `./fcm` on a foreground launch (inlineRequires would otherwise evaluate
+  // fcm.native.ts — pulling @react-native-firebase/messaging, @notifee/react-native,
+  // expo-notifications, and the SDK decryption graph — during foreground boot-eval,
+  // partially undoing the round-3 AppState gate on registerBackgroundPushHandler).
+  // The cold-start-tap drain effect below stashes any pendingOpen that arrives
+  // during this window and routes once the session is ready, so no tap is lost.
   useEffect(() => {
-    const offMessage = onForegroundPush((data) => {
-      if (data.roomId) dispatchRoomChange(data.roomId);
+    let active = true;
+    let offMessage: (() => void) | undefined;
+    let offOpen: (() => void) | undefined;
+    let offNotifeeOpen: (() => void) | undefined;
+    const task = InteractionManager.runAfterInteractions(() => {
+      if (!active) return;
+      offMessage = onForegroundPush((data) => {
+        if (data.roomId) dispatchRoomChange(data.roomId);
+      });
+      // Two tap-navigation sources, mutually exclusive at runtime: RN-Firebase fires
+      // for the iOS visible-alert push; notifee fires for the Android notifee-built
+      // banner (data-only path). Each is a no-op on the other platform.
+      offOpen = onPushOpenNavigate(handleOpen);
+      offNotifeeOpen = onNotifeeOpenNavigate(handleOpen);
     });
-    // Two tap-navigation sources, mutually exclusive at runtime: RN-Firebase fires
-    // for the iOS visible-alert push; notifee fires for the Android notifee-built
-    // banner (data-only path). Each is a no-op on the other platform.
-    const offOpen = onPushOpenNavigate(handleOpen);
-    const offNotifeeOpen = onNotifeeOpenNavigate(handleOpen);
     return () => {
-      offMessage();
-      offOpen();
-      offNotifeeOpen();
+      active = false;
+      task.cancel();
+      offMessage?.();
+      offOpen?.();
+      offNotifeeOpen?.();
     };
   }, [handleOpen]);
 

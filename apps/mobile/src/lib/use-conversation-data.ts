@@ -55,11 +55,15 @@ export function useConversationData(
   const reactions = (useStarfishData(store, (d) => d.reactions as ReactionEvent[] | undefined) ?? []) as ReactionEvent[];
   const edits = (useStarfishData(store, (d) => d.edits as MessageEditEvent[] | undefined) ?? []) as MessageEditEvent[];
   const pins = (useStarfishData(store, (d) => d.pins as PinEvent[] | undefined) ?? []) as PinEvent[];
-  // Stable join key — same pattern as use-pseudos.ts's `idsKey`. Once `idsKey`
-  // is stable (no new authors/reactors arrived), React Compiler can memoize
-  // `nameFor`/`resolveUser`/`selfName` so message rows don't re-render on every
-  // compositor keystroke or unrelated reaction tick.
-  const idsKey = [...new Set([currentUserId, ...messages.map((m) => m.authorId), ...reactions.map((r) => r.userId)])].join(',');
+  // Memoize: the O(N) Set + map + join over all authors/reactors is skipped on
+  // unrelated re-renders (composer keystrokes, editingId changes, hover events) —
+  // only re-runs when messages/reactions identity actually changes (i.e. a sync tick).
+  // Once idsKey is stable, React Compiler can memoize the downstream nameFor /
+  // resolveUser / selfName so message rows don't re-render on unrelated ticks.
+  const idsKey = useMemo(
+    () => [...new Set([currentUserId, ...messages.map((m) => m.authorId), ...reactions.map((r) => r.userId)])].join(','),
+    [currentUserId, messages, reactions],
+  );
   const ids = useMemo(() => (idsKey ? idsKey.split(',') : []), [idsKey]);
   const pseudo = usePseudos(ids);
   const avatar = useAvatars(ids);
