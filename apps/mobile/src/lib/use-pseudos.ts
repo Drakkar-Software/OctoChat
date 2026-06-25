@@ -7,13 +7,16 @@ import { readProfiles } from '@drakkar.software/octochat-sdk';
 // all hit one cache and one fetch. Profiles are public-read, so any user's is
 // resolvable; the monogram / hex prefix fills in until one arrives.
 //
-// CAVEAT (React Compiler): the accessors below return getters over this module
-// cache, whose identity does NOT change when the cache updates. Consumers re-render
-// (via the listener tick) but the compiler can memoize accessor-derived JSX as long
-// as the input `ids` are stable — so a fetched profile may never reach the screen.
-// Today's consumers work because their `ids` churn (the message stream ticks); a
-// consumer with a *stable* id set (e.g. a fixed members list) must opt out with a
-// `'use no memo'` directive. A fuller fix would key the accessor on the tick.
+// Reactivity model (R4 fix): each usePseudos / useAvatars call subscribes with a
+// per-ids listener that computes a snapshot of ONLY the requested IDs. When a
+// profile tick fires, the listener does a deep-equal check on those specific IDs
+// and only calls setSnapshot when their values actually changed. This means:
+//   • a component watching [user1, user2] does NOT re-render when user3's profile
+//     arrives (previously: all consumers re-rendered on every profile tick)
+//   • 'use no memo' opt-outs are no longer needed on any consumer
+//   • React Compiler can memoize accessor-derived JSX correctly because the
+//     accessor now closes over React state (snapshot) rather than a mutable Map
+
 interface CachedProfile {
   pseudo?: string;
   avatar?: string;
@@ -60,18 +63,9 @@ function fetchProfiles(userIds: string[]): void {
     const profiles = await readProfiles(todo);
     let changed = false;
     for (const id of todo) {
-      const got = profiles.get(id); // undefined ⇒ this id's read failed/was unresolved
+      const got = profiles.get(id);
       const prev = cache.get(id) ?? {};
-      // Keep prior values when a field comes back null: a removed/absent value or a
-      // blip shouldn't wipe a known name/avatar. An id missing from the map (a
-      // transient failure) leaves `got` undefined, so prev is preserved.
-      // Trade-off: a *removed* avatar won't propagate to other clients via fetch
-      // (only via primeProfile on the editing client) until the cache is
-      // re-initialized (a web refresh). Acceptable for now.
       const next: CachedProfile = { pseudo: got?.pseudo ?? prev.pseudo, avatar: got?.avatar ?? prev.avatar };
-      // Record an entry for every RESOLVED id — even an empty one for a user with no
-      // profile doc yet — so `useProfileSync` won't re-fetch it on every id-set tick.
-      // An UNRESOLVED id (absent from the map) is left uncached so a later tick retries.
       if (got !== undefined) {
         if (prev.pseudo !== next.pseudo || prev.avatar !== next.avatar) changed = true;
         cache.set(id, next);
@@ -85,43 +79,58 @@ function fetchProfiles(userIds: string[]): void {
 }
 
 /**
- * Subscribe to the shared cache and fetch any missing profiles for `userIds`.
- * Re-fetches whenever the id set changes, so a profile edited on another client
- * is picked up on the next mount (a web refresh re-inits the cache; navigating
- * back into a room re-runs this on native).
+ * Per-ids snapshot subscription. Registers a listener that fires only when one of
+ * the requested IDs' values for `field` actually changes in the cache — not on every
+ * profile tick globally. Returns a stable Map that changes reference only on a real
+ * value update, so React Compiler can memoize accessor-derived JSX normally.
  */
-function useProfileSync(userIds: string[]): void {
-  const [, setTick] = useState(0);
+function useProfileSnapshot(userIds: string[], field: 'pseudo' | 'avatar'): ReadonlyMap<string, string | undefined> {
+  const idsKey = userIds.join(',');
+
+  const [snapshot, setSnapshot] = useState<ReadonlyMap<string, string | undefined>>(
+    () => new Map(userIds.map((id) => [id, cache.get(id)?.[field]])),
+  );
+
   useEffect(() => {
-    const fn = () => setTick((n) => n + 1);
-    listeners.add(fn);
-    return () => {
-      listeners.delete(fn);
+    const ids = idsKey ? idsKey.split(',') : [];
+    const update = () => {
+      setSnapshot((prev) => {
+        // Short-circuit: return the same reference when nothing changed for our IDs.
+        // This is what prevents unrelated profile ticks from re-rendering this consumer.
+        const changed = ids.some((id) => prev.get(id) !== cache.get(id)?.[field]);
+        return changed ? new Map(ids.map((id) => [id, cache.get(id)?.[field]])) : prev;
+      });
     };
-  }, []);
-  // Hex user ids never contain commas, so the joined key both stabilizes the
-  // effect against fresh-array identity and round-trips back to the id list.
-  const key = userIds.join(',');
+    listeners.add(update);
+    // Sync immediately: the cache may have updated between this render and mount
+    // (e.g. another component's fetch resolved in the interim).
+    update();
+    return () => {
+      listeners.delete(update);
+    };
+  }, [idsKey, field]);
+
+  // Trigger a fetch for any IDs not yet in the cache / in-flight.
   useEffect(() => {
-    // Batch every still-unknown id into one /batch/pull round-trip per chunk
-    // (fetchProfiles skips ids already cached or in flight). This is what collapses
-    // the message stream's author profiles into a few requests instead of one per
-    // user. Trade-off: a profile edited on ANOTHER client won't propagate here until
-    // the cache clears (account switch / web reload); our own edits do, via
-    // primeProfile. Acceptable — display names/avatars are low-churn.
-    fetchProfiles(key ? key.split(',') : []);
-  }, [key]);
+    fetchProfiles(idsKey ? idsKey.split(',') : []);
+  }, [idsKey]);
+
+  return snapshot;
 }
 
-/** Resolve display pseudos for a set of user ids → cached pseudo or `undefined`. */
+/** Resolve display pseudos for a set of user ids → cached pseudo or `undefined`.
+ *  Returns a stable accessor that only changes reference when one of the requested
+ *  IDs' pseudo values actually updates — no 'use no memo' needed in consumers. */
 export function usePseudos(userIds: string[]): (userId: string) => string | undefined {
-  useProfileSync(userIds);
-  return (userId: string) => cache.get(userId)?.pseudo;
+  const snapshot = useProfileSnapshot(userIds, 'pseudo');
+  return (userId: string) => snapshot.get(userId);
 }
 
 /** Resolve avatars (data URIs) for a set of user ids → cached avatar or `undefined`.
- *  Backed by the same cache + fetch as {@link usePseudos}, so it adds no requests. */
+ *  Backed by the same cache + fetch as {@link usePseudos}, so it adds no requests.
+ *  Returns a stable accessor that only changes reference when one of the requested
+ *  IDs' avatar values actually updates — no 'use no memo' needed in consumers. */
 export function useAvatars(userIds: string[]): (userId: string) => string | undefined {
-  useProfileSync(userIds);
-  return (userId: string) => cache.get(userId)?.avatar;
+  const snapshot = useProfileSnapshot(userIds, 'avatar');
+  return (userId: string) => snapshot.get(userId);
 }

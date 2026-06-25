@@ -82,10 +82,13 @@ export default function CreatingScreen() {
   useEffect(() => {
     const id = setInterval(() => {
       if (reducedMotion) {
-        tipOpacity.value = 0;
+        // Use .set()/.get() (not .value =) so React Compiler can memoize this component.
+        // .value = is a mutable property write that the compiler's immutability analysis
+        // can't track, which opts the entire component out of automatic memoization.
+        tipOpacity.set(0);
         setTimeout(() => {
           setTipIndex((i) => (i + 1) % TIPS.length);
-          tipOpacity.value = 1;
+          tipOpacity.set(1);
         }, 0);
       } else {
         tipOpacity.set(withSequence(

@@ -1,4 +1,9 @@
-import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+// Deep per-set imports avoid evaluating all three icon-set barrel files (glyph
+// maps + font loaders) in a single require() at cold start. Each set is still
+// bundled, but module evaluation is deferred until Icon.tsx is first required.
+import Feather from '@expo/vector-icons/Feather';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentType } from 'react';
 
 import { useTheme } from '@/lib/use-theme';

@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { Room } from '@drakkar.software/octochat-sdk';
@@ -54,16 +54,22 @@ export function DmList({ dms, activeRoomId, threads, onOpen, onOpenThread }: DmL
   const active = dms.filter((d) => !d.archived || d.unread > 0);
   const archived = dms.filter((d) => d.archived && d.unread === 0);
 
+  // Pre-build stable Room objects keyed by spaceId so that ChannelRow's `room` prop
+  // keeps identity across renders that don't touch this DM's data. Previously a new
+  // object literal was created inside renderRow on every render, defeating memo checks.
+  const roomBySpaceId = useMemo(
+    () =>
+      new Map<string, Room>(
+        dms.map((dm) => [
+          dm.spaceId,
+          { id: dm.roomId, spaceId: dm.spaceId, category: '', name: dm.name, kind: 'dm', avatar: dm.initials, unread: dm.unread },
+        ]),
+      ),
+    [dms],
+  );
+
   const renderRow = (dm: DmEntry) => {
-    const room: Room = {
-      id: dm.roomId,
-      spaceId: dm.spaceId,
-      category: '',
-      name: dm.name,
-      kind: 'dm',
-      avatar: dm.initials,
-      unread: dm.unread,
-    };
+    const room = roomBySpaceId.get(dm.spaceId)!;
     return (
       <Fragment key={dm.spaceId}>
         <ChannelRow

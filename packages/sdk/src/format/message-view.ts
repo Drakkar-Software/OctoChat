@@ -1,8 +1,8 @@
 import { mentionsUser } from '../messaging/links';
 import type { OutboxMessage, OutboxStatus } from '../outbox/outbox-types';
-import { aggregateReactions } from '../messaging/reactions';
+import { aggregateAllReactions, aggregateReactions } from '../messaging/reactions';
 import type { AttachmentRef } from '../starfish/attachments';
-import type { Message, MessageEditEvent, PinEvent, ReactionEvent, User } from '../domain/types';
+import type { Message, MessageEditEvent, PinEvent, Reaction, ReactionEvent, User } from '../domain/types';
 
 /** Shape of a message as stored (encrypted) in a room document. */
 export interface StoredMsg {
@@ -162,6 +162,124 @@ export function toDisplayMessage(
     edited: edit?.kind === 'edit',
     deleted,
     pinned: resolvePinned(opts.pins ?? [], m.id, opts.ownerId),
+    pending: opts.pending,
+  };
+}
+
+// ── Batch index builders (O(N) single-pass alternatives to per-row folds) ──────
+//
+// In list contexts (RoomConversation, ThreadConversation) `toDisplayMessage` is called
+// for every visible row, and each call runs `aggregateReactions`, `resolveEdit`, and
+// `resolvePinned` — each an O(events) or O(edits) filter+sort scan. With N rows that
+// is O(N·(reactions+edits+pins)) per list pass, re-triggered on any reaction or edit.
+// The batch builders below mirror the `replyCounts` pattern already used for thread
+// counts: build Maps/Sets once per data change (in `useMemo`), then each row reads its
+// slice in O(1) via `Map.get / Set.has`.
+
+/** Precomputed index produced by {@link buildMessageIndex}. Passed to
+ *  {@link toDisplayMessageIndexed} in place of the raw arrays. */
+export interface MessageIndex {
+  /** Per-message aggregated reactions (absent key = no reactions). */
+  reactions: Map<string, Reaction[]>;
+  /** Latest author-authored edit/delete event per message (absent = no edit). */
+  edits: Map<string, MessageEditEvent>;
+  /** Set of currently-pinned message ids (by latest owner pin event). */
+  pinned: Set<string>;
+}
+
+/** Fold all edits in a single O(N) pass, keeping the latest event per message
+ *  whose `userId === that message's authorId` (the same security guard as in
+ *  `resolveEdit`). Returns a Map<msgId, latest-edit>. */
+export function resolveEdits(
+  edits: MessageEditEvent[],
+  messages: { id: string; authorId: string }[],
+): Map<string, MessageEditEvent> {
+  // Build a msgId→authorId lookup in one pass so the guard check is O(1) per event.
+  const authorOf = new Map(messages.map((m) => [m.id, m.authorId]));
+  const out = new Map<string, MessageEditEvent>();
+  // Scan in time order; later events overwrite earlier ones per message.
+  const sorted = [...edits].sort((a, b) => a.ts - b.ts);
+  for (const e of sorted) {
+    if (e.userId !== authorOf.get(e.msgId)) continue; // security guard: only author's edits count
+    out.set(e.msgId, e);
+  }
+  return out;
+}
+
+/** Fold all pin events in a single O(N) pass, returning the set of currently-pinned
+ *  message ids. Only the space owner's events count (same guard as `resolvePinned`).
+ *  Returns an empty Set when `ownerId` is absent. */
+export function resolvePinnedSet(pins: PinEvent[], ownerId?: string): Set<string> {
+  if (!ownerId) return new Set();
+  // Scan in time order; later events win per message.
+  const latest = new Map<string, 'pin' | 'unpin'>();
+  const sorted = [...pins].sort((a, b) => a.ts - b.ts);
+  for (const p of sorted) {
+    if (p.userId !== ownerId) continue; // only the space owner's events count
+    latest.set(p.msgId, p.kind);
+  }
+  const out = new Set<string>();
+  for (const [msgId, kind] of latest) {
+    if (kind === 'pin') out.add(msgId);
+  }
+  return out;
+}
+
+/** Build a {@link MessageIndex} for an entire message list in one O(N) pass per
+ *  array, amortising the per-row fold cost. Designed for `useMemo` in list components:
+ *
+ *  ```ts
+ *  const idx = useMemo(
+ *    () => buildMessageIndex(messages, reactions, edits, pins, currentUserId, ownerId),
+ *    [messages, reactions, edits, pins, currentUserId, ownerId],
+ *  );
+ *  ```
+ *
+ *  Pass `idx` as `extraData` (instead of the raw arrays) so LegendList row memos bust
+ *  only when the index itself changes, not on unrelated renders. */
+export function buildMessageIndex(
+  messages: { id: string; authorId: string }[],
+  reactions: ReactionEvent[],
+  edits: MessageEditEvent[],
+  pins: PinEvent[],
+  currentUserId: string,
+  ownerId?: string,
+): MessageIndex {
+  return {
+    reactions: aggregateAllReactions(reactions, currentUserId),
+    edits: resolveEdits(edits, messages),
+    pinned: resolvePinnedSet(pins, ownerId),
+  };
+}
+
+/** O(1)-per-row alternative to {@link toDisplayMessage}. Reads precomputed slices
+ *  from a {@link MessageIndex} instead of scanning the raw arrays per row.
+ *  Use in LegendList `renderItem` after building the index once with
+ *  {@link buildMessageIndex}. */
+export function toDisplayMessageIndexed(
+  m: StoredMsg,
+  idx: MessageIndex,
+  currentUserId: string,
+  opts: Omit<DisplayOpts, 'edits' | 'pins' | 'ownerId'> = {},
+): Message {
+  const edit = idx.edits.get(m.id);
+  const deleted = edit?.kind === 'delete';
+  const text = deleted ? undefined : edit?.kind === 'edit' ? edit.text : m.text;
+  const mention = m.authorId !== currentUserId && mentionsUser(text, opts.selfName);
+  return {
+    id: m.id,
+    roomId: '',
+    authorId: m.authorId,
+    time: hhmm(m.ts),
+    text,
+    attachmentRef: m.attachment,
+    reactions: idx.reactions.get(m.id) ?? [],
+    threadCount: opts.threadCount,
+    mention,
+    unread: m.ts > (opts.lastReadAt ?? 0),
+    edited: edit?.kind === 'edit',
+    deleted,
+    pinned: idx.pinned.has(m.id),
     pending: opts.pending,
   };
 }

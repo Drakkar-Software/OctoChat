@@ -10,10 +10,6 @@ import { useAvatars, usePseudos } from './use-pseudos';
  * until a pseudo/avatar arrives (or for users who never set one).
  */
 export function useUserProfile(userId: string): User {
-  // The cache backing usePseudos/useAvatars is invisible to the React Compiler,
-  // and a single stable id never churns it into a re-render. Opt out so a fetched
-  // profile actually reaches the screen (see use-pseudos.ts, SpaceMembersCard).
-  'use no memo';
   const pseudo = usePseudos([userId]);
   const avatar = useAvatars([userId]);
   const named = pseudo(userId)?.trim();

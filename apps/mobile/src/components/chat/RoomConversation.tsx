@@ -4,7 +4,15 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { layout } from '@/theme';
 import { LegendList, type LegendListRef } from '@legendapp/list/react-native';
 
-import { authorFor, dayLabel, isContinuation, mergePendingMessages, resolvePinned, sameDay, toDisplayMessage } from '@drakkar.software/octochat-sdk';
+import {
+  authorFor,
+  buildMessageIndex,
+  dayLabel,
+  isContinuation,
+  mergePendingMessages,
+  sameDay,
+  toDisplayMessageIndexed,
+} from '@drakkar.software/octochat-sdk';
 import type { OutboxMessage } from '@/lib/outbox';
 import { replyCounts } from '@drakkar.software/octochat-sdk';
 import type { AttachmentRef } from '@drakkar.software/octochat-sdk';
@@ -111,9 +119,16 @@ export function RoomConversation({
   // thread's "N replies" badge only updates on a full re-open in stream/automated rooms,
   // which preserve message identity across delta pulls (same memo gap as reactions/edits).
   const threadCounts = useMemo(() => replyCounts(messages), [messages]);
+  // Build a precomputed index for reactions/edits/pins in O(N) single passes instead
+  // of O(N·events) per-row scans. Each renderItem reads its slice in O(1) via Map.get /
+  // Set.has — mirrors the existing threadCounts pattern (same file, same rationale).
+  const msgIdx = useMemo(
+    () => buildMessageIndex(top, reactions, edits, pins, currentUserId, ownerId),
+    [top, reactions, edits, pins, currentUserId, ownerId],
+  );
   const extraData = useMemo(
-    () => ({ editingId, reactions, edits, pins, ownerId, pendingStatus, threadCounts }),
-    [editingId, reactions, edits, pins, ownerId, pendingStatus, threadCounts],
+    () => ({ editingId, msgIdx, pendingStatus, threadCounts }),
+    [editingId, msgIdx, pendingStatus, threadCounts],
   );
 
   // When an inline editor opens, lift its row into the keyboard-shrunk viewport. The
@@ -174,7 +189,9 @@ export function RoomConversation({
             {showDate ? <DateDivider date={dayLabel(m.ts)} /> : null}
             {showUnread ? <UnreadDivider /> : null}
             <MessageGroup
-              message={toDisplayMessage(m, reactions, currentUserId, { threadCount: rc || undefined, selfName, lastReadAt, edits, pins, ownerId, pending: ps })}
+              // O(1) read from the precomputed index (reactions/edits/pins are folded
+              // once per messages+reactions change, not per row, per render).
+              message={toDisplayMessageIndexed(m, msgIdx, currentUserId, { threadCount: rc || undefined, selfName, lastReadAt, pending: ps })}
               author={authorFor(m.authorId, currentUserId, pseudo(m.authorId), avatar(m.authorId))}
               continuation={!showDate && !showUnread && isContinuation(m, prev)}
               nameFor={nameFor}
@@ -186,7 +203,7 @@ export function RoomConversation({
               onOpenThread={ps ? undefined : () => onOpenThread(m.id)}
               onEdit={!ps && m.authorId === currentUserId && m.text ? (t) => onEditMessage(m.id, t) : undefined}
               onDelete={!ps && m.authorId === currentUserId ? () => onDeleteMessage(m.id) : undefined}
-              onPin={!ps && isOwner && onPinMessage ? () => onPinMessage(m.id, !resolvePinned(pins, m.id, ownerId)) : undefined}
+              onPin={!ps && isOwner && onPinMessage ? () => onPinMessage(m.id, !msgIdx.pinned.has(m.id)) : undefined}
               onRetry={ps === 'failed' && onRetry ? () => onRetry(m.id) : undefined}
               onPressAuthor={onOpenProfile ? () => onOpenProfile(m.authorId) : undefined}
               onLoadAttachment={onLoadAttachment}

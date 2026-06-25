@@ -119,10 +119,6 @@ function MemberRow({ id, user, isOwnerRow, canRemove, onRemove }: MemberRowProps
  * Owner viewers see a trailing remove control on each non-owner row.
  */
 export function SpaceMembersCard({ ownerId, members, currentUserId, canRemove, onRemove }: SpaceMembersCardProps) {
-  // usePseudos/useAvatars read a module-level cache the React Compiler can't
-  // track; without opting out, the row JSX memoizes stale here because the
-  // accessors' identity stays stable while members[] does. See use-pseudos.ts.
-  'use no memo';
   const ownerUserId = ownerId ?? currentUserId;
   const memberCount = 1 + members.length; // owner + roster
   // Owner first, then the roster; surface the owner row only when there's more

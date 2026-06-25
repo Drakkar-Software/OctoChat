@@ -30,7 +30,6 @@ const FACE = 22;
  * from the shared profile cache like {@link MessageResult}.
  */
 function ParticipantDeck({ ids, currentUserId }: { ids: string[]; currentUserId: string }) {
-  'use no memo'; // ids are stable per row, so opt into profile-cache ticks (see use-pseudos)
   const { colors } = useTheme();
   const pseudo = usePseudos(ids);
   const avatar = useAvatars(ids);

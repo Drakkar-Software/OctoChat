@@ -1,5 +1,34 @@
 # OctoChat Changelog
 
+## sdk 0.7.0 — 2026-06-25 · Performance: batch message index + cold-start wins
+
+### SDK changes (0.6.2 → 0.7.0)
+
+- **New: batch message index builders** (`format/message-view.ts`) — `buildMessageIndex`,
+  `toDisplayMessageIndexed`, `resolveEdits`, `resolvePinnedSet`, `MessageIndex` type.
+  Replaces the O(N·events) per-row `toDisplayMessage` fold in list contexts with O(N)
+  single-pass index maps built once per data change (following the `replyCounts` precedent).
+  Each visible row now reads its reactions/edits/pins slice in O(1) via `Map.get`/`Set.has`.
+- **New: `aggregateAllReactions`** (`messaging/reactions.ts`) — O(N) single-pass alternative
+  to `aggregateReactions` for list contexts; produces `Map<msgId, Reaction[]>` in one scan.
+
+### App changes
+
+- **R4 — Profile cache reactivity fix** (`lib/use-pseudos.ts`): `usePseudos`/`useAvatars`
+  now register per-ids snapshot listeners that only fire a state update when the requested
+  IDs' values actually change. This removes the previous O(consumers × profile-ticks)
+  re-render fan-out and eliminates all `'use no memo'` opt-outs (7 sites removed across
+  `dm.tsx`, `request.tsx`, `profile/[id].tsx`, `AccountSwitcher`, `ThreadResult`,
+  `SpaceMembersCard`, `use-user-profile.ts`). React Compiler can now memoize profile-
+  derived JSX correctly.
+- **C8 — Metro tree-shaking** (`metro.config.js`): restored `experimentalImportSupport: true`
+  (was incorrectly set to `false`) and documented `EXPO_UNSTABLE_TREE_SHAKING=1` env var
+  for opt-in SDK barrel elimination. `inlineRequires: true` already active from C4.
+- **C1–C7** (prior commits): font-gate removal, icon deep imports, Reanimated `.set()` fix,
+  Metro `inlineRequires`, Android R8 + resource shrinking, outbox boot deferral,
+  message-index integration in `RoomConversation`/`ThreadConversation`, stable `Room` objects
+  in `DmList`, TTI marker in `index.tsx`.
+
 ## sdk 0.6.1 — 2026-06-23 · E2EE keyring cap-scope fix
 
 ### SDK changes (0.6.0 → 0.6.1)

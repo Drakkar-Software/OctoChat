@@ -25,9 +25,6 @@ import { Txt } from '@/components/ui/Txt';
  * navigation/copy.
  */
 export default function DmLinkScreen() {
-  // usePseudos/useAvatars read a module cache the React Compiler can't track; opt
-  // out so the owner's freshly-fetched pseudo/avatar reaches this screen.
-  'use no memo';
   const { session } = useSession();
   const inviteFrag = useInviteFragment();
   const [busy, setBusy] = useState(false);

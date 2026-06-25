@@ -24,6 +24,7 @@
  *    (re)hydrated for a new account, app mount, and a slow interval.
  */
 import { useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { InteractionManager } from 'react-native';
 
 import { getOnline, reportReachability, subscribeOnline } from './connectivity';
 import { outboxStore, useOutboxHydration } from './outbox';
@@ -106,7 +107,13 @@ export function OutboxProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!session) return;
-    void drain({ includeFailed: true, force: true }); // catch up on launch/switch
+    // Defer the catch-up drain until after the first interactive frame so the outbox
+    // flusher doesn't compete with the rooms/session paint on cold start. Reconnect
+    // and enqueue events still fire immediately (they register their own subscriptions
+    // below), so an in-flight message is retried as soon as those signals fire.
+    const catchUp = InteractionManager.runAfterInteractions(() => {
+      void drain({ includeFailed: true, force: true });
+    });
     const offOnline = subscribeOnline((on) => {
       if (on) void drain({ includeFailed: true, force: true });
     });
@@ -122,6 +129,7 @@ export function OutboxProvider({ children }: { children: ReactNode }) {
     });
     const iv = setInterval(() => void drain({ includeFailed: true, force: true }), RETRY_INTERVAL_MS);
     return () => {
+      catchUp.cancel();
       offOnline();
       offSse();
       offStore();

@@ -33,9 +33,6 @@ const NODE_TYPES = [
  * submit/claim lifecycle lives in {@link useResourceRequest}.
  */
 export default function RequestScreen() {
-  // usePseudos/useAvatars read a module cache the React Compiler can't track; opt out.
-  'use no memo';
-
   const { session } = useSession();
   const { s: spaceId } = useLocalSearchParams<{ s?: string }>();
 

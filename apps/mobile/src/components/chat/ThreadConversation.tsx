@@ -3,7 +3,15 @@ import { StyleSheet, View } from 'react-native';
 import { LegendList } from '@legendapp/list/react-native';
 
 import { spacing } from '@/theme';
-import { authorFor, dayLabel, isContinuation, mergePendingMessages, resolvePinned, sameDay, toDisplayMessage } from '@drakkar.software/octochat-sdk';
+import {
+  authorFor,
+  buildMessageIndex,
+  dayLabel,
+  isContinuation,
+  mergePendingMessages,
+  sameDay,
+  toDisplayMessageIndexed,
+} from '@drakkar.software/octochat-sdk';
 import type { OutboxMessage } from '@/lib/outbox';
 import { plural } from '@drakkar.software/octochat-sdk';
 import type { AttachmentRef } from '@drakkar.software/octochat-sdk';
@@ -77,15 +85,20 @@ export function ThreadConversation({
     [messages, parentId, pending],
   );
   const pendingStatus = useMemo(() => new Map((pending ?? []).map((e) => [e.id, e.status])), [pending]);
+  // Build a precomputed index for reactions/edits/pins in O(N) single passes instead
+  // of O(N·events) per-row scans. Mirrors the pattern in RoomConversation.
+  const msgIdx = useMemo(
+    () => buildMessageIndex(messages, reactions, edits, pins, currentUserId, ownerId),
+    [messages, reactions, edits, pins, currentUserId, ownerId],
+  );
   const pinHandler = (msgId: string) =>
-    isOwner && onPinMessage ? () => onPinMessage(msgId, !resolvePinned(pins, msgId, ownerId)) : undefined;
-  // LegendList memoizes each reply row by `[itemKey, data, extraData]`; reactions/edits
-  // are folded onto the message at render from separate arrays, so without listing them
-  // a new reaction/edit on a reply wouldn't re-render its row until a full re-open. Refs
-  // change only on content change, so idle pulls cause no re-render (mirrors RoomConversation).
+    isOwner && onPinMessage ? () => onPinMessage(msgId, !msgIdx.pinned.has(msgId)) : undefined;
+  // LegendList memoizes each reply row by `[itemKey, data, extraData]`; without listing
+  // msgIdx here, a new reaction/edit on a reply wouldn't re-render its row until a full
+  // re-open. msgIdx changes only when reactions/edits/pins change, so idle pulls are no-ops.
   const extraData = useMemo(
-    () => ({ reactions, edits, pins, ownerId, pendingStatus }),
-    [reactions, edits, pins, ownerId, pendingStatus],
+    () => ({ msgIdx, pendingStatus }),
+    [msgIdx, pendingStatus],
   );
 
   return (
@@ -115,7 +128,7 @@ export function ThreadConversation({
             // reads as a branched side-conversation, not a slightly-tinted room.
             <ThreadParentCard>
               <MessageGroup
-                message={toDisplayMessage(parent, reactions, currentUserId, { selfName, lastReadAt, edits, pins, ownerId })}
+                message={toDisplayMessageIndexed(parent, msgIdx, currentUserId, { selfName, lastReadAt })}
                 author={authorFor(parent.authorId, currentUserId, pseudo(parent.authorId), avatar(parent.authorId))}
                 nameFor={nameFor}
                 resolveRoom={resolveRoom}
@@ -154,7 +167,7 @@ export function ThreadConversation({
             {showDate ? <DateDivider date={dayLabel(r.ts)} /> : null}
             {showUnread ? <UnreadDivider /> : null}
             <MessageGroup
-              message={toDisplayMessage(r, reactions, currentUserId, { selfName, lastReadAt, edits, pins, ownerId, pending: ps })}
+              message={toDisplayMessageIndexed(r, msgIdx, currentUserId, { selfName, lastReadAt, pending: ps })}
               author={authorFor(r.authorId, currentUserId, pseudo(r.authorId), avatar(r.authorId))}
               continuation={!showDate && !showUnread && isContinuation(r, prev)}
               nameFor={nameFor}

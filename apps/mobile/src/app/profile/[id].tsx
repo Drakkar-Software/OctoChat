@@ -16,9 +16,6 @@ import { Txt } from '@/components/ui/Txt';
 /** Read-only public profile for any user id — reached by tapping an author's
  *  avatar or name in chat. Public-read, so it needs no session. */
 export default function ProfileScreen() {
-  // useUserProfile reads a module cache the React Compiler can't track; opt out
-  // so a freshly-fetched pseudo/avatar reaches this screen. See use-pseudos.ts.
-  'use no memo';
   const { id } = useLocalSearchParams<{ id: string }>();
   const user = useUserProfile(id);
   // The "Message" affordance + its availability (self / peer hasn't published keys /

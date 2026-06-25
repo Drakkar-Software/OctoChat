@@ -66,4 +66,31 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return (defaultResolveRequest ?? context.resolveRequest)(context, moduleName, platform);
 };
 
+// Defer module evaluation to first use — all static imports are replaced with
+// inline require() calls that only evaluate when the symbol is first accessed.
+// This is the single biggest cold-start win for a large dependency graph: heavy
+// modules like the SDK, crypto libs, and icon sets never evaluate until a screen
+// actually needs them. Expo SDK 56 defaults to inlineRequires: false.
+// NOTE: bare side-effect imports (`import 'x'`) in _layout.tsx and the module-scope
+// calls (`configureStarfishPlatform()`, `initOctoChat()`, etc.) are preserved —
+// Metro's inline-require transform only inlines `require()`-backed value access, not
+// side-effect-only imports.
+config.transformer.getTransformOptions = async () => ({
+  transform: {
+    // Keep the Expo SDK 56 default (true) so ESM import syntax is handled correctly.
+    experimentalImportSupport: true,
+    inlineRequires: true,
+  },
+});
+
+// C8: SDK bundle tree-shaking (Expo SDK 52+ experimental).
+// Enable by setting these env vars at build time:
+//   EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1
+//   EXPO_UNSTABLE_TREE_SHAKING=1
+// Requires experimentalImportSupport: true (above) and sideEffects: false in the
+// target package (already set in packages/sdk/package.json). Treat as opt-in per
+// build: verify a full smoke test before keeping — "unstable" means behaviour may
+// change across Expo SDK versions. Measure bundle size before/after with
+// `source-map-explorer` to confirm the win.
+
 module.exports = config;

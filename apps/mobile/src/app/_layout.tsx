@@ -60,7 +60,7 @@ registerBackgroundPushHandler();
 // routes channel-less pushes here, so the channel has to exist first.
 void ensureNotificationChannel();
 
-// Keep the native splash up until our fonts are ready (must run at module top).
+// Prevent the splash from auto-hiding before the first frame is painted.
 void SplashScreen.preventAutoHideAsync();
 
 /** Mount point for the background-automation task registration. Renders nothing —
@@ -71,17 +71,18 @@ function AutomationBackgroundMount() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useAppFonts();
+  // Start loading fonts in the background — they swap in when ready (FOUT accepted
+  // for fastest TTI; previously this gated the entire tree on all 9 weights).
+  useAppFonts();
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const palette = colors[scheme];
   const octoSpacesTheme = toOctoSpacesTheme(palette, scheme);
 
+  // Hide the splash after the first committed frame so there is no blank screen.
+  // Fonts will swap in asynchronously once they decode (system fallback shows first).
   useEffect(() => {
-    if (fontsLoaded || fontError) void SplashScreen.hideAsync();
-  }, [fontsLoaded, fontError]);
-
-  // Block first paint until fonts resolve so we never flash a fallback face.
-  if (!fontsLoaded && !fontError) return null;
+    void SplashScreen.hideAsync();
+  }, []);
 
   return (
     <OctoSpacesThemeProvider theme={octoSpacesTheme}>

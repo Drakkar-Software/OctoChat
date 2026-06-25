@@ -24,10 +24,6 @@ interface AccountSwitcherProps {
  * add / logout — UI only, no persistence logic of its own.
  */
 export function AccountSwitcher({ onRequestClose, onViewProfile }: AccountSwitcherProps) {
-  // useAvatars reads a module-level cache the React Compiler can't track; without
-  // opting out, the row JSX memoizes stale here because the accessor's identity
-  // stays stable while the held-account id set does too. See use-pseudos.ts.
-  'use no memo';
   const { colors } = useTheme();
   const { accounts, activeUserId, switchAccount, logoutAccount } = useSession();
   // Each held account's public avatar (its own per-identity profile), resolved
