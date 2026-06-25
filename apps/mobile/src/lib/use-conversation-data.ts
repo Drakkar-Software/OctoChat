@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { createStore } from 'zustand';
 import { useStarfishData } from '@drakkar.software/starfish-client/zustand';
 
@@ -54,9 +55,12 @@ export function useConversationData(
   const reactions = (useStarfishData(store, (d) => d.reactions as ReactionEvent[] | undefined) ?? []) as ReactionEvent[];
   const edits = (useStarfishData(store, (d) => d.edits as MessageEditEvent[] | undefined) ?? []) as MessageEditEvent[];
   const pins = (useStarfishData(store, (d) => d.pins as PinEvent[] | undefined) ?? []) as PinEvent[];
-  // Resolve names for authors AND reactors, so the "who reacted" tooltip can name
-  // them; include the viewer so their own pseudo resolves for @mention matching.
-  const ids = [...new Set([currentUserId, ...messages.map((m) => m.authorId), ...reactions.map((r) => r.userId)])];
+  // Stable join key — same pattern as use-pseudos.ts's `idsKey`. Once `idsKey`
+  // is stable (no new authors/reactors arrived), React Compiler can memoize
+  // `nameFor`/`resolveUser`/`selfName` so message rows don't re-render on every
+  // compositor keystroke or unrelated reaction tick.
+  const idsKey = [...new Set([currentUserId, ...messages.map((m) => m.authorId), ...reactions.map((r) => r.userId)])].join(',');
+  const ids = useMemo(() => (idsKey ? idsKey.split(',') : []), [idsKey]);
   const pseudo = usePseudos(ids);
   const avatar = useAvatars(ids);
   const nameFor = (userId: string) => displayName(userId, currentUserId, pseudo(userId));

@@ -27,8 +27,8 @@ import { UnreadProvider } from '@/lib/unread-context';
 import { ViewModeProvider } from '@/lib/view-mode';
 import { BrandProvider } from '@/lib/brand-context';
 
-import { useEffect } from 'react';
-import { useColorScheme } from 'react-native';
+import { useEffect, useMemo } from 'react';
+import { InteractionManager, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -55,10 +55,13 @@ registerServiceWorker();
 // run at module scope so it's installed before the first push arrives.
 registerBackgroundPushHandler();
 
-// Create the high-importance "Messages" Android channel (no-op on iOS/web). Must
-// run on every cold start before any background push renders — `defaultChannel`
-// routes channel-less pushes here, so the channel has to exist first.
-void ensureNotificationChannel();
+// Create the high-importance "Messages" Android channel (no-op on iOS/web). The
+// channel must exist before a push RENDERS — not before first paint — and the
+// topic-subscribe model guarantees the app runs before any space push arrives.
+// Defer off the first frame so expo-notifications doesn't load during boot eval.
+InteractionManager.runAfterInteractions(() => {
+  void ensureNotificationChannel();
+});
 
 // Prevent the splash from auto-hiding before the first frame is painted.
 void SplashScreen.preventAutoHideAsync();
@@ -76,7 +79,9 @@ export default function RootLayout() {
   useAppFonts();
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const palette = colors[scheme];
-  const octoSpacesTheme = toOctoSpacesTheme(palette, scheme);
+  // Memoize: avoids re-computing the ~40-token theme object and re-rendering the
+  // entire OctoSpacesThemeProvider subtree on every root render.
+  const octoSpacesTheme = useMemo(() => toOctoSpacesTheme(palette, scheme), [palette, scheme]);
 
   // Hide the splash after the first committed frame so there is no blank screen.
   // Fonts will swap in asynchronously once they decode (system fallback shows first).

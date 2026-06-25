@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
@@ -44,8 +45,10 @@ export function MessageBody({
 }: MessageBodyProps) {
   const { colors } = useTheme();
   // Parse into typed tokens, then group inline runs into paragraphs (each fenced
-  // block stands alone) — both are pure helpers from `message-format`.
-  const blocks = groupBodyTokens(parseMessageBody(body));
+  // block stands alone) — both are pure helpers from `message-format`. Memoized:
+  // the body string is stable per message, and the two chained pure calls aren't
+  // reliably collapsed by React Compiler since they feed a .map() allocation.
+  const blocks = useMemo(() => groupBodyTokens(parseMessageBody(body)), [body]);
   const codeSpan = { backgroundColor: colors.codeBg, color: colors.accentInk };
 
   return (

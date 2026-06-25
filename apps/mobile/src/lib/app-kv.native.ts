@@ -9,6 +9,7 @@
  * to MMKV. This starts at module-init time (before React mounts) to maximise the
  * chance it completes before session-context's first kv reads.
  */
+import { InteractionManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MMKV } from 'react-native-mmkv';
 
@@ -17,24 +18,30 @@ const kv = new MMKV({ id: 'octochat-kv' });
 const MIGRATION_FLAG = 'octochat.kv-migrated.v1';
 
 if (!kv.getString(MIGRATION_FLAG)) {
-  void (async () => {
-    try {
-      const allKeys = await AsyncStorage.getAllKeys();
-      const ourKeys = allKeys.filter(
-        (k) => k.startsWith('octospaces.') || k.startsWith('octochat.'),
-      );
-      if (ourKeys.length > 0) {
-        const pairs = await AsyncStorage.multiGet(ourKeys);
-        for (const [k, v] of pairs) {
-          if (k && v != null) kv.set(k, v);
+  // Defer off the first frame — this bridge burst competes with session-context's
+  // first kv reads. SpacesProvider degrades to refresh() if the snapshot isn't
+  // ready yet; the migration back-fills before the next launch. One-time only
+  // (bounded to the single post-upgrade boot where MIGRATION_FLAG is absent).
+  InteractionManager.runAfterInteractions(() => {
+    void (async () => {
+      try {
+        const allKeys = await AsyncStorage.getAllKeys();
+        const ourKeys = allKeys.filter(
+          (k) => k.startsWith('octospaces.') || k.startsWith('octochat.'),
+        );
+        if (ourKeys.length > 0) {
+          const pairs = await AsyncStorage.multiGet(ourKeys);
+          for (const [k, v] of pairs) {
+            if (k && v != null) kv.set(k, v);
+          }
         }
+        kv.set(MIGRATION_FLAG, '1');
+      } catch (e) {
+        console.warn('[app-kv] AsyncStorage→MMKV migration failed', e);
+        // Flag not set — will retry on next boot.
       }
-      kv.set(MIGRATION_FLAG, '1');
-    } catch (e) {
-      console.warn('[app-kv] AsyncStorage→MMKV migration failed', e);
-      // Flag not set — will retry on next boot.
-    }
-  })();
+    })();
+  });
 }
 
 export const kvGet = (key: string): Promise<string | null> =>

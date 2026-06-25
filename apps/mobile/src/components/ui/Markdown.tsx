@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { radii, spacing } from '@/theme';
@@ -85,7 +86,9 @@ function Inline({ tokens, mention }: { tokens: InlineToken[]; mention: MentionPr
  */
 export function Markdown({ source, ...mention }: MarkdownProps) {
   const { colors } = useTheme();
-  const blocks = parseMarkdown(source);
+  // `source` is stable per doc/message; memoize so re-renders from a parent
+  // (theme change, scroll position) don't re-tokenize the whole document.
+  const blocks = useMemo(() => parseMarkdown(source), [source]);
 
   return (
     <View style={styles.wrap}>

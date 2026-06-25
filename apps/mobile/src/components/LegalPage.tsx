@@ -1,4 +1,5 @@
-import { Image, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,6 +40,7 @@ export function LegalPage({ doc }: LegalPageProps) {
           <Image
             source={require('../../assets/images/logo-512.png')}
             style={styles.navLogo}
+            contentFit="contain"
           />
           <Txt variant="callout" weight="semibold" color={colors.inkSoft}>
             Octo<Txt variant="callout" weight="semibold" color={colors.accent}>Chat</Txt>
@@ -123,7 +125,6 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 6,
-    resizeMode: 'contain',
   },
 
   // Hero

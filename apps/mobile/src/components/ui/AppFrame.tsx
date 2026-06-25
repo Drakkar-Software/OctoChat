@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useMemo } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -47,6 +47,10 @@ export function AppFrame({ children }: { children: ReactNode }) {
     <View style={styles.fill}>{children}</View>
   );
 
+  // Stable object so SafeAreaInsetsContext.Provider doesn't re-render its whole
+  // subtree on every AppFrame render (e.g. switching-overlay state changes).
+  const insetsTop0 = useMemo(() => ({ ...insets, top: 0 }), [insets]);
+
   return (
     <View style={styles.col}>
       {isMacDesktop() ? (
@@ -70,7 +74,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
         <DesktopUpdateBanner topInset={Platform.OS !== 'web'} />
       ) : null}
       {eatTopInset ? (
-        <SafeAreaInsetsContext.Provider value={{ ...insets, top: 0 }}>
+        <SafeAreaInsetsContext.Provider value={insetsTop0}>
           {body}
         </SafeAreaInsetsContext.Provider>
       ) : (
