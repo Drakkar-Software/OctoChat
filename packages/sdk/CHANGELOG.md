@@ -1,5 +1,21 @@
 # Changelog — @drakkar.software/octochat-sdk
 
+## 0.7.0 (2026-06-25)
+
+### Fixed
+
+- **`healDmRosters` per-DM `_access` fan-out** (`starfish/dm.ts`) — `healDmRosters` now
+  batch-reads all DM rosters via `batchPullManySpaceAccess` before the repair loop, so the
+  common steady-state case ("peer already seeded") issues **one** `spaceregistry` batch
+  request instead of N individual `_access` reads. The per-DM `addSpaceMember` write fires
+  only for DMs the caller owns whose peer is genuinely absent from the roster.
+
+- **Conductor reconcile per-DM `objects/_index` fan-out** (`apps/mobile/src/lib/automations/conductor-init.ts`)
+  — the automation-task reconciler's 5-worker pool iterated the full joined-spaces list from
+  `readSpaces`, which includes `dm-` spaces. DM spaces can never host automations, so their
+  `objects/_index` reads were pure waste (N reads at cold load, one per DM). The pool now
+  filters out DM ids (`isDmSpaceId`) before dispatching reads.
+
 ## 0.6.2 (2026-06-25)
 
 ### Added

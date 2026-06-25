@@ -193,8 +193,20 @@ export async function healDmMap(session: Session, rawSpaces: Space[], dmMap: DmM
  * only source of the peer id for a DM whose roster is still empty.
  */
 export async function healDmRosters(session: Session, dms: DmMap): Promise<void> {
-  for (const [peerUserId, spaceId] of Object.entries(dms)) {
-    if (!isDmSpaceId(spaceId)) continue;
+  const entries = Object.entries(dms).filter(([, spaceId]) => isDmSpaceId(spaceId));
+  if (entries.length === 0) return;
+  // Batch-read every DM roster up front. New DMs seed the peer at creation, so the common
+  // case is "already correct" — this collapses N read-modify-writes into ONE _access read.
+  // Only DMs we own whose peer is genuinely missing (or whose roster we couldn't read) fall
+  // through to the per-DM addSpaceMember repair below.
+  const rosters = await batchPullManySpaceAccess(session, entries.map(([, id]) => id)).catch(() => new Map());
+  for (const [peerUserId, spaceId] of entries) {
+    const roster = rosters.get(spaceId);
+    if (roster) {
+      if (roster.owner !== session.userId) continue;     // peer-owned → their pass repairs it
+      if (roster.members.includes(peerUserId)) continue;  // peer already in roster → nothing to do
+    }
+    // No roster entry (unreadable) OR peer missing from a DM we own → repair (RMW write).
     await addSpaceMember(session.contentClient, spaceId, session.userId, peerUserId, session).catch(() => {});
   }
 }

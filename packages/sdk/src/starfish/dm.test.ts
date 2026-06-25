@@ -53,6 +53,14 @@ function fakeAccessClient(seed: Record<string, AccessDoc> = {}) {
     push: async (path: string, data: Record<string, unknown>) => {
       store.set(sidOf(path), { data, hash: `h-${sidOf(path)}-${++n}` });
     },
+    // Supports batchPullManySpaceAccess path: returns one entry per param (same store).
+    batchPullMany: async (_collection: string, params: { spaceId: string }[]) => {
+      return params.map(({ spaceId }) => {
+        if (broken.has(spaceId)) return { error: 'unreadable' };
+        const entry = store.get(spaceId);
+        return entry ? { data: entry.data, hash: entry.hash } : { error: 'not_found' };
+      });
+    },
   };
   return client;
 }
@@ -121,5 +129,16 @@ describe('healDmRosters — repair existing DM rosters', () => {
     const before = client.store.get('sp-x')!.hash;
     await healDmRosters(sessionWith(client), { 'peer-1': 'sp-x' });
     expect(client.store.get('sp-x')!.hash).toBe(before); // not a dm- id → untouched
+  });
+
+  it('skips individual _access reads when the roster is already correct (batch-only)', async () => {
+    // Peer already present in _access.members — the batch covers the read and the
+    // per-DM addSpaceMember (which calls client.pull) must NOT fire at all.
+    const client = fakeAccessClient({ 'dm-1': { owner: 'me', members: ['peer-1'] } });
+    const pullSpy = vi.spyOn(client, 'pull');
+    const before = client.store.get('dm-1')!.hash;
+    await healDmRosters(sessionWith(client), { 'peer-1': 'dm-1' });
+    expect(pullSpy).not.toHaveBeenCalled(); // batch satisfied the read — no individual pull
+    expect(client.store.get('dm-1')!.hash).toBe(before); // no write either
   });
 });

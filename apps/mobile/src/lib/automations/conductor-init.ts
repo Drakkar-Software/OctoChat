@@ -24,6 +24,7 @@ import {
   effectiveSchedule,
   getSpaceClient,
   hydrateSpaceAccessStore,
+  isDmSpaceId,
   isDueForScheduledTick,
   objIndexPull,
   readIndexRooms,
@@ -205,11 +206,13 @@ async function reconcile(session: Session): Promise<void> {
   const desired = new Map<string, TaskDefinition>();
   try {
     const { spaces } = await readSpaces(session.spacesRegistryClient, session);
+    // DM spaces never host automations — exclude them so reconcile doesn't read
+    // one objindex per DM at cold load (pure waste; DMs can't have scheduled rooms).
     // Parallelise per-space room reads with a bounded concurrency pool to avoid
     // an N-wide burst of objindex pulls that could trip the server's 429 limit.
     // JS is single-threaded so concurrent Map writes are safe across await points.
     const CONCURRENCY = 5;
-    const queue = [...spaces];
+    const queue = spaces.filter((s) => !isDmSpaceId(s.id));
     const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
       while (queue.length > 0) {
         const space = queue.shift()!;
