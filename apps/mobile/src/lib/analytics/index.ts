@@ -1,4 +1,9 @@
-import { SunglassesCore, createLazyClient } from '@drakkar.software/sunglasses-core';
+import {
+  SunglassesCore,
+  createLazyClient,
+  captureException as sgCaptureException,
+  type CaptureExceptionOptions,
+} from '@drakkar.software/sunglasses-core';
 import { AsyncStorageAdapter } from '@drakkar.software/sunglasses-storage-async-storage';
 import { StarfishAnalyticsAdapter } from '@drakkar.software/sunglasses-adapter-starfish';
 import { StarfishClient } from '@drakkar.software/starfish-client';
@@ -40,10 +45,12 @@ let started = false;
  *
  * Creates a Starfish batch-push adapter pointing at the `analytics` namespace
  * `events` collection. Each flush writes a Parquet file to S3 via the
- * `starfish-events` server plugin — no data goes to PostHog cloud.
+ * `starfish-events` server plugin — everything stays in our own silo.
  *
- * PostHog exception autocapture is wired separately via `PostHogProvider` in
- * `app/_layout.tsx`, forwarding events to this client via `createPostHogBeforeSend`.
+ * Unhandled exceptions are captured by SunGlasses' built-in autocapture: the
+ * `autoCaptureErrors` prop on `<SunglassesProvider>` (in `app/_layout.tsx`)
+ * installs the global handler, and `<SunglassesErrorBoundary>` catches
+ * render-phase errors. Both publish `$error` events through this client.
  *
  * Fire-and-forget from `app/_layout.tsx` inside a `useEffect` — the lazy client
  * silently swallows calls that arrive before this resolves.
@@ -80,6 +87,21 @@ export async function initAnalytics(): Promise<void> {
   });
 
   analytics.init(client);
+}
+
+/**
+ * Manually publish an exception through SunGlasses as a `$error` event. Thin
+ * wrapper over the core `captureException` that injects the singleton client.
+ *
+ * Use this in `catch` blocks for errors you handle but still want visibility
+ * into (defaults to `handled: true`). Global unhandled errors and render-phase
+ * crashes are captured automatically via `<SunglassesProvider autoCaptureErrors>`
+ * and `<SunglassesErrorBoundary>` — no manual call needed for those.
+ *
+ * Safe before {@link initAnalytics} resolves (the lazy client no-ops).
+ */
+export function captureException(error: unknown, options?: CaptureExceptionOptions): void {
+  sgCaptureException(analytics, error, options);
 }
 
 /**

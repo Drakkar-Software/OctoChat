@@ -74,21 +74,18 @@ importers:
       '@drakkar.software/starfish-sharing':
         specifier: 3.0.0-alpha.39
         version: 3.0.0-alpha.39(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
-      '@drakkar.software/sunglasses-adapter-posthog':
-        specifier: 0.8.0
-        version: 0.8.0(posthog-react-native@4.52.0(@react-native-async-storage/async-storage@2.2.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))(expo-application@56.0.3(expo@56.0.12))(expo-file-system@56.0.8(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))(react-native-safe-area-context@5.7.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3))(react-native-svg@15.15.4(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)))
       '@drakkar.software/sunglasses-adapter-starfish':
-        specifier: 0.8.0
-        version: 0.8.0
+        specifier: 0.9.0
+        version: 0.9.0
       '@drakkar.software/sunglasses-core':
-        specifier: 0.8.0
-        version: 0.8.0
+        specifier: 0.10.0
+        version: 0.10.0
       '@drakkar.software/sunglasses-react-native':
-        specifier: 0.8.0
-        version: 0.8.0(expo-router@56.2.11)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)
+        specifier: 0.10.0
+        version: 0.10.0(expo-router@56.2.11)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)
       '@drakkar.software/sunglasses-storage-async-storage':
-        specifier: 0.8.0
-        version: 0.8.0(@react-native-async-storage/async-storage@2.2.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))
+        specifier: 0.9.0
+        version: 0.9.0(@react-native-async-storage/async-storage@2.2.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))
       '@expo-google-fonts/bricolage-grotesque':
         specifier: ^0.4.1
         version: 0.4.1
@@ -200,9 +197,6 @@ importers:
       hash-wasm:
         specifier: ^4.12.0
         version: 4.12.0
-      posthog-react-native:
-        specifier: 4.52.0
-        version: 4.52.0(@react-native-async-storage/async-storage@2.2.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))(expo-application@56.0.3(expo@56.0.12))(expo-file-system@56.0.8(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))(react-native-safe-area-context@5.7.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3))(react-native-svg@15.15.4(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3))
       react:
         specifier: 19.2.3
         version: 19.2.3
@@ -1237,25 +1231,14 @@ packages:
   '@drakkar.software/starfish-spaces@3.0.0-alpha.39':
     resolution: {integrity: sha512-nykLbv3AA2x7rpl8oBewUNWcuAz52YmdAe22yYnu+MkT8ZS4SkNL6cZ142bzyRo1DoVfgPCFrio0ZsXouqzSHg==}
 
-  '@drakkar.software/sunglasses-adapter-posthog@0.8.0':
-    resolution: {integrity: sha512-p5VT+pa9H9/Patfk/qidOyXxNaQVX133dp6FspcapbL9ypZ+/3cSOHYyrmtMic4Z48hQZrn8J2Um+qNTZ41/Lw==}
-    peerDependencies:
-      posthog-js: '>=1.187.0'
-      posthog-react-native: '*'
-    peerDependenciesMeta:
-      posthog-js:
-        optional: true
-      posthog-react-native:
-        optional: true
+  '@drakkar.software/sunglasses-adapter-starfish@0.9.0':
+    resolution: {integrity: sha512-3IRpZntInvhCwTDuRgHtSxiL8+79OpcrdRVTARrM6WcS8XArE8xjI5+hn7bIpHmvu+hUMGUZ+9SMsGHThl9yZA==}
 
-  '@drakkar.software/sunglasses-adapter-starfish@0.8.0':
-    resolution: {integrity: sha512-CwYTXtclLqZw3Cm6V38SJg0lFPhQNbOVQjgqXsd5T5jisw33W2g5Y9++qGOasDxpivqN4A9Jyomzb7Vd9fIJPQ==}
+  '@drakkar.software/sunglasses-core@0.10.0':
+    resolution: {integrity: sha512-rIhRZbu1tdStrFUnATsVS7271hnvbSY50C1Z3vosqGXcXAzvTqL5a0IeVGG3BlM27Zp81ymAWCIDDpjVz58w7g==}
 
-  '@drakkar.software/sunglasses-core@0.8.0':
-    resolution: {integrity: sha512-/Em5EdtmBMUPS1A2f9WIidaHxcOslQ22YK25Ag5qHPzVksiLhtf0PaLuSzHUpeiLHn01+5K9ENj7AYdeX3Da2w==}
-
-  '@drakkar.software/sunglasses-react-native@0.8.0':
-    resolution: {integrity: sha512-AeEQZRC7jVh4lMNx22j/t7/dw68ASv30uqzre4idA/ds0LJa0eW1WrLJGEhN4+ttKIygs5ZmkTFdYPizDzQ5Cg==}
+  '@drakkar.software/sunglasses-react-native@0.10.0':
+    resolution: {integrity: sha512-WGsVxvF5o/bKx6Du5WVxxJnm7i+LKXltmdvfyw8gs0Ga7syqfhyuS9vCc0ubmTot8GxjZ0w8xAVtvG3zonfRSg==}
     peerDependencies:
       expo-router: '>=3.0.0'
       react: '>=18.0.0'
@@ -1264,8 +1247,8 @@ packages:
       expo-router:
         optional: true
 
-  '@drakkar.software/sunglasses-storage-async-storage@0.8.0':
-    resolution: {integrity: sha512-PDvxl9x5E7u5D8et2hPraX15Bd4Jge0nL9Csovo2TdQgItyDj2SOOzxtGVBJf93zwRSEdQyJUqz/oku01jt8fQ==}
+  '@drakkar.software/sunglasses-storage-async-storage@0.9.0':
+    resolution: {integrity: sha512-0rdgPmzZVzwkDvymcRO6erp1fRi/TB9ZPm5UuSO4tYgsBphziXDy0ubfgAh5cSZ6sYtFF1zluu4PdAxNJN85Dg==}
     peerDependencies:
       '@react-native-async-storage/async-storage': '>=1.x'
 
@@ -2207,12 +2190,6 @@ packages:
 
   '@oxc-project/types@0.132.0':
     resolution: {integrity: sha512-FESMOxil5Se014ui/Eq8fT5uHJo6nIRwH0PfJrZJXs6Gek3ZVFOrpUv3YIZT20m+extU98Hg1Ym72U58rlsxUQ==}
-
-  '@posthog/core@1.37.3':
-    resolution: {integrity: sha512-Dvw4CTlRVH4K5ag/B8YIHgG4E27w43MCUsXpn1iKQHIggIMN3Shq9whG4Omm3OvXPF+VikBTmpyMKUjckPxw+g==}
-
-  '@posthog/types@1.391.1':
-    resolution: {integrity: sha512-ASwd7Nf4pViqdYRYaNRyPYRVKWa1CcHUAUWR0XeQJLGdNnsWACBwe0sSieb/cHnKsRXjRwO/23KIY83lm/Ccpw==}
 
   '@protobufjs/aspromise@1.1.2':
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
@@ -5140,50 +5117,6 @@ packages:
     resolution: {integrity: sha512-FfR8sjd4em2T6fb3I2MwAJU7HWVMr9zba+enmQeeWFfCbm+UOC/0X4DS8XtpUTMwWMGbjKYP7xjfNekzyGmB3A==}
     engines: {node: ^10 || ^12 || >=14}
 
-  posthog-react-native@4.52.0:
-    resolution: {integrity: sha512-1WAJRx++ZzJxTWYycBG41kxWQE79I4vQuSSVa7cLlh0Gnyspv4GOHSRfq6aWiFRFD3d51Y0oRRG+9OvN2wX4ig==}
-    peerDependencies:
-      '@posthog/react-native-plugin': '>= 2.1.1'
-      '@react-native-async-storage/async-storage': '>=1.0.0'
-      '@react-navigation/native': '>= 5.0.0'
-      expo-application: '>= 4.0.0'
-      expo-device: '>= 4.0.0'
-      expo-file-system: '>= 13.0.0'
-      expo-localization: '>= 11.0.0'
-      posthog-react-native-session-replay: '>= 1.6.0'
-      react-native-device-info: '>= 10.0.0'
-      react-native-localize: '>= 3.0.0'
-      react-native-navigation: '>= 6.0.0'
-      react-native-safe-area-context: '>= 4.0.0'
-      react-native-svg: '>= 15.0.0'
-    peerDependenciesMeta:
-      '@posthog/react-native-plugin':
-        optional: true
-      '@react-native-async-storage/async-storage':
-        optional: true
-      '@react-navigation/native':
-        optional: true
-      expo-application:
-        optional: true
-      expo-device:
-        optional: true
-      expo-file-system:
-        optional: true
-      expo-localization:
-        optional: true
-      posthog-react-native-session-replay:
-        optional: true
-      react-native-device-info:
-        optional: true
-      react-native-localize:
-        optional: true
-      react-native-navigation:
-        optional: true
-      react-native-safe-area-context:
-        optional: true
-      react-native-svg:
-        optional: true
-
   postject@1.0.0-alpha.6:
     resolution: {integrity: sha512-b9Eb8h2eVqNE8edvKdwqkrY6O7kAwmI8kcnBv1NScolYJbo59XUF0noFq+lxbC1yN20bmC0WBEbDC5H/7ASb0A==}
     engines: {node: '>=14.0.0'}
@@ -7465,29 +7398,23 @@ snapshots:
       - react
       - zustand
 
-  '@drakkar.software/sunglasses-adapter-posthog@0.8.0(posthog-react-native@4.52.0(@react-native-async-storage/async-storage@2.2.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))(expo-application@56.0.3(expo@56.0.12))(expo-file-system@56.0.8(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))(react-native-safe-area-context@5.7.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3))(react-native-svg@15.15.4(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)))':
+  '@drakkar.software/sunglasses-adapter-starfish@0.9.0':
     dependencies:
-      '@drakkar.software/sunglasses-core': 0.8.0
-    optionalDependencies:
-      posthog-react-native: 4.52.0(@react-native-async-storage/async-storage@2.2.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))(expo-application@56.0.3(expo@56.0.12))(expo-file-system@56.0.8(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))(react-native-safe-area-context@5.7.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3))(react-native-svg@15.15.4(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3))
+      '@drakkar.software/sunglasses-core': 0.10.0
 
-  '@drakkar.software/sunglasses-adapter-starfish@0.8.0':
+  '@drakkar.software/sunglasses-core@0.10.0': {}
+
+  '@drakkar.software/sunglasses-react-native@0.10.0(expo-router@56.2.11)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)':
     dependencies:
-      '@drakkar.software/sunglasses-core': 0.8.0
-
-  '@drakkar.software/sunglasses-core@0.8.0': {}
-
-  '@drakkar.software/sunglasses-react-native@0.8.0(expo-router@56.2.11)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)':
-    dependencies:
-      '@drakkar.software/sunglasses-core': 0.8.0
+      '@drakkar.software/sunglasses-core': 0.10.0
       react: 19.2.3
       react-native: 0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)
     optionalDependencies:
       expo-router: 56.2.11(d7b8d3aac0125556f2dd34e702522901)
 
-  '@drakkar.software/sunglasses-storage-async-storage@0.8.0(@react-native-async-storage/async-storage@2.2.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))':
+  '@drakkar.software/sunglasses-storage-async-storage@0.9.0(@react-native-async-storage/async-storage@2.2.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))':
     dependencies:
-      '@drakkar.software/sunglasses-core': 0.8.0
+      '@drakkar.software/sunglasses-core': 0.10.0
       '@react-native-async-storage/async-storage': 2.2.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))
 
   '@drakkar.software/whistlers@0.6.0':
@@ -8636,12 +8563,6 @@ snapshots:
       react-native: 0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)
 
   '@oxc-project/types@0.132.0': {}
-
-  '@posthog/core@1.37.3':
-    dependencies:
-      '@posthog/types': 1.391.1
-
-  '@posthog/types@1.391.1': {}
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -11851,17 +11772,6 @@ snapshots:
       nanoid: 3.3.12
       picocolors: 1.1.1
       source-map-js: 1.2.1
-
-  posthog-react-native@4.52.0(@react-native-async-storage/async-storage@2.2.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))(expo-application@56.0.3(expo@56.0.12))(expo-file-system@56.0.8(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))(react-native-safe-area-context@5.7.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3))(react-native-svg@15.15.4(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)):
-    dependencies:
-      '@posthog/core': 1.37.3
-      '@posthog/types': 1.391.1
-    optionalDependencies:
-      '@react-native-async-storage/async-storage': 2.2.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))
-      expo-application: 56.0.3(expo@56.0.12)
-      expo-file-system: 56.0.8(expo@56.0.12)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))
-      react-native-safe-area-context: 5.7.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)
-      react-native-svg: 15.15.4(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)
 
   postject@1.0.0-alpha.6:
     dependencies:

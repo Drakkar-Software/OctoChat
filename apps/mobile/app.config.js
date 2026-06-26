@@ -39,13 +39,6 @@ module.exports = ({ config }) => {
     },
     plugins: [
       ...(config.plugins ?? []),
-      // 'posthog-react-native/expo',
-      // Disabled: this plugin injects a Gradle task (posthog-cli) + an Xcode build phase
-      // to upload JS source maps and dSYMs to PostHog cloud for crash symbolication.
-      // Since suppressPostHogSend: true routes all events to SunGlasses/Starfish (nothing
-      // ever reaches PostHog), the upload step is pointless and breaks the build when
-      // posthog-cli is absent. Re-enable only if you drop suppressPostHogSend and start
-      // sending events directly to a PostHog project.
     ],
   };
 };

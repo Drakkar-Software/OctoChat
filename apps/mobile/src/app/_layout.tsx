@@ -27,10 +27,8 @@ import { UnreadProvider } from '@/lib/unread-context';
 import { ViewModeProvider } from '@/lib/view-mode';
 import { BrandProvider } from '@/lib/brand-context';
 import { analytics, initAnalytics } from '@/lib/analytics';
-import { POSTHOG_API_KEY, POSTHOG_HOST } from '@/lib/analytics/constants';
-import { SunglassesProvider, useExpoRouterScreenTracking } from '@drakkar.software/sunglasses-react-native';
-import { createPostHogBeforeSend } from '@drakkar.software/sunglasses-adapter-posthog';
-import { PostHogProvider } from 'posthog-react-native';
+import { SunglassesProvider, SunglassesErrorBoundary, useExpoRouterScreenTracking } from '@drakkar.software/sunglasses-react-native';
+import { AppErrorFallback } from '@/components/ui/AppErrorFallback';
 
 import { useEffect, useMemo } from 'react';
 import { AppState, InteractionManager, useColorScheme } from 'react-native';
@@ -111,34 +109,16 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <SunglassesProvider client={analytics}>
-    <PostHogProvider
-      apiKey={POSTHOG_API_KEY}
-      // PostHog is a local exception-capture shim only. Touch/lifecycle autocapture
-      // is wasted work: the SunGlasses bridge drops all `$`-prefixed system events
-      // (it forwards none) and screens are tracked via useExpoRouterScreenTracking.
-      autocapture={false}
-      options={{
-        host: POSTHOG_HOST,
-        enableSessionReplay: false,
-        // PostHog is used purely as a local exception-capture shim — no events or
-        // config requests should ever reach PostHog cloud.
-        disableRemoteConfig: true,
-        disableRemoteFeatureFlags: true,
-        errorTracking: { autocapture: { uncaughtExceptions: true, unhandledRejections: true } },
-        // All events are intercepted and forwarded to SunGlasses → Starfish/Parquet.
-        // suppressPostHogSend: true means PostHog cloud never receives anything.
-        // Screen views are skipped — handled by useExpoRouterScreenTracking above.
-        before_send: createPostHogBeforeSend(analytics, {
-          suppressPostHogSend: true,
-          systemEvents: { pageview: false, exception: true },
-        }),
-      }}
-    >
+    <SunglassesProvider client={analytics} autoCaptureErrors>
     <OctoSpacesThemeProvider theme={octoSpacesTheme}>
     <BrandProvider>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
+        {/* Catches render-phase crashes anywhere below (incl. the session/data
+            providers) and reports them to SunGlasses as `$error` events, showing a
+            themed fallback instead of a blank screen. Sits under the theme + safe-area
+            + gesture providers so the fallback renders correctly. */}
+        <SunglassesErrorBoundary fallback={<AppErrorFallback />}>
         {/* Drives react-native-keyboard-controller's keyboard-tracking on iOS/Android
             (no-op on web). Sits above the screens so any StackScreen with a Composer
             footer can hand off keyboard-avoiding to KAV from the same library, which
@@ -197,11 +177,11 @@ export default function RootLayout() {
           </OutboxProvider>
         </SessionProvider>
         </KeyboardProvider>
+        </SunglassesErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>
     </BrandProvider>
     </OctoSpacesThemeProvider>
-    </PostHogProvider>
     </SunglassesProvider>
   );
 }
