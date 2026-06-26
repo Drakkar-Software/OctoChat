@@ -2,13 +2,13 @@
   "expo": {
     "name": "OctoChat",
     "slug": "octochat",
-    "version": "1.16.0",
+    "version": "1.17.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "octochat",
     "userInterfaceStyle": "automatic",
     "android": {
-      "versionCode": 6,
+      "versionCode": 7,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -46,7 +46,7 @@
       ]
     },
     "ios": {
-      "buildNumber": "6",
+      "buildNumber": "7",
       "bundleIdentifier": "com.drakkarsoftware.octochat",
       "googleServicesFile": "./GoogleService-Info.plist",
       "associatedDomains": [
