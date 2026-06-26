@@ -113,7 +113,6 @@
           }
         }
       ],
-      "posthog-react-native/expo",
       "@react-native-firebase/app",
       "@react-native-firebase/messaging",
       [
