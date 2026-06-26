@@ -3,11 +3,25 @@ import { AsyncStorageAdapter } from '@drakkar.software/sunglasses-storage-async-
 import { StarfishAnalyticsAdapter } from '@drakkar.software/sunglasses-adapter-starfish';
 import { StarfishClient } from '@drakkar.software/starfish-client';
 import { SYNC_BASE } from '@/lib/octochat-config';
+import { ANALYTICS_EVENTS } from '@/lib/analytics/constants';
 
-// Type-safe event map — extend with known custom events as the app grows.
-// For now the permissive `Record<string, unknown>` baseline is enough since
-// SunglassesCore.capture() accepts any string event name.
-type AppEvents = Record<string, Record<string, unknown> | undefined>;
+/**
+ * Type-safe event map — extend with known custom events as the app grows.
+ * Known events get a checked property shape; the permissive `Record` baseline
+ * keeps `SunglassesCore.capture()` usable for any not-yet-typed event name.
+ *
+ * Privacy: NEVER put message content (or any PII) in event properties — this is
+ * an E2EE app and these events leave the device for the analytics silo.
+ */
+type AppEvents = {
+  /** A message/reply was successfully handed off to send (no content captured). */
+  message_sent: {
+    surface: 'channel' | 'thread';
+    has_attachment: boolean;
+    is_reply: boolean;
+    text_length: number;
+  };
+} & Record<string, Record<string, unknown> | undefined>;
 
 /**
  * Module-level analytics singleton. Safe to call at any time — all methods
@@ -66,4 +80,24 @@ export async function initAnalytics(): Promise<void> {
   });
 
   analytics.init(client);
+}
+
+/**
+ * Capture a "message sent" event. Call AFTER a send is successfully handed off
+ * (live or queued to the outbox) so failed attachment uploads aren't counted.
+ *
+ * Privacy: only non-PII metadata is recorded — never the message text itself.
+ * Safe to call before {@link initAnalytics} resolves (the lazy client no-ops).
+ */
+export function captureMessageSent(props: {
+  surface: 'channel' | 'thread';
+  hasAttachment: boolean;
+  textLength: number;
+}): void {
+  analytics.capture(ANALYTICS_EVENTS.MESSAGE_SENT, {
+    surface: props.surface,
+    has_attachment: props.hasAttachment,
+    is_reply: props.surface === 'thread',
+    text_length: props.textLength,
+  });
 }

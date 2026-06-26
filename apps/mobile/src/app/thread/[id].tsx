@@ -9,6 +9,7 @@ import { useRoomsRegistry } from '@/lib/rooms-registry-context';
 import { threadDraftKey } from '@/lib/use-draft';
 import { useHardwareBack } from '@/lib/use-hardware-back';
 import { composeSend } from '@/lib/compose-send';
+import { captureMessageSent } from '@/lib/analytics';
 import { useRoom } from '@/lib/use-room';
 import { useRoomSend } from '@/lib/use-room-send';
 import { useUnreadActions } from '@/lib/unread-context';
@@ -127,6 +128,14 @@ export default function ThreadScreen() {
                 uploadAttachment,
                 send,
                 sendText,
+              }).then((res) => {
+                if (res.ok) {
+                  captureMessageSent({
+                    surface: 'thread',
+                    hasAttachment: !!file,
+                    textLength: t.trim().length,
+                  });
+                }
               })
             }
           />

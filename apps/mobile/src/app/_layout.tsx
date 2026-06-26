@@ -114,6 +114,10 @@ export default function RootLayout() {
     <SunglassesProvider client={analytics}>
     <PostHogProvider
       apiKey={POSTHOG_API_KEY}
+      // PostHog is a local exception-capture shim only. Touch/lifecycle autocapture
+      // is wasted work: the SunGlasses bridge drops all `$`-prefixed system events
+      // (it forwards none) and screens are tracked via useExpoRouterScreenTracking.
+      autocapture={false}
       options={{
         host: POSTHOG_HOST,
         enableSessionReplay: false,

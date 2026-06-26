@@ -13,6 +13,7 @@ import { roomDraftKey, threadDraftKey } from '@/lib/use-draft';
 import { useMessageEditing } from '@/lib/use-message-editing';
 import { useHardwareBack } from '@/lib/use-hardware-back';
 import { composeSend } from '@/lib/compose-send';
+import { captureMessageSent } from '@/lib/analytics';
 import { useRoom } from '@/lib/use-room';
 import { resolveRoomSpaceId, resolveRoomAccess } from '@/lib/room-route';
 import { useRoomSend } from '@/lib/use-room-send';
@@ -306,6 +307,14 @@ export default function RoomScreen() {
                 uploadAttachment,
                 send,
                 sendText,
+              }).then((res) => {
+                if (res.ok) {
+                  captureMessageSent({
+                    surface: 'channel',
+                    hasAttachment: !!file,
+                    textLength: t.trim().length,
+                  });
+                }
               })
             }
             onEditLast={editLast}
