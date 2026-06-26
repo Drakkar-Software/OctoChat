@@ -27,7 +27,7 @@ import { UnreadProvider } from '@/lib/unread-context';
 import { ViewModeProvider } from '@/lib/view-mode';
 import { BrandProvider } from '@/lib/brand-context';
 import { analytics, initAnalytics } from '@/lib/analytics';
-import { SunglassesProvider, SunglassesGlobalErrorBoundary, useExpoRouterScreenTracking } from '@drakkar.software/sunglasses-react-native';
+import { SunglassesProvider, SunglassesGlobalErrorBoundary } from '@drakkar.software/sunglasses-react-native';
 import { AppErrorFallback } from '@/components/ui/AppErrorFallback';
 
 import { useEffect, useMemo } from 'react';
@@ -35,7 +35,7 @@ import { AppState, InteractionManager, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 
@@ -91,7 +91,11 @@ export default function RootLayout() {
   // Initialize analytics once; the lazy client handles calls that arrive before resolve.
   useEffect(() => { initAnalytics().catch(console.error); }, []);
   // Track screen views via expo-router pathname changes → client.screen().
-  useExpoRouterScreenTracking(analytics);
+  // Inlined instead of useExpoRouterScreenTracking() from sunglasses-react-native:
+  // the published 0.12.0 calls require('expo-router') inside the hook body which
+  // Metro can't resolve in production bundles.
+  const pathname = usePathname();
+  useEffect(() => { analytics.screen(pathname, { $path: pathname }); }, [pathname]);
 
   // Start loading fonts in the background — they swap in when ready (FOUT accepted
   // for fastest TTI; previously this gated the entire tree on all 9 weights).
