@@ -27,7 +27,7 @@ import { UnreadProvider } from '@/lib/unread-context';
 import { ViewModeProvider } from '@/lib/view-mode';
 import { BrandProvider } from '@/lib/brand-context';
 import { analytics, initAnalytics } from '@/lib/analytics';
-import { SunglassesProvider, SunglassesErrorBoundary, useExpoRouterScreenTracking } from '@drakkar.software/sunglasses-react-native';
+import { SunglassesProvider, SunglassesGlobalErrorBoundary, useExpoRouterScreenTracking } from '@drakkar.software/sunglasses-react-native';
 import { AppErrorFallback } from '@/components/ui/AppErrorFallback';
 
 import { useEffect, useMemo } from 'react';
@@ -118,11 +118,11 @@ export default function RootLayout() {
     <BrandProvider>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        {/* Catches render-phase crashes anywhere below (incl. the session/data
-            providers) and reports them to SunGlasses as `$error` events, showing a
-            themed fallback instead of a blank screen. Sits under the theme + safe-area
-            + gesture providers so the fallback renders correctly. */}
-        <SunglassesErrorBoundary fallback={<AppErrorFallback />}>
+        {/* Catches render-phase crashes AND fatal non-render errors (uncaught JS
+            exceptions, unhandled rejections) — both reported as `$error` events.
+            Sits under the theme + safe-area + gesture providers so the fallback
+            renders correctly. */}
+        <SunglassesGlobalErrorBoundary fallback={<AppErrorFallback />} includeNonFatalGlobalErrors>
         {/* Drives react-native-keyboard-controller's keyboard-tracking on iOS/Android
             (no-op on web). Sits above the screens so any StackScreen with a Composer
             footer can hand off keyboard-avoiding to KAV from the same library, which
@@ -181,7 +181,7 @@ export default function RootLayout() {
           </OutboxProvider>
         </SessionProvider>
         </KeyboardProvider>
-        </SunglassesErrorBoundary>
+        </SunglassesGlobalErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>
     </BrandProvider>
