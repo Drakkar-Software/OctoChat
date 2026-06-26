@@ -108,8 +108,12 @@ export default function RootLayout() {
     void SplashScreen.hideAsync();
   }, []);
 
+  // autoCaptureErrors: keep the global ErrorUtils/window handlers on (globalHandlers
+  // default) AND patch the console so `console.error` is captured as a `$error`
+  // event. `console.warn` is intentionally left out — RN/React deprecation warnings
+  // would flood the analytics silo; pass `console: { levels: ['error', 'warn'] }` to opt in.
   return (
-    <SunglassesProvider client={analytics} autoCaptureErrors>
+    <SunglassesProvider client={analytics} autoCaptureErrors={{ globalHandlers: true, console: true }}>
     <OctoSpacesThemeProvider theme={octoSpacesTheme}>
     <BrandProvider>
     <GestureHandlerRootView style={{ flex: 1 }}>

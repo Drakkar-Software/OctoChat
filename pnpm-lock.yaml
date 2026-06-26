@@ -6,6 +6,7 @@ settings:
 
 overrides:
   hosted-git-info@4>lru-cache: ^7.18.3
+  '@drakkar.software/sunglasses-core': 0.11.0
 
 importers:
 
@@ -78,11 +79,11 @@ importers:
         specifier: 0.9.0
         version: 0.9.0
       '@drakkar.software/sunglasses-core':
-        specifier: 0.10.0
-        version: 0.10.0
+        specifier: 0.11.0
+        version: 0.11.0
       '@drakkar.software/sunglasses-react-native':
-        specifier: 0.10.0
-        version: 0.10.0(expo-router@56.2.11)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)
+        specifier: 0.11.0
+        version: 0.11.0(expo-router@56.2.11)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)
       '@drakkar.software/sunglasses-storage-async-storage':
         specifier: 0.9.0
         version: 0.9.0(@react-native-async-storage/async-storage@2.2.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))
@@ -1234,11 +1235,11 @@ packages:
   '@drakkar.software/sunglasses-adapter-starfish@0.9.0':
     resolution: {integrity: sha512-3IRpZntInvhCwTDuRgHtSxiL8+79OpcrdRVTARrM6WcS8XArE8xjI5+hn7bIpHmvu+hUMGUZ+9SMsGHThl9yZA==}
 
-  '@drakkar.software/sunglasses-core@0.10.0':
-    resolution: {integrity: sha512-rIhRZbu1tdStrFUnATsVS7271hnvbSY50C1Z3vosqGXcXAzvTqL5a0IeVGG3BlM27Zp81ymAWCIDDpjVz58w7g==}
+  '@drakkar.software/sunglasses-core@0.11.0':
+    resolution: {integrity: sha512-ivhpmeekwBaczh4PpIzE8KEn2AzJy322BF9RFa0Du5nrgix7wNdy+/1iERWa8SkNut0h38DJNeCZGQYG3P2qsw==}
 
-  '@drakkar.software/sunglasses-react-native@0.10.0':
-    resolution: {integrity: sha512-WGsVxvF5o/bKx6Du5WVxxJnm7i+LKXltmdvfyw8gs0Ga7syqfhyuS9vCc0ubmTot8GxjZ0w8xAVtvG3zonfRSg==}
+  '@drakkar.software/sunglasses-react-native@0.11.0':
+    resolution: {integrity: sha512-YWkxzbZZoDNym/CwhykpSamwcWke0rb7WieKuS9f7DtwJqYyIi1B0hM7B8a8JwPDBWc7Jkl+PvHny0nAn3KKKg==}
     peerDependencies:
       expo-router: '>=3.0.0'
       react: '>=18.0.0'
@@ -7400,13 +7401,13 @@ snapshots:
 
   '@drakkar.software/sunglasses-adapter-starfish@0.9.0':
     dependencies:
-      '@drakkar.software/sunglasses-core': 0.10.0
+      '@drakkar.software/sunglasses-core': 0.11.0
 
-  '@drakkar.software/sunglasses-core@0.10.0': {}
+  '@drakkar.software/sunglasses-core@0.11.0': {}
 
-  '@drakkar.software/sunglasses-react-native@0.10.0(expo-router@56.2.11)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)':
+  '@drakkar.software/sunglasses-react-native@0.11.0(expo-router@56.2.11)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)':
     dependencies:
-      '@drakkar.software/sunglasses-core': 0.10.0
+      '@drakkar.software/sunglasses-core': 0.11.0
       react: 19.2.3
       react-native: 0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)
     optionalDependencies:
@@ -7414,7 +7415,7 @@ snapshots:
 
   '@drakkar.software/sunglasses-storage-async-storage@0.9.0(@react-native-async-storage/async-storage@2.2.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))':
     dependencies:
-      '@drakkar.software/sunglasses-core': 0.10.0
+      '@drakkar.software/sunglasses-core': 0.11.0
       '@react-native-async-storage/async-storage': 2.2.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))
 
   '@drakkar.software/whistlers@0.6.0':
@@ -8928,7 +8929,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 
