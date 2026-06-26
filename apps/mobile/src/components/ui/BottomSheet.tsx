@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { radii, spacing } from '@/theme';
@@ -35,6 +35,10 @@ interface BottomSheetProps {
 export function BottomSheet({ visible, onClose, title, children }: BottomSheetProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  // A percentage maxHeight is unresolvable when the parent is content-sized (which
+  // the Overlay content chain is by design). Derive a concrete pixel cap instead so
+  // the sheet actually clamps on short content and bottom-anchoring works.
+  const { height } = useWindowDimensions();
 
   return (
     <Overlay visible={visible} onClose={onClose} placement="bottom">
@@ -51,7 +55,11 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
         <Pressable
           style={[
             styles.sheet,
-            { backgroundColor: colors.paper, paddingBottom: Math.max(insets.bottom, spacing.lg) },
+            {
+              maxHeight: Math.round(height * 0.85),
+              backgroundColor: colors.paper,
+              paddingBottom: Math.max(insets.bottom, spacing.lg),
+            },
           ]}
           onPress={() => undefined}
         >
@@ -77,15 +85,15 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
 
 const styles = StyleSheet.create({
   avoid: {
-    // Lay out KAV content from the bottom upward so the sheet sticks to the
-    // bottom edge (the Overlay container is already flex-end).
+    // The KAV is no longer the full-screen container (Overlay owns the absolute
+    // full-height parent); flexShrink lets it collapse to its content height so
+    // it doesn't stretch beyond the sheet. maxHeight + backgroundColor + safe-area
+    // padding are applied inline (dynamic, depend on window height / insets / theme).
     flexShrink: 1,
   },
   sheet: {
-    maxHeight: '85%',
     borderTopLeftRadius: radii.sheet,
     borderTopRightRadius: radii.sheet,
-    // Safe-area bottom padding is added inline (dynamic).
   },
   handle: {
     alignSelf: 'center',

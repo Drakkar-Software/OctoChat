@@ -43,6 +43,7 @@ import { kvGet, kvSet } from '@drakkar.software/octochat-sdk';
 import { isDmInboxRoomId, isDmSpaceId, isSharedRoomId, isTicketRoomId } from '@drakkar.software/octochat-sdk';
 import { spaceIdFromRoomId } from '@drakkar.software/octochat-sdk';
 import { buildAuthHeaders } from '@drakkar.software/octochat-sdk';
+import { computeDmUnreadSeed, getDmHeads, refreshDmHeads } from '@drakkar.software/octochat-sdk';
 import { dispatchRoomChange, dispatchIndexChange, emitSseStatus } from './room-events-bus';
 import { usePush } from './push/use-push';
 import { advanceRoomActivity, hydrateLatestActivity, resetLatestActivity } from './latest-activity';
@@ -110,6 +111,19 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
     const task = InteractionManager.runAfterInteractions(() => setSseReady(true));
     return () => task.cancel();
   }, []);
+
+  // Stable helper: commit a new counts map to all three storage locations (in-memory
+  // ref, React state, and kv persistence). Extracted to avoid the three-line repeat
+  // in the SSE bump, reconcileReads, markRoomRead, and the DM seed effect.
+  // Called only from effects/callbacks that already hold the current userId.
+  const commitCounts = useCallback(
+    (next: Record<string, number>) => {
+      mapRef.current = next;
+      setUnreadByRoom(next);
+      if (userId) void kvSet(persistKey(userId), JSON.stringify(next));
+    },
+    [userId],
+  );
 
   // The user's space ids — passed as candidates to the /events proxy. Read from
   // the shared SpacesProvider (which sits above this one), NOT via useSpaces():
@@ -236,11 +250,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
           }
         }
         if (marksChanged) lastReadRef.current = mirror;
-        if (countsChanged) {
-          mapRef.current = counts;
-          setUnreadByRoom(counts);
-          void kvSet(persistKey(userId), JSON.stringify(counts));
-        }
+        if (countsChanged) commitCounts(counts);
       };
       unsubReads = subscribeReads(reconcileReads);
       // Catch any advance already emitted before we subscribed (e.g. the startup
@@ -331,10 +341,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
           if (e.identity && e.identity === userId) return;
           // Unread is KEPT for muted rooms/spaces (silence-only) — bump it regardless.
           const m = mapRef.current;
-          const next = { ...m, [e.roomId]: (m[e.roomId] ?? 0) + 1 };
-          mapRef.current = next;
-          setUnreadByRoom(next);
-          void kvSet(persistKey(userId), JSON.stringify(next));
+          commitCounts({ ...m, [e.roomId]: (m[e.roomId] ?? 0) + 1 });
           // web/desktop notification, honoring settings (no-op when focused, disabled,
           // or native). Decrypts a preview when the `preview` setting is on. The nav
           // deps let a click resolve the room's real name/kind + focus its space.
@@ -381,16 +388,52 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       if (!m[roomId]) return;
       const next = { ...m };
       delete next[roomId];
-      mapRef.current = next;
-      setUnreadByRoom(next);
-      if (userId) void kvSet(persistKey(userId), JSON.stringify(next));
+      commitCounts(next);
     },
-    [userId, session],
+    [session, commitCounts],
   );
 
   // Read the last-read mark for a room from the live mirror (0 = never read).
   // Reads the ref so callers can snapshot it during render before markRoomRead.
   const lastReadAt = useCallback((roomId: string) => lastReadRef.current[roomId] ?? 0, []);
+
+  // Stable sorted-join of DM space ids — so the seed effect only re-fires when the
+  // set of DM spaces actually changes (a newly-accepted DM), not on every render.
+  const dmSpacesKey = useMemo(() => [...dmSpaceIds].sort().join(','), [dmSpaceIds]);
+
+  // Seed unread for DMs whose authoritative head timestamp is newer than the read
+  // mark but whose room has no live SSE count yet. This covers:
+  //   – messages that arrived before the space was subscribed (new DM invitation
+  //     accepted asynchronously; SSE stream has no replay).
+  //   – cold-start where the kv snapshot has no entry (first-time, or cleared).
+  //
+  // Gated on `hydrated` so read marks are loaded before comparing (avoids seeding
+  // a DM that was already read on another device). Re-fires when `dmSpaceIds`
+  // changes (a newly-accepted DM enters the durable set).
+  //
+  // `commitCounts` is stable per-userId and idempotent; `computeDmUnreadSeed`
+  // returns null when nothing changed, so no spurious state updates.
+  useEffect(() => {
+    if (!hydrated || !session || dmSpaceIds.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      // refreshDmHeads is throttled to 15s + coalesces in-flight; calling it here
+      // is safe alongside the <DmList> useRefreshDmHeads() call.
+      await refreshDmHeads(session, dmSpaceIds).catch(() => {});
+      if (cancelled) return;
+      const next = computeDmUnreadSeed(
+        dmSpaceIds,
+        getDmHeads(),
+        getReadPrefs().nodes,
+        mapRef.current,
+      );
+      if (next) commitCounts(next);
+    })();
+    return () => { cancelled = true; };
+    // dmSpacesKey is the stable sorted-join so the effect re-runs only when the DM
+    // set changes, not on every unrelated re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, session, dmSpacesKey, commitCounts]);
 
   const unreadBySpace = useMemo(() => {
     const m: Record<string, number> = {};

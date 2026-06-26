@@ -125,11 +125,16 @@ export function resetDmHeads(): void {
 
 /**
  * Refresh the DM head-timestamp map. Folds three sources in order and max-merges the
- * result into the store. Called from `SpacesProvider.refresh()` (mount, navigation,
- * app foreground) — the internal throttle absorbs nav spam.
+ * result into the store. The internal throttle (15 s) absorbs nav spam; concurrent
+ * calls coalesce onto a single in-flight promise.
+ *
+ * Called from two sites:
+ *  – `<DmList>` via `useRefreshDmHeads()` while the DM list is on screen.
+ *  – `UnreadProvider`'s DM seed effect (on `hydrated` + `dmSpaceIds` change) to
+ *    warm the head store before seeding unread from head-vs-read-mark comparison.
  *
  * @param session  The active session (for building space-scoped sync clients).
- * @param dmSpaceIds  All DM space ids for the identity (from the `dms` map values).
+ * @param dmSpaceIds  All DM space ids for the identity (from the durable joined-spaces list).
  * @param opts.force  Skip the throttle and force a fresh network pass.
  */
 export function refreshDmHeads(
