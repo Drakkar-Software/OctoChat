@@ -40,7 +40,7 @@ export const privacy: LegalDoc = {
       title: 'Server Metadata',
       paragraphs: [
         'Basic connection metadata — document identifiers, timestamps, and the size of encrypted payloads — is necessarily visible to the server in order to route and deliver messages. This metadata does not include any message content.',
-        'OctoChat does not use analytics services, tracking pixels, advertising SDKs, or any third-party library that reports usage data to external parties.',
+        'OctoChat may collect a few completely anonymous in-app analytics — such as error events — and does not use tracking pixels, advertising SDKs, or any third-party library that reports usage data to external parties.',
       ],
     },
     {

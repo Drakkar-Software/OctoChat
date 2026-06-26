@@ -17,6 +17,12 @@
     "doctor": "npx react-doctor@latest --verbose"
   },
   "dependencies": {
+    "@drakkar.software/sunglasses-core": "0.8.0",
+    "@drakkar.software/sunglasses-react-native": "0.8.0",
+    "@drakkar.software/sunglasses-storage-async-storage": "0.8.0",
+    "@drakkar.software/sunglasses-adapter-starfish": "0.8.0",
+    "@drakkar.software/sunglasses-adapter-posthog": "0.8.0",
+    "posthog-react-native": "4.52.0",
     "@drakkar.software/expo-conductor": "0.4.1",
     "@drakkar.software/octochat-sdk": "workspace:*",
     "@drakkar.software/octospaces-ui": "0.8.0",

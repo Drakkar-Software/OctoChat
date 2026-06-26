@@ -26,6 +26,11 @@ import { RequestsProvider } from '@/lib/requests-context';
 import { UnreadProvider } from '@/lib/unread-context';
 import { ViewModeProvider } from '@/lib/view-mode';
 import { BrandProvider } from '@/lib/brand-context';
+import { analytics, initAnalytics } from '@/lib/analytics';
+import { POSTHOG_API_KEY, POSTHOG_HOST } from '@/lib/analytics/constants';
+import { SunglassesProvider, useExpoRouterScreenTracking } from '@drakkar.software/sunglasses-react-native';
+import { createPostHogBeforeSend } from '@drakkar.software/sunglasses-adapter-posthog';
+import { PostHogProvider } from 'posthog-react-native';
 
 import { useEffect, useMemo } from 'react';
 import { AppState, InteractionManager, useColorScheme } from 'react-native';
@@ -85,6 +90,11 @@ function AutomationBackgroundMount() {
 }
 
 export default function RootLayout() {
+  // Initialize analytics once; the lazy client handles calls that arrive before resolve.
+  useEffect(() => { initAnalytics().catch(console.error); }, []);
+  // Track screen views via expo-router pathname changes → client.screen().
+  useExpoRouterScreenTracking(analytics);
+
   // Start loading fonts in the background — they swap in when ready (FOUT accepted
   // for fastest TTI; previously this gated the entire tree on all 9 weights).
   useAppFonts();
@@ -101,6 +111,22 @@ export default function RootLayout() {
   }, []);
 
   return (
+    <SunglassesProvider client={analytics}>
+    <PostHogProvider
+      apiKey={POSTHOG_API_KEY}
+      options={{
+        host: POSTHOG_HOST,
+        enableSessionReplay: false,
+        errorTracking: { autocapture: { uncaughtExceptions: true, unhandledRejections: true } },
+        // All events are intercepted and forwarded to SunGlasses → Starfish/Parquet.
+        // suppressPostHogSend: true means PostHog cloud never receives anything.
+        // Screen views are skipped — handled by useExpoRouterScreenTracking above.
+        before_send: createPostHogBeforeSend(analytics, {
+          suppressPostHogSend: true,
+          systemEvents: { pageview: false, exception: true },
+        }),
+      }}
+    >
     <OctoSpacesThemeProvider theme={octoSpacesTheme}>
     <BrandProvider>
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -167,5 +193,7 @@ export default function RootLayout() {
     </GestureHandlerRootView>
     </BrandProvider>
     </OctoSpacesThemeProvider>
+    </PostHogProvider>
+    </SunglassesProvider>
   );
 }
