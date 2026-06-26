@@ -4,10 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  hosted-git-info@4>lru-cache: ^7.18.3
-  '@drakkar.software/sunglasses-core': 0.12.0
-
 importers:
 
   .:
@@ -1248,6 +1244,9 @@ packages:
 
   '@drakkar.software/sunglasses-adapter-starfish@0.9.0':
     resolution: {integrity: sha512-3IRpZntInvhCwTDuRgHtSxiL8+79OpcrdRVTARrM6WcS8XArE8xjI5+hn7bIpHmvu+hUMGUZ+9SMsGHThl9yZA==}
+
+  '@drakkar.software/sunglasses-core@0.10.0':
+    resolution: {integrity: sha512-rIhRZbu1tdStrFUnATsVS7271hnvbSY50C1Z3vosqGXcXAzvTqL5a0IeVGG3BlM27Zp81ymAWCIDDpjVz58w7g==}
 
   '@drakkar.software/sunglasses-core@0.12.0':
     resolution: {integrity: sha512-bUZBwUeF5lX0u9GFR+IGrOBm2PvJvFrvZ/YZopLIkTdYX7SiMpAU+6HjOpl0KqF0ihwrTIp058AwxESsi+cS5A==}
@@ -4694,9 +4693,9 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lru-cache@7.18.3:
-    resolution: {integrity: sha512-jumlc0BIUrS3qJGgIkWZsyfAM7NCWiBcCDhnd+3NNM5KbBmLTgHVfWBcg6W+rLUsIpzpERPsvwUP7CckAQSOoA==}
-    engines: {node: '>=12'}
+  lru-cache@6.0.0:
+    resolution: {integrity: sha512-Jo6dJ04CmSjuznwJSS3pUeWmd/H0ffTlkXXgwZi+eq1UCmqQwCh+eLsYOYCwY991i2Fah4h1BEMCx4qThGbsiA==}
+    engines: {node: '>=10'}
 
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
@@ -6268,6 +6267,9 @@ packages:
   yallist@3.1.1:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
 
+  yallist@4.0.0:
+    resolution: {integrity: sha512-3wdGidZyq5PB084XLES5TpOSRA3wjXAlIWMhum2kRcv/41Sn2emQ0dycQW4uZXLejwKvg6EsvbdlVL+FYEct7A==}
+
   yallist@5.0.0:
     resolution: {integrity: sha512-YgvUTfwqyc7UXVMrB+SImsVYSmTS8X/tSrtdNZMImM+n7+QTriRXyXim0mBrTXNeqzVF0KWGgHPeiyViFFrNDw==}
     engines: {node: '>=18'}
@@ -7428,7 +7430,9 @@ snapshots:
 
   '@drakkar.software/sunglasses-adapter-starfish@0.9.0':
     dependencies:
-      '@drakkar.software/sunglasses-core': 0.12.0
+      '@drakkar.software/sunglasses-core': 0.10.0
+
+  '@drakkar.software/sunglasses-core@0.10.0': {}
 
   '@drakkar.software/sunglasses-core@0.12.0': {}
 
@@ -7442,7 +7446,7 @@ snapshots:
 
   '@drakkar.software/sunglasses-storage-async-storage@0.9.0(@react-native-async-storage/async-storage@2.2.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3)))':
     dependencies:
-      '@drakkar.software/sunglasses-core': 0.12.0
+      '@drakkar.software/sunglasses-core': 0.10.0
       '@react-native-async-storage/async-storage': 2.2.0(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))
 
   '@drakkar.software/whistlers@0.6.0':
@@ -8956,7 +8960,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 
@@ -10954,7 +10960,7 @@ snapshots:
 
   hosted-git-info@4.1.0:
     dependencies:
-      lru-cache: 7.18.3
+      lru-cache: 6.0.0
 
   hosted-git-info@7.0.2:
     dependencies:
@@ -11282,7 +11288,9 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lru-cache@7.18.3: {}
+  lru-cache@6.0.0:
+    dependencies:
+      yallist: 4.0.0
 
   lz-string@1.5.0: {}
 
@@ -12999,6 +13007,8 @@ snapshots:
   y18n@5.0.8: {}
 
   yallist@3.1.1: {}
+
+  yallist@4.0.0: {}
 
   yallist@5.0.0: {}
 

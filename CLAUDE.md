@@ -61,6 +61,13 @@ App code lives in `apps/mobile/src`. These rules are non-negotiable:
 The full version (with structure and conventions) is in
 [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md).
 
+## Dependency rules — ALWAYS respect
+
+**NEVER add `overrides` to `pnpm-workspace.yaml`.** Fix the actual version conflict
+instead: bump the package that pins the outdated dep, or update the direct dep in
+`package.json`. Overrides silently mask mismatches, break when the override itself
+goes stale, and hide real incompatibilities.
+
 ## Data-access rules — ALWAYS respect
 
 1. **Batch cross-entity pulls.** When a read fans out over multiple spaces or DMs (per-space

@@ -32,12 +32,4 @@ onlyBuiltDependencies:
 # notably octospaces-ui's transitive octospaces-sdk dep — so only ONE copy is
 # installed (configureOctoSpaces sets module-level state; duplicates would break it).
 # Keep it in lockstep with the packages/sdk pin. Mirrors OctoVault's root override.
-overrides:
-  "hosted-git-info@4>lru-cache": "^7.18.3"
-  # The SunGlasses storage/starfish adapters (0.9.0) pin `sunglasses-core` at an
-  # exact 0.10.0, but the app uses 0.12.0 (global error bus + console capture).
-  # 0.12.0 is additive and backward-compatible, so force a SINGLE core copy across
-  # the workspace — a flat hoisted node_modules can only hold one, and a duplicate
-  # would split the IAnalyticsAdapter type / runtime instance between adapters and
-  # the app client.
-  "@drakkar.software/sunglasses-core": "0.12.0"
+
