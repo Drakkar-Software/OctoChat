@@ -117,6 +117,10 @@ export default function RootLayout() {
       options={{
         host: POSTHOG_HOST,
         enableSessionReplay: false,
+        // PostHog is used purely as a local exception-capture shim — no events or
+        // config requests should ever reach PostHog cloud.
+        disableRemoteConfig: true,
+        disableRemoteFeatureFlags: true,
         errorTracking: { autocapture: { uncaughtExceptions: true, unhandledRejections: true } },
         // All events are intercepted and forwarded to SunGlasses → Starfish/Parquet.
         // suppressPostHogSend: true means PostHog cloud never receives anything.
