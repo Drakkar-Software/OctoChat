@@ -55,6 +55,11 @@ initOctoChat();
 // Register the PWA service worker (web production only; no-op elsewhere).
 registerServiceWorker();
 
+// On desktop, wire renderer errors → IPC → terminal before the first render so
+// a boot-time crash is captured (console.error is called before any useEffect).
+// No-op off-desktop and on headless native launches where window is absent.
+installDesktopErrorReporting();
+
 // Register the FCM background-message handler (native only; no-op on web). RN-Firebase
 // requires setBackgroundMessageHandler to be registered before a background message is
 // processed — but that's only relevant on a headless/background wake, not a foreground
@@ -89,9 +94,6 @@ function AutomationBackgroundMount() {
 }
 
 export default function RootLayout() {
-  // On desktop, wire renderer errors → IPC → terminal (the renderer console only
-  // reaches DevTools). No-op off-desktop.
-  useEffect(() => { installDesktopErrorReporting(); }, []);
   // Initialize analytics once; the lazy client handles calls that arrive before resolve.
   useEffect(() => { initAnalytics().catch(console.error); }, []);
   // Track screen views via expo-router pathname changes → client.screen().
