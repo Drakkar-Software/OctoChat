@@ -174,4 +174,21 @@ export function installDesktopErrorReporting(): void {
     report(fmt((e as ErrorEvent).error ?? (e as ErrorEvent).message)));
   window.addEventListener('unhandledrejection', (e) =>
     report(fmt((e as PromiseRejectionEvent).reason)));
+
+  // Fatal JS errors on Expo/Hermes web route through ErrorUtils before reaching
+  // window.onerror — SunglassesProvider's autoCaptureErrors also chains here,
+  // so setting our handler first lets the chain reach us regardless of order.
+  const eu = (globalThis as unknown as {
+    ErrorUtils?: {
+      getGlobalHandler?(): ((e: unknown, fatal?: boolean) => void) | undefined;
+      setGlobalHandler?(h: (e: unknown, fatal?: boolean) => void): void;
+    };
+  }).ErrorUtils;
+  if (eu?.setGlobalHandler) {
+    const prev = eu.getGlobalHandler?.();
+    eu.setGlobalHandler((error, isFatal) => {
+      report(fmt(error));
+      prev?.(error, isFatal);
+    });
+  }
 }
