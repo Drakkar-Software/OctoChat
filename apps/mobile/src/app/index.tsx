@@ -18,6 +18,7 @@ export default function Index() {
   // from react-native-performance) → screenInteractive below.
   // eslint-disable-next-line react-hooks/rules-of-hooks -- conditional after hook is fine; status is always defined
   useEffect(() => {
+    if (Platform.OS === 'web') return;
     if (status === 'loading' || status === 'switching') return;
     // Dynamic import keeps react-native-performance out of the main bundle graph on
     // platforms or builds where it isn't needed (e.g. web). The import() call itself
