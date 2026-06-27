@@ -100,6 +100,17 @@ function createWindow(): void {
     win.hide();
   });
 
+  // Mirror renderer-process errors to the terminal. The app's global error
+  // boundary runs in the renderer, whose console goes to DevTools, not stdout —
+  // so a crash leaves no trace in the terminal that the `[ota]` updater logs do.
+  // React (and the boundary) log caught errors via console.error; surface them
+  // here at the same place. Errors only, to keep the signal clean.
+  win.webContents.on('console-message', (details) => {
+    if (details.level === 'error') {
+      console.error('[renderer]', details.message);
+    }
+  });
+
   // Open http(s) links (e.g. external URLs) in the OS browser, never in-app.
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) void shell.openExternal(url);
