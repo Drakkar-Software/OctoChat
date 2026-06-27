@@ -29,6 +29,11 @@ import { checkForUpdates, getPendingUpdateVersion } from './updater';
 // unpackaged run (`electron .`) shows the package name "@octochat/desktop".
 app.setName(APP_NAME);
 
+// Pipe renderer console (including uncaught errors) to stderr at the native
+// level, independent of the JS console-message event. Helps diagnose whether
+// the event fires at all in a packaged build.
+app.commandLine.appendSwitch('enable-logging');
+
 protocol.registerSchemesAsPrivileged([
   {
     scheme: APP_SCHEME,
@@ -100,15 +105,11 @@ function createWindow(): void {
     win.hide();
   });
 
-  // Mirror renderer-process errors to the terminal. The app's global error
-  // boundary runs in the renderer, whose console goes to DevTools, not stdout —
-  // so a crash leaves no trace in the terminal that the `[ota]` updater logs do.
-  // React (and the boundary) log caught errors via console.error; surface them
-  // here at the same place. Errors only, to keep the signal clean.
+  // Diagnostic: log every renderer console message unconditionally so we can
+  // see the raw `level` value at runtime. Replace with errors-only filter once
+  // the actual level value is confirmed.
   win.webContents.on('console-message', (details) => {
-    if (details.level === 'error') {
-      console.error('[renderer]', details.message);
-    }
+    console.log('[renderer:raw]', JSON.stringify((details as { level: unknown }).level), details.message);
   });
 
   // Open http(s) links (e.g. external URLs) in the OS browser, never in-app.
@@ -270,6 +271,8 @@ if (!gotLock) {
   });
 
   void app.whenReady().then(() => {
+    // Diagnostic: confirms the rebuilt main.js is actually the binary running.
+    console.log('[main] boot', app.getVersion());
     // Identifies the app to Windows so notification toasts show the right name
     // and icon (no-op on macOS/Linux). Must match electron-builder.yml `appId`.
     app.setAppUserModelId('software.drakkar.octochat');
