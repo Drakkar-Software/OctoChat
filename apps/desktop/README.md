@@ -82,10 +82,16 @@ not inside the asar, so the `app://` handler can stream it.
 
 ## Notes & gotchas
 
+- **macOS code signing.** electron-builder doesn't always auto-discover the
+  "Developer ID Application" cert. Pass `CSC_NAME` explicitly:
+  ```bash
+  CSC_NAME="DRAKKAR-SOFTWARE" pnpm --filter @octochat/desktop package
+  ```
+  Without this, the build succeeds but the `.app` is ad-hoc signed → Gatekeeper
+  quarantine, no notifications permission prompt.
 - **Notifications** (new-message toasts) have their own doc:
-  [`NOTIFICATIONS.md`](NOTIFICATIONS.md). Short version: macOS never prompts on
-  the current **ad-hoc-signed** builds (needs Developer ID); Windows/Linux show
-  toasts with no prompt.
+  [`NOTIFICATIONS.md`](NOTIFICATIONS.md). Short version: requires Developer ID
+  signing (see above); Windows/Linux show toasts with no prompt.
 - **Unsigned macOS builds** are quarantined by Gatekeeper. Open via
   right-click → **Open**, or clear the flag:
   `xattr -dr com.apple.quarantine "apps/desktop/release/mac/OctoChat.app"`.
