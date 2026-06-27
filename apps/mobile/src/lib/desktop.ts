@@ -30,6 +30,8 @@ declare global {
       checkForUpdates?: () => Promise<DesktopUpdateResult>;
       /** Relaunch the app to apply a staged OTA bundle. */
       relaunch?: () => void;
+      /** Forward a renderer error string to the main process / terminal. */
+      reportError?: (msg: string) => void;
     };
   }
 }
@@ -138,4 +140,38 @@ export async function checkDesktopUpdate(): Promise<DesktopUpdateResult | null> 
  */
 export function relaunchDesktop(): void {
   globalThis.window?.octochat?.relaunch?.();
+}
+
+let errorReportingInstalled = false;
+
+/**
+ * On desktop, mirror renderer errors to the terminal (the renderer console only
+ * reaches DevTools). Covers all three paths: render-phase errors caught by the
+ * global boundary (React logs these via console.error — patched here to forward,
+ * calling the original through), uncaught errors (React's onUncaughtError →
+ * reportError dispatches a window 'error' event), and unhandled rejections.
+ * No-op off-desktop and idempotent. Call once at app startup.
+ */
+export function installDesktopErrorReporting(): void {
+  const report = globalThis.window?.octochat?.reportError;
+  if (!report || errorReportingInstalled) return;
+  errorReportingInstalled = true;
+
+  const fmt = (v: unknown): string =>
+    v instanceof Error
+      ? (v.stack ?? v.message)
+      : typeof v === 'object' && v !== null
+        ? JSON.stringify(v)
+        : String(v);
+
+  const original = console.error.bind(console);
+  console.error = (...args: unknown[]) => {
+    original(...args); // keep DevTools / SunGlasses behaviour
+    report(args.map(fmt).join(' '));
+  };
+
+  window.addEventListener('error', (e) =>
+    report(fmt((e as ErrorEvent).error ?? (e as ErrorEvent).message)));
+  window.addEventListener('unhandledrejection', (e) =>
+    report(fmt((e as PromiseRejectionEvent).reason)));
 }

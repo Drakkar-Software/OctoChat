@@ -27,6 +27,7 @@ import { UnreadProvider } from '@/lib/unread-context';
 import { ViewModeProvider } from '@/lib/view-mode';
 import { BrandProvider } from '@/lib/brand-context';
 import { analytics, initAnalytics } from '@/lib/analytics';
+import { installDesktopErrorReporting } from '@/lib/desktop';
 import { SunglassesProvider, SunglassesGlobalErrorBoundary, useExpoRouterScreenTracking } from '@drakkar.software/sunglasses-react-native';
 import { AppErrorFallback } from '@/components/ui/AppErrorFallback';
 
@@ -88,6 +89,9 @@ function AutomationBackgroundMount() {
 }
 
 export default function RootLayout() {
+  // On desktop, wire renderer errors → IPC → terminal (the renderer console only
+  // reaches DevTools). No-op off-desktop.
+  useEffect(() => { installDesktopErrorReporting(); }, []);
   // Initialize analytics once; the lazy client handles calls that arrive before resolve.
   useEffect(() => { initAnalytics().catch(console.error); }, []);
   // Track screen views via expo-router pathname changes → client.screen().
