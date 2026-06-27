@@ -41,5 +41,5 @@ contextBridge.exposeInMainWorld('octochat', {
   relaunch: () => ipcRenderer.invoke('octochat:relaunch'),
   // Forward a renderer-side error string to the main process so it lands in the
   // terminal (renderer console only reaches DevTools). One-way; no response.
-  reportError: (msg: string) => ipcRenderer.send('octochat:report-error', msg),
+  reportError: (msg: string) => void ipcRenderer.invoke('octochat:report-error', msg),
 });

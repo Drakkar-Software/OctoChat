@@ -175,7 +175,7 @@ function registerIpc(): void {
 
   // Print renderer-reported errors to the terminal, formatted like the [ota]
   // lines. console.error → stderr, consistent with updater.ts's error line.
-  ipcMain.on('octochat:report-error', (_event, msg: unknown) => {
+  ipcMain.handle('octochat:report-error', (_event, msg: unknown) => {
     if (typeof msg === 'string') console.error('[renderer]', msg);
   });
 }
