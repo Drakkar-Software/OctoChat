@@ -339,8 +339,8 @@ importers:
         specifier: 0.3.2
         version: 0.3.2(48e7d130e73245a88bcf42b43256079b)
       '@drakkar.software/octospaces-sdk':
-        specifier: 0.29.0
-        version: 0.29.0(c07ba53a3bedd495e35a9312080af52f)
+        specifier: 0.29.1
+        version: 0.29.1(c07ba53a3bedd495e35a9312080af52f)
       '@drakkar.software/starfish-client':
         specifier: 3.0.0-alpha.43
         version: 3.0.0-alpha.43(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
@@ -1101,8 +1101,8 @@ packages:
       '@drakkar.software/starfish-wal':
         optional: true
 
-  '@drakkar.software/octospaces-sdk@0.29.0':
-    resolution: {integrity: sha512-+ZdMgA0Z23R3sfR2nnKmrdR8DAkXoKy5CMC6sagwHkDVivVt1EojVE9hLIpaLXprn/gYXDEi9EGcsToX57Njhw==}
+  '@drakkar.software/octospaces-sdk@0.29.1':
+    resolution: {integrity: sha512-PAl5kt6bWfILt2I9VajRSr3TZ9VSFMdGPWGmDUR5vippw1bDBuJ4JflC6bMQS/jRhhSX2n89tRNhrX2BQVcDTw==}
     peerDependencies:
       '@drakkar.software/starfish-client': '>=3.0.0-alpha.43'
       '@drakkar.software/starfish-identities': '>=3.0.0-alpha.43'
@@ -7201,7 +7201,7 @@ snapshots:
       '@scure/bip39': 2.2.0
       hash-wasm: 4.12.0
 
-  '@drakkar.software/octospaces-sdk@0.29.0(c07ba53a3bedd495e35a9312080af52f)':
+  '@drakkar.software/octospaces-sdk@0.29.1(c07ba53a3bedd495e35a9312080af52f)':
     dependencies:
       '@drakkar.software/starfish-client': 3.0.0-alpha.43(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
       '@drakkar.software/starfish-identities': 3.0.0-alpha.43(immer@10.2.0)(react@19.2.3)(zustand@5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3)))
