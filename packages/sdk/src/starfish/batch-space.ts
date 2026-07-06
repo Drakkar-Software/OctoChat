@@ -22,15 +22,13 @@
  *   spaceregistry → spaces/{spaceId}/_access
  *   objindex      → spaces/{spaceId}/objects/_index
  *
- * ## Append/checkpoint-aware batching
+ * ## Known batching limitations
  *
- * `batchPull`'s `appendParams` option (index-aligned to `params`) makes a batch
- * request append/checkpoint-aware: each entry can carry its own `since`/`last`/
- * `appendField`, returning a bounded tail of that collection's append-only log
- * rather than the full document. This is what `batchFoldSpaceRooms`
- * (`../messaging/stream-log.ts`) uses to collapse a whole space's `objlog`/
- * `objpublog` room-message pulls into one `/batch/pull` per chunk, instead of one
- * `pull` per room.
+ * ### 1. Batch is not append/checkpoint-aware
+ * `batchPull` cannot carry `last` / `since` / `appendField`, so the per-DM
+ * `?last=1` head pulls (`dm-activity.ts:189`) cannot move to a batch request.
+ * Those reads are eliminated at the call site (lazy trigger from `<DmList>`)
+ * rather than batched.
  */
 import { getSpaceClient, readSpaceAccess } from '@drakkar.software/starfish-spaces';
 import type { Session } from '@drakkar.software/starfish-spaces';

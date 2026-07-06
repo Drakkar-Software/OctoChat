@@ -8,16 +8,12 @@
  * dedup by id, and warm-start the cursor from kv across restarts. The hook owns the cursor
  * + store; this module owns the data shaping, the shared pull/fold, and the persistence keys.
  */
-import { AppendLogCursor, checkpointOf, StarfishHttpError } from '@drakkar.software/starfish-client';
-import type { AppendElement, BatchPullEntry, Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
-import { getSpaceClient } from '@drakkar.software/starfish-spaces';
+import { AppendLogCursor } from '@drakkar.software/starfish-client';
+import type { AppendElement, Encryptor, StarfishClient } from '@drakkar.software/starfish-client';
 
-import type { MessageEditEvent, PinEvent, ReactionEvent, Room } from '../domain/types';
+import type { MessageEditEvent, PinEvent, ReactionEvent } from '../domain/types';
 import type { StoredMsg } from '../format/message-view';
 import { kvGet, kvSet } from '../config/adapters';
-import type { Session } from '../starfish/identity';
-import { buildNodeAccessShared } from '../starfish/node-access-cache';
-import { roomStreamPull } from './room-paths';
 
 /** One append-log element: a typed envelope so a single log carries messages,
  *  reactions and edits. `t` discriminates; `e` is the payload (a StoredMsg /
@@ -104,10 +100,6 @@ export function fanOut(items: AppendElement[]): StreamData {
 export interface FoldedLog {
   data: StreamData;
   items: AppendElement[];
-  /** Set by {@link batchFoldSpaceRooms} when this room's fold failed even after the
-   *  per-room fallback (unreadable / unreachable) — an empty `data`/`items` here means
-   *  "undercount", not "genuinely empty". Absent (or `false`) everywhere else. */
-  failed?: boolean;
 }
 
 /**
@@ -198,7 +190,6 @@ export async function foldRoomCached(
 /** Clear all in-flight folds — call on sign-out alongside `resetDmHeads`. */
 export function resetFoldRoomCache(): void {
   _foldInflight.clear();
-  _batchFoldInflight.clear();
 }
 
 export async function pullAndFold(
@@ -221,226 +212,4 @@ export async function pullAndFold(
     }
   }
   return { data: fanOut(decrypted), items };
-}
-
-// ── Batch fold for a whole space's rooms ─────────────────────────────────────────
-// `objlog` (private/E2EE + invite+enc) and `objpublog` (public) are both covered by
-// the space client's single `spaceMemberScope` cap, and both collections are
-// `appendOnly` server-side — so a whole space's room logs collapse into ONE
-// `/batch/pull` (one call per ~90-room chunk) instead of one `pull` per room.
-// `objinvlog` (invite+PLAINTEXT) is excluded: it's gated by its own per-node cap,
-// not the space cap, so those rooms keep the existing per-room `foldRoomCached` path.
-//
-// Only the NETWORK PULL is batched — decryption stays per-room via
-// `buildNodeAccessShared` (memoized: one keyring pull per space for regular private
-// rooms, one per node for invite+enc rooms, a no-op for plaintext), so ciphertext
-// isolation between rooms is unchanged.
-
-/** Rooms per `/batch/pull` chunk. Each room contributes exactly one param-set (to
- *  either `objlog` or `objpublog`), so this stays under the server's ~100-entry
- *  `max_collections_per_batch` with margin (mirrors `CROSS_SPACE_CHUNK_SIZE`). */
-const ROOM_BATCH_CHUNK_SIZE = 90;
-
-const _batchFoldInflight = new Map<string, Promise<Map<string, FoldedLog>>>();
-
-type RoomAccess = { client: StarfishClient; encryptor: Encryptor | null } | null;
-
-/** Resolve each room's per-node access via the memoized cache — cheap even across
- *  a full space's rooms (one real keyring pull per space, or per invite node). */
-async function resolveRoomAccess(
-  session: Session,
-  spaceId: string,
-  rooms: Room[],
-): Promise<Map<string, RoomAccess>> {
-  const map = new Map<string, RoomAccess>();
-  await Promise.all(
-    rooms.map(async (room) => {
-      const access = await buildNodeAccessShared(session, spaceId, room.id, { enc: room.enc }).catch(() => null);
-      map.set(room.id, access);
-    }),
-  );
-  return map;
-}
-
-/** Fold one room from a batch entry: merge with the persisted ciphertext log,
- *  decrypt (tolerating a single poison element), and persist the merged raw items
- *  back to kv. Falls back to a direct per-room pull when the entry is missing or
- *  the server reports a per-entry error, so one bad room doesn't drop from the sweep. */
-async function mergeRoomEntry(
-  session: Session,
-  spaceId: string,
-  room: Room,
-  entry: BatchPullEntry | undefined,
-  initialItems: AppendElement[],
-  access: RoomAccess,
-  fallbackClient: StarfishClient,
-): Promise<FoldedLog> {
-  if (!entry || entry.error) {
-    return foldRoomCached(
-      session.userId,
-      access?.client ?? fallbackClient,
-      access?.encryptor ?? null,
-      room.id,
-      roomStreamPull(room, room.id),
-    ).catch(() => ({ data: fanOut([]), items: [], failed: true }));
-  }
-
-  const newItems = Array.isArray((entry.data as { items?: unknown } | undefined)?.items)
-    ? ((entry.data as { items: AppendElement[] }).items)
-    : [];
-  const merged = [...initialItems, ...newItems];
-
-  const enc = access?.encryptor ?? null;
-  let decrypted: AppendElement[];
-  if (!enc) {
-    decrypted = merged;
-  } else {
-    decrypted = [];
-    for (const item of merged) {
-      try {
-        decrypted.push({ ...item, data: (await enc.decrypt(item.data)) as Record<string, unknown> });
-      } catch {
-        /* a single undecryptable element must not blank the whole room */
-      }
-    }
-  }
-
-  // Persist merged raw (ciphertext or plaintext) items unconditionally — mirrors
-  // foldRoomCached, establishing a kv checkpoint even for an empty delta.
-  void kvSet(streamLogKey(session.userId, room.id), JSON.stringify(merged)).catch(() => {});
-  return { data: fanOut(decrypted), items: merged };
-}
-
-/** Batch-pull + fold one chunk of a space's rooms, writing every result into `out`. */
-async function foldRoomChunk(
-  session: Session,
-  spaceId: string,
-  client: StarfishClient,
-  chunk: Room[],
-  out: Map<string, FoldedLog>,
-): Promise<void> {
-  const accessByRoom = await resolveRoomAccess(session, spaceId, chunk);
-  const initialByRoom = new Map<string, AppendElement[]>();
-  await Promise.all(
-    chunk.map(async (room) => {
-      initialByRoom.set(room.id, await loadStreamLog(session.userId, room.id));
-    }),
-  );
-
-  const objlogRooms = chunk.filter((r) => r.access !== 'public');
-  const pubRooms = chunk.filter((r) => r.access === 'public');
-
-  const collections: string[] = [];
-  const params: Record<string, Record<string, string>[]> = {};
-  const appendParams: Record<string, { appendField: string; since: number }[]> = {};
-  for (const [name, group] of [['objlog', objlogRooms], ['objpublog', pubRooms]] as const) {
-    if (group.length === 0) continue;
-    collections.push(name);
-    params[name] = group.map((r) => ({ spaceId, roomId: r.id }));
-    appendParams[name] = group.map((r) => ({
-      appendField: 'items',
-      since: checkpointOf(initialByRoom.get(r.id) ?? []),
-    }));
-  }
-
-  let batchCollections: Record<string, BatchPullEntry[]>;
-  try {
-    batchCollections = (await client.batchPull(collections, { params, appendParams })).collections;
-  } catch (err) {
-    // 429: do not amplify load — rethrow so the caller's cooldown/cache path absorbs it.
-    if (err instanceof StarfishHttpError && err.status === 429) throw err;
-    // Any other error (old server, network failure): degrade to per-room folds.
-    await Promise.all(
-      chunk.map(async (room) => {
-        const folded = await foldRoomCached(
-          session.userId,
-          accessByRoom.get(room.id)?.client ?? client,
-          accessByRoom.get(room.id)?.encryptor ?? null,
-          room.id,
-          roomStreamPull(room, room.id),
-        ).catch(() => ({ data: fanOut([]), items: [], failed: true }));
-        out.set(room.id, folded);
-      }),
-    );
-    return;
-  }
-
-  await Promise.all([
-    ...objlogRooms.map((room, i) =>
-      mergeRoomEntry(
-        session, spaceId, room, batchCollections['objlog']?.[i], initialByRoom.get(room.id) ?? [],
-        accessByRoom.get(room.id) ?? null, client,
-      ).then((folded) => out.set(room.id, folded)),
-    ),
-    ...pubRooms.map((room, i) =>
-      mergeRoomEntry(
-        session, spaceId, room, batchCollections['objpublog']?.[i], initialByRoom.get(room.id) ?? [],
-        accessByRoom.get(room.id) ?? null, client,
-      ).then((folded) => out.set(room.id, folded)),
-    ),
-  ]);
-}
-
-/**
- * Batch-pull + fold ALL of a space's rooms in as few HTTP round-trips as possible —
- * the batch-aware sibling of {@link foldRoomCached}, used by the cross-room sweeps
- * (`forEachSpaceRoom`, `loadSpaceStats`) instead of one `pull` per room.
- *
- * `objinvlog` (invite+plaintext) rooms are excluded from the batch (per-node cap,
- * not the space cap) and fold individually via `foldRoomCached`.
- *
- * Per-space in-flight coalescing: concurrent calls for the same space (the
- * threads+pins+nav+digest focus burst, which all derive `rooms` from the same
- * coalesced `listSpaceRooms` call) share ONE batch rather than one each.
- */
-export async function batchFoldSpaceRooms(
-  session: Session,
-  spaceId: string,
-  rooms: Room[],
-): Promise<Map<string, FoldedLog>> {
-  if (rooms.length === 0) return new Map();
-
-  const key = `${session.userId}.${spaceId}`;
-  const pending = _batchFoldInflight.get(key);
-  if (pending) return pending;
-
-  const p = (async (): Promise<Map<string, FoldedLog>> => {
-    const client = getSpaceClient(spaceId, session);
-    const out = new Map<string, FoldedLog>();
-
-    const batchable: Room[] = [];
-    const inviteOnly: Room[] = [];
-    for (const room of rooms) {
-      if (room.access === 'invite' && !room.enc) inviteOnly.push(room);
-      else batchable.push(room);
-    }
-
-    for (let i = 0; i < batchable.length; i += ROOM_BATCH_CHUNK_SIZE) {
-      await foldRoomChunk(session, spaceId, client, batchable.slice(i, i + ROOM_BATCH_CHUNK_SIZE), out);
-    }
-
-    await Promise.all(
-      inviteOnly.map(async (room) => {
-        const access = await buildNodeAccessShared(session, spaceId, room.id, { enc: room.enc }).catch(() => null);
-        const folded = await foldRoomCached(
-          session.userId,
-          access?.client ?? client,
-          access?.encryptor ?? null,
-          room.id,
-          roomStreamPull(room, room.id),
-        ).catch(() => ({ data: fanOut([]), items: [], failed: true }));
-        out.set(room.id, folded);
-      }),
-    );
-
-    return out;
-  })();
-
-  _batchFoldInflight.set(key, p);
-  // `p` itself is returned to the caller (who is expected to handle a rejection, e.g.
-  // a 429 rethrow) — but this SEPARATE `.finally()` chain derives its own promise, which
-  // would otherwise surface as an unhandled rejection when `p` rejects. Swallow it here;
-  // the cleanup (map delete) still runs regardless of outcome.
-  p.finally(() => _batchFoldInflight.delete(key)).catch(() => {});
-  return p;
 }

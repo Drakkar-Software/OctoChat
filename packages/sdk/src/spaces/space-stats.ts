@@ -3,10 +3,10 @@
  * computed snapshot, since Starfish exposes no metadata/size endpoint (pull only
  * returns `{ data, hash, ts }`, and a private space is ciphertext to the server).
  *
- * Room count is free (the object index). Everything else comes from
- * {@link batchFoldSpaceRooms} — one `/batch/pull` (per ~90-room chunk) for the whole
- * space's rooms instead of one pull per room. Per-room access (decryptor vs.
- * plaintext) is resolved internally, same as the other cross-room sweeps.
+ * Room count is free (the object index). Everything else is a fan-out: pull every
+ * room of the space and fold its append-only log. Per-room access is resolved via
+ * `buildNodeAccess` — enc rooms get a decryptor; plaintext rooms (public/invite) get
+ * null. Public rooms are read via `streamPubRoomPull`; all others via `streamRoomPull`.
  *
  * Semantics worth knowing (they differ on purpose):
  *  - `messages` is NET OF DELETES (a tombstoned message is folded out, matching what
@@ -17,10 +17,12 @@
  *    plaintext size of each attachment. It is NOT the server's on-disk figure.
  */
 import { getSpaceClient } from '@drakkar.software/starfish-spaces';
+import { buildNodeAccessShared } from '../starfish/node-access-cache';
 
 import { resolveEdit, type StoredMsg } from '../format/message-view';
 import type { Session } from '../starfish/identity';
-import { batchFoldSpaceRooms } from '../messaging/stream-log';
+import { roomStreamPull } from '../messaging/room-paths';
+import { foldRoomCached } from '../messaging/stream-log';
 import { listSpaceRooms } from '../messaging/cross-room';
 import { buildThreadDigest } from '../messaging/threads';
 import type { MessageEditEvent, Room } from '../domain/types';
@@ -66,9 +68,9 @@ function accumulate(stats: SpaceStats, log: RoomLog, selfId: string): void {
 }
 
 /**
- * Compute the size + content stats for a space. A snapshot, batch-pulled in as few
- * round-trips as possible. Failures per room set `partial` and are skipped rather
- * than blanking the whole result.
+ * Compute the size + content stats for a space. A snapshot: one pull per room,
+ * so cost scales with the space. Failures per room set `partial` and are skipped
+ * rather than blanking the whole result.
  */
 export async function loadSpaceStats(session: Session, spaceId: string): Promise<SpaceStats> {
   const stats: SpaceStats = { rooms: 0, messages: 0, threads: 0, attachments: 0, bytes: 0, partial: false };
@@ -85,24 +87,29 @@ export async function loadSpaceStats(session: Session, spaceId: string): Promise
   }
 
   stats.rooms = rooms.length;
-
-  // Batch-fold the whole space's rooms in as few HTTP round-trips as possible
-  // (shares one in-flight batch with a concurrent threads/pins/nav sweep).
-  let logs;
-  try {
-    logs = await batchFoldSpaceRooms(session, spaceId, rooms);
-  } catch {
-    return { ...stats, partial: true }; // batch unreachable — totals undercount
-  }
-
-  for (const room of rooms) {
-    const folded = logs.get(room.id);
-    if (!folded || folded.failed) {
-      stats.partial = true; // room unreadable — totals undercount
-      continue;
+  // 5-worker bounded pool mirrors cross-room.ts so a large space doesn't burst N
+  // concurrent objlog pulls and risk 429s. foldRoomCached in-flight coalescing still
+  // collapses duplicate rooms across a concurrent threads+stats sweep.
+  const CONCURRENCY = 5;
+  const queue = [...rooms];
+  const workers = Array.from({ length: Math.min(CONCURRENCY, rooms.length) }, async () => {
+    let room: Room | undefined;
+    while ((room = queue.shift()) !== undefined) {
+      try {
+        const access = await buildNodeAccessShared(session, spaceId, room.id, { enc: room.enc }).catch(() => null);
+        const { data, items } = await foldRoomCached(
+          session.userId,
+          access?.client ?? client,
+          access?.encryptor ?? null,
+          room.id,
+          roomStreamPull(room, room.id),
+        );
+        accumulate(stats, { messages: data.messages, edits: data.edits, docBytes: items.length ? byteLen(items) : 0 }, session.userId);
+      } catch {
+        stats.partial = true; // room unreadable — totals undercount
+      }
     }
-    const { data, items } = folded;
-    accumulate(stats, { messages: data.messages, edits: data.edits, docBytes: items.length ? byteLen(items) : 0 }, session.userId);
-  }
+  });
+  await Promise.all(workers);
   return stats;
 }

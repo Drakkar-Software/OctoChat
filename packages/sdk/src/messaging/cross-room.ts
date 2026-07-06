@@ -1,33 +1,34 @@
 /**
- * Cross-room reads for search + threads: list a space's rooms and flatten their
- * messages. Rooms never accessed have no keyring cached and are simply skipped
- * (buildNodeAccess returns null).
+ * Cross-room reads for search + threads: open the right client + encryptor per room
+ * and flatten their messages. Rooms never accessed have no keyring cached and are simply
+ * skipped (buildNodeAccess returns null).
  *
- * Every room is an APPEND-ONLY log, so each reader folds the whole space's rooms via
- * {@link batchFoldSpaceRooms} — one `/batch/pull` (per ~90-room chunk) instead of one
- * pull per room, warm-started from the local kv blob (written by `useRoom` after each
- * visit) so only the incremental delta is fetched. Concurrent sweeps for the same
- * space share a single in-flight batch.
+ * Every room is an APPEND-ONLY log now, so each reader folds a room's log via
+ * {@link foldRoomCached} — which warm-starts from the local kv blob (written by `useRoom`
+ * after each visit), pulls only the incremental delta, and coalesces concurrent calls.
+ * A room truly never opened on this device still cold-starts once; concurrent calls within
+ * one burst share a single in-flight fold per room.
  *
  * Space-level metadata reads (`_index`, `_access`) are coalesced via in-flight maps so
  * threads + pins + nav + digest — which all fire simultaneously on focus — share ONE
  * `_index` read and ONE `_access` read per space burst, not one each.
  *
- * Stream collection routing by `room.access`/`room.enc` (projected from the index):
- *   public                    → `objpublog` (plaintext, no encryptor)
- *   space/invite + enc:true   → `objlog` (E2EE, space or per-node keyring)
- *   space + enc:false         → `objlog` (member-gated plaintext)
- *   invite + enc:false        → `objinvlog` (per-node cap; folded per-room, not batched)
+ * Stream path routing by `room.access`/`room.enc` (projected from the index):
+ *   public  → `streamPubRoomPull` (plaintext, no encryptor)
+ *   space/invite + enc:true  → `streamRoomPull` (E2EE, space keyring)
+ *   space/invite + enc:false → `streamRoomPull` (member-gated plaintext)
  */
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 import { getSpaceClient } from '@drakkar.software/starfish-spaces';
+import { buildNodeAccessShared } from '../starfish/node-access-cache';
 
 import type { Session } from '../starfish/identity';
 import { readIndexRooms } from '../starfish/object-index';
 import { objIndexPull } from '../starfish/paths';
+import { roomStreamPull } from './room-paths';
 import { readSpaceAccess } from '../starfish/registry';
 import type { StoredMsg } from '../format/message-view';
-import { batchFoldSpaceRooms, fanOut, type StreamData } from './stream-log';
+import { fanOut, foldRoomCached, type StreamData } from './stream-log';
 import { buildThreadDigest, type ThreadSummary } from './threads';
 import type { Room } from '../domain/types';
 
@@ -82,14 +83,34 @@ export function resetSpaceLevelMetaCache(): void {
   _accessInflight.clear();
 }
 
-/** Open the space client, list its rooms, batch-fold every room's log in as few
- *  HTTP round-trips as possible ({@link batchFoldSpaceRooms}), and flat-map `collect`
- *  across them. The shared scaffold behind the cross-room sweeps; only the per-room
- *  projection differs.
+/** Soft-open a room's per-node access (enc rooms get a decryptor; plaintext → null;
+ *  a never-opened room → fall back to the space client) and fold its log via the
+ *  cached warm-start path. */
+async function foldRoom(
+  session: Session,
+  spaceId: string,
+  fallbackClient: StarfishClient,
+  room: Room,
+): Promise<StreamData> {
+  const access = await buildNodeAccessShared(session, spaceId, room.id, { enc: room.enc }).catch(() => null);
+  return foldRoomCached(
+    session.userId,
+    access?.client ?? fallbackClient,
+    access?.encryptor ?? null,
+    room.id,
+    roomStreamPull(room, room.id),
+  ).then((r) => r.data).catch(() => fanOut([]));
+}
+
+/** Open the space client, list its rooms, fold each room's log via the cached path,
+ *  and flat-map `collect` across them. The shared scaffold behind the cross-room sweeps;
+ *  only the per-room projection differs.
  *
- *  `batchFoldSpaceRooms` coalesces simultaneous cross-room sweeps (threads + pins +
- *  nav + digest) for the same space into a single batch, so a space with many rooms
- *  no longer bursts N concurrent objlog pulls. Room order is preserved. */
+ *  Rooms are folded with a 5-worker bounded pool (NOT unbounded Promise.all) so a space
+ *  with many rooms doesn't burst N concurrent objlog pulls and risk 429s. foldRoomCached's
+ *  in-flight coalescing collapses duplicate rooms across simultaneous cross-room sweeps
+ *  (threads + pins + nav + digest) into a single network pull each. Room order is
+ *  preserved: each slot is written by index then flattened in order. */
 async function forEachSpaceRoom<T>(
   session: Session,
   spaceId: string,
@@ -97,14 +118,22 @@ async function forEachSpaceRoom<T>(
 ): Promise<T[]> {
   const client = getSpaceClient(spaceId, session);
   const rooms = await listSpaceRooms(client, spaceId);
-  const logs = await batchFoldSpaceRooms(session, spaceId, rooms).catch(() => new Map());
-  return rooms.flatMap((room) => {
-    try {
-      return collect(room, logs.get(room.id)?.data ?? fanOut([]));
-    } catch {
-      return []; // one failing room must not abort the sweep
+  const slots: T[][] = Array.from({ length: rooms.length });
+  const CONCURRENCY = 5;
+  const queue = rooms.map((r, i) => [r, i] as [Room, number]);
+  const workers = Array.from({ length: Math.min(CONCURRENCY, rooms.length) }, async () => {
+    let entry: [Room, number] | undefined;
+    while ((entry = queue.shift()) !== undefined) {
+      const [room, idx] = entry;
+      try {
+        slots[idx] = collect(room, await foldRoom(session, spaceId, client, room));
+      } catch {
+        slots[idx] = []; // one failing room must not abort the sweep
+      }
     }
   });
+  await Promise.all(workers);
+  return slots.flat();
 }
 
 export async function loadAllMessages(session: Session, spaceId: string): Promise<CrossRoomMessage[]> {
@@ -147,7 +176,7 @@ export async function loadAllPins(session: Session, spaceId: string): Promise<Cr
   const { owner } = await getSpaceOwner(client, spaceId, session);
   if (!owner) return [];
 
-  // Fold each room via the shared scaffold (batched pull, in-flight coalescing).
+  // Fold each room via the shared scaffold (5-worker pool, in-flight coalescing).
   // collect returns the room's pinned entries so forEachSpaceRoom can flatten them.
   type PinEntry = { room: Room; msg: StoredMsg; pinnedTs: number };
   const entries = await forEachSpaceRoom(session, spaceId, (room, log): PinEntry[] => {

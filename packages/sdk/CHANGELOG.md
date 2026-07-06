@@ -1,22 +1,5 @@
 # Changelog — @drakkar.software/octochat-sdk
 
-## 0.8.1 (2026-07-06)
-
-### Performance — batch-pull a space's room logs
-
-- Cross-room sweeps (`loadAllMessages`/`loadAllThreads`/`loadAllPins`, `loadSpaceStats`)
-  used to issue one `pull` per room (5-worker bounded pool) to fetch each room's
-  `objlog`/`objpublog` message log. They now collapse into a single `/batch/pull`
-  per space (chunked at ~90 rooms) via the new internal `batchFoldSpaceRooms`
-  (`messaging/stream-log.ts`), using `StarfishClient.batchPull`'s `appendParams` to
-  carry each room's own checkpoint in one request.
-- `objinvlog` (invite+plaintext) rooms are excluded — they're gated by a per-node
-  cap, not the space cap — and keep folding individually via the existing
-  `foldRoomCached`.
-- Internal only: no public API change (`batchFoldSpaceRooms` is not exported).
-  Falls back to the pre-existing per-room fold on a non-429 batch error, and
-  rethrows on 429 (same contract as `batchPullSpaceData`).
-
 ## 0.8.0 (2026-07-06)
 
 ### Changed — dk-spaces migration
