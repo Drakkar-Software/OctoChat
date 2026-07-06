@@ -1,16 +1,21 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 
-import { loadAllThreads, type CrossRoomThread } from '@drakkar.software/octochat-sdk';
+import { loadAllThreadsFromCache, type CrossRoomThread } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useUnreadActions } from './unread-context';
 
 /**
- * Every thread (a parent message with ≥1 reply) across the decrypted rooms of a
- * space, newest activity first. Decrypted on-device like {@link useSearch}, but
- * re-run on screen focus (via {@link useFocusEffect}) — the Threads tab stays
- * mounted, so a one-shot load would go stale; refocusing reloads it. `lastReadAt`
- * is a stable ref-reader, so it never re-runs the decrypt on its own.
+ * Every thread (a parent message with ≥1 reply) across the rooms of a space,
+ * newest activity first, re-run on screen focus (via {@link useFocusEffect}) —
+ * the Threads tab stays mounted, so a one-shot load would go stale; refocusing
+ * reloads it. `lastReadAt` is a stable ref-reader, so it never re-runs on its own.
+ *
+ * CACHE-ONLY: {@link loadAllThreadsFromCache} never pulls — it folds whatever's
+ * already persisted locally (written by `useRoom` on its own, already-lazy per-room
+ * visits), same tradeoff as `useSpaceNav`'s sidebar flags. A room never opened on
+ * this device contributes no threads until visited once; opening a thread from this
+ * list only fetches that one room (`useRoom`), never the whole space.
  */
 export function useThreads(spaceId: string | null) {
   const { session } = useSession();
@@ -29,7 +34,7 @@ export function useThreads(spaceId: string | null) {
       setLoading(true);
       (async () => {
         try {
-          const all = await loadAllThreads(session, spaceId, lastReadAt);
+          const all = await loadAllThreadsFromCache(session, spaceId, lastReadAt);
           if (!cancelled) setThreads(all);
         } catch {
           if (!cancelled) setThreads([]);

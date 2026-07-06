@@ -1,5 +1,29 @@
 # Changelog — @drakkar.software/octochat-sdk
 
+## 0.8.1 (2026-07-06)
+
+### Fixed
+
+- **Sidebar thread/pin existence flags no longer fetch every room in a space.**
+  `use-space-nav.ts`'s `hasThreads`/`hasPins` (desktop sidebar row visibility) folded
+  EVERY room's message log on EVERY space switch, previously via a 5-worker pool and
+  briefly via a batch-pull refactor that regressed to firing both the batch call AND
+  every individual per-room pull against the deployed server (that batch attempt is
+  fully reverted here — see `packages/sdk/src/messaging/stream-log.ts`'s history).
+  Added `foldRoomFromCache` (kv-only fold, no `pull()`) and `peekNodeAccess` (sync,
+  never-fetching keyring peek), plus `loadAllThreadsFromCache`/`loadAllPinsFromCache`
+  in `cross-room.ts`: cache-only siblings of `loadAllThreads`/`loadAllPins` that fold
+  only what's already in the local `streamlog.v2` kv cache (written by `useRoom` on
+  its own, already-lazy per-room visits). A space never opened on this device shows
+  both flags empty until visited once; every switch thereafter is free.
+- **Threads and Pinned tabs (`useThreads`/`usePins`) have the same fix** — both
+  re-fetched every room in the space via `useFocusEffect` on every screen focus.
+  Now use `loadAllThreadsFromCache`/`loadAllPinsFromCache` too: opening the Threads
+  or Pinned tab costs zero per-room network calls; opening an individual thread or
+  pinned message from either list still fetches only that one room (`useRoom`),
+  unchanged. `useSearch`'s full-text corpus load stays network-eager on purpose —
+  a cache-only search would silently miss messages in any room not yet opened.
+
 ## 0.8.0 (2026-07-06)
 
 ### Changed — dk-spaces migration

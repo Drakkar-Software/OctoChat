@@ -1,14 +1,17 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 
-import { loadAllPins, type CrossRoomMessage } from '@drakkar.software/octochat-sdk';
+import { loadAllPinsFromCache, type CrossRoomMessage } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 
 /**
- * Every message the space owner has pinned across the decryptable rooms of a space,
- * newest pin first. Decrypted on-device like {@link useThreads}, and re-run on screen
- * focus (via {@link useFocusEffect}) so a pin/unpin made elsewhere is reflected on
- * re-entry rather than going stale on a one-shot load.
+ * Every message the space owner has pinned across the rooms of a space, newest
+ * pin first, re-run on screen focus (via {@link useFocusEffect}) so a pin/unpin
+ * made elsewhere is reflected on re-entry rather than going stale on a one-shot load.
+ *
+ * CACHE-ONLY: {@link loadAllPinsFromCache} never pulls the per-room logs — it folds
+ * whatever's already persisted locally, same tradeoff as {@link useThreads}/`useSpaceNav`.
+ * The owner lookup (`_access`) stays a real, cheap, coalesced network read.
  */
 export function usePins(spaceId: string | null) {
   const { session } = useSession();
@@ -26,7 +29,7 @@ export function usePins(spaceId: string | null) {
       setLoading(true);
       (async () => {
         try {
-          const all = await loadAllPins(session, spaceId);
+          const all = await loadAllPinsFromCache(session, spaceId);
           if (!cancelled) setPins(all);
         } catch {
           if (!cancelled) setPins([]);
