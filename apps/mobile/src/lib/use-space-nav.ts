@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { loadAllPins, loadAllThreads } from '@drakkar.software/octochat-sdk';
+import { loadAllPinsFromCache, loadAllThreadsFromCache } from '@drakkar.software/octochat-sdk';
 import { useSession } from './session-context';
 import { useUnreadActions } from './unread-context';
 
@@ -12,8 +12,15 @@ import { useUnreadActions } from './unread-context';
  * The sidebar ({@link DesktopNav}) is mounted by `AppFrame` as a sibling of the navigator
  * (outside it), so `useFocusEffect` → `useNavigation()` has no navigation object and would
  * throw. Loading on space-switch (the `spaceId` dep) is also the right lifecycle for a
- * never-unmounting shell. Flags are best-effort: they refresh on space-switch, not the
- * instant someone pins/replies elsewhere (there's no space-wide reactive store).
+ * never-unmounting shell.
+ *
+ * CACHE-ONLY: `loadAllThreadsFromCache`/`loadAllPinsFromCache` never pull — they fold
+ * whatever's already persisted locally (written by `useRoom`/`useThreads`/`usePins` on
+ * their own, already-lazy visits). A space this device has never touched shows both
+ * flags as empty until the user actually opens a room/Threads/Pins once; every switch
+ * thereafter reflects what's on disk. This trades perfect accuracy for ZERO network
+ * cost on every space switch — deliberately: a full per-room log fold here previously
+ * fired for every room in the space on every switch, which does not scale.
  */
 export function useSpaceNav(spaceId: string | null) {
   const { session } = useSession();
@@ -30,8 +37,8 @@ export function useSpaceNav(spaceId: string | null) {
     (async () => {
       try {
         const [threads, pins] = await Promise.all([
-          loadAllThreads(session, spaceId, lastReadAt),
-          loadAllPins(session, spaceId),
+          loadAllThreadsFromCache(session, spaceId, lastReadAt),
+          loadAllPinsFromCache(session, spaceId),
         ]);
         if (!cancelled) {
           setHasThreads(threads.length > 0);

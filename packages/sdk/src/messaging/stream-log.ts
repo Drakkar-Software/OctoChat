@@ -192,6 +192,34 @@ export function resetFoldRoomCache(): void {
   _foldInflight.clear();
 }
 
+/**
+ * Fold a room's PERSISTED log only — no `pull()`, no network at all. Reads whatever
+ * `foldRoomCached`/`useRoom` last wrote to the `streamlog.v2` kv blob and decrypts it
+ * (tolerating a single poison element, same policy as {@link pullAndFold}).
+ *
+ * For best-effort UI signals that must never trigger a fetch (e.g. the sidebar's
+ * cache-only existence flags) — the result is a lower bound: a room this device has
+ * never opened yields `[]`, not an error, and self-heals the next time that room is
+ * actually visited (which persists to the same kv key).
+ */
+export async function foldRoomFromCache(
+  userId: string,
+  roomId: string,
+  enc: Encryptor | null,
+): Promise<StreamData> {
+  const items = await loadStreamLog(userId, roomId);
+  if (!enc) return fanOut(items);
+  const decrypted: AppendElement[] = [];
+  for (const item of items) {
+    try {
+      decrypted.push({ ...item, data: (await enc.decrypt(item.data)) as Record<string, unknown> });
+    } catch {
+      /* a single undecryptable element must not blank the whole room */
+    }
+  }
+  return fanOut(decrypted);
+}
+
 export async function pullAndFold(
   client: StarfishClient,
   enc: Encryptor | null,

@@ -20,7 +20,7 @@
  */
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 import { getSpaceClient } from '@drakkar.software/starfish-spaces';
-import { buildNodeAccessShared } from '../starfish/node-access-cache';
+import { buildNodeAccessShared, peekNodeAccess } from '../starfish/node-access-cache';
 
 import type { Session } from '../starfish/identity';
 import { readIndexRooms } from '../starfish/object-index';
@@ -28,7 +28,7 @@ import { objIndexPull } from '../starfish/paths';
 import { roomStreamPull } from './room-paths';
 import { readSpaceAccess } from '../starfish/registry';
 import type { StoredMsg } from '../format/message-view';
-import { fanOut, foldRoomCached, type StreamData } from './stream-log';
+import { fanOut, foldRoomCached, foldRoomFromCache, type StreamData } from './stream-log';
 import { buildThreadDigest, type ThreadSummary } from './threads';
 import type { Room } from '../domain/types';
 
@@ -136,6 +136,47 @@ async function forEachSpaceRoom<T>(
   return slots.flat();
 }
 
+// ── Cache-only sweep (no network) ────────────────────────────────────────────────
+// For best-effort UI signals that must never trigger a fetch — e.g. the desktop
+// sidebar's "does this space have any threads/pins" existence flags on space-switch.
+// Folds whatever's ALREADY persisted (`streamlog.v2` kv, written by `useRoom` and by
+// `foldRoomCached` on every real visit) instead of pulling. A room this device has
+// never opened, or an enc room whose keyring was never fetched this session,
+// contributes nothing — the result is a lower bound that self-heals as the user
+// actually visits rooms/Threads/Pins (which persist to the same kv key).
+
+/** Fold one room from the persisted cache only, or `null` to skip it (invite+plaintext
+ *  has no session-cache-key story here; an enc room with no resolved keyring yet can't
+ *  be decrypted without a network keyring fetch, which this path must never trigger). */
+async function foldRoomCacheOnly(session: Session, spaceId: string, room: Room): Promise<StreamData | null> {
+  if (room.access === 'invite' && !room.enc) return null;
+  let enc = null;
+  if (room.enc) {
+    const access = peekNodeAccess(session.userId, spaceId, room.id, { enc: room.enc });
+    if (access === undefined) return null; // keyring not resolved this session — skip
+    if (access === null) return null; // resolved as "no access"
+    enc = access.encryptor;
+  }
+  return foldRoomFromCache(session.userId, room.id, enc).catch(() => null);
+}
+
+/** Cache-only sibling of {@link forEachSpaceRoom} — same room-list + flatten shape,
+ *  but folds each room from local kv instead of pulling. See the section header above. */
+async function forEachSpaceRoomCacheOnly<T>(
+  session: Session,
+  spaceId: string,
+  collect: (room: Room, log: StreamData) => T[],
+): Promise<T[]> {
+  const client = getSpaceClient(spaceId, session);
+  const rooms = await listSpaceRooms(client, spaceId);
+  const out: T[] = [];
+  for (const room of rooms) {
+    const log = await foldRoomCacheOnly(session, spaceId, room);
+    if (log) out.push(...collect(room, log));
+  }
+  return out;
+}
+
 export async function loadAllMessages(session: Session, spaceId: string): Promise<CrossRoomMessage[]> {
   return forEachSpaceRoom(session, spaceId, (room, { messages }) => messages.map((msg) => ({ room, msg })));
 }
@@ -162,6 +203,21 @@ export async function loadAllThreads(
   return out.sort((a, b) => b.thread.lastActivityTs - a.thread.lastActivityTs);
 }
 
+/** Cache-only sibling of {@link loadAllThreads} — never pulls; folds whatever each
+ *  room's persisted log already holds. See the "Cache-only sweep" section above. */
+export async function loadAllThreadsFromCache(
+  session: Session,
+  spaceId: string,
+  readBefore: (roomId: string) => number,
+): Promise<CrossRoomThread[]> {
+  const out = await forEachSpaceRoomCacheOnly(session, spaceId, (room, { messages, edits }) =>
+    buildThreadDigest(messages, edits, readBefore(room.id), session.userId, Number.MAX_SAFE_INTEGER).map(
+      (thread) => ({ room, thread }),
+    ),
+  );
+  return out.sort((a, b) => b.thread.lastActivityTs - a.thread.lastActivityTs);
+}
+
 /**
  * Every message the SPACE OWNER has pinned, across every room of a space, newest pin
  * first. Folds each room's append log: the latest pin event (by `ts`) authored by the
@@ -169,6 +225,27 @@ export async function loadAllThreads(
  * `resolvePinned` — so a forged peer pin never surfaces.
  * Returns `[]` for a space with no resolvable owner/keyring.
  */
+type PinEntry = { room: Room; msg: StoredMsg; pinnedTs: number };
+
+/** The owner's latest pin event per message, resolved against the room's message
+ *  list. Shared `collect` body for {@link loadAllPins} and {@link loadAllPinsFromCache}. */
+function collectPins(owner: string, room: Room, log: StreamData): PinEntry[] {
+  const latest = new Map<string, (typeof log.pins)[number]>();
+  for (const p of log.pins) {
+    if (p.userId !== owner) continue;
+    const cur = latest.get(p.msgId);
+    if (!cur || p.ts > cur.ts) latest.set(p.msgId, p);
+  }
+  const byId = new Map(log.messages.map((m) => [m.id, m]));
+  const result: PinEntry[] = [];
+  for (const [msgId, ev] of latest) {
+    if (ev.kind !== 'pin') continue;
+    const msg = byId.get(msgId);
+    if (msg) result.push({ room, msg, pinnedTs: ev.ts });
+  }
+  return result;
+}
+
 export async function loadAllPins(session: Session, spaceId: string): Promise<CrossRoomMessage[]> {
   // `owner` (the only pin authority) lives in the `_access` registry.
   // Coalesced so a simultaneous threads+pins+nav burst shares one `_access` read.
@@ -178,22 +255,19 @@ export async function loadAllPins(session: Session, spaceId: string): Promise<Cr
 
   // Fold each room via the shared scaffold (5-worker pool, in-flight coalescing).
   // collect returns the room's pinned entries so forEachSpaceRoom can flatten them.
-  type PinEntry = { room: Room; msg: StoredMsg; pinnedTs: number };
-  const entries = await forEachSpaceRoom(session, spaceId, (room, log): PinEntry[] => {
-    const latest = new Map<string, (typeof log.pins)[number]>();
-    for (const p of log.pins) {
-      if (p.userId !== owner) continue;
-      const cur = latest.get(p.msgId);
-      if (!cur || p.ts > cur.ts) latest.set(p.msgId, p);
-    }
-    const byId = new Map(log.messages.map((m) => [m.id, m]));
-    const result: PinEntry[] = [];
-    for (const [msgId, ev] of latest) {
-      if (ev.kind !== 'pin') continue;
-      const msg = byId.get(msgId);
-      if (msg) result.push({ room, msg, pinnedTs: ev.ts });
-    }
-    return result;
-  });
+  const entries = await forEachSpaceRoom(session, spaceId, (room, log) => collectPins(owner, room, log));
+  return entries.sort((a, b) => b.pinnedTs - a.pinnedTs).map(({ room, msg }) => ({ room, msg }));
+}
+
+/** Cache-only sibling of {@link loadAllPins} — never pulls; folds whatever each
+ *  room's persisted log already holds. The one `_access` read (owner lookup) is
+ *  still a real, cheap, coalesced network call — only the per-room log folds are
+ *  cache-only. See the "Cache-only sweep" section above. */
+export async function loadAllPinsFromCache(session: Session, spaceId: string): Promise<CrossRoomMessage[]> {
+  const client = getSpaceClient(spaceId, session);
+  const { owner } = await getSpaceOwner(client, spaceId, session);
+  if (!owner) return [];
+
+  const entries = await forEachSpaceRoomCacheOnly(session, spaceId, (room, log) => collectPins(owner, room, log));
   return entries.sort((a, b) => b.pinnedTs - a.pinnedTs).map(({ room, msg }) => ({ room, msg }));
 }

@@ -95,3 +95,24 @@ export function clearBuildNodeAccessCache(): void {
   inflight.clear();
   resolved.clear();
 }
+
+/**
+ * Synchronous, NEVER-fetching peek at an already-resolved access handle.
+ *
+ * Returns the cached handle if a prior {@link buildNodeAccessShared} call already
+ * resolved one this session; `null` for a plaintext node (no keyring needed — mirrors
+ * {@link buildNodeAccessShared}'s null cache key); `undefined` if nothing has been
+ * resolved yet (an enc node whose keyring was never fetched this session). Callers
+ * that must never trigger a network request (e.g. a cache-only UI signal) use this
+ * instead of `buildNodeAccessShared`.
+ */
+export function peekNodeAccess(
+  userId: string,
+  spaceId: string,
+  nodeId: string,
+  node: { access?: NodeAccess; enc?: boolean },
+): NodeAccessResult | undefined {
+  const key = cacheKey(userId, spaceId, nodeId, node);
+  if (key === null) return null; // plaintext — always "resolved", no keyring to wait on
+  return resolved.get(key);
+}
