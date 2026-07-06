@@ -72,7 +72,15 @@ export function notifyNewMessage(roomId: string, body = GENERIC_BODY, options: N
       renotify: true,
       silent: desktop ? true : options.silent,
     } as NotificationOptions & { renotify: boolean });
-    if (desktop && !options.silent) playNotificationSound(options.soundName ?? 'ping');
+    // Play the synthesized chime only once the OS actually presents the toast.
+    // `onshow` fires when Chromium displays it; when the toast is
+    // dropped/suppressed (Do Not Disturb, Focus Assist, tag coalescing) it never
+    // fires, so the chime no longer rings for a notification the user never sees.
+    // (Plain web rides the OS toast's own sound via `silent`, so this stays
+    // desktop-only.)
+    if (desktop && !options.silent) {
+      n.onshow = () => playNotificationSound(options.soundName ?? 'ping');
+    }
     n.onclick = () => {
       focusDesktopWindow(); // no-op on web; brings the Electron window forward
       // Resolve name/kind + focus the space when deps are wired (same path as the
