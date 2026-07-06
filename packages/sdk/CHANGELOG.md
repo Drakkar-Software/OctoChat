@@ -1,5 +1,33 @@
 # Changelog — @drakkar.software/octochat-sdk
 
+## 0.8.0 (2026-07-06)
+
+### Changed — dk-spaces migration
+
+- **`@drakkar.software/octospaces-sdk@0.29.1` → `@drakkar.software/dk-spaces-sdk@0.32.0`**
+  (package rename + major refactor, not a drop-in bump). Same wave:
+  `@drakkar.software/octospaces-platform-sdk@0.3.2` → `@drakkar.software/dk-spaces-platform-sdk@0.3.5`,
+  and every `@drakkar.software/starfish-*` TS package `3.0.0-alpha.43` → `3.0.0-alpha.65`.
+- **Dropped-proxy re-exports repointed directly at starfish**, per dk-spaces-sdk
+  0.31.0's removal of its starfish pass-through layer: mutes/reads prefs now go
+  through `createPrefsStore` (+ `mutePrefsConfig`/`readPrefsConfig` presets from
+  dk-spaces-sdk); object blobs through `createSealedBlobStore` (+
+  `objectBlobPaths`/`MAX_OBJECT_BLOB_BYTES`); device pairing, session builders
+  (`sessionFromPersisted`/`activeAccountOf`/`rootIdentityOf`), vault/session types,
+  and the object-tree/domain-type helpers now import from `starfish-spaces` /
+  `starfish-client` / `starfish-protocol` instead of the old SDK proxy.
+- **Wire/KV namespace renamed `octospaces` → `dk`** (deployed Starfish namespace
+  and the `spaceaccess` KV-cache prefix: `octospaces.spaceaccess.*` →
+  `dk.spaceaccess.*`). Set `EXPO_PUBLIC_STARFISH_NAMESPACE=dk` — this is a
+  deployment-env change, not a code change.
+- **`completeDevicePairing`'s root-trust check** is now mandatory (starfish
+  `alpha.63`); OctoChat passes `confirmUnpinnedRoot: () => true` since a new
+  device has no prior-pinned root to check against at pairing time — the PIN-sealed
+  bundle + physical QR proximity remains the real security boundary.
+- See `MIGRATION_CLEANUP.md` (repo root) for the temporary migration shims (KV
+  prefix-rename copy, legacy pairing QR prefix acceptance) to remove once the
+  rollout window has passed.
+
 ## 0.7.2 (2026-06-25)
 
 ### Fixed

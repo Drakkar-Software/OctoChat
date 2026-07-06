@@ -7,7 +7,7 @@ import {
 import { AsyncStorageAdapter } from '@drakkar.software/sunglasses-storage-async-storage';
 import { StarfishAnalyticsAdapter } from '@drakkar.software/sunglasses-adapter-starfish';
 import { StarfishClient } from '@drakkar.software/starfish-client';
-import { SYNC_BASE } from '@/lib/octochat-config';
+import { SYNC_BASE, SYNC_NAMESPACE } from '@/lib/octochat-config';
 import { ANALYTICS_EVENTS } from '@/lib/analytics/constants';
 
 /**
@@ -43,9 +43,10 @@ let started = false;
 /**
  * Initialize the SunGlasses analytics pipeline.
  *
- * Creates a Starfish batch-push adapter pointing at the `analytics` namespace
- * `events` collection. Each flush writes a Parquet file to S3 via the
- * `starfish-events` server plugin — everything stays in our own silo.
+ * Creates a Starfish batch-push adapter pointing at the `dk` namespace `events`
+ * collection (the standalone `analytics` namespace was merged into `dk`
+ * server-side — see Infra commit 9a0bf38). Each flush writes a Parquet file to
+ * S3 via the `starfish-events` server plugin — everything stays in our own silo.
  *
  * Unhandled exceptions are captured by SunGlasses' built-in autocapture: the
  * `autoCaptureErrors` prop on `<SunglassesProvider>` (in `app/_layout.tsx`)
@@ -64,7 +65,7 @@ export async function initAnalytics(): Promise<void> {
 
   const syncClient = new StarfishClient({
     baseUrl: SYNC_BASE,
-    namespace: 'analytics', // separate analytics silo; collection has write_roles: ["public"], no capProvider
+    namespace: SYNC_NAMESPACE, // `dk` in deploy — same namespace as chat sync; collection has write_roles: ["public"], no capProvider
   });
 
   const client = await SunglassesCore.create({
@@ -75,7 +76,7 @@ export async function initAnalytics(): Promise<void> {
         app: ANALYTICS_APP,
         // StarfishClient.push() does NOT add the /push/ prefix; only /v1/{namespace} is
         // prepended by applyNamespace(). We must include /push/ explicitly to reach:
-        //   SYNC_BASE/v1/analytics/push/events/{app}/{batchId}
+        //   SYNC_BASE/v1/dk/push/events/{app}/{batchId}
         pathTemplate: '/push/events/{app}/{batchId}',
       }),
     ],
