@@ -3,14 +3,14 @@
  *
  * Tree functions (buildTree, breadcrumbs, ancestors, subtreeIds, nextOrder,
  * addObject, patchObject, reparentObject, reorderObjects, archiveObject) are
- * re-exported from @drakkar.software/octospaces-sdk.
+ * re-exported from @drakkar.software/starfish-spaces.
  *
  * OctoChat-specific adapters (objectsToRoomCategories, excludeAutomatedRooms,
  * seedIndexNodes, roomKindToSubtype, subtypeToRoomKind, channelNodeAccess,
  * categoryId, DEFAULT_CATEGORY) live below.
  */
 import type { AutomationMeta, ID, ObjectNode, ObjectType, Room, RoomSubtype } from '../domain/types';
-import type { NodeAccess } from '@drakkar.software/octospaces-sdk';
+import type { NodeAccess } from '@drakkar.software/starfish-spaces';
 import {
   buildTree,
   breadcrumbs,
@@ -20,11 +20,11 @@ import {
   reparentObject,
   reorderObjects,
   archiveObject,
-} from '@drakkar.software/octospaces-sdk';
-import type { ObjectTreeNode } from '@drakkar.software/octospaces-sdk';
+} from '@drakkar.software/starfish-spaces';
+import type { ObjectTreeNode } from '@drakkar.software/starfish-spaces';
 import { randomId, roomSlug } from '../domain/ids';
 
-// Re-export the tree primitives — identical to octospaces-sdk.
+// Re-export the tree primitives — identical to starfish-spaces.
 export type { ObjectTreeNode };
 export { buildTree, breadcrumbs, ancestors, subtreeIds, nextOrder, reparentObject, reorderObjects, archiveObject };
 

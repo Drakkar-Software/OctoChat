@@ -1,7 +1,7 @@
 /**
  * Space + room registries.
  *
- * Most functions are thin re-exports from @drakkar.software/octospaces-sdk:
+ * Most functions are thin re-exports from @drakkar.software/starfish-spaces:
  * the SpacesDoc RMW logic, space access record helpers, and all joined-space
  * bookkeeping live there and are identical in behavior.
  *
@@ -18,7 +18,7 @@ import {
   writeSpaces,
   ownerEnsureKeyring,
 } from '@drakkar.software/starfish-spaces';
-import { randomId } from '@drakkar.software/octospaces-sdk';
+import { randomId } from '@drakkar.software/starfish-protocol';
 import type { StarfishClient } from '@drakkar.software/starfish-client';
 
 import type { ArchivedDms, DeclinedRequests, DmMap, MutePrefs, OutgoingRequest, OutgoingRequests, ReadPrefs, Room, Space } from '../domain/types';

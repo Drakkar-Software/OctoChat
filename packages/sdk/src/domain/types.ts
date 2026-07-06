@@ -1,20 +1,24 @@
 /** Domain model for OctoChat — the chat-domain types shared by the SDK and any UI. */
 
 // Shared scaffolding re-exported so downstream consumers get them from one place.
-// Space moved to starfish-spaces in 0.23; residual types remain in octospaces-sdk.
-export type { Space } from '@drakkar.software/starfish-spaces';
+// Space moved to starfish-spaces in 0.23; the rest of these moved out of
+// dk-spaces-sdk's proxy layer in 0.30/0.31 — only PresenceStatus/VerificationLevel/
+// ReadValue remain there (dk-spaces-sdk's own DKSpaces-specific domain types).
 export type {
+  Space,
   ID,
-  PresenceStatus,
-  VerificationLevel,
   CapMap,
   PubAccessMap,
   MuteValue,
   MutePrefs,
-  ReadValue,
   ReadPrefs,
   ObjectContentKind,
-} from '@drakkar.software/octospaces-sdk';
+} from '@drakkar.software/starfish-spaces';
+export type {
+  PresenceStatus,
+  VerificationLevel,
+  ReadValue,
+} from '@drakkar.software/dk-spaces-sdk';
 
 /** Maps a DM peer's userId → the private DM-space id shared with them. OctoChat-owned
  *  since octospaces 0.16 extracted the DM surface out of the generic SDK; the data lives
@@ -51,9 +55,8 @@ import type {
   SealedBlob,
   NodeAccess,
   ObjectContentKind,
-  PresenceStatus,
-  VerificationLevel,
-} from '@drakkar.software/octospaces-sdk';
+} from '@drakkar.software/starfish-spaces';
+import type { PresenceStatus, VerificationLevel } from '@drakkar.software/dk-spaces-sdk';
 import type { AttachmentRef } from '../starfish/attachments.js';
 
 export interface User {
@@ -188,7 +191,7 @@ export const BUILTIN_OBJECT_TYPES: readonly BuiltinObjectType[] = ['room', 'cate
  *   - `append` → an append-only `by_timestamp` event log, like a project or a stream.
  *   - `none`   → no content doc; the node is structure only, like a category.
  *  Builtins infer this (see `object-types.ts`); a custom type sets it on the node.
- *  Sourced from `@drakkar.software/octospaces-sdk` (re-exported above). */
+ *  Sourced from `@drakkar.software/starfish-spaces` (re-exported above). */
 
 /** When `type === 'room'`, which flavour. Maps the legacy {@link RoomKind}:
  *  `channel`/`private`→`channel`, `dm`→`dm`, `automated`→`automation`. A legacy

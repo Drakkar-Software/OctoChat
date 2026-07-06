@@ -6,13 +6,13 @@
  * not WebAuthn), and react-native-quick-crypto install. Selected by Metro's
  * `react-native` export condition / `.native` resolution.
  */
-import { createVaultStorageNative, enrollPasskey as _enrollPasskey } from '@drakkar.software/octospaces-platform-sdk';
-import type { PasskeyEnrollment } from '@drakkar.software/octospaces-sdk';
+import { createVaultStorageNative, enrollPasskey as _enrollPasskey } from '@drakkar.software/dk-spaces-platform-sdk';
+import type { PasskeyEnrollment } from '@drakkar.software/starfish-spaces';
 
-export { kvGet, kvSet, kvRemove } from '@drakkar.software/octospaces-platform-sdk';
-export { configureStarfishPlatform } from '@drakkar.software/octospaces-platform-sdk';
-export { passkeySupported, passkeyEnrollable, evalPasskey } from '@drakkar.software/octospaces-platform-sdk';
-export type { PersistedSession } from '@drakkar.software/octospaces-sdk';
+export { kvGet, kvSet, kvRemove } from '@drakkar.software/dk-spaces-platform-sdk';
+export { configureStarfishPlatform } from '@drakkar.software/dk-spaces-platform-sdk';
+export { passkeySupported, passkeyEnrollable, evalPasskey } from '@drakkar.software/dk-spaces-platform-sdk';
+export type { PersistedSession } from '@drakkar.software/starfish-spaces';
 
 const _vault = createVaultStorageNative({ storageKey: 'octochat_session_v1' });
 

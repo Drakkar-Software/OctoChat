@@ -147,7 +147,7 @@ export interface Palette {
   skeleton: string;
   skeletonShimmer: string;
 
-  // ── octospaces-ui extras ──────────────────────────────────────────────────
+  // ── dk-spaces-ui extras ────────────────────────────────────────────────────
   /** Background of the rich-text editor canvas (doc/work surfaces). */
   editorCanvas: string;
   /** Background of floating tooltips. */
@@ -570,7 +570,7 @@ export const motion = {
   /**
    * Named cubic-bezier easing curves as [x1, y1, x2, y2]. Use with Reanimated
    * `withTiming({ easing: Easing.bezier(...motion.easing.standard) })`.
-   * Mirrors the octospaces-ui Theme.easing contract.
+   * Mirrors the dk-spaces-ui Theme.easing contract.
    */
   easing: {
     /** General UI motion — accelerates out of rest, decelerates into target. */

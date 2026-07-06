@@ -103,7 +103,7 @@ not inside the asar, so the `app://` handler can stream it.
   unlocks but no rooms load). Set them before `export`/`package`:
   ```bash
   cross-env EXPO_PUBLIC_STARFISH_URL=https://dev-sync.drakkar.software/sync \
-            EXPO_PUBLIC_STARFISH_NAMESPACE=octospaces \
+            EXPO_PUBLIC_STARFISH_NAMESPACE=dk \
             pnpm --filter @octochat/desktop package
   ```
   A non-`localhost` `http://` URL is blocked by Chromium mixed-content rules — use

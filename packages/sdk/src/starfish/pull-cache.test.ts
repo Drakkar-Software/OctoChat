@@ -8,7 +8,7 @@
  * through `cache.get()` returns the unwrapped original value.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
-import { configureKv } from '@drakkar.software/octospaces-sdk';
+import { configureKv } from '@drakkar.software/dk-spaces-sdk';
 import { pullCache, PULL_CACHE_MAX_AGE_MS } from '../index';
 
 const store = new Map<string, string>();

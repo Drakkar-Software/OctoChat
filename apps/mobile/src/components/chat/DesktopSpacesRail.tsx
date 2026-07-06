@@ -1,6 +1,6 @@
 /**
  * OctoChat adapter for the headless `SpacesRail` component from
- * `@drakkar.software/octospaces-ui`.
+ * `@drakkar.software/dk-spaces-ui`.
  *
  * Responsibilities of this file (the integration layer):
  * - Map `Space[]` → `RailSpace[]` (including mute state from context).
@@ -15,8 +15,8 @@ import { Pressable, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 
 import type { SpaceView } from '@/lib/spaces-context';
-import { SpacesRail } from '@drakkar.software/octospaces-ui';
-import type { RailIconName, RailSpace } from '@drakkar.software/octospaces-ui';
+import { SpacesRail } from '@drakkar.software/dk-spaces-ui';
+import type { RailIconName, RailSpace } from '@drakkar.software/dk-spaces-ui';
 
 import { DM_HOME_NAME } from '@/lib/dm-home';
 import { useMutes } from '@/lib/mutes-context';
@@ -58,8 +58,8 @@ interface DesktopSpacesRailProps {
 
 /**
  * Vertical spaces rail pinned to the left edge of the desktop shell.
- * Renders via `SpacesRail` from `@drakkar.software/octospaces-ui`, themed
- * through the `OctoSpacesThemeProvider` already mounted at the app root.
+ * Renders via `SpacesRail` from `@drakkar.software/dk-spaces-ui`, themed
+ * through the `DKSpacesThemeProvider` already mounted at the app root.
  */
 export function DesktopSpacesRail({
   spaces,

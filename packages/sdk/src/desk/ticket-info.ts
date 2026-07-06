@@ -14,7 +14,7 @@
  * Plaintext tickets do NOT use this — their title/requester live in the index `meta.ticket`.
  */
 import { getNodeStreamClient, ownerEnsureNodeKeyring } from '@drakkar.software/starfish-spaces';
-import { objInvLogPull, objInvLogPush } from '@drakkar.software/octospaces-sdk';
+import { objInvLogPull, objInvLogPush } from '@drakkar.software/dk-spaces-sdk';
 import { buildNodeAccessShared } from '../starfish/node-access-cache';
 
 import type { Session } from '../starfish/identity';

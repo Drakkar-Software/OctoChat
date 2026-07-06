@@ -10,9 +10,9 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock the octospaces-sdk surface registry-write touches (keep everything else real so
-// ../starfish/paths — which re-exports from octospaces-sdk and defines userIdFromEdPub — loads).
-vi.mock('@drakkar.software/octospaces-sdk', async (importOriginal) => ({
+// Mock the dk-spaces-sdk surface registry-write touches (keep everything else real so
+// ../starfish/paths — which re-exports from dk-spaces-sdk and defines userIdFromEdPub — loads).
+vi.mock('@drakkar.software/dk-spaces-sdk', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   nodeStreamScope: vi.fn((spaceId: string, nodeId: string, write: boolean) => ({
     __scope: 'objinvlog',
@@ -47,7 +47,7 @@ vi.mock('@drakkar.software/starfish-identities', () => ({
 
 import { ensureDeskTicketStreamAccess, ensureDeskNodeKeyring, createTicketNode } from './registry-write';
 import { defaultTicketMeta } from './ticket';
-import { nodeStreamScope } from '@drakkar.software/octospaces-sdk';
+import { nodeStreamScope } from '@drakkar.software/dk-spaces-sdk';
 import { saveNodeStreamAccessEntry, ownerEnsureNodeKeyring } from '@drakkar.software/starfish-spaces';
 import { mintMemberCap } from '@drakkar.software/starfish-sharing';
 import type { Session } from '../starfish/identity';

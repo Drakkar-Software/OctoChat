@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { configureKv } from '@drakkar.software/octospaces-sdk';
+import { configureKv } from '@drakkar.software/dk-spaces-sdk';
 import {
   flushReadsNow,
   getRoomReadAt,

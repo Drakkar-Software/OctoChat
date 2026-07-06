@@ -19,13 +19,15 @@ export interface PushData {
 
 /**
  * Per-space FCM topic. MUST match the Whistler bridge's namespace transform
- * (`octospaces` namespace + dot→hyphen-sanitized `octospaces.log.changed.<spaceId>`).
+ * (`dk` namespace + dot→hyphen-sanitized `dk.log.changed.<spaceId>`). Infra's
+ * whistlers-fcm bridge renamed its `octospaces` namespace block to `dk` — see
+ * Infra commit 9a0bf38 (`refactor(sync): rename octospaces app to dk-spaces`).
  */
 export const pushTopicForSpace = (spaceId: string): string =>
-  `octospaces-octospaces-log-changed-${spaceId}`;
+  `dk-dk-log-changed-${spaceId}`;
 
 /** Per-user FCM topic for push self-exclusion. See `fcm.native.ts`. */
-export const pushTopicForUser = (userId: string): string => `octospaces-user-${userId}`;
+export const pushTopicForUser = (userId: string): string => `dk-user-${userId}`;
 
 export async function ensurePushPermission(): Promise<boolean> {
   return false;

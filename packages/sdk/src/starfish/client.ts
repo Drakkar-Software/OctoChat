@@ -2,7 +2,7 @@
  * Starfish client construction + room keyring/encryptor helpers.
  *
  * Profile read/write functions are thin wrappers that inject the global
- * connection config (baseUrl, namespace via the octospaces-sdk residual
+ * connection config (baseUrl, namespace via the dk-spaces-sdk residual
  * `getSyncBase()` / `getSyncNamespace()`) into the new starfish-spaces API,
  * preserving the old single-argument call signature used throughout the app.
  *
@@ -37,7 +37,7 @@ import {
   profilePush,
   accountScope,
   linkedDeviceScope,
-} from '@drakkar.software/octospaces-sdk';
+} from '@drakkar.software/dk-spaces-sdk';
 
 import { keyringPull } from './paths';
 import { pullCache, PULL_CACHE_MAX_AGE_MS, CACHE_FALLBACK_STATUSES } from './pull-cache';
@@ -98,7 +98,7 @@ export function makeClient(cap: unknown, devEdPrivHex: string): StarfishClient {
 
 /**
  * Build the OctoChat SpaceLayout:
- *  - namespace-aware profile paths (octospaces-sdk `profilePull`/`profilePush`)
+ *  - namespace-aware profile paths (dk-spaces-sdk `profilePull`/`profilePush`)
  *  - explicit-collection `accountScope`/`linkedDeviceScope` so the minted account
  *    cap carries `collections: ["profile","devices","spaces","spaceregistry","inbox"]`
  *    instead of `["*"]`. The Starfish server synthesises cap roles by literal concat

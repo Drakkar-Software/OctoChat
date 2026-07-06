@@ -32,9 +32,12 @@ encryption (BIP-39 seed → Ed25519/Kyber keys → per-room keyrings).
 pnpm workspace. `pnpm-workspace.yaml` sets `nodeLinker: hoisted` because React
 Native / Metro resolve dependencies best with a flat `node_modules`
 (see https://docs.expo.dev/guides/monorepos/). The
-`@drakkar.software/starfish-*` SDK is consumed as pinned npm deps (`3.0.0-alpha.27`);
-`@drakkar.software/octospaces-sdk` (`0.13.1`) is a dep of `packages/sdk`;
-`@drakkar.software/octospaces-ui` (`0.8.0`) is a dep of `apps/mobile`.
+`@drakkar.software/starfish-*` SDK is consumed as pinned npm deps
+(`3.0.0-alpha.65`); `@drakkar.software/dk-spaces-sdk` (`0.32.0`, renamed from
+`octospaces-sdk`) is a dep of `packages/sdk`; `@drakkar.software/dk-spaces-ui`
+(`0.8.0`, renamed from `octospaces-ui`) is a dep of `apps/mobile`. The deployed
+Starfish namespace is `dk` (renamed from `octospaces` — set
+`EXPO_PUBLIC_STARFISH_NAMESPACE=dk`).
 `apps/mobile/metro.config.js` extends the SDK 56 default to
 watch the workspace root, enable package `exports`, and block the Node-only
 `apps/server` from the app bundle.

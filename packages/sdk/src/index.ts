@@ -35,18 +35,17 @@ export * from './format/markdown';
 export * from './format/message-view';
 
 // ── starfish/ — encrypted sync / crypto / registry core ────────────────────────
-export { starfishBase64 } from '@drakkar.software/octospaces-sdk';
+export { getBase64 } from '@drakkar.software/starfish-protocol';
 export * from './starfish/fetch-timeout';
 export * from './starfish/paths';
 export type {
   DerivedIdentity,
-  PersistedSession,
   Vault,
   VaultLoad,
   UnlockMethod,
   PasskeyEnrollment,
   SeedLock,
-} from '@drakkar.software/octospaces-sdk';
+} from '@drakkar.software/starfish-spaces';
 export * from './starfish/account-seal';
 export * from './starfish/identity';
 export * from './starfish/client';
@@ -55,17 +54,16 @@ export * from './starfish/client';
 // from the `private baseUrl` field across duplicate package copies/symlinks).
 export { AppendLogCursor } from '@drakkar.software/starfish-client';
 export * from './starfish/pairing';
-export { sessionFromPersisted, activeAccountOf, rootIdentityOf } from '@drakkar.software/octospaces-sdk';
-export { cacheProfile, loadCachedProfile } from '@drakkar.software/octospaces-sdk';
+export { cacheProfile, loadCachedProfile } from '@drakkar.software/starfish-spaces';
 export * from './starfish/pull-cache';
 export * from './starfish/node-access-cache';
 export * from './starfish/batch-space';
 export * from './starfish/registry';
 export * from './starfish/members';
 // member-caps, space-encryptor, pubspace, pubspace-caps are REMOVED —
-// their functionality is now provided by @drakkar.software/octospaces-sdk
+// their functionality is now provided by @drakkar.software/starfish-spaces
 // (getSpaceAccessEntry, saveSpaceAccessEntry, getNodeAccess, etc.) and
-// re-exported below in the octospaces-sdk section.
+// re-exported below in the starfish-spaces section.
 export * from './starfish/objects';
 export * from './starfish/object-index';
 export * from './starfish/attachments';
@@ -151,8 +149,8 @@ export * from './desk/requester';
 // ── domain/capabilities — variant capability registry ─────────────────────────
 export * from './domain/capabilities';
 
-// ── octospaces-sdk — residual generic utilities ────────────────────────────────
-// Symbols still owned by octospaces-sdk after the 0.23 spaces-domain extraction.
+// ── dk-spaces-sdk — residual generic utilities ─────────────────────────────────
+// Symbols still owned by dk-spaces-sdk after the 0.23 spaces-domain extraction.
 export {
   // search-match — quick-find title ranker
   matchTitle,
@@ -171,13 +169,20 @@ export {
   // invite-preview — classify an invite string before joining
   previewInvite,
   type InvitePreview,
-  // anonymous signed append (appendToInbox stays here; postAnonymousAppend removed in 0.24)
+} from '@drakkar.software/dk-spaces-sdk';
+
+// appendToInbox / SpaceInviteLinkToken / NodeInviteLinkToken moved to starfish-spaces
+// in dk-spaces-sdk 0.32 (no longer proxied). Note: appendToInbox's signature dropped
+// the explicit `author` arg — it is now session-authored.
+export {
   appendToInbox,
-  AppendHttpError,
-  // SpaceInviteLinkToken / NodeInviteLinkToken still bridged via octospaces-sdk (invite-preview)
   type SpaceInviteLinkToken,
   type NodeInviteLinkToken,
-} from '@drakkar.software/octospaces-sdk';
+} from '@drakkar.software/starfish-spaces';
+// AppendHttpError (the HTTP-status error thrown by anonymous inbox appends) moved
+// to starfish-client — distinct from the local bot-append AppendHttpError in
+// automations/append.ts; this explicit export wins over that module's `export *`.
+export { AppendHttpError } from '@drakkar.software/starfish-client';
 
 // ── starfish-spaces — spaces domain (moved from octospaces-sdk 0.23) ──────────
 export {

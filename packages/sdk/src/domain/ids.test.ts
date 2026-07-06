@@ -1,11 +1,11 @@
 /**
- * Characterization + parity tests for domain/ids (re-exported from octospaces-sdk).
+ * Characterization + parity tests for domain/ids (re-exported from starfish-protocol).
  * These pin the behavior BEFORE and AFTER the thin re-export swap so any future SDK
  * drift is caught immediately.
  */
 import { describe, it, expect } from 'vitest';
 import { randomId, roomSlug } from './ids';
-import { randomId as sdkRandomId, slugify as sdkRoomSlug } from '@drakkar.software/octospaces-sdk';
+import { randomId as sdkRandomId, slugify as sdkRoomSlug } from '@drakkar.software/starfish-protocol';
 
 describe('randomId', () => {
   it('returns a 32-char lowercase hex string', () => {
@@ -17,7 +17,7 @@ describe('randomId', () => {
     expect(randomId()).not.toBe(randomId());
   });
 
-  it('is parity with octospaces-sdk randomId (same format)', () => {
+  it('is parity with starfish-protocol randomId (same format)', () => {
     // Both produce 32-char lowercase hex — same contract, different entropy each call.
     const local = randomId();
     const sdk = sdkRandomId();
@@ -61,7 +61,7 @@ describe('roomSlug', () => {
     expect(roomSlug('design & ux')).toBe('design-ux');
   });
 
-  it('is parity with octospaces-sdk roomSlug (identical output)', () => {
+  it('is parity with starfish-protocol roomSlug (identical output)', () => {
     const cases = ['General', 'Q&A', 'C++', 'café', 'foo  bar', '', '日本語', 'design & ux', 'a'.repeat(50)];
     for (const input of cases) {
       expect(roomSlug(input)).toBe(sdkRoomSlug(input));

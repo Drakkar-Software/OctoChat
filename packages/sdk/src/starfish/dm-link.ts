@@ -4,7 +4,7 @@
  * A link is nothing but the owner's IDENTITY made portable: their userId, display pseudo and
  * PUBLISHED public keys (Ed25519 + KEM) plus a `kemSig` (Ed25519 signature of `kemPub` by the
  * identity's `edPriv`), base64url-packed into a URL fragment. It is the **v:2 `IdentityLink`**
- * from `@drakkar.software/octospaces-sdk` — the SAME token the ticket-request flow
+ * from `@drakkar.software/dk-spaces-sdk` — the SAME token the ticket-request flow
  * (`submitResourceRequest`) consumes — so DM and request share one format, one verifier, one
  * producer (`myIdentityLink`). There is no credential, no state and no lifecycle.
  *
@@ -30,7 +30,7 @@ import {
   verifyIdentityLinkKeys,
   type IdentityLink,
 } from '@drakkar.software/starfish-spaces';
-import { userIdFromEdPub } from '@drakkar.software/octospaces-sdk';
+import { userIdFromEdPub } from '@drakkar.software/dk-spaces-sdk';
 
 import { sealToRecipient } from './account-seal';
 import { postSignedAppend } from '../automations/append';
@@ -60,7 +60,7 @@ export interface DmPeer {
 export async function verifyLinkBinding(token: IdentityLink): Promise<boolean> {
   try {
     // Shim: verifyIdentityLinkBinding only reads session.userIdFromEdPub.
-    // userIdFromEdPub from octospaces-sdk is the standalone Web-Crypto implementation.
+    // userIdFromEdPub from dk-spaces-sdk is the standalone Web-Crypto implementation.
     return await verifyIdentityLinkBinding(token, { userIdFromEdPub } as unknown as Session);
   } catch {
     return false;

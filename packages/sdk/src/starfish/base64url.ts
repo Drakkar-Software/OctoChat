@@ -1,1 +1,1 @@
-export { toBase64Url, fromBase64Url } from '@drakkar.software/octospaces-sdk';
+export { toBase64Url, fromBase64Url } from '@drakkar.software/starfish-protocol';

@@ -7,10 +7,10 @@
  * space:owner/space:member enricher, and a single `spaces/{spaceId}/**` member cap
  * covers a whole space.
  *
- * **Generic object collections** are provided by `@drakkar.software/octospaces-sdk`
+ * **Generic object collections** are provided by `@drakkar.software/dk-spaces-sdk`
  * (re-exported through OctoChat's index). This module adds OctoChat-specific helpers:
  *
- * - Room log collections — three tiers, implemented via octospaces-sdk generic paths:
+ * - Room log collections — three tiers, implemented via dk-spaces-sdk generic paths:
  *     objlog:     private or invite+enc rooms (E2EE, space:member)
  *                 → `spaces/{spaceId}/objects/logs/{roomId}`
  *     objpublog:  public rooms (plaintext, world-readable writes by space:member)
@@ -22,7 +22,7 @@
  * - Space directory (`spaceindex`) — server-maintained public-space projection
  *
  * `OBJECT_COLLECTIONS` and all object/keyring/registry path helpers are consumed
- * from `@drakkar.software/octospaces-sdk`'s paths export.
+ * from `@drakkar.software/dk-spaces-sdk`'s paths export.
  *
  * **`objinvlog` is intentionally EXCLUDED from `CHAT_COLLECTIONS` / `spaceMemberScope`** —
  * only a per-node `nodeRoomScope` cap can reach it (like `objinv` / `nodeMemberScope`).
@@ -33,7 +33,7 @@ import {
   objOwnerName, objOwnerPull, objOwnerPush,
   inboxName, inboxPull, inboxPush,
   spaceIdFromNodeId,
-} from '@drakkar.software/octospaces-sdk';
+} from '@drakkar.software/dk-spaces-sdk';
 
 /**
  * Request-path helpers. These emit the bare action path (`/pull/…`, `/push/…`);
@@ -46,13 +46,13 @@ const pull = (rest: string) => `/pull/${rest}`;
  *  (octospaces 0.16 renamed this `spaceIdFromNodeId`; OctoChat keeps its room name.) */
 export { spaceIdFromNodeId as spaceIdFromRoomId };
 
-// ── Room-scoped stream path shortcuts (re-exported from octospaces-sdk 0.16
+// ── Room-scoped stream path shortcuts (re-exported from dk-spaces-sdk 0.16
 //    `streamNode*`, aliased back to OctoChat's room vocabulary) ──────────────
 export {
   streamNodeName as streamRoomName, streamNodePull as streamRoomPull, streamNodePush as streamRoomPush,
   streamPubNodeName as streamPubRoomName, streamPubNodePull as streamPubRoomPull, streamPubNodePush as streamPubRoomPush,
   streamInvNodeName as streamInvRoomName, streamInvNodePull as streamInvRoomPull, streamInvNodePush as streamInvRoomPush,
-} from '@drakkar.software/octospaces-sdk';
+} from '@drakkar.software/dk-spaces-sdk';
 
 // ── Webhook registry (objowner at _webhooks node) ─────────────────────────────
 // Owner-written doc mapping webhookId → { tokenHash, roomId, … }. Only a SHA-256
@@ -72,29 +72,29 @@ export const spaceIntakePull = (spaceId: string) => objOwnerPull(spaceId, '_inta
 export const spaceIntakePush = (spaceId: string) => objOwnerPush(spaceId, '_intake');
 
 // ── Space-wide keyring (spacekeyring) ─────────────────────────────────────────
-// Re-exported from octospaces-sdk; kept here for convenience imports within the SDK.
-export { keyringName, keyringPull, keyringPush } from '@drakkar.software/octospaces-sdk';
+// Re-exported from dk-spaces-sdk; kept here for convenience imports within the SDK.
+export { keyringName, keyringPull, keyringPush } from '@drakkar.software/dk-spaces-sdk';
 
 // ── Object index (objindex) ───────────────────────────────────────────────────
-export { objIndexName, objIndexPull, objIndexPush } from '@drakkar.software/octospaces-sdk';
+export { objIndexName, objIndexPull, objIndexPush } from '@drakkar.software/dk-spaces-sdk';
 
 // ── Public node content (objpub) ─────────────────────────────────────────────
-export { objPubName, objPubPull, objPubPush } from '@drakkar.software/octospaces-sdk';
+export { objPubName, objPubPull, objPubPush } from '@drakkar.software/dk-spaces-sdk';
 
 // ── Invite-only plaintext node content (objinv) ───────────────────────────────
-export { objInvName, objInvPull, objInvPush } from '@drakkar.software/octospaces-sdk';
+export { objInvName, objInvPull, objInvPush } from '@drakkar.software/dk-spaces-sdk';
 
 // ── Invite-only plaintext node message log (objinvlog) ────────────────────────
 // Takes (spaceId, nodeId) explicitly — unlike streamInvRoomPush/Pull which derive
 // the space id from the room id via spaceIdFromRoomId (only works for sp-<hex>-<local>
 // room ids, NOT ticket-<hex> ids from the desk flow).
-export { objInvLogName, objInvLogPull, objInvLogPush } from '@drakkar.software/octospaces-sdk';
+export { objInvLogName, objInvLogPull, objInvLogPush } from '@drakkar.software/dk-spaces-sdk';
 
 // ── Profile + registries ──────────────────────────────────────────────────────
-export { profilePull, profilePush, spacesPull, spacesPush } from '@drakkar.software/octospaces-sdk';
-// NOTE: spaceAccessPull/Push are also exported by octospaces-sdk under those names;
+export { profilePull, profilePush, spacesPull, spacesPush } from '@drakkar.software/dk-spaces-sdk';
+// NOTE: spaceAccessPull/Push are also exported by dk-spaces-sdk under those names;
 // re-export them so call sites import from this one module.
-export { spaceAccessPull, spaceAccessPush } from '@drakkar.software/octospaces-sdk';
+export { spaceAccessPull, spaceAccessPush } from '@drakkar.software/dk-spaces-sdk';
 
 // ── DM inbox (inbox) ──────────────────────────────────────────────────────────
 // The cross-space DELIVERY channel behind the shareable "DM me" link: anyone may
@@ -107,7 +107,7 @@ export { spaceAccessPull, spaceAccessPush } from '@drakkar.software/octospaces-s
 // writes the CURRENT month's shard, and the owner scans the current + previous
 // shard. Keep the path + shard convention in sync with `inbox` in apps/server +
 // Infra collections.py.
-export { inboxName, inboxPull, inboxPush } from '@drakkar.software/octospaces-sdk';
+export { inboxName, inboxPull, inboxPush } from '@drakkar.software/dk-spaces-sdk';
 
 /** The inbox shard id for a moment in time: UTC `YYYY-MM`. UTC (not local) so a
  *  sender and the owner on different devices/timezones always agree on the shard. */
@@ -133,7 +133,7 @@ export const spaceIndexName = (shard: 'public' | 'meta') => `_index/spaces/${sha
 export const spaceIndexPull = (shard: 'public' | 'meta') => pull(spaceIndexName(shard));
 
 // ── OctoChat collection lists for cap scopes ─────────────────────────────────
-// OBJECT_COLLECTIONS (from octospaces-sdk 0.8.0) already includes:
+// OBJECT_COLLECTIONS (from dk-spaces-sdk 0.8.0) already includes:
 //   spacekeyring, objindex, objlog, objsnap, objdoc, objblob, typeindex, objpub, objpublog
 // OctoChat adds its own `attachments` collection (per-room sealed blob storage).
 // `objinvlog` and `objowner` are intentionally excluded from the broad member scope.
@@ -188,7 +188,7 @@ export function nodeRoomScope(spaceId: string, roomId: string, canWrite: boolean
 
 /**
  * Personal cap for OctoChat: profile + space registry + device directory + all spaces
- * + DM inbox. Extends the octospaces-sdk base with the `inbox` collection for the
+ * + DM inbox. Extends the dk-spaces-sdk base with the `inbox` collection for the
  * DM delivery channel.
  */
 export function accountScope(userId: string): ScopePreset {

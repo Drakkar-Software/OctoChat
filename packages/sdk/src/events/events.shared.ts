@@ -27,11 +27,11 @@
  * events so the client can pull the shared objindex store without bumping unread counts.
  *
  * The generic transport (buildSignedEventsRequest / parseSseFrames / subscribeChanges)
- * lives in `@drakkar.software/octospaces-sdk`. This module is the OctoChat-specific
+ * lives in `@drakkar.software/dk-spaces-sdk`. This module is the OctoChat-specific
  * domain layer: `parseRoomChange` (the `parse` callback) + the `subscribeRoomChanges`
  * wrapper whose public signature the app consumer relies on.
  */
-import { subscribeChanges } from '@drakkar.software/octospaces-sdk';
+import { subscribeChanges } from '@drakkar.software/dk-spaces-sdk';
 
 export interface RoomChange {
   roomId: string;

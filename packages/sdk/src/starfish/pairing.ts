@@ -7,24 +7,41 @@
  *
  * `startDevicePairing` is OctoChat-specific: it also grants the new device to every
  * owned space's E2EE keyring so it can decrypt those rooms immediately. The generic
- * `completeDevicePairing` and `PairResult` are re-exported from octospaces-sdk.
+ * `completeDevicePairing` and `PairResult` come directly from starfish-spaces —
+ * dk-spaces-sdk 0.30 stopped wrapping device pairing.
+ *
+ * starfish alpha.63 made root-trust MANDATORY on pairing completion: the receiving
+ * device must pass `expectedRootEdPub` (a pinned root key) or `confirmUnpinnedRoot`
+ * (a callback), else `completeDevicePairing` throws. OctoChat has no prior-pinned
+ * root to check against here (the new device is bootstrapping FROM this scan), so
+ * `confirmUnpinnedRoot` always trusts — the actual security boundary is the
+ * PIN-sealed bundle + physical QR proximity, same as before this change.
  */
 import {
   startDevicePairing as _startDevicePairing,
-} from '@drakkar.software/octospaces-sdk';
+  completeDevicePairing as _completeDevicePairing,
+  type PairResult,
+} from '@drakkar.software/starfish-spaces';
+import { pairingClientConfig } from '@drakkar.software/dk-spaces-sdk';
 
 import type { Session } from './identity';
 import { addDeviceToSpaceKeyring } from './members';
 import { readSpaces } from './registry';
 
 // OctoChat keeps its own QR prefix so cross-app scans are rejected rather than
-// silently attempted. The octospaces-sdk completeDevicePairing accepts any *-pair:
+// silently attempted. starfish-spaces' completeDevicePairing accepts any *-pair:
 // prefix via its dual-accept logic — so existing OctoChat QR codes keep working.
 export const PAIR_PREFIX = 'octochat-pair:';
 
-// completeDevicePairing and PairResult are identical to the SDK's — re-export.
-export type { PairResult } from '@drakkar.software/octospaces-sdk';
-export { completeDevicePairing } from '@drakkar.software/octospaces-sdk';
+export type { PairResult };
+
+/** New device: open the sealed bundle at the rendezvous nonce and install it. */
+export async function completeDevicePairing(payload: string, pin: string): Promise<PairResult> {
+  return _completeDevicePairing(payload, pin, {
+    ...pairingClientConfig(),
+    confirmUnpinnedRoot: () => true,
+  });
+}
 
 /** Existing device: provision + PIN-seal a new device, publish to rendezvous, return the QR payload. */
 export async function startDevicePairing(session: Session, pin: string): Promise<string> {

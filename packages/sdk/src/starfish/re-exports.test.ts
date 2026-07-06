@@ -1,7 +1,7 @@
 /**
  * Parity tests for OctoChat thin re-export barrels.
  *
- * These files contain no local logic — they re-export from octospaces-sdk or
+ * These files contain no local logic — they re-export from dk-spaces-sdk or
  * starfish-spaces. These tests pin the exported names and any critical constants
  * so a future SDK change that drops or renames an export fails loudly here
  * rather than silently at the app call sites.
@@ -12,10 +12,15 @@
  * - SpaceAccessError
  * fetchWithTimeout / CONNECT_TIMEOUT_MS were removed from octospaces-sdk in 0.24
  * and are now locally reimplemented in fetch-timeout.ts via createTimeoutFetch.
+ *
+ * NOTE (0.31/0.32 migration): dk-spaces-sdk dropped its remaining starfish proxies —
+ * sessionFromPersisted / activeAccountOf / rootIdentityOf now come directly from
+ * starfish-spaces. sessionFromPersisted is wrapped locally (identity.ts) to inject
+ * `clientOpts`, so it's no longer the same function reference as the starfish-spaces
+ * export (see the identity re-exports block below for the same wrapper pattern).
  */
 import { describe, expect, it } from 'vitest';
 
-import * as sdk from '@drakkar.software/octospaces-sdk';
 import * as spaces from '@drakkar.software/starfish-spaces';
 
 // ── account-seal ──────────────────────────────────────────────────────────────
@@ -45,9 +50,10 @@ describe('session-restore re-exports', () => {
     expect(typeof activeAccountOf).toBe('function');
   });
 
-  it('is parity with octospaces-sdk', () => {
-    expect(sessionFromPersisted).toBe(sdk.sessionFromPersisted);
-    expect(activeAccountOf).toBe(sdk.activeAccountOf);
+  it('is parity with starfish-spaces (activeAccountOf is a direct pass-through;' +
+    ' sessionFromPersisted is a local clientOpts-injecting wrapper, not the same reference)', () => {
+    expect(activeAccountOf).toBe(spaces.activeAccountOf);
+    expect(sessionFromPersisted).not.toBe(spaces.sessionFromPersisted);
   });
 });
 

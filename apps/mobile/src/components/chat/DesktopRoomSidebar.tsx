@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { Sidebar, SidebarHeader } from '@drakkar.software/octospaces-ui';
+import { Sidebar, SidebarHeader } from '@drakkar.software/dk-spaces-ui';
 import { layout, radii, spacing } from '@/theme';
 import type { Room, Space } from '@drakkar.software/octochat-sdk';
 import type { ThreadSummary } from '@drakkar.software/octochat-sdk';

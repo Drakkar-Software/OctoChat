@@ -15,8 +15,11 @@ export const SYNC_BASE = process.env.EXPO_PUBLIC_STARFISH_URL ?? 'http://localho
 /**
  * Starfish namespace name. UNSET for the local dev server (apps/server mounts the
  * sync router at root, so paths are /pull, /push, /events). For the deployed
- * multi-tenant drakkar-sync, OctoChat uses the `octospaces` namespace (unified backend
- * since 2026-06-15), so set EXPO_PUBLIC_STARFISH_NAMESPACE=octospaces.
+ * multi-tenant drakkar-sync, OctoChat uses the `dk` namespace (unified backend
+ * since 2026-06-15, renamed from `octospaces` — see Infra commit 9a0bf38 /
+ * `DK_SPACES_NAMESPACE` in `collections.py`), so set
+ * EXPO_PUBLIC_STARFISH_NAMESPACE=dk. This is a deployment-env change, not a code
+ * change — update the actual `.env` / deploy secrets alongside this SDK bump.
  *
  * The StarfishClient applies this via its `namespace` option, prepending
  * `/v1/<namespace>` to every request path — signed AND sent, including the paths
@@ -35,7 +38,7 @@ export const SYNC_NAMESPACE = _ns || undefined;
  * endpoint, which is signed by a hand-rolled signer OUTSIDE the StarfishClient (see
  * EVENTS_URL + `buildAuthHeaders`) and so needs the literal prefix the client would
  * otherwise add itself. Derived from {@link SYNC_NAMESPACE}. nginx strips the /sync
- * mount, so the deployed server observes exactly /v1/octospaces/events = the signed path.
+ * mount, so the deployed server observes exactly /v1/dk/events = the signed path.
  */
 const SYNC_PREFIX = SYNC_NAMESPACE ? `/v1/${SYNC_NAMESPACE}` : '';
 
@@ -62,7 +65,7 @@ export const WEB_BASE = (process.env.EXPO_PUBLIC_WEB_URL ?? 'https://oc.drakkar.
 /**
  * Shared namespace for the `user/{userId}/_spaces` joined-space list, enabling
  * cross-app space sharing with OctoVault. Both apps must agree on the same value.
- * Set EXPO_PUBLIC_SHARED_SPACES_NAMESPACE to the bare namespace name (e.g. `octospaces`).
+ * Set EXPO_PUBLIC_SHARED_SPACES_NAMESPACE to the bare namespace name (e.g. `dk`).
  * Absent → each app uses its own per-app namespace silo (no cross-app sharing).
  */
 const _sns = process.env.EXPO_PUBLIC_SHARED_SPACES_NAMESPACE?.trim() ?? '';

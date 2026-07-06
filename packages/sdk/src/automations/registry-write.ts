@@ -10,9 +10,9 @@ import { addObject, archiveObject, categoryId, patchObject, roomKindToSubtype } 
 import type { Session } from '../starfish/identity';
 import type { AutomationMeta, ObjectNode } from '../domain/types';
 
-// updateObjectIndex provides octospaces-sdk's ObjectNode[]; cast to OctoChat's superset
+// updateObjectIndex provides starfish-spaces' ObjectNode[]; cast to OctoChat's superset
 // which carries the `automation` field (still used for per-node automation config).
-const asLocal = (nodes: import('@drakkar.software/octospaces-sdk').ObjectNode[]) => nodes as unknown as ObjectNode[];
+const asLocal = (nodes: import('@drakkar.software/starfish-spaces').ObjectNode[]) => nodes as unknown as ObjectNode[];
 
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 const findCategoryNode = (nodes: ObjectNode[], name: string) =>
@@ -47,7 +47,7 @@ export async function createAutomationNode(
       // implicitly false (public+enc is invalid per the ObjectNode contract).
       { type: 'room', id: roomId, subtype: roomKindToSubtype('automated'), parentId: catId, title: name, automation, access: 'public' },
       now,
-    ).nodes as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
+    ).nodes as unknown as import('@drakkar.software/starfish-spaces').ObjectNode[];
   });
 }
 
@@ -65,7 +65,7 @@ export async function patchRoomAutomation(
     const nodes = asLocal(raw);
     const node = nodes.find((n) => n.id === roomId);
     if (!node?.automation) return null;
-    return patchObject(nodes, roomId, { automation: { ...node.automation, ...patch } }, now) as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
+    return patchObject(nodes, roomId, { automation: { ...node.automation, ...patch } }, now) as unknown as import('@drakkar.software/starfish-spaces').ObjectNode[];
   });
 }
 
@@ -82,7 +82,7 @@ export async function renameRoomInRegistry(
     const nodes = asLocal(raw);
     const node = nodes.find((n) => n.id === roomId);
     if (!node || node.title === trimmed) return null;
-    return patchObject(nodes, roomId, { title: trimmed }, now) as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
+    return patchObject(nodes, roomId, { title: trimmed }, now) as unknown as import('@drakkar.software/starfish-spaces').ObjectNode[];
   });
 }
 
@@ -95,6 +95,6 @@ export async function deleteRoomFromRegistry(
   await updateObjectIndex(session, spaceId, (raw, now) => {
     const nodes = asLocal(raw);
     if (!nodes.some((n) => n.id === roomId && !n.archived)) return null;
-    return archiveObject(nodes, roomId, now) as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
+    return archiveObject(nodes, roomId, now) as unknown as import('@drakkar.software/starfish-spaces').ObjectNode[];
   });
 }

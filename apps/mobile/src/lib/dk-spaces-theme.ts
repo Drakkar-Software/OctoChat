@@ -1,15 +1,15 @@
 /**
  * Maps OctoChat's marine-palette `Palette` to the `Theme` shape expected by
- * `@drakkar.software/octospaces-ui`. The two token systems use different names
- * (OctoChat: canvas/paper/ink; octospaces-ui: background/surface/text) so we
+ * `@drakkar.software/dk-spaces-ui`. The two token systems use different names
+ * (OctoChat: canvas/paper/ink; dk-spaces-ui: background/surface/text) so we
  * project from OctoChat's richer palette into the shared contract here.
  *
- * Call once per scheme change; pass the result to `<OctoSpacesThemeProvider>`.
+ * Call once per scheme change; pass the result to `<DKSpacesThemeProvider>`.
  */
-import type { Theme } from '@drakkar.software/octospaces-ui';
+import type { Theme } from '@drakkar.software/dk-spaces-ui';
 import { type ColorScheme, type Palette, spacing, radii, type as typeScale, fonts, motion, shadows, layout, opacity } from '@/theme';
 
-function toOctoSpacesPalette(p: Palette): Theme['colors'] {
+function toDKSpacesPalette(p: Palette): Theme['colors'] {
   return {
     background: p.canvas,
     surface: p.paper,
@@ -73,7 +73,7 @@ function toOctoSpacesPalette(p: Palette): Theme['colors'] {
   };
 }
 
-/** Convert OctoChat spacing (named) to octospaces-ui numeric map. */
+/** Convert OctoChat spacing (named) to dk-spaces-ui numeric map. */
 const SPACING: Theme['spacing'] = {
   '0': 0,
   '1': spacing.xs,
@@ -142,10 +142,10 @@ const OPACITY: Theme['opacity'] = {
   muted:    opacity.muted,
 };
 
-export function toOctoSpacesTheme(palette: Palette, scheme: ColorScheme): Theme {
+export function toDKSpacesTheme(palette: Palette, scheme: ColorScheme): Theme {
   return {
     scheme,
-    colors: toOctoSpacesPalette(palette),
+    colors: toDKSpacesPalette(palette),
     spacing: SPACING,
     radii: RADII,
     type: TYPE,

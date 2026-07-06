@@ -12,9 +12,10 @@ describe('PAIR_PREFIX', () => {
   });
 
   it('does NOT equal the generic SDK prefix (OctoChat uses its own namespace)', () => {
-    // The octospaces-sdk pairing module uses 'octospaces-pair:'.
+    // starfish-spaces' own default is 'starfish-pair:'; dk-spaces-sdk's is 'dk-pair:'.
     // OctoChat intentionally keeps its own 'octochat-pair:' prefix so scanned QR
     // codes are app-specific and a cross-app scan is rejected rather than attempted.
-    expect(PAIR_PREFIX).not.toBe('octospaces-pair:');
+    expect(PAIR_PREFIX).not.toBe('starfish-pair:');
+    expect(PAIR_PREFIX).not.toBe('dk-pair:');
   });
 });

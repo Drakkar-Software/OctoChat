@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { configureKv } from '@drakkar.software/octospaces-sdk';
+import { configureKv } from '@drakkar.software/dk-spaces-sdk';
 import {
   getMutePrefs,
   hydrateMutes,

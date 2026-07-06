@@ -3,7 +3,7 @@
  * Mirrors the `automations/registry-write.ts` pattern for ticket and shared-room nodes.
  */
 import { saveNodeStreamAccessEntry, updateObjectIndex, ownerEnsureNodeKeyring } from '@drakkar.software/starfish-spaces';
-import { nodeStreamScope } from '@drakkar.software/octospaces-sdk';
+import { nodeStreamScope } from '@drakkar.software/dk-spaces-sdk';
 import { mintMemberCap } from '@drakkar.software/starfish-sharing';
 import { generateDeviceKeys } from '@drakkar.software/starfish-identities';
 import { addObject } from '../starfish/objects';
@@ -13,7 +13,7 @@ import { userIdFromEdPub } from '../starfish/paths';
 import type { TicketMeta } from './ticket';
 import { ticketMetaForIndex } from './ticket';
 
-const asLocal = (nodes: import('@drakkar.software/octospaces-sdk').ObjectNode[]) =>
+const asLocal = (nodes: import('@drakkar.software/starfish-spaces').ObjectNode[]) =>
   nodes as unknown as ObjectNode[];
 
 /**
@@ -108,7 +108,7 @@ export async function createTicketNode(
         meta: { ticket: indexMeta },
       },
       now,
-    ).nodes as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
+    ).nodes as unknown as import('@drakkar.software/starfish-spaces').ObjectNode[];
   });
   await ensureDeskNodeStreamAccess(session, spaceId, ticketId);
 }
@@ -140,7 +140,7 @@ export async function createTicketNodeWithReqId(
         meta: { ticket: indexMeta, reqId },
       },
       now,
-    ).nodes as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
+    ).nodes as unknown as import('@drakkar.software/starfish-spaces').ObjectNode[];
   });
   await ensureDeskNodeStreamAccess(session, spaceId, ticketId);
 }
@@ -174,7 +174,7 @@ export async function createSharedRoomNodeWithReqId(
         meta: { reqId },
       },
       now,
-    ).nodes as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
+    ).nodes as unknown as import('@drakkar.software/starfish-spaces').ObjectNode[];
   });
   await ensureDeskNodeStreamAccess(session, spaceId, roomId);
 }
@@ -198,6 +198,6 @@ export async function patchTicketMeta(
       n.id === ticketId
         ? { ...n, meta: { ...n.meta, ticket: { ...current, ...patch } }, updatedAt: now }
         : n,
-    ) as unknown as import('@drakkar.software/octospaces-sdk').ObjectNode[];
+    ) as unknown as import('@drakkar.software/starfish-spaces').ObjectNode[];
   });
 }

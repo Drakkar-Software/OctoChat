@@ -7,13 +7,13 @@
  * (`configureStarfishPlatform`). The native build lives in `index.native.ts` and is
  * selected by Metro's `react-native` export condition / `.native` resolution.
  */
-import { createVaultStorage, enrollPasskey as _enrollPasskey } from '@drakkar.software/octospaces-platform-sdk';
-import type { VaultLoad, UnlockMethod, Vault, SeedLock, PasskeyEnrollment } from '@drakkar.software/octospaces-sdk';
+import { createVaultStorage, enrollPasskey as _enrollPasskey } from '@drakkar.software/dk-spaces-platform-sdk';
+import type { VaultLoad, UnlockMethod, Vault, SeedLock, PasskeyEnrollment } from '@drakkar.software/starfish-spaces';
 
-export { kvGet, kvSet, kvRemove } from '@drakkar.software/octospaces-platform-sdk';
-export { configureStarfishPlatform } from '@drakkar.software/octospaces-platform-sdk';
-export { passkeySupported, passkeyEnrollable, evalPasskey } from '@drakkar.software/octospaces-platform-sdk';
-export type { PersistedSession } from '@drakkar.software/octospaces-sdk';
+export { kvGet, kvSet, kvRemove } from '@drakkar.software/dk-spaces-platform-sdk';
+export { configureStarfishPlatform } from '@drakkar.software/dk-spaces-platform-sdk';
+export { passkeySupported, passkeyEnrollable, evalPasskey } from '@drakkar.software/dk-spaces-platform-sdk';
+export type { PersistedSession } from '@drakkar.software/starfish-spaces';
 
 const _vault = createVaultStorage({ storageKey: 'octochat.session.v1' });
 

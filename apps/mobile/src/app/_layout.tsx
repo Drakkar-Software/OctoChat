@@ -40,9 +40,9 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 
-import { OctoSpacesThemeProvider } from '@drakkar.software/octospaces-ui';
+import { DKSpacesThemeProvider } from '@drakkar.software/dk-spaces-ui';
 import { colors } from '@/theme';
-import { toOctoSpacesTheme } from '@/lib/octospaces-theme';
+import { toDKSpacesTheme } from '@/lib/dk-spaces-theme';
 import { useAppFonts } from '@/lib/use-app-fonts';
 import { AppFrame } from '@/components/ui/AppFrame';
 
@@ -105,8 +105,8 @@ export default function RootLayout() {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const palette = colors[scheme];
   // Memoize: avoids re-computing the ~40-token theme object and re-rendering the
-  // entire OctoSpacesThemeProvider subtree on every root render.
-  const octoSpacesTheme = useMemo(() => toOctoSpacesTheme(palette, scheme), [palette, scheme]);
+  // entire DKSpacesThemeProvider subtree on every root render.
+  const dkSpacesTheme = useMemo(() => toDKSpacesTheme(palette, scheme), [palette, scheme]);
 
   // Hide the splash after the first committed frame so there is no blank screen.
   // Fonts will swap in asynchronously once they decode (system fallback shows first).
@@ -120,7 +120,7 @@ export default function RootLayout() {
   // would flood the analytics silo; pass `console: { levels: ['error', 'warn'] }` to opt in.
   return (
     <SunglassesProvider client={analytics} autoCaptureErrors={{ globalHandlers: true, console: true }}>
-    <OctoSpacesThemeProvider theme={octoSpacesTheme}>
+    <DKSpacesThemeProvider theme={dkSpacesTheme}>
     <BrandProvider>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
@@ -191,7 +191,7 @@ export default function RootLayout() {
       </SafeAreaProvider>
     </GestureHandlerRootView>
     </BrandProvider>
-    </OctoSpacesThemeProvider>
+    </DKSpacesThemeProvider>
     </SunglassesProvider>
   );
 }

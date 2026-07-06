@@ -2,8 +2,9 @@
  * Push notifications — native (iOS/Android) Firebase Cloud Messaging.
  *
  * The device subscribes to a per-space FCM topic; the Whistler bridge publishes
- * `octospaces.log.changed.<spaceId>` events to it (see `octospaces-fcm` in the Infra
- * bridge). The bridge sends a VISIBLE notification with GENERIC text ("New message
+ * `dk.log.changed.<spaceId>` events to it (see the `dk` namespace block — renamed
+ * from `octospaces` in Infra commit 9a0bf38 — in the Infra bridge). The bridge
+ * sends a VISIBLE notification with GENERIC text ("New message
  * in another room") plus `{ spaceId, roomId }` data — chat is E2E-encrypted, so no
  * message content crosses the wire. A visible (alert) push is shown by the OS
  * reliably even when the app is force-quit, unlike silent/data-only pushes (which
@@ -31,7 +32,7 @@ export interface PushData {
 }
 
 export const pushTopicForSpace = (spaceId: string): string =>
-  `octospaces-octospaces-log-changed-${spaceId}`;
+  `dk-dk-log-changed-${spaceId}`;
 
 /**
  * Per-USER FCM topic. The device subscribes to its own account's user-topic so the
@@ -39,12 +40,12 @@ export const pushTopicForSpace = (spaceId: string): string =>
  * (`'<space-topic>' in topics && !('<user-topic>' in topics)`) — the message author
  * therefore never gets a push for their own message, on any of their devices. Only
  * the author's devices subscribe to this topic, so the exclusion targets exactly
- * them. MUST match the bridge's `octospaces-user-<userId>` condition template (see
- * Infra `whistlers-fcm.config.json.j2` octospaces namespace); `userId` is the
- * account id the server reports as the write `identity` (sha256(edPub)[:16] — 32-char
- * hex, topic-safe).
+ * them. MUST match the bridge's `dk-user-<userId>` condition template (see Infra
+ * `whistlers-fcm.config.json.j2` `dk` namespace — renamed from `octospaces` in
+ * Infra commit 9a0bf38); `userId` is the account id the server reports as the write
+ * `identity` (sha256(edPub)[:16] — 32-char hex, topic-safe).
  */
-export const pushTopicForUser = (userId: string): string => `octospaces-user-${userId}`;
+export const pushTopicForUser = (userId: string): string => `dk-user-${userId}`;
 
 const asStr = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
 

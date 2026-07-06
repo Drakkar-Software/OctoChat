@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { Lightbox as LightboxOverlay } from '@drakkar.software/octospaces-ui';
+import { Lightbox as LightboxOverlay } from '@drakkar.software/dk-spaces-ui';
 
 import { useTheme } from '@/lib/use-theme';
 import { IconButton } from './IconButton';
@@ -20,7 +20,7 @@ interface LightboxProps {
 
 /** Full-screen scrim overlay that centers its content. Tapping the backdrop, the
  *  close button, the Escape key (web) or the hardware back (Android) dismisses it.
- *  Delegates to the shared `Lightbox` from @drakkar.software/octospaces-ui. */
+ *  Delegates to the shared `Lightbox` from @drakkar.software/dk-spaces-ui. */
 export function Lightbox({
   visible,
   onClose,

@@ -3,7 +3,7 @@
 // surface of octochat-sdk stays stable — consumers (use-merge-doc.ts etc.) see
 // no change.
 import { createKvPullCache } from '@drakkar.software/starfish-client';
-import { kvGet, kvSet, kvRemove } from '@drakkar.software/octospaces-sdk';
+import { kvGet, kvSet, kvRemove } from '@drakkar.software/dk-spaces-sdk';
 
 /** 30 days — mirrors the default from the old octospaces pullCache. */
 export const PULL_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;

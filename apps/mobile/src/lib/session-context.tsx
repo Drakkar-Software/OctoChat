@@ -123,7 +123,7 @@ const Ctx = createContext<SessionContextValue | null>(null);
 
 // Yield one macrotask so React commits the caller's `busy`/`switching` state and the
 // browser paints the spinner BEFORE the Argon2id derivation starts. The argon2 impl
-// (octospaces-platform-sdk's hash-wasm-shim) now yields real macrotasks between
+// (dk-spaces-platform-sdk's hash-wasm-shim) now yields real macrotasks between
 // block batches so the progress bar in `creating.tsx` updates live, but this initial
 // yield is still needed to commit the loading state before the first batch runs.
 const yieldToPaint = () => new Promise((r) => setTimeout(r, 0));
@@ -165,7 +165,7 @@ async function hydrateCapsFor(session: Session): Promise<void> {
   // Recover any space-access entries that are local-only back to the server, and
   // pull any server-only entries into the local cache (e.g. a join made on another
   // device). Best-effort — a failed recovery leaves the local cache intact.
-  // Cast: pubAccess values are SealedBlobs written by octospaces-sdk's addJoinedSpaceWithLinkAccess.
+  // Cast: pubAccess values are SealedBlobs written by starfish-spaces' addJoinedSpaceWithLinkAccess.
   // NOTE: recoverSpaceAccess internally calls hydrateSpaceAccessStore with the full link
   // set, so a separate preliminary call with {} is redundant and has been removed.
   // All three are independent (each writes a different cache from data already in hand

@@ -45,6 +45,43 @@ if (!kv.getString(MIGRATION_FLAG)) {
   });
 }
 
+// dk-spaces-sdk 0.32 rebased its KV prefixes off the `octospaces` namespace: the
+// persisted space-access store moved `octospaces.spaceaccess.*` → `dk.spaceaccess.*`,
+// and the profile cache moved (via starfish-spaces) `octospaces.profile.v1.*` →
+// `starfish.profile.v1.*`. Both re-hydrate losslessly from the server on a cold-read
+// miss, but we rename in place here to avoid that miss. One-time, MMKV-only (its
+// `getAllKeys()` gives us cheap synchronous enumeration — the generic KvAdapter
+// `get`/`set`/`remove` seam has no listing method, so this can't live in the SDK).
+// See MIGRATION_CLEANUP.md — remove once the rollout window has passed.
+const PREFIX_MIGRATION_FLAG = 'dk-migration:v1:done';
+const PREFIX_RENAMES: [from: string, to: string][] = [
+  ['octospaces.spaceaccess.', 'dk.spaceaccess.'],
+  ['octospaces.profile.v1.', 'starfish.profile.v1.'],
+];
+
+if (!kv.getString(PREFIX_MIGRATION_FLAG)) {
+  InteractionManager.runAfterInteractions(() => {
+    try {
+      for (const key of kv.getAllKeys()) {
+        for (const [from, to] of PREFIX_RENAMES) {
+          if (!key.startsWith(from)) continue;
+          const target = to + key.slice(from.length);
+          if (kv.getString(target) === undefined) {
+            const value = kv.getString(key);
+            if (value != null) kv.set(target, value);
+          }
+          break;
+        }
+      }
+      kv.set(PREFIX_MIGRATION_FLAG, '1');
+    } catch (e) {
+      console.warn('[app-kv] octospaces→dk/starfish KV prefix migration failed', e);
+      // Flag not set — will retry on next boot. Cold-read miss in the meantime is
+      // lossless (server re-hydrates both caches).
+    }
+  });
+}
+
 export const kvGet = (key: string): Promise<string | null> =>
   Promise.resolve(kv.getString(key) ?? null);
 

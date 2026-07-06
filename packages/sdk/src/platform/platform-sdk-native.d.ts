@@ -1,7 +1,7 @@
 /**
  * Module augmentation — provides `createVaultStorageNative` to TypeScript when
  * `packages/sdk` typechecks (`moduleResolution: Bundler`, no `customConditions`).
- * In that pass, `@drakkar.software/octospaces-platform-sdk` resolves to the web
+ * In that pass, `@drakkar.software/dk-spaces-platform-sdk` resolves to the web
  * barrel (`index.d.ts`) which only exports `createVaultStorage`. `index.native.ts`
  * (this SDK's native platform barrel) imports `createVaultStorageNative`, so without
  * this shim the SDK typecheck fails on that import.
@@ -18,20 +18,20 @@
  */
 export type {};
 
-declare module '@drakkar.software/octospaces-platform-sdk' {
+declare module '@drakkar.software/dk-spaces-platform-sdk' {
   export interface VaultStorageNative {
-    loadVault(): Promise<import('@drakkar.software/octospaces-sdk').VaultLoad>;
-    vaultMethods(): import('@drakkar.software/octospaces-sdk').UnlockMethod[];
+    loadVault(): Promise<import('@drakkar.software/starfish-spaces').VaultLoad>;
+    vaultMethods(): import('@drakkar.software/starfish-spaces').UnlockMethod[];
     unlockVault(
-      method: import('@drakkar.software/octospaces-sdk').UnlockMethod,
+      method: import('@drakkar.software/starfish-spaces').UnlockMethod,
       pin?: string,
-    ): Promise<import('@drakkar.software/octospaces-sdk').Vault>;
+    ): Promise<import('@drakkar.software/starfish-spaces').Vault>;
     saveVault(
-      vault: import('@drakkar.software/octospaces-sdk').Vault,
-      lock?: import('@drakkar.software/octospaces-sdk').SeedLock,
+      vault: import('@drakkar.software/starfish-spaces').Vault,
+      lock?: import('@drakkar.software/starfish-spaces').SeedLock,
     ): Promise<void>;
     addPasskeyToVault(
-      passkey: import('@drakkar.software/octospaces-sdk').PasskeyEnrollment,
+      passkey: import('@drakkar.software/starfish-spaces').PasskeyEnrollment,
     ): Promise<void>;
     removePasskeyFromVault(): Promise<void>;
     clearVault(): Promise<void>;

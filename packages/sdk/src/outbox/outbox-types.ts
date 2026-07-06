@@ -4,7 +4,7 @@
  * ({@link ./message-view}) can share it without depending on the app's outbox
  * store (which is a UI-framework concern and stays in the app).
  */
-import type { NodeAccess } from '@drakkar.software/octospaces-sdk';
+import type { NodeAccess } from '@drakkar.software/starfish-spaces';
 import type { RoomKind } from '../domain/types';
 
 export type OutboxStatus = 'queued' | 'sending' | 'failed';

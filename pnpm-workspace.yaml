@@ -27,9 +27,9 @@ onlyBuiltDependencies:
 # export `module.exports = LRUCache` that `new LRU()` needs. v9+ switched to a
 # named-only `{ LRUCache }` export which breaks `const LRU = require('lru-cache')`.
 # This drops the yallist@4 requirement entirely, leaving just tar's yallist@5.
-# packages/sdk pins `@drakkar.software/octospaces-sdk` at its coordinated target
+# packages/sdk pins `@drakkar.software/dk-spaces-sdk` at its coordinated target
 # version. This override forces that single version across the whole workspace —
-# notably octospaces-ui's transitive octospaces-sdk dep — so only ONE copy is
-# installed (configureOctoSpaces sets module-level state; duplicates would break it).
+# notably dk-spaces-ui's transitive dk-spaces-sdk dep — so only ONE copy is
+# installed (configureDKSpaces sets module-level state; duplicates would break it).
 # Keep it in lockstep with the packages/sdk pin. Mirrors OctoVault's root override.
 

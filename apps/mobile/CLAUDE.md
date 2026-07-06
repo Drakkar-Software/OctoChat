@@ -16,8 +16,8 @@ platform adapters (kv, vault, passkey, crypto install) themselves now live in th
 optional `@drakkar.software/octochat-sdk/platform` subpath; what remains app-side is
 React glue, the env reader (`src/lib/octochat-config.ts`), and app-specific platform
 modules (`connectivity`/`app-lock`/`notify`/`push`/…). The app also depends on
-`@drakkar.software/octospaces-ui` (`0.8.0`) for shared UI tokens (theme bridged via
-`src/lib/octospaces-theme.ts`). Room access is **per-node** — `ObjectNode.access ∈
+`@drakkar.software/dk-spaces-ui` (`0.8.0`) for shared UI tokens (theme bridged via
+`src/lib/dk-spaces-theme.ts`). Room access is **per-node** — `ObjectNode.access ∈
 {'public','space','invite'}` + `enc: boolean` — surfaced through the `use-room` /
 `use-rooms` hooks; no `isPublic` space-level flag.
 

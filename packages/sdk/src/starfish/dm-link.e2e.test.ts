@@ -19,7 +19,7 @@ import { configureKv } from '../config/adapters';
 
 import { reconcileDmInbox } from './dm';
 import { readPeerKeys } from './dm-keys';
-import { decodeIdentityLink, myIdentityLink } from '@drakkar.software/octospaces-sdk';
+import { decodeIdentityLink, myIdentityLink } from '@drakkar.software/starfish-spaces';
 import { createDmViaLink } from './dm-link';
 import { buildSession, type Session } from './identity';
 import { dmInboxShard, inboxPull, userIdFromEdPub } from './paths';
