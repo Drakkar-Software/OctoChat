@@ -13,6 +13,7 @@
     "deploy:web": "pnpm export && wrangler pages deploy --project-name octochat",
     "package": "pnpm export && pnpm build:main && electron-builder",
     "package:dir": "pnpm export && pnpm build:main && electron-builder --dir",
+    "package:win": "pnpm export && pnpm build:main && electron-builder --win",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
