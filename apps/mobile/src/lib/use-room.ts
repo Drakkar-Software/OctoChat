@@ -108,7 +108,14 @@ export function useRoom(roomId: string, opts: { enabled?: boolean; access?: Node
       const canWrite = !entry || entry.kind === 'member' || (entry.kind === 'link' && entry.write);
       return { ...paths, canWrite };
     }
-    return { ...paths, canWrite: true };
+    // Private/public (space-tier, objlog/objpublog) rooms: derive write permission from the
+    // space access entry so a read-only invite-link member (kind 'link', write=false) can't
+    // write. Owner (no entry) and full members stay writable. This matches the server's
+    // write_roles = [space:owner, cap:write:objlog] gate — without it a read-only member
+    // would render a composer and silently 403 on send.
+    const spaceEntry = getSpaceAccessEntry(spaceId);
+    const canWrite = !spaceEntry || spaceEntry.kind === 'member' || (spaceEntry.kind === 'link' && spaceEntry.write);
+    return { ...paths, canWrite };
   }, [session, access, roomId, spaceId]);
 
   // Merge a DECRYPTED batch into the store's {messages,reactions,edits}, appending onto
