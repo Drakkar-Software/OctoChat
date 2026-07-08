@@ -41,6 +41,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 
 import { DKSpacesThemeProvider } from '@drakkar.software/dk-spaces-ui';
+import { OctoUIThemeProvider, type OctoUITheme } from '@octochat/ui';
 import { colors } from '@/theme';
 import { toDKSpacesTheme } from '@/lib/dk-spaces-theme';
 import { useAppFonts } from '@/lib/use-app-fonts';
@@ -107,6 +108,21 @@ export default function RootLayout() {
   // Memoize: avoids re-computing the ~40-token theme object and re-rendering the
   // entire DKSpacesThemeProvider subtree on every root render.
   const dkSpacesTheme = useMemo(() => toDKSpacesTheme(palette, scheme), [palette, scheme]);
+  // Bridge the marine tokens into @octochat/ui so its native (@expo/ui) primitives
+  // inherit the accent (Host seedColor) and match the light/dark app theme.
+  const octoUITheme = useMemo<OctoUITheme>(
+    () => ({
+      scheme,
+      colors: {
+        accent: palette.accent,
+        accentDesk: palette.accentDesk,
+        onAccent: palette.onAccent,
+        danger: palette.danger,
+        surface: palette.paper,
+      },
+    }),
+    [palette, scheme],
+  );
 
   // Hide the splash after the first committed frame so there is no blank screen.
   // Fonts will swap in asynchronously once they decode (system fallback shows first).
@@ -121,6 +137,7 @@ export default function RootLayout() {
   return (
     <SunglassesProvider client={analytics} autoCaptureErrors={{ globalHandlers: true, console: true }}>
     <DKSpacesThemeProvider theme={dkSpacesTheme}>
+    <OctoUIThemeProvider theme={octoUITheme}>
     <BrandProvider>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
@@ -191,6 +208,7 @@ export default function RootLayout() {
       </SafeAreaProvider>
     </GestureHandlerRootView>
     </BrandProvider>
+    </OctoUIThemeProvider>
     </DKSpacesThemeProvider>
     </SunglassesProvider>
   );

@@ -1,0 +1,57 @@
+{
+  "name": "@octochat/ui",
+  "version": "0.1.0",
+  "description": "OctoChat native UI kit — @expo/ui (SwiftUI / Jetpack Compose) primitives behind a themed Host bridge, with web/RN fallbacks. Consumed from source in the monorepo.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "source": "./src/index.ts",
+  "react-native": "./src/index.ts",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "react-native": "./src/index.ts",
+      "require": "./src/index.ts",
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./components": {
+      "source": "./src/components/index.ts",
+      "react-native": "./src/components/index.ts",
+      "require": "./src/components/index.ts",
+      "import": "./dist/components/index.js",
+      "types": "./dist/components/index.d.ts"
+    },
+    "./theme": {
+      "source": "./src/theme/index.ts",
+      "react-native": "./src/theme/index.ts",
+      "require": "./src/theme/index.ts",
+      "import": "./dist/theme/index.js",
+      "types": "./dist/theme/index.d.ts"
+    }
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@expo/ui": "~57.0.4",
+    "react": "19.2.3",
+    "react-native": "0.86.0"
+  },
+  "peerDependenciesMeta": {
+    "@expo/ui": { "optional": true }
+  },
+  "devDependencies": {
+    "@octochat/tsconfig": "workspace:*",
+    "@types/react": "~19.2.2",
+    "tsup": "^8.3.5",
+    "typescript": "~6.0.3"
+  }
+}
