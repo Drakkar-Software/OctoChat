@@ -14,5 +14,8 @@ export type { OctoMenuAction, OctoMenuProps } from '../primitives/menu';
 export { DateTimePicker } from '../primitives/datetime-picker';
 export type { OctoDateTimePickerProps } from '../primitives/datetime-picker';
 
+export { Sheet } from '../primitives/bottom-sheet';
+export type { OctoSheetProps } from '../primitives/bottom-sheet';
+
 export { ForgeHost, useHostWrap, hostSeed } from '../primitives/_host/host';
 export type { ForgeHostProps } from '../primitives/_host/host';
