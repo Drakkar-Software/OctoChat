@@ -15,6 +15,7 @@ import { Txt } from '@/components/ui/Txt';
 import { AttachmentView } from './AttachmentView';
 import { MessageBody } from './MessageBody';
 import { MessageActions } from './MessageActions';
+import { MessageContextMenu } from './MessageContextMenu';
 import { MessageEditor } from './MessageEditor';
 import { ReactionBar } from './ReactionBar';
 
@@ -173,13 +174,13 @@ export function MessageGroup({
     ) : (
       node
     );
-  // Quick actions (react / reply) live in a floating toolbar that overlays the
-  // row, so revealing it never shifts surrounding content. Existing reactions and
-  // the reply count stay inline as content — those always show, since they signal
-  // a thread/reaction exists. Web reveals the toolbar on row hover; native (no
-  // pointer) reveals it on a long-press, so it isn't pinned over every row.
-  const [revealed, setRevealed] = useState(false);
-  const showActions = Platform.OS === 'web' ? hovered : revealed;
+  // Quick actions (react / reply / edit / delete / pin): on web they live in a
+  // floating toolbar revealed on row hover (overlays the row, never shifts
+  // content). On native there's no pointer, so a long-press opens a native
+  // context menu instead (see the native return branch below). Existing reactions
+  // and the reply count stay inline as content — those always show.
+  const showActions = hovered;
+  const hasActions = onToggleReaction || onOpenThread || onEdit || onDelete || onPin;
   // `mine` Set removed from here — moved into MessageActions' `picking` branch
   // so it's only allocated when the reaction picker is actually open (not on every
   // render of every row). `message.reactions` has new identity each render (produced
@@ -291,7 +292,7 @@ export function MessageGroup({
           </>
         )}
       </View>
-      {!message.deleted && !editing && (onToggleReaction || onOpenThread || onEdit || onDelete || onPin) ? (
+      {Platform.OS === 'web' && !message.deleted && !editing && hasActions ? (
         <MessageActions
           visible={showActions}
           onReact={onToggleReaction}
@@ -307,17 +308,33 @@ export function MessageGroup({
   );
 
   // Web keeps a plain View — a Pressable row would force a pointer cursor and
-  // block message-text selection. Native (no hover) uses a Pressable so a
-  // long-press toggles the action toolbar instead of pinning it on every row.
-  return Platform.OS === 'web' ? (
-    <View {...hoverProps} style={rowStyle}>
-      {content}
-    </View>
-  ) : (
-    <Pressable onLongPress={() => setRevealed((v) => !v)} delayLongPress={260} style={rowStyle}>
-      {content}
-    </Pressable>
-  );
+  // block message-text selection. Native (no hover) wraps the row in a native
+  // context menu opened on long-press (system anchoring + blur + destructive
+  // styling), replacing the floating toolbar; a deleted/editing/action-less row
+  // stays a plain View.
+  if (Platform.OS === 'web') {
+    return (
+      <View {...hoverProps} style={rowStyle}>
+        {content}
+      </View>
+    );
+  }
+  if (!message.deleted && !editing && hasActions) {
+    return (
+      <MessageContextMenu
+        onReact={onToggleReaction}
+        onReply={onOpenThread}
+        onEdit={onEdit ? () => setEditing(true) : undefined}
+        onDelete={onDelete}
+        onPin={onPin}
+        pinned={message.pinned}
+        reactions={message.reactions}
+      >
+        <View style={rowStyle}>{content}</View>
+      </MessageContextMenu>
+    );
+  }
+  return <View style={rowStyle}>{content}</View>;
 }
 
 const styles = StyleSheet.create({
