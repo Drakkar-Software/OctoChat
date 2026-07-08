@@ -1,14 +1,13 @@
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
+import { Picker } from '@octochat/ui';
 
 import { spacing } from '@/theme';
 import { isDesktop } from '@/lib/desktop';
 import { useNotificationSettings } from '@/lib/notification-settings-context';
 import { NOTIFICATION_SOUNDS, type NotificationSound } from '@/lib/notification-settings';
 import { NOTIFICATION_SOUND_LABELS, playNotificationSound } from '@/lib/notification-sound';
-import { useTheme } from '@/lib/use-theme';
 import { Card } from '@/components/ui/Card';
 import { Divider } from '@/components/ui/Divider';
-import { Icon } from '@/components/ui/Icon';
 import { Row } from '@/components/ui/Row';
 import { ToggleRow } from '@/components/ui/ToggleRow';
 import { Txt } from '@/components/ui/Txt';
@@ -82,7 +81,7 @@ export function NotificationSettingsCard() {
   );
 }
 
-/** Radio list of synthesized chimes; selecting one previews it (see card above). */
+/** Native chime picker; selecting one previews it (see card above). */
 function SoundPicker({
   value,
   onChange,
@@ -90,24 +89,21 @@ function SoundPicker({
   value: NotificationSound;
   onChange: (sound: NotificationSound) => void;
 }) {
-  const { colors } = useTheme();
   return (
-    <View style={styles.picker}>
-      {NOTIFICATION_SOUNDS.map((sound) => (
-        <Row
-          key={sound}
-          title={NOTIFICATION_SOUND_LABELS[sound]}
-          onPress={() => onChange(sound)}
-          right={
-            value === sound ? <Icon name="check" size={18} color={colors.accent} /> : <View />
-          }
+    <Row
+      iconName="volume"
+      title="Chime"
+      right={
+        <Picker
+          options={NOTIFICATION_SOUNDS.map((sound) => ({ label: NOTIFICATION_SOUND_LABELS[sound], value: sound }))}
+          selectedValue={value}
+          onValueChange={(v) => onChange(v as NotificationSound)}
         />
-      ))}
-    </View>
+      }
+    />
   );
 }
 
 const styles = StyleSheet.create({
   divider: { marginVertical: spacing.xs },
-  picker: { paddingLeft: spacing.xl, paddingTop: spacing.xs },
 });
