@@ -11,5 +11,8 @@ export type { OctoSegmentedControlProps } from '../primitives/segmented-control'
 export { Menu } from '../primitives/menu';
 export type { OctoMenuAction, OctoMenuProps } from '../primitives/menu';
 
+export { DateTimePicker } from '../primitives/datetime-picker';
+export type { OctoDateTimePickerProps } from '../primitives/datetime-picker';
+
 export { ForgeHost, useHostWrap, hostSeed } from '../primitives/_host/host';
 export type { ForgeHostProps } from '../primitives/_host/host';

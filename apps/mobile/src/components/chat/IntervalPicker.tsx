@@ -6,7 +6,7 @@ import type { AutomationSchedule } from '@drakkar.software/octochat-sdk';
 import { paperBorder, radii, spacing } from '@/theme';
 import { useTheme } from '@/lib/use-theme';
 import { ChoicePill } from '@/components/chat/ChoicePill';
-import { IconButton } from '@/components/ui/IconButton';
+import { TimeField } from '@/components/chat/TimeField';
 import { TextField } from '@/components/ui/TextField';
 import { Txt } from '@/components/ui/Txt';
 
@@ -61,9 +61,6 @@ const modeOf = (v: Cadence): Mode | null =>
   v.schedule?.kind === 'daily' || v.schedule?.kind === 'weekly' || v.schedule?.kind === 'cron'
     ? v.schedule.kind
     : null;
-
-const pad2 = (n: number) => String(n).padStart(2, '0');
-const wrap = (n: number, mod: number) => ((n % mod) + mod) % mod;
 
 interface Props {
   value: Cadence;
@@ -129,26 +126,11 @@ export function IntervalPicker({ value, onChange, hideHeading = false }: Props) 
       ) : null}
 
       {(mode === 'daily' || mode === 'weekly') && hm ? (
-        <View style={styles.timeRow}>
-          <Stepper
-            label="Hour"
-            text={pad2(hm.hour)}
-            onDec={() => setSchedule({ ...hm, hour: wrap(hm.hour - 1, 24) })}
-            onInc={() => setSchedule({ ...hm, hour: wrap(hm.hour + 1, 24) })}
-          />
-          <Txt variant="title" tone="inkMuted">
-            :
-          </Txt>
-          <Stepper
-            label="Minute"
-            text={pad2(hm.minute)}
-            onDec={() => setSchedule({ ...hm, minute: wrap(hm.minute - 5, 60) })}
-            onInc={() => setSchedule({ ...hm, minute: wrap(hm.minute + 5, 60) })}
-          />
-          <Txt variant="caption" tone="inkMuted">
-            UTC
-          </Txt>
-        </View>
+        <TimeField
+          hour={hm.hour}
+          minute={hm.minute}
+          onChange={(hour, minute) => setSchedule({ ...hm, hour, minute })}
+        />
       ) : null}
 
       {mode === 'cron' && value.schedule?.kind === 'cron' ? (
@@ -160,21 +142,6 @@ export function IntervalPicker({ value, onChange, hideHeading = false }: Props) 
 
       <CadenceNote value={value} />
     </>
-  );
-}
-
-/** A compact `◀ value ▶` numeric stepper (wrap-around). Uses arrow icons since there's
- *  no dedicated minus glyph; reads naturally for HH / MM. */
-function Stepper({ label, text, onDec, onInc }: { label: string; text: string; onDec: () => void; onInc: () => void }) {
-  const { colors } = useTheme();
-  return (
-    <View style={[styles.stepper, paperBorder(colors)]}>
-      <IconButton name="arrow-l" size={16} onPress={onDec} accessibilityLabel={`${label} down`} color={colors.inkMuted} />
-      <Txt variant="footnote" weight="semibold" mono style={styles.stepperValue}>
-        {text}
-      </Txt>
-      <IconButton name="arrow-r" size={16} onPress={onInc} accessibilityLabel={`${label} up`} color={colors.inkMuted} />
-    </View>
   );
 }
 
@@ -259,9 +226,6 @@ function CadenceNote({ value }: { value: Cadence }) {
 
 const styles = StyleSheet.create({
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', borderWidth: 1, borderRadius: radii.md, padding: 2, gap: 2 },
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  stepper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: radii.md, paddingHorizontal: 2 },
-  stepperValue: { minWidth: 24, textAlign: 'center' },
   field: { gap: spacing.xs },
   cronFrame: { borderWidth: 1, borderRadius: radii.md, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
 });
