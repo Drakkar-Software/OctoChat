@@ -106,14 +106,17 @@ export const config: SyncConfig = {
       allowedMimeTypes: JSON_ONLY,
     },
     // INVITE ROOM messages (access:'invite', enc:false only): cap-gated append-only
-    // plaintext log. read/write '[]'; access is entirely by the per-node cap via the
-    // sharing-plugin path-match (nodeRoomScope covers spaces/{spaceId}/objects/n/{roomId}/**).
+    // plaintext log. Gated by the per-node invite cap: its scope covers
+    // spaces/{spaceId}/objects/n/{roomId}/** (enforced per-request by the resolver's
+    // matchScopePath) AND synthesizes `cap:{read,write}:objinvlog`, so node isolation
+    // is preserved even though the collection role is not node-specific. (starfish-server
+    // ≥ alpha.65 rejects empty readRoles — use the cap role the invite cap already mints.)
     // Keep in sync with streamInvRoomName in packages/sdk + Infra.
     {
       name: "objinvlog",
       storagePath: "spaces/{spaceId}/objects/n/{roomId}/log",
-      readRoles: [],
-      writeRoles: [],
+      readRoles: ["cap:read:objinvlog"],
+      writeRoles: ["cap:write:objinvlog"],
       encryption: "none",
       appendOnly: { type: "by_timestamp" },
       maxBodyBytes: 262_144,
@@ -173,13 +176,17 @@ export const config: SyncConfig = {
       allowedMimeTypes: JSON_ONLY,
     },
     // INVITE-ONLY NODE CONTENT (access:'invite'+enc:false): cap-gated plaintext doc.
-    // read/write '[]' — gated entirely by the per-node cap via the sharing plugin
-    // path-match. Keep in sync with objInvName + Infra.
+    // Gated by the per-node invite cap: its scope covers
+    // spaces/{spaceId}/objects/n/{nodeId}/** (enforced per-request by the resolver's
+    // matchScopePath) AND synthesizes `cap:{read,write}:objinv`, so node isolation is
+    // preserved even though the collection role is not node-specific. (starfish-server
+    // ≥ alpha.65 rejects empty readRoles — use the cap role the invite cap already mints.)
+    // Keep in sync with objInvName + Infra.
     {
       name: "objinv",
       storagePath: "spaces/{spaceId}/objects/n/{nodeId}/content",
-      readRoles: [],
-      writeRoles: [],
+      readRoles: ["cap:read:objinv"],
+      writeRoles: ["cap:write:objinv"],
       encryption: "none",
       maxBodyBytes: 262_144,
       allowedMimeTypes: JSON_ONLY,
