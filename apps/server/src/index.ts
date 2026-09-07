@@ -97,7 +97,13 @@ const queuing = createQueuingServerPlugin({
 // the access record at `spaces/{spaceId}/_access`. Shared between the sync router
 // (collection-level gating) and the /events proxy (membership validation).
 // createSpacesRoleEnricher (starfish-spaces) replaces the hand-rolled makeSpaceRoleEnricher.
-const spaceEnricher = createSpacesRoleEnricher(store);
+// `allowTofu: true` = Trust-On-First-Use: when a space's `_access` doc is absent, the
+// writer is granted space:owner so it can create the space (first-writer-owns). Without
+// it the very first `_access` write is Forbidden and NO space can ever be created. This
+// is the app's intended model — see events.ts ("the first writer is allowed — same as the
+// sync router enricher"). starfish-spaces ≥ 0.25 flipped the default to `false`, so the
+// flag must now be passed explicitly.
+const spaceEnricher = createSpacesRoleEnricher(store, undefined, { allowTofu: true });
 
 // Maintains the public-space directory at `_index/spaces/public` (legacy projection,
 // read by explore-spaces.ts) AND the new `_index/objects/public` directory written by
