@@ -21,7 +21,7 @@
     "@drakkar.software/starfish-spaces": "3.0.0-alpha.65",
     "@noble/curves": "^2.2.0",
     "@nats-io/transport-node": "^3.4.0",
-    "@hono/node-server": "^1.13.0",
+    "@hono/node-server": "^1.19.15",
     "hono": "^4.12.7"
   },
   "devDependencies": {
